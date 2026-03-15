@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# IDE & Agent config
+.vscode/
+.idea/
+.agents/
+*.swp
+*.swo
+*~
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment variables (NEVER commit API keys!)
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Data files (large datasets)
+data/raw/
+data/cache/
+*.csv
+*.xlsx
+*.parquet
+!data/sample/*.csv
+
+# Logs
+logs/
+*.log
+
+# Distribution
+*.tar.gz
+*.whl
+
+# LLM Agent config
+CLAUDE.md
+.claude/
+
