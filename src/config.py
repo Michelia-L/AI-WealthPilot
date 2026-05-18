@@ -68,6 +68,14 @@ MONTE_CARLO_SIMULATIONS = 10000
 MONTE_CARLO_YEARS = 30
 
 # ============================================================
+# Black-Litterman Model Defaults
+# Black-Litterman 模型默认参数
+# ============================================================
+BL_DEFAULT_TAU = 0.025              # Uncertainty scaling factor / 不确定性缩放因子
+BL_DEFAULT_DELTA = 2.5              # Risk aversion coefficient / 风险厌恶系数
+BL_DEFAULT_CONFIDENCE = 70          # Default view confidence (%) / 默认观点置信度（%）
+
+# ============================================================
 # AI Model Configuration — DeepSeek V4 Pro
 # AI 模型配置 —— DeepSeek V4 Pro
 # ============================================================
