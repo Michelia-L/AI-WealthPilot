@@ -32,11 +32,19 @@ from src.agents.profiler import (
     ClientProfile,
     load_profile,
     list_profiles,
+    identify_behavioral_biases,
 )
 from src.agents.advisor import (
     is_api_configured,
     stream_advice,
     AdvisorReport,
+)
+from src.agents.report_storage import (
+    save_report,
+    load_report,
+    list_reports,
+    get_reports_for_profile,
+    export_report_markdown,
 )
 
 
@@ -212,19 +220,44 @@ def _render_profile_preview(profile: ClientProfile) -> None:
         )
         st.caption(f"🎯 Goals / 目标: {goals_summary}")
 
+    # === 行为偏差检测 / Behavioral Bias Detection ===
+    biases = identify_behavioral_biases(profile)
+    if biases:
+        with st.expander(
+            f"🧠 Behavioral Bias Analysis / 行为偏差分析 "
+            f"({len(biases)} detected / 检测到 {len(biases)} 个)",
+            expanded=False,
+        ):
+            for bias in biases:
+                severity_icon = {
+                    "high": "🔴",
+                    "medium": "🟡",
+                    "low": "🟢",
+                }.get(bias.severity, "⚪")
 
-def _render_report(report: AdvisorReport) -> None:
+                st.markdown(
+                    f"{severity_icon} **{bias.name}** "
+                    f"(Severity / 严重程度: {bias.severity})"
+                )
+                st.caption(bias.description)
+                st.info(f"💡 **Recommendation / 建议**: {bias.recommendation}")
+                st.divider()
+
+
+def _render_report(report: AdvisorReport, profile: ClientProfile = None) -> None:
     """
-    Render the metadata footer for a generated advisory report.
-    渲染已生成建议书的元数据页脚。
+    Render the metadata footer and save options for a generated advisory report.
+    渲染已生成建议书的元数据页脚和保存选项。
 
-    Shows model information, token usage, and generation timestamp
-    in a collapsed expander below the report content.
+    Shows model information, token usage, generation timestamp,
+    and provides save/export functionality.
 
-    在报告内容下方的折叠区域中展示模型信息、token 用量和生成时间戳。
+    展示模型信息、token 用量、生成时间戳，
+    并提供保存/导出功能。
 
     Args:
         report: Completed AdvisorReport with metadata.
+        profile: Associated ClientProfile (optional, for saving).
     """
     with st.expander("📊 Report Metadata / 报告元数据", expanded=False):
         col1, col2, col3 = st.columns(3)
@@ -237,6 +270,163 @@ def _render_report(report: AdvisorReport) -> None:
         with col3:
             st.caption(f"📊 Total tokens: {report.total_tokens:,}")
             st.caption(f"🕐 Generated: {report.generated_at[:19]}")
+
+    # === 保存和导出选项 / Save and Export Options ===
+    st.markdown("#### 💾 Save Report / 保存报告")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if st.button("💾 Save to Library / 保存到库", key="save_report_btn"):
+            try:
+                saved = save_report(
+                    content=report.content,
+                    client_name=report.client_name,
+                    model=report.model,
+                    profile_filepath=str(profile) if profile else None,
+                    prompt_tokens=report.prompt_tokens,
+                    completion_tokens=report.completion_tokens,
+                )
+                st.success(
+                    f"✅ Report saved! / 报告已保存！\n\n"
+                    f"File / 文件: `{saved.filepath}`"
+                )
+            except Exception as e:
+                st.error(f"❌ Save failed / 保存失败: {str(e)}")
+
+    with col2:
+        # Markdown 下载按钮 / Markdown download button
+        markdown_content = f"""# Investment Advisory Report / 投资咨询建议书
+
+**Client / 客户**: {report.client_name}
+**Generated / 生成时间**: {report.generated_at}
+**Model / 模型**: {report.model}
+
+---
+
+{report.content}
+"""
+        st.download_button(
+            label="📥 Download Markdown / 下载 Markdown",
+            data=markdown_content,
+            file_name=f"advisory_report_{report.client_name}_{report.generated_at[:10]}.md",
+            mime="text/markdown",
+            key="download_markdown_btn",
+        )
+
+    with col3:
+        # JSON 下载按钮 / JSON download button
+        import json
+        report_json = json.dumps({
+            "client_name": report.client_name,
+            "model": report.model,
+            "generated_at": report.generated_at,
+            "content": report.content,
+            "tokens": {
+                "prompt": report.prompt_tokens,
+                "completion": report.completion_tokens,
+                "total": report.total_tokens,
+            },
+        }, indent=2, ensure_ascii=False)
+
+        st.download_button(
+            label="📥 Download JSON / 下载 JSON",
+            data=report_json,
+            file_name=f"advisory_report_{report.client_name}_{report.generated_at[:10]}.json",
+            mime="application/json",
+            key="download_json_btn",
+        )
+
+
+def _render_historical_reports(profile: ClientProfile = None) -> None:
+    """
+    Render the historical reports section.
+    渲染历史报告部分。
+
+    Displays previously saved reports with options to view and load.
+
+    展示先前保存的报告，提供查看和加载选项。
+
+    Args:
+        profile: Optional ClientProfile to filter reports by.
+                 可选的 ClientProfile，用于按客户筛选报告。
+    """
+    st.markdown("#### 📚 Historical Reports / 历史报告")
+
+    if profile:
+        # 获取特定客户的历史报告 / Get reports for specific client
+        profile_path = None
+        profiles_list = list_profiles()
+        for p in profiles_list:
+            if p["name"] == profile.name:
+                profile_path = p["filepath"]
+                break
+
+        if profile_path:
+            reports = get_reports_for_profile(profile_path)
+        else:
+            reports = []
+    else:
+        # 获取所有报告 / Get all reports
+        reports_data = list_reports(limit=20)
+        reports = reports_data
+
+    if not reports:
+        st.info(
+            "📝 No saved reports found. Generate and save a report first. / "
+            "未找到已保存的报告。请先生成并保存一份报告。"
+        )
+        return
+
+    # 显示报告列表 / Display report list
+    for i, report_info in enumerate(reports[:10]):  # 显示最近10份
+        if isinstance(report_info, dict):
+            # 来自 list_reports 的字典格式 / Dict format from list_reports
+            with st.expander(
+                f"📄 {report_info.get('client_name', 'Unknown')} - "
+                f"{report_info.get('generated_at', '')[:10]}",
+                expanded=False,
+            ):
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.caption(f"🤖 Model: {report_info.get('model', 'N/A')}")
+                    st.caption(
+                        f"📊 Tokens: {report_info.get('total_tokens', 0):,}"
+                    )
+                with col2:
+                    if st.button(
+                        "👁️ View / 查看",
+                        key=f"view_report_{i}",
+                    ):
+                        try:
+                            report = load_report(
+                                Path(report_info["filepath"])
+                            )
+                            st.session_state.viewing_report = report
+                        except Exception as e:
+                            st.error(f"Failed to load / 加载失败: {str(e)}")
+        else:
+            # StoredReport 对象格式 / StoredReport object format
+            with st.expander(
+                f"📄 {report.client_name} - {report.generated_at[:10]}",
+                expanded=False,
+            ):
+                st.caption(f"🤖 Model: {report.model}")
+                st.caption(f"📊 Tokens: {report.total_tokens:,}")
+                st.markdown(report.content[:500] + "...")
+
+    # 显示正在查看的报告 / Display viewing report
+    if "viewing_report" in st.session_state and st.session_state.viewing_report:
+        report = st.session_state.viewing_report
+        st.divider()
+        st.markdown(f"### 📄 Viewing Report / 查看报告")
+        st.markdown(f"**Client / 客户**: {report.client_name}")
+        st.markdown(f"**Generated / 生成时间**: {report.generated_at}")
+        st.markdown(report.content)
+
+        if st.button("❌ Close / 关闭", key="close_viewing_report"):
+            st.session_state.viewing_report = None
+            st.rerun()
 
 
 def render() -> None:
@@ -344,7 +534,7 @@ def render() -> None:
                     "✅ Advisory report generated successfully! / "
                     "建议书生成成功！"
                 )
-                _render_report(report)
+                _render_report(report, profile)
             else:
                 st.error(
                     f"❌ Generation failed / 生成失败:\n\n"
@@ -357,7 +547,11 @@ def render() -> None:
         st.markdown("#### 📝 AI Investment Advisory Report / AI 投资建议书")
         st.markdown(st.session_state.advisor_report_content)
         if st.session_state.advisor_report:
-            _render_report(st.session_state.advisor_report)
+            _render_report(st.session_state.advisor_report, profile)
+
+    # === 历史报告 / Historical Reports ===
+    st.divider()
+    _render_historical_reports(profile)
 
     # === 合规声明 / Compliance Disclaimer ===
     st.divider()
