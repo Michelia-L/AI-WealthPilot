@@ -17,6 +17,7 @@ CFA Reference / CFA 参考:
 """
 
 import streamlit as st
+from pathlib import Path
 from typing import Optional
 
 from src.agents.profiler import (
@@ -28,6 +29,8 @@ from src.agents.profiler import (
     save_profile,
     load_profile,
     list_profiles,
+    compare_profiles,
+    format_comparison_report,
     RISK_ABILITY_QUESTIONS,
     RISK_WILLINGNESS_QUESTIONS,
 )
@@ -541,3 +544,79 @@ def render() -> None:
                 st.caption(p["updated_at"][:19])
     else:
         st.info("No profiles saved yet. / 尚无已保存的画像。")
+
+    # ====================================
+    # Profile Comparison / 画像对比
+    # ====================================
+    st.divider()
+    st.markdown("#### 📊 Profile Comparison / 画像对比")
+
+    if len(profiles) >= 2:
+        # Build name-to-filepath mapping for loading profiles
+        profile_options = {
+            p["name"]: p["filepath"] for p in profiles
+        }
+        selected_names = st.multiselect(
+            "Select profiles to compare (2 or more) / 选择要对比的画像（2个或更多）",
+            options=list(profile_options.keys()),
+            default=list(profile_options.keys())[:min(2, len(profile_options))],
+        )
+
+        if len(selected_names) >= 2:
+            if st.button("🔍 Compare Selected Profiles / 对比所选画像", type="primary"):
+                # Load all selected profiles
+                loaded_profiles = []
+                for name in selected_names:
+                    filepath = Path(profile_options[name])
+                    try:
+                        profile_data = load_profile(filepath)
+                        loaded_profiles.append(profile_data)
+                    except Exception as e:
+                        st.error(f"Failed to load {name}: {e}")
+
+                if len(loaded_profiles) >= 2:
+                    # Run comparison / 执行对比分析
+                    comparison = compare_profiles(loaded_profiles)
+
+                    # Display comparison report / 展示对比报告
+                    report = format_comparison_report(comparison)
+                    st.code(report, language=None)
+
+                    # Interactive comparison table / 交互式对比表
+                    st.markdown("**Detailed Comparison / 详细对比**")
+
+                    import pandas as pd
+                    comparison_data = []
+                    for name in comparison.client_names:
+                        summary = comparison.financial_summary.get(name, {})
+                        comparison_data.append({
+                            "Client / 客户": name,
+                            "Risk Score / 风险评分": summary.get("risk_score", 0),
+                            "Risk Level / 风险等级": summary.get("risk_level", "N/A"),
+                            "Net Worth / 净资产": f"${summary.get('net_worth', 0):,.0f}",
+                            "Income / 收入": f"${summary.get('annual_income', 0):,.0f}",
+                            "Savings Rate / 储蓄率": f"{summary.get('savings_rate', 0):.1%}",
+                            "Emergency Fund / 应急基金": f"{summary.get('emergency_fund_months', 0):.0f} months",
+                            "Biases / 偏差数": comparison.bias_count_comparison.get(name, 0),
+                        })
+                    st.dataframe(
+                        pd.DataFrame(comparison_data),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+
+                    # Key insights / 关键洞察
+                    st.markdown("**Key Insights / 关键洞察**")
+                    for insight in comparison.insights:
+                        st.markdown(f"- {insight}")
+
+        else:
+            st.info(
+                "Please select at least 2 profiles to compare. / "
+                "请至少选择 2 个画像进行对比。"
+            )
+    else:
+        st.info(
+            "Need at least 2 saved profiles to enable comparison. / "
+            "至少需要 2 个已保存的画像才能进行对比。"
+        )
