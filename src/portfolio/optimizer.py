@@ -9,8 +9,8 @@ Implements the core quantitative engine for portfolio construction:
        均值-方差优化（MVO）—— Markowitz 框架
     2. Efficient Frontier construction
        有效前沿构建
-    3. Black-Litterman model (planned for future implementation)
-       Black-Litterman 模型（计划在未来版本实现）
+    3. Black-Litterman model — Bayesian combination of equilibrium and views
+       Black-Litterman 模型 —— 均衡收益与投资者观点的贝叶斯结合
 
 Key Concepts / 核心概念:
     MVO seeks to find portfolio weights that either:
@@ -475,6 +475,588 @@ class PortfolioOptimizer:
             # σ_i = √(Σ_{i,i})
             vol = np.sqrt(self.cov_matrix.loc[name, name])
             lines.append(f"  {name}: {vol:.2%}")
+
+        return "\n".join(lines)
+
+
+class BlackLittermanOptimizer(PortfolioOptimizer):
+    """
+    Black-Litterman Portfolio Optimizer.
+    Black-Litterman 投资组合优化器。
+
+    Extends the base PortfolioOptimizer with Black-Litterman model capabilities,
+    allowing incorporation of investor views into the optimization process.
+    扩展基础 PortfolioOptimizer，添加 Black-Litterman 模型功能，
+    允许将投资者观点纳入优化过程。
+
+    Mathematical Foundation / 数学基础:
+        The BL model combines:
+        BL模型结合了：
+
+        1. Market Equilibrium Returns (from CAPM):
+           市场均衡收益（来自CAPM）:
+           Π = δ × Σ × w_mkt
+
+           Where:
+           其中：
+           - δ (delta) = risk aversion coefficient (风险厌恶系数)
+           - Σ = covariance matrix (协方差矩阵)
+           - w_mkt = market capitalization weights (市值权重)
+
+        2. Investor Views (from ViewProcessor):
+           投资者观点（来自ViewProcessor）:
+           - P matrix: pick matrix (选择矩阵)
+           - Q vector: view returns (观点收益)
+           - Omega: view uncertainty (观点不确定性)
+
+        3. Posterior Returns (BL formula):
+           后验收益（BL公式）:
+           μ_BL = [(τΣ)^{-1} + P'Ω^{-1}P]^{-1} × [(τΣ)^{-1}Π + P'Ω^{-1}Q]
+
+           Σ_BL = Σ + [(τΣ)^{-1} + P'Ω^{-1}P]^{-1}
+
+    CFA Reference / CFA 参考:
+        CFA L3 Asset Allocation: The Black-Litterman model overcomes the
+        "garbage in, garbage out" problem of MVO by starting from a
+        market equilibrium baseline and allowing investors to express
+        views with varying confidence levels.
+        CFA 三级资产配置：Black-Litterman 模型通过从市场均衡基准开始，
+        并允许投资者表达具有不同置信度的观点，克服了 MVO 的
+        "垃圾进，垃圾出"问题。
+
+    References / 参考文献:
+        - Black, F., & Litterman, R. (1992). Global Portfolio Optimization.
+          Financial Analysts Journal, 48(5), 28-43.
+        - Idzorek, T. (2005). A Step-By-Step Guide to the Black-Litterman Model.
+          Ibbotson Associates.
+    """
+
+    def __init__(
+        self,
+        returns: pd.DataFrame,
+        risk_free_rate: float = RISK_FREE_RATE,
+        market_cap_weights: Optional[np.ndarray] = None,
+        delta: Optional[float] = None,
+        tau: float = 0.025,
+    ):
+        """
+        Initialize the Black-Litterman optimizer.
+        初始化 Black-Litterman 优化器。
+
+        Args:
+            returns: DataFrame of asset daily returns.
+                     资产日收益率 DataFrame。
+            risk_free_rate: Annual risk-free rate.
+                            年化无风险利率。
+            market_cap_weights: Market capitalization weights (must sum to 1).
+                                If None, equal weights are used.
+                                市值权重（必须加总为1）。
+                                如果为None，使用等权重。
+            delta: Risk aversion coefficient. If None, estimated from
+                   market data using: δ = (E[R_mkt] - R_f) / σ²_mkt
+                   风险厌恶系数。如果为None，使用市场数据估计：
+                   δ = (E[R_mkt] - R_f) / σ²_mkt
+            tau: Uncertainty scaling factor for the prior (typically 0.025-0.05).
+                 先验分布的不确定性缩放因子（通常为0.025-0.05）。
+        """
+        # Initialize parent class
+        # 初始化父类
+        super().__init__(returns, risk_free_rate)
+
+        self.tau = tau
+
+        # Set market cap weights (default to equal weights if not provided)
+        # 设置市值权重（如果未提供则使用等权重）
+        if market_cap_weights is not None:
+            if len(market_cap_weights) != self.n_assets:
+                raise ValueError(
+                    f"market_cap_weights length ({len(market_cap_weights)}) "
+                    f"must match number of assets ({self.n_assets}). / "
+                    f"市值权重长度（{len(market_cap_weights)}）必须匹配资产数量（{self.n_assets}）。"
+                )
+            if abs(np.sum(market_cap_weights) - 1.0) > 1e-6:
+                raise ValueError(
+                    f"market_cap_weights must sum to 1.0, got {np.sum(market_cap_weights)}. / "
+                    f"市值权重必须加总为1.0，当前为{np.sum(market_cap_weights)}。"
+                )
+            self.market_cap_weights = market_cap_weights
+        else:
+            # Default: equal weights (1/N)
+            # 默认：等权重（1/N）
+            self.market_cap_weights = np.ones(self.n_assets) / self.n_assets
+
+        # Set risk aversion coefficient
+        # 设置风险厌恶系数
+        if delta is not None:
+            self.delta = delta
+        else:
+            # Estimate delta from market data
+            # 从市场数据估计delta
+            # δ = (E[R_mkt] - R_f) / σ²_mkt
+            market_return = np.dot(self.market_cap_weights, self.mean_returns)
+            market_variance = float(
+                self.market_cap_weights.T @ self.cov_matrix.values @ self.market_cap_weights
+            )
+            # Avoid division by zero
+            # 避免除零
+            if market_variance > 0:
+                self.delta = (market_return - self.risk_free_rate) / market_variance
+            else:
+                self.delta = 2.5  # Default value if variance is zero
+
+        # Compute market-implied equilibrium returns (Pi)
+        # 计算市场隐含均衡收益（Pi）
+        self.Pi = self.implied_equilibrium_returns()
+
+        # BL posterior returns and covariance (computed after views are added)
+        # BL后验收益和协方差（在添加观点后计算）
+        self.mu_bl = None
+        self.Sigma_bl = None
+        self.views_applied = False
+
+    def implied_equilibrium_returns(self) -> np.ndarray:
+        """
+        Calculate market-implied equilibrium excess returns.
+        计算市场隐含均衡超额收益。
+
+        Mathematical Formula / 数学公式:
+            Π = δ × Σ × w_mkt
+
+            Where:
+            其中：
+            - Π (Pi) = implied excess returns vector (隐含超额收益向量)
+            - δ (delta) = risk aversion coefficient (风险厌恶系数)
+            - Σ = covariance matrix (协方差矩阵)
+            - w_mkt = market capitalization weights (市值权重)
+
+        Interpretation / 解释:
+            These are the returns that would clear the market if all investors
+            held the market portfolio and had no views. The BL model uses this
+            as the "prior" or "default" expectation.
+            这些是如果所有投资者都持有市场组合且没有观点时，能够出清市场的收益。
+            BL模型将其作为"先验"或"默认"预期。
+
+        CFA Reference / CFA 参考:
+            CFA L3: Under CAPM assumptions, the market portfolio is mean-variance
+            efficient, so its expected returns reflect equilibrium.
+            The implied returns represent the returns investors require
+            to hold the current market portfolio.
+            CFA 三级：在CAPM假设下，市场组合是均值-方差有效的，
+            因此其预期收益反映了均衡。
+            隐含收益代表投资者持有当前市场组合所要求的收益。
+
+        Returns:
+            Numpy array of implied excess returns (N,).
+            隐含超额收益的Numpy数组（N,）。
+        """
+        Sigma = self.cov_matrix.values
+        w_mkt = self.market_cap_weights
+
+        # Π = δ × Σ × w_mkt
+        Pi = self.delta * Sigma @ w_mkt
+
+        return Pi
+
+    def bl_posterior_returns(
+        self,
+        P: np.ndarray,
+        Q: np.ndarray,
+        Omega: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Calculate Black-Litterman posterior returns and covariance.
+        计算 Black-Litterman 后验收益和协方差。
+
+        Mathematical Formulas / 数学公式:
+            Posterior Expected Returns / 后验预期收益:
+            μ_BL = [(τΣ)^{-1} + P'Ω^{-1}P]^{-1} × [(τΣ)^{-1}Π + P'Ω^{-1}Q]
+
+            Posterior Covariance / 后验协方差:
+            Σ_BL = Σ + [(τΣ)^{-1} + P'Ω^{-1}P]^{-1}
+
+            Where:
+            其中：
+            - τ (tau) = uncertainty scaling factor (不确定性缩放因子)
+            - Σ = prior covariance matrix (先验协方差矩阵)
+            - Π = market-implied equilibrium returns (市场隐含均衡收益)
+            - P = pick matrix (K x N) (选择矩阵)
+            - Q = view return vector (K x 1) (观点收益向量)
+            - Ω = view uncertainty matrix (K x K, diagonal) (观点不确定性矩阵)
+
+        Interpretation / 解释:
+            The posterior mean μ_BL is a weighted average of:
+            后验均值μ_BL是以下两者的加权平均：
+            1. The prior (equilibrium returns Π)
+               先验（均衡收益Π）
+            2. The views (Q), weighted by their precision (1/Ω)
+               观点（Q），按其精度（1/Ω）加权
+
+            The weight depends on the relative uncertainty:
+            权重取决于相对不确定性：
+            - High confidence views (small Ω) → μ_BL closer to Q
+              高置信度观点（小Ω）→ μ_BL更接近Q
+            - Low confidence views (large Ω) → μ_BL closer to Π
+              低置信度观点（大Ω）→ μ_BL更接近Π
+            - No views (P=0, Ω→∞) → μ_BL = Π (revert to equilibrium)
+              无观点（P=0, Ω→∞）→ μ_BL = Π（回归均衡）
+
+        CFA Reference / CFA 参考:
+            CFA L3: The BL posterior is a Bayesian combination of the
+            market equilibrium (prior) and investor views (likelihood).
+            The relative weight on each depends on their precision
+            (inverse of variance).
+            CFA 三级：BL后验是市场均衡（先验）和投资者观点（似然）
+            的贝叶斯组合。每个的相对权重取决于其精度（方差的倒数）。
+
+        Args:
+            P: Pick matrix (K x N). Each row encodes one view.
+               选择矩阵（K x N）。每行编码一个观点。
+            Q: View returns vector (K,).
+               观点收益向量（K,）。
+            Omega: View uncertainty matrix (K x K, diagonal).
+                   观点不确定性矩阵（K x K，对角矩阵）。
+
+        Returns:
+            Tuple of (mu_BL, Sigma_BL):
+            - mu_BL: Posterior expected returns (N,)
+              后验预期收益（N,）
+            - Sigma_BL: Posterior covariance matrix (N x N)
+              后验协方差矩阵（N x N）
+        """
+        Sigma = self.cov_matrix.values
+        Pi = self.Pi
+        tau = self.tau
+
+        # Add small regularization to prevent singular matrices
+        # 添加小的正则化项防止奇异矩阵
+        epsilon = 1e-8
+        tau_Sigma = tau * Sigma + epsilon * np.eye(self.n_assets)
+
+        # Compute inverse matrices
+        # 计算逆矩阵
+        try:
+            tau_Sigma_inv = np.linalg.inv(tau_Sigma)
+            Omega_inv = np.linalg.inv(Omega)
+        except np.linalg.LinAlgError:
+            # Use pseudo-inverse as fallback
+            # 使用伪逆作为备选
+            tau_Sigma_inv = np.linalg.pinv(tau_Sigma)
+            Omega_inv = np.linalg.pinv(Omega)
+
+        # BL posterior mean formula
+        # BL后验均值公式
+        # μ_BL = [(τΣ)^{-1} + P'Ω^{-1}P]^{-1} × [(τΣ)^{-1}Π + P'Ω^{-1}Q]
+        M = np.linalg.inv(tau_Sigma_inv + P.T @ Omega_inv @ P)
+        mu_bl = M @ (tau_Sigma_inv @ Pi + P.T @ Omega_inv @ Q)
+
+        # BL posterior covariance formula
+        # BL后验协方差公式
+        # Σ_BL = Σ + [(τΣ)^{-1} + P'Ω^{-1}P]^{-1}
+        Sigma_bl = Sigma + M
+
+        return mu_bl, Sigma_bl
+
+    def apply_views(
+        self,
+        views: list,
+    ) -> None:
+        """
+        Apply investor views to compute BL posterior.
+        应用投资者观点以计算BL后验。
+
+        This method processes the views using ViewProcessor and computes
+        the BL posterior returns and covariance.
+        本方法使用 ViewProcessor 处理观点，并计算 BL 后验收益和协方差。
+
+        Args:
+            views: List of ViewInput objects from src.portfolio.views.
+                   ViewInput 对象列表（来自 src.portfolio.views）。
+        """
+        from src.portfolio.views import ViewProcessor
+
+        # Create view processor and generate matrices
+        # 创建观点处理器并生成矩阵
+        view_processor = ViewProcessor(self.asset_names)
+        P, Q, Omega = view_processor.generate_P_Q_omega(
+            views, self.cov_matrix, self.tau
+        )
+
+        # Compute BL posterior
+        # 计算BL后验
+        self.mu_bl, self.Sigma_bl = self.bl_posterior_returns(P, Q, Omega)
+        self.views_applied = True
+
+    def bl_portfolio_performance(
+        self,
+        weights: np.ndarray,
+    ) -> tuple[float, float, float]:
+        """
+        Calculate portfolio performance using BL posterior returns.
+        使用BL后验收益计算组合表现。
+
+        Similar to portfolio_performance(), but uses BL posterior returns
+        instead of historical mean returns.
+        类似于 portfolio_performance()，但使用BL后验收益而非历史均值收益。
+
+        Args:
+            weights: Portfolio weights (N,).
+                     组合权重（N,）。
+
+        Returns:
+            Tuple of (return, volatility, sharpe).
+            (收益率, 波动率, 夏普比率) 元组。
+        """
+        if not self.views_applied:
+            raise ValueError(
+                "Must call apply_views() before bl_portfolio_performance(). / "
+                "必须先调用 apply_views() 才能使用 bl_portfolio_performance()。"
+            )
+
+        # BL posterior return: w' × μ_BL
+        # BL后验收益：w' × μ_BL
+        portfolio_return = float(np.dot(weights, self.mu_bl))
+
+        # BL posterior volatility: √(w' × Σ_BL × w)
+        # BL后验波动率：√(w' × Σ_BL × w)
+        portfolio_volatility = float(
+            np.sqrt(np.dot(weights.T, np.dot(self.Sigma_bl, weights)))
+        )
+
+        # Sharpe ratio
+        # 夏普比率
+        sharpe_ratio = (
+            (portfolio_return - self.risk_free_rate) / portfolio_volatility
+            if portfolio_volatility > 0
+            else 0
+        )
+
+        return portfolio_return, portfolio_volatility, sharpe_ratio
+
+    def bl_maximize_sharpe(self, allow_short: bool = False) -> dict:
+        """
+        Find the maximum Sharpe portfolio using BL posterior returns.
+        使用BL后验收益寻找最大夏普组合。
+
+        Args:
+            allow_short: If True, allow short selling.
+                         如果为True，允许做空。
+
+        Returns:
+            Dict with 'weights', 'return', 'volatility', 'sharpe', 'success'.
+            包含权重、收益率、波动率、夏普比率、成功标志的字典。
+        """
+        if not self.views_applied:
+            raise ValueError(
+                "Must call apply_views() before bl_maximize_sharpe(). / "
+                "必须先调用 apply_views() 才能使用 bl_maximize_sharpe()。"
+            )
+
+        n = self.n_assets
+
+        # Initial weights: equal allocation
+        # 初始权重：等权分配
+        init_weights = np.ones(n) / n
+
+        # Weight bounds
+        # 权重边界
+        bounds = ((-1, 1) if allow_short else (0, 1),) * n
+
+        # Fully invested constraint
+        # 全额投资约束
+        constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1}]
+
+        # Objective: minimize negative Sharpe ratio using BL returns
+        # 目标函数：使用BL收益最小化负夏普比率
+        def neg_sharpe_bl(w):
+            ret, vol, _ = self.bl_portfolio_performance(w)
+            return -(ret - self.risk_free_rate) / vol if vol > 0 else 0
+
+        # Run optimizer
+        # 运行优化器
+        result = minimize(
+            fun=neg_sharpe_bl,
+            x0=init_weights,
+            method="SLSQP",
+            bounds=bounds,
+            constraints=constraints,
+        )
+
+        # Extract results
+        # 提取结果
+        weights = result.x
+        ret, vol, sharpe = self.bl_portfolio_performance(weights)
+
+        return {
+            "weights": dict(zip(self.asset_names, weights)),
+            "return": ret,
+            "volatility": vol,
+            "sharpe": sharpe,
+            "success": result.success,
+        }
+
+    def bl_minimize_volatility(
+        self,
+        target_return: Optional[float] = None,
+        allow_short: bool = False,
+    ) -> dict:
+        """
+        Find the minimum volatility portfolio using BL posterior returns.
+        使用BL后验收益寻找最小波动率组合。
+
+        Args:
+            target_return: Optional target return constraint.
+                           可选的目标收益约束。
+            allow_short: If True, allow short selling.
+                         如果为True，允许做空。
+
+        Returns:
+            Dict with 'weights', 'return', 'volatility', 'sharpe', 'success'.
+            包含权重、收益率、波动率、夏普比率、成功标志的字典。
+        """
+        if not self.views_applied:
+            raise ValueError(
+                "Must call apply_views() before bl_minimize_volatility(). / "
+                "必须先调用 apply_views() 才能使用 bl_minimize_volatility()。"
+            )
+
+        n = self.n_assets
+
+        # Initial weights
+        # 初始权重
+        init_weights = np.ones(n) / n
+
+        # Weight bounds
+        # 权重边界
+        bounds = ((-1, 1) if allow_short else (0, 1),) * n
+
+        # Constraints
+        # 约束条件
+        constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1}]
+
+        # Add target return constraint if specified
+        # 如果指定了目标收益，添加约束
+        if target_return is not None:
+            constraints.append({
+                "type": "eq",
+                "fun": lambda w: np.dot(w, self.mu_bl) - target_return,
+            })
+
+        # Objective: minimize BL posterior volatility
+        # 目标函数：最小化BL后验波动率
+        def bl_volatility(w):
+            return np.sqrt(np.dot(w.T, np.dot(self.Sigma_bl, w)))
+
+        # Run optimizer
+        # 运行优化器
+        result = minimize(
+            fun=bl_volatility,
+            x0=init_weights,
+            method="SLSQP",
+            bounds=bounds,
+            constraints=constraints,
+        )
+
+        # Extract results
+        # 提取结果
+        weights = result.x
+        ret, vol, sharpe = self.bl_portfolio_performance(weights)
+
+        return {
+            "weights": dict(zip(self.asset_names, weights)),
+            "return": ret,
+            "volatility": vol,
+            "sharpe": sharpe,
+            "success": result.success,
+        }
+
+    def bl_efficient_frontier(
+        self,
+        n_points: int = 100,
+        allow_short: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Compute the BL efficient frontier.
+        计算BL有效前沿。
+
+        Args:
+            n_points: Number of points on the frontier.
+                      前沿上的点数。
+            allow_short: If True, allow short selling.
+                         如果为True，允许做空。
+
+        Returns:
+            DataFrame with columns: 'return', 'volatility', 'sharpe', and asset weights.
+            包含列：收益率、波动率、夏普比率和资产权重的DataFrame。
+        """
+        if not self.views_applied:
+            raise ValueError(
+                "Must call apply_views() before bl_efficient_frontier(). / "
+                "必须先调用 apply_views() 才能使用 bl_efficient_frontier()。"
+            )
+
+        # Determine return range from BL posterior
+        # 从BL后验确定收益范围
+        min_ret = float(self.mu_bl.min())
+        max_ret = float(self.mu_bl.max())
+
+        target_returns = np.linspace(min_ret, max_ret, n_points)
+
+        frontier = []
+        for target in target_returns:
+            try:
+                result = self.bl_minimize_volatility(
+                    target_return=target, allow_short=allow_short
+                )
+                if result["success"]:
+                    row = {
+                        "return": result["return"],
+                        "volatility": result["volatility"],
+                        "sharpe": result["sharpe"],
+                    }
+                    row.update(result["weights"])
+                    frontier.append(row)
+            except Exception:
+                continue
+
+        return pd.DataFrame(frontier)
+
+    def bl_summary(self) -> str:
+        """
+        Generate a summary comparing market-implied returns, views, and BL posterior.
+        生成市场隐含收益、观点和BL后验的对比摘要。
+
+        Returns:
+            Formatted string with comparison table.
+            包含对比表的格式化字符串。
+        """
+        if not self.views_applied:
+            return "No views applied yet. Call apply_views() first."
+
+        lines = [
+            "Black-Litterman Model Summary",
+            "=" * 60,
+            "",
+            f"Risk Aversion (δ): {self.delta:.4f}",
+            f"Uncertainty Scale (τ): {self.tau}",
+            f"Market Cap Weights: {dict(zip(self.asset_names, self.market_cap_weights))}",
+            "",
+            "Asset Returns Comparison / 资产收益率对比:",
+            "-" * 60,
+            f"{'Asset / 资产':<15} {'Equilibrium / 均衡':>18} {'BL Posterior / BL后验':>20} {'Adjustment / 调整':>18}",
+        ]
+
+        for i, name in enumerate(self.asset_names):
+            eq_ret = self.Pi[i]
+            bl_ret = self.mu_bl[i]
+            adj = bl_ret - eq_ret
+            lines.append(f"{name:<15} {eq_ret:>17.2%} {bl_ret:>19.2%} {adj:>+17.2%}")
+
+        lines.append("")
+        lines.append("Note / 注释:")
+        lines.append("BL posterior blends equilibrium returns with your views.")
+        lines.append("BL后验将均衡收益与您的观点相结合。")
+        lines.append("Positive adjustment = model increased expected return vs equilibrium.")
+        lines.append("正向调整 = 模型相对于均衡提高了预期收益。")
 
         return "\n".join(lines)
 
