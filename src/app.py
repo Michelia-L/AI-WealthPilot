@@ -53,12 +53,13 @@ page = st.sidebar.radio(
         "📊 Portfolio Optimizer",
         "🎯 Retirement Planner",
         "🧠 Client Profiling",
+        "🤖 AI Advisor",
     ],
     index=0,
 )
 
 st.sidebar.divider()
-st.sidebar.caption("v0.2.0 · Phase 3 Development")
+st.sidebar.caption("v0.3.0 · AI Advisor Online")
 
 # ============================================================
 # Page Router / 页面路由
@@ -82,3 +83,9 @@ elif page == "🎯 Retirement Planner":
 elif page == "🧠 Client Profiling":
     from src.pages.client_profiling import render as render_client_profiling
     render_client_profiling()
+
+elif page == "🤖 AI Advisor":
+    # 导入并渲染 AI 顾问页面
+    # Import and render the AI Advisor page
+    from src.pages.ai_advisor import render as render_ai_advisor
+    render_ai_advisor()

@@ -68,6 +68,30 @@ MONTE_CARLO_SIMULATIONS = 10000
 MONTE_CARLO_YEARS = 30
 
 # ============================================================
-# API Keys (loaded from .env)
+# Black-Litterman Model Defaults
+# Black-Litterman 模型默认参数
+# ============================================================
+BL_DEFAULT_TAU = 0.025              # Uncertainty scaling factor / 不确定性缩放因子
+BL_DEFAULT_DELTA = 2.5              # Risk aversion coefficient / 风险厌恶系数
+BL_DEFAULT_CONFIDENCE = 70          # Default view confidence (%) / 默认观点置信度（%）
+
+# ============================================================
+# AI Model Configuration — DeepSeek V4 Pro
+# AI 模型配置 —— DeepSeek V4 Pro
+# ============================================================
+# DeepSeek API Key（从 .env 加载）/ DeepSeek API Key (loaded from .env)
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
+# DeepSeek API 基础 URL（兼容 OpenAI SDK）/ Base URL (OpenAI-compatible)
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+# 模型名称 / Model name
+DEEPSEEK_MODEL = "deepseek-v4-pro"
+# 建议书输出最大 token 数 / Max output tokens for advisory reports
+DEEPSEEK_MAX_TOKENS = 128000
+# 温度参数：低温保证专业性和一致性 / Temperature: low for professionalism
+DEEPSEEK_TEMPERATURE = 1
+
+# ============================================================
+# Legacy API Keys (for future RAG modules — Phase 4)
+# 遗留 API Keys（用于未来 RAG 模块 —— Phase 4）
 # ============================================================
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
