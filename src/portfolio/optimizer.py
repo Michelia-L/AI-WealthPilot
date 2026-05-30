@@ -101,6 +101,124 @@ class PortfolioOptimizer:
         # The covariance matrix is the core input of MVO, capturing co-movements between assets
         self.cov_matrix = returns.cov() * TRADING_DAYS_PER_YEAR
 
+        # ============================================================
+        # 协方差矩阵正则化和条件数检查
+        # Covariance matrix regularization and condition number check
+        # ============================================================
+        # 检查协方差矩阵条件数，如果条件数过大则进行正则化
+        # Check covariance matrix condition number, regularize if too large
+        self.condition_number = self._check_condition_number()
+        if self.condition_number > 1e10:
+            # 条件数过大，进行正则化以提高数值稳定性
+            # Condition number too large, regularize for numerical stability
+            self.cov_matrix = self._regularize_covariance_matrix()
+            self.is_regularized = True
+        else:
+            self.is_regularized = False
+
+    def _check_condition_number(self) -> float:
+        """
+        Check the condition number of the covariance matrix.
+        检查协方差矩阵的条件数。
+
+        The condition number measures how sensitive the matrix inversion is to small changes.
+        A high condition number (> 1e10) indicates near-singularity, which can cause numerical instability.
+        条件数衡量矩阵求逆对微小变化的敏感程度。
+        高条件数（> 1e10）表示接近奇异，可能导致数值不稳定。
+
+        CFA Reference / CFA 参考:
+            CFA L3: Numerical stability is crucial for portfolio optimization.
+            Ill-conditioned covariance matrices can lead to extreme and unreliable portfolio weights.
+            CFA 三级：数值稳定性对投资组合优化至关重要。
+            病态协方差矩阵可能导致极端且不可靠的投资组合权重。
+
+        Returns:
+            Condition number as float.
+            条件数（浮点数）。
+        """
+        try:
+            # 使用numpy计算条件数（2-范数条件数）
+            # Calculate condition number using numpy (2-norm condition number)
+            return np.linalg.cond(self.cov_matrix.values)
+        except np.linalg.LinAlgError:
+            # 如果计算失败，返回无穷大表示需要正则化
+            # If calculation fails, return infinity to indicate regularization needed
+            return float('inf')
+
+    def _regularize_covariance_matrix(
+        self,
+        epsilon: float = 1e-6,
+        method: str = 'diagonal',
+    ) -> pd.DataFrame:
+        """
+        Regularize the covariance matrix to improve numerical stability.
+        正则化协方差矩阵以提高数值稳定性。
+
+        Two regularization methods are supported:
+        支持两种正则化方法：
+
+        1. Diagonal loading (diagonal): Add small positive value to diagonal
+           对角加载（diagonal）：在对角线上添加小的正值
+        2. Eigenvalue clipping (eigenvalue): Clip small eigenvalues to minimum threshold
+           特征值裁剪（eigenvalue）：将小特征值裁剪到最小阈值
+
+        Mathematical Formula / 数学公式:
+            Diagonal loading: Σ_reg = Σ + ε × I
+            Eigenvalue clipping: Σ_reg = V × max(Λ, ε) × V^T
+
+            Where / 其中:
+            - Σ = original covariance matrix (原始协方差矩阵)
+            - ε = regularization parameter (正则化参数)
+            - I = identity matrix (单位矩阵)
+            - V = eigenvector matrix (特征向量矩阵)
+            - Λ = eigenvalue diagonal matrix (特征值对角矩阵)
+
+        CFA Reference / CFA 参考:
+            CFA L3: Regularization helps prevent extreme portfolio allocations
+            that result from estimation error in the covariance matrix.
+            CFA 三级：正则化有助于防止因协方差矩阵估计误差导致的极端投资组合配置。
+
+        Args:
+            epsilon: Regularization parameter (正则化参数).
+                     Larger values = more regularization (更大的值 = 更多正则化).
+            method: Regularization method ('diagonal' or 'eigenvalue').
+                    正则化方法（'diagonal' 或 'eigenvalue'）。
+
+        Returns:
+            Regularized covariance matrix as DataFrame.
+            正则化后的协方差矩阵（DataFrame）。
+        """
+        cov_values = self.cov_matrix.values
+
+        if method == 'diagonal':
+            # 对角加载：Σ_reg = Σ + ε × I
+            # Diagonal loading: Σ_reg = Σ + ε × I
+            regularized = cov_values + epsilon * np.eye(self.n_assets)
+        elif method == 'eigenvalue':
+            # 特征值裁剪：将小特征值裁剪到最小阈值
+            # Eigenvalue clipping: clip small eigenvalues to minimum threshold
+            eigenvalues, eigenvectors = np.linalg.eigh(cov_values)
+            # 将小于epsilon的特征值设置为epsilon
+            # Set eigenvalues smaller than epsilon to epsilon
+            regularized_eigenvalues = np.maximum(eigenvalues, epsilon)
+            # 重构协方差矩阵：V × max(Λ, ε) × V^T
+            # Reconstruct covariance matrix: V × max(Λ, ε) × V^T
+            regularized = eigenvectors @ np.diag(regularized_eigenvalues) @ eigenvectors.T
+        else:
+            raise ValueError(f"Unknown regularization method: {method}")
+
+        # 确保正则化后的矩阵是对称的
+        # Ensure the regularized matrix is symmetric
+        regularized = (regularized + regularized.T) / 2
+
+        # 转换回DataFrame格式
+        # Convert back to DataFrame format
+        return pd.DataFrame(
+            regularized,
+            index=self.cov_matrix.index,
+            columns=self.cov_matrix.columns,
+        )
+
     def portfolio_performance(self, weights: np.ndarray) -> tuple[float, float, float]:
         """
         Calculate annualized return, volatility, and Sharpe ratio
@@ -477,6 +595,381 @@ class PortfolioOptimizer:
             lines.append(f"  {name}: {vol:.2%}")
 
         return "\n".join(lines)
+
+    def resampled_efficient_frontier(
+        self,
+        n_points: int = 100,
+        n_simulations: int = 1000,
+        allow_short: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Compute the resampled efficient frontier using Michaud's method.
+        使用Michaud方法计算重抽样有效前沿。
+
+        Resampled MVO addresses the "garbage in, garbage out" problem of traditional MVO
+        by averaging over multiple simulated samples of expected returns.
+        重抽样MVO通过在多个模拟的预期收益样本上取平均，解决了传统MVO的"垃圾进，垃圾出"问题。
+
+        Mathematical Foundation / 数学基础:
+            1. Simulate N sets of expected returns from multivariate normal distribution
+               从多元正态分布模拟N组预期收益
+            2. For each simulation, compute the efficient frontier
+               对每次模拟，计算有效前沿
+            3. Average the frontiers point-by-point
+               逐点平均所有前沿
+
+            Formula / 公式:
+                μ_i ~ N(μ_hat, Σ/T)
+                w_resampled = (1/N) × Σ w_i
+
+                Where / 其中:
+                - μ_hat = sample mean return (样本均值收益)
+                - Σ = covariance matrix (协方差矩阵)
+                - T = number of observations (观测数量)
+                - N = number of simulations (模拟次数)
+
+        CFA Reference / CFA 参考:
+            CFA L3 Asset Allocation: Resampled MVO (Michaud, 1998) is a practical
+            solution to the estimation error problem in mean-variance optimization.
+            It produces more diversified and stable portfolios than traditional MVO.
+            CFA 三级资产配置：重抽样MVO（Michaud, 1998）是解决均值-方差优化中
+            估计误差问题的实用方法。它比传统MVO产生更多元化和稳定的投资组合。
+
+        References / 参考文献:
+            - Michaud, R. (1998). Efficient Asset Management: A Practical Guide
+              to Stock Portfolio Optimization and Asset Allocation.
+            - Scherer, B. (2007). Portfolio Resampling: Review and Critique.
+
+        Args:
+            n_points: Number of points on each frontier (每个前沿上的点数).
+            n_simulations: Number of Monte Carlo simulations (蒙特卡洛模拟次数).
+                           More simulations = more stable results but slower computation.
+                           更多模拟 = 更稳定的结果但计算更慢。
+            allow_short: If True, allow short selling (如果为True，允许做空).
+
+        Returns:
+            DataFrame with resampled frontier: 'return', 'volatility', 'sharpe',
+            and asset weights (averaged across simulations).
+            返回重抽样前沿的DataFrame：收益率、波动率、夏普比率，
+            以及资产权重（跨模拟平均）。
+        """
+        # 存储所有模拟的前沿结果
+        # Store all simulation frontier results
+        all_frontiers = []
+
+        # 计算年化协方差矩阵（用于模拟）
+        # Calculate annualized covariance matrix (for simulation)
+        # 注意：这里使用日协方差矩阵，因为我们要模拟日收益
+        # Note: Use daily covariance matrix here because we simulate daily returns
+        daily_cov = self.returns.cov()
+        n_days = len(self.returns)
+
+        for sim in range(n_simulations):
+            # 从多元正态分布中抽样日预期收益
+            # Sample daily expected returns from multivariate normal distribution
+            # 使用样本均值和协方差矩阵/T（标准误差）
+            # Use sample mean and covariance matrix/T (standard error)
+            sampled_daily_returns = np.random.multivariate_normal(
+                self.returns.mean().values,
+                daily_cov.values / n_days,
+            )
+
+            # 年化抽样收益
+            # Annualize sampled returns
+            sampled_annual_returns = sampled_daily_returns * TRADING_DAYS_PER_YEAR
+
+            # 创建临时优化器，使用抽样的预期收益但原始协方差矩阵
+            # Create temporary optimizer with sampled expected returns but original covariance
+            temp_optimizer = PortfolioOptimizer(
+                self.returns,  # 保持原始收益率数据（用于协方差计算）
+                risk_free_rate=self.risk_free_rate,
+            )
+
+            # 覆盖预期收益为抽样值
+            # Override expected returns with sampled values
+            temp_optimizer.mean_returns = pd.Series(
+                sampled_annual_returns,
+                index=self.asset_names,
+            )
+
+            # 计算该次模拟的有效前沿
+            # Calculate efficient frontier for this simulation
+            frontier = temp_optimizer.efficient_frontier(
+                n_points=n_points,
+                allow_short=allow_short,
+            )
+
+            if not frontier.empty:
+                all_frontiers.append(frontier)
+
+        if not all_frontiers:
+            # 如果没有成功的模拟，返回空DataFrame
+            # If no successful simulations, return empty DataFrame
+            return pd.DataFrame()
+
+        # 计算重抽样前沿：逐点平均所有模拟的前沿
+        # Calculate resampled frontier: average all simulation frontiers point-by-point
+        # 首先，将所有前沿对齐到相同的目标收益率
+        # First, align all frontiers to the same target returns
+        resampled_frontier = pd.concat(all_frontiers).groupby(level=0).mean()
+
+        # 重新计算夏普比率（因为平均后需要重新计算）
+        # Recalculate Sharpe ratio (need to recalculate after averaging)
+        if 'return' in resampled_frontier.columns and 'volatility' in resampled_frontier.columns:
+            resampled_frontier['sharpe'] = (
+                (resampled_frontier['return'] - self.risk_free_rate) /
+                resampled_frontier['volatility']
+            )
+
+        return resampled_frontier
+
+    def resampled_maximize_sharpe(
+        self,
+        n_simulations: int = 1000,
+        allow_short: bool = False,
+    ) -> dict:
+        """
+        Find the maximum Sharpe portfolio using resampled returns.
+        使用重抽样收益寻找最大夏普组合。
+
+        This method averages the optimal weights from multiple simulations,
+        producing a more diversified and stable portfolio than traditional MVO.
+        该方法对多次模拟的最优权重取平均，产生比传统MVO更多元化和稳定的投资组合。
+
+        Args:
+            n_simulations: Number of Monte Carlo simulations (蒙特卡洛模拟次数).
+            allow_short: If True, allow short selling (如果为True，允许做空).
+
+        Returns:
+            Dict with 'weights', 'return', 'volatility', 'sharpe', 'success'.
+            返回字典：权重、收益率、波动率、夏普比率、成功标志。
+        """
+        # 存储所有模拟的最优权重
+        # Store optimal weights from all simulations
+        all_weights = []
+        all_returns = []
+        all_vols = []
+
+        daily_cov = self.returns.cov()
+        n_days = len(self.returns)
+
+        for sim in range(n_simulations):
+            # 抽样预期收益
+            # Sample expected returns
+            sampled_daily_returns = np.random.multivariate_normal(
+                self.returns.mean().values,
+                daily_cov.values / n_days,
+            )
+            sampled_annual_returns = sampled_daily_returns * TRADING_DAYS_PER_YEAR
+
+            # 创建临时优化器
+            # Create temporary optimizer
+            temp_optimizer = PortfolioOptimizer(
+                self.returns,
+                risk_free_rate=self.risk_free_rate,
+            )
+            temp_optimizer.mean_returns = pd.Series(
+                sampled_annual_returns,
+                index=self.asset_names,
+            )
+
+            # 寻找最大夏普组合
+            # Find maximum Sharpe portfolio
+            result = temp_optimizer.maximize_sharpe(allow_short=allow_short)
+
+            if result['success']:
+                weights = np.array(list(result['weights'].values()))
+                all_weights.append(weights)
+                all_returns.append(result['return'])
+                all_vols.append(result['volatility'])
+
+        if not all_weights:
+            # 如果没有成功的模拟，返回等权组合
+            # If no successful simulations, return equal weight portfolio
+            equal_weights = np.ones(self.n_assets) / self.n_assets
+            ret, vol, sharpe = self.portfolio_performance(equal_weights)
+            return {
+                'weights': dict(zip(self.asset_names, equal_weights)),
+                'return': ret,
+                'volatility': vol,
+                'sharpe': sharpe,
+                'success': False,
+            }
+
+        # 计算平均权重
+        # Calculate average weights
+        avg_weights = np.mean(all_weights, axis=0)
+
+        # 确保权重加总为1（可能由于浮点运算略有偏差）
+        # Ensure weights sum to 1 (may have slight deviation due to floating point)
+        avg_weights = avg_weights / np.sum(avg_weights)
+
+        # 计算平均组合的表现
+        # Calculate performance of average portfolio
+        ret, vol, sharpe = self.portfolio_performance(avg_weights)
+
+        return {
+            'weights': dict(zip(self.asset_names, avg_weights)),
+            'return': ret,
+            'volatility': vol,
+            'sharpe': sharpe,
+            'success': True,
+            'n_simulations': n_simulations,
+            'weight_std': np.std(all_weights, axis=0).tolist(),  # 权重标准差（不确定性度量）
+        }
+
+    def optimize_with_asset_class_constraints(
+        self,
+        asset_classes: dict,
+        target_return: Optional[float] = None,
+        allow_short: bool = False,
+    ) -> dict:
+        """
+        Optimize portfolio with asset class weight constraints.
+        使用资产类别权重约束优化投资组合。
+
+        This method allows imposing minimum and maximum weight constraints
+        on groups of assets (e.g., equity, bonds, alternatives).
+        该方法允许对资产组（如股票、债券、另类资产）施加最小和最大权重约束。
+
+        Mathematical Formulation / 数学公式:
+            minimize    σ_p = √(w^T × Σ × w)       最小化组合波动率
+            subject to  Σw_i = 1                     权重之和等于1
+                        w^T × μ = target_return      收益率等于目标值（可选）
+                        min_c ≤ Σ_{i∈c} w_i ≤ max_c  资产类别权重约束
+                        0 ≤ w_i ≤ 1 (if no shorting) 禁止做空时权重在[0,1]范围
+
+            Where / 其中:
+            - c = asset class index (资产类别索引)
+            - min_c = minimum weight for class c (类别c的最小权重)
+            - max_c = maximum weight for class c (类别c的最大权重)
+            - i ∈ c = asset i belongs to class c (资产i属于类别c)
+
+        CFA Reference / CFA 参考:
+            CFA L3 Asset Allocation: Real-world portfolio construction must consider
+            investment constraints including asset class diversification requirements.
+            Asset class constraints help maintain strategic alignment and prevent
+            excessive concentration in any single asset class.
+            CFA 三级资产配置：现实世界的投资组合构建必须考虑投资约束，
+            包括资产类别多元化要求。资产类别约束有助于保持战略一致性，
+            防止过度集中于任何单一资产类别。
+
+        Args:
+            asset_classes: Dict defining asset class constraints.
+                           定义资产类别约束的字典。
+                           Format / 格式:
+                           {
+                               'class_name': {
+                                   'assets': [list of asset indices or names],
+                                   'min': minimum weight (0.0 to 1.0),
+                                   'max': maximum weight (0.0 to 1.0),
+                               }
+                           }
+                           Example / 示例:
+                           {
+                               'equity': {'assets': ['US_EQUITY', 'INTL_EQUITY'], 'min': 0.3, 'max': 0.7},
+                               'bonds': {'assets': ['US_BOND'], 'min': 0.2, 'max': 0.5},
+                               'alternatives': {'assets': ['GOLD'], 'min': 0.0, 'max': 0.2},
+                           }
+            target_return: Optional target return constraint (可选的目标收益约束).
+            allow_short: If True, allow short selling (如果为True，允许做空).
+
+        Returns:
+            Dict with 'weights', 'return', 'volatility', 'sharpe', 'success',
+            and 'asset_class_weights' (weights per asset class).
+            返回字典：权重、收益率、波动率、夏普比率、成功标志，
+            以及'asset_class_weights'（每个资产类别的权重）。
+        """
+        n = self.n_assets
+
+        # 初始权重：等权分配
+        # Initial weights: equal allocation
+        init_weights = np.ones(n) / n
+
+        # 权重边界
+        # Weight bounds
+        bounds = ((-1, 1) if allow_short else (0, 1),) * n
+
+        # 基本约束：权重之和 = 1
+        # Basic constraint: weights sum to 1
+        constraints = [{'type': 'eq', 'fun': lambda w: np.sum(w) - 1}]
+
+        # 目标收益约束（如果指定）
+        # Target return constraint (if specified)
+        if target_return is not None:
+            constraints.append({
+                'type': 'eq',
+                'fun': lambda w: np.dot(w, self.mean_returns) - target_return,
+            })
+
+        # 资产类别约束
+        # Asset class constraints
+        asset_class_indices = {}
+        for class_name, class_config in asset_classes.items():
+            # 将资产名称转换为索引
+            # Convert asset names to indices
+            assets = class_config['assets']
+            if isinstance(assets[0], str):
+                # 如果是资产名称，转换为索引
+                # If asset names, convert to indices
+                indices = [self.asset_names.index(a) for a in assets]
+            else:
+                # 如果已经是索引
+                # If already indices
+                indices = assets
+
+            asset_class_indices[class_name] = indices
+            min_weight = class_config.get('min', 0.0)
+            max_weight = class_config.get('max', 1.0)
+
+            # 下界约束：Σ_{i∈c} w_i ≥ min_c
+            # Lower bound constraint: Σ_{i∈c} w_i ≥ min_c
+            constraints.append({
+                'type': 'ineq',
+                'fun': lambda w, idx=indices, m=min_weight: sum(w[i] for i in idx) - m,
+            })
+
+            # 上界约束：Σ_{i∈c} w_i ≤ max_c
+            # Upper bound constraint: Σ_{i∈c} w_i ≤ max_c
+            constraints.append({
+                'type': 'ineq',
+                'fun': lambda w, idx=indices, m=max_weight: m - sum(w[i] for i in idx),
+            })
+
+        # 目标函数：最小化波动率
+        # Objective function: minimize volatility
+        def portfolio_volatility(w):
+            return np.sqrt(np.dot(w.T, np.dot(self.cov_matrix, w)))
+
+        # 运行优化
+        # Run optimization
+        result = minimize(
+            fun=portfolio_volatility,
+            x0=init_weights,
+            method='SLSQP',
+            bounds=bounds,
+            constraints=constraints,
+        )
+
+        # 提取结果
+        # Extract results
+        weights = result.x
+        ret, vol, sharpe = self.portfolio_performance(weights)
+
+        # 计算每个资产类别的权重
+        # Calculate weights per asset class
+        asset_class_weights = {}
+        for class_name, indices in asset_class_indices.items():
+            asset_class_weights[class_name] = sum(weights[i] for i in indices)
+
+        return {
+            'weights': dict(zip(self.asset_names, weights)),
+            'return': ret,
+            'volatility': vol,
+            'sharpe': sharpe,
+            'success': result.success,
+            'asset_class_weights': asset_class_weights,
+        }
 
 
 class BlackLittermanOptimizer(PortfolioOptimizer):
