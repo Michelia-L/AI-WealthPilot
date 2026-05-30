@@ -28,23 +28,28 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 # Assets we track and analyze — aligned with user's interests
 # ============================================================
 ASSET_UNIVERSE = {
-    # Crypto
-    "BTC-USD": {"name": "Bitcoin", "category": "Crypto", "color": "#F7931A"},
-    # Commodities
-    "GC=F": {"name": "Gold Futures", "category": "Commodity", "color": "#FFD700"},
-    "SI=F": {"name": "Silver Futures", "category": "Commodity", "color": "#C0C0C0"},
-    # Global Indices
-    "^GSPC": {"name": "S&P 500", "category": "US Equity", "color": "#1F77B4"},
-    "^IXIC": {"name": "NASDAQ", "category": "US Equity", "color": "#2CA02C"},
-    "^DJI": {"name": "Dow Jones", "category": "US Equity", "color": "#9467BD"},
-    "000300.SS": {"name": "CSI 300", "category": "CN Equity", "color": "#D62728"},
-    "^HSI": {"name": "Hang Seng", "category": "HK Equity", "color": "#FF7F0E"},
-    "^N225": {"name": "Nikkei 225", "category": "JP Equity", "color": "#E377C2"},
-    "^FTSE": {"name": "FTSE 100", "category": "UK Equity", "color": "#17BECF"},
-    "^GDAXI": {"name": "DAX", "category": "EU Equity", "color": "#BCBD22"},
-    # Currencies
-    "DX-Y.NYB": {"name": "US Dollar Index", "category": "Currency", "color": "#7F7F7F"},
-    "CNY=X": {"name": "USD/CNY", "category": "Currency", "color": "#8C564B"},
+    # Crypto (美元计价 / USD-denominated)
+    "BTC-USD": {"name": "Bitcoin", "category": "Crypto", "color": "#F7931A", "currency": "USD", "symbol": "$"},
+    # Commodities (美元计价 / USD-denominated)
+    "GC=F": {"name": "Gold Futures", "category": "Commodity", "color": "#FFD700", "currency": "USD", "symbol": "$"},
+    "SI=F": {"name": "Silver Futures", "category": "Commodity", "color": "#C0C0C0", "currency": "USD", "symbol": "$"},
+    # US Equity (美元计价 / USD-denominated)
+    "^GSPC": {"name": "S&P 500", "category": "US Equity", "color": "#1F77B4", "currency": "USD", "symbol": "$"},
+    "^IXIC": {"name": "NASDAQ", "category": "US Equity", "color": "#2CA02C", "currency": "USD", "symbol": "$"},
+    "^DJI": {"name": "Dow Jones", "category": "US Equity", "color": "#9467BD", "currency": "USD", "symbol": "$"},
+    # CN Equity (人民币计价 / CNY-denominated)
+    "000300.SS": {"name": "CSI 300", "category": "CN Equity", "color": "#D62728", "currency": "CNY", "symbol": "¥"},
+    # HK Equity (港币计价 / HKD-denominated)
+    "^HSI": {"name": "Hang Seng", "category": "HK Equity", "color": "#FF7F0E", "currency": "HKD", "symbol": "HK$"},
+    # JP Equity (日元计价 / JPY-denominated)
+    "^N225": {"name": "Nikkei 225", "category": "JP Equity", "color": "#E377C2", "currency": "JPY", "symbol": "¥"},
+    # UK Equity (英镑计价 / GBP-denominated)
+    "^FTSE": {"name": "FTSE 100", "category": "UK Equity", "color": "#17BECF", "currency": "GBP", "symbol": "£"},
+    # EU Equity (欧元计价 / EUR-denominated)
+    "^GDAXI": {"name": "DAX", "category": "EU Equity", "color": "#BCBD22", "currency": "EUR", "symbol": "€"},
+    # Currencies (汇率 / Exchange rates)
+    "DX-Y.NYB": {"name": "US Dollar Index", "category": "Currency", "color": "#7F7F7F", "currency": "Index", "symbol": ""},
+    "CNY=X": {"name": "USD/CNY", "category": "Currency", "color": "#8C564B", "currency": "Rate", "symbol": ""},
 }
 
 # Default portfolio asset classes for optimization

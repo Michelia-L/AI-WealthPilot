@@ -226,14 +226,31 @@ def _render_market_overview(quotes_df: pd.DataFrame) -> None:
                 change_pct = row.get("change_pct")
 
                 if pd.notna(price):
-                    # 根据价格大小选择合适的小数位数
-                    # Choose appropriate decimal places based on price magnitude
-                    if price > 1000:
-                        price_str = f"${price:,.0f}"
+                    # 获取资产的货币符号 / Get asset's currency symbol
+                    ticker = row.get("ticker", "")
+                    asset_info = ASSET_UNIVERSE.get(ticker, {})
+                    currency_symbol = asset_info.get("symbol", "$")
+                    currency = asset_info.get("currency", "USD")
+
+                    # 根据货币类型和价格大小选择合适的格式
+                    # Choose format based on currency type and price magnitude
+                    if currency in ["Rate", "Index"]:
+                        # 汇率和指数不加货币符号 / Exchange rates and indices: no currency symbol
+                        if price > 1000:
+                            price_str = f"{price:,.0f}"
+                        elif price > 1:
+                            price_str = f"{price:,.2f}"
+                        else:
+                            price_str = f"{price:,.4f}"
+                    elif currency == "JPY":
+                        # 日元没有小数位 / JPY has no decimal places
+                        price_str = f"{currency_symbol}{price:,.0f}"
+                    elif price > 1000:
+                        price_str = f"{currency_symbol}{price:,.0f}"
                     elif price > 1:
-                        price_str = f"${price:,.2f}"
+                        price_str = f"{currency_symbol}{price:,.2f}"
                     else:
-                        price_str = f"${price:,.4f}"
+                        price_str = f"{currency_symbol}{price:,.4f}"
 
                     # delta 参数控制涨跌颜色：正数绿色，负数红色
                     # delta parameter controls color: positive=green, negative=red
