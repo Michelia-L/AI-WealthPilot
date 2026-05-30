@@ -118,19 +118,153 @@ def _render_sidebar() -> dict:
              "不勾选时，所有权重约束在 [0, 1] 范围内（只做多）。",
     )
 
-    # --- 优化模式 / Optimization mode ---
+    # --- 优化方法 / Optimization method ---
+    st.sidebar.markdown("##### Optimization Method / 优化方法")
+    opt_method = st.sidebar.selectbox(
+        "Select optimization method",
+        options=[
+            "Traditional MVO",
+            "Resampled MVO (Michaud)",
+            "Black-Litterman",
+        ],
+        index=0,
+        label_visibility="collapsed",
+        help="Traditional MVO: classic Markowitz optimization. "
+             "Resampled MVO: Monte Carlo simulation to reduce estimation error. "
+             "Black-Litterman: combine equilibrium with your views. / "
+             "传统MVO：经典Markowitz优化。"
+             "重抽样MVO：蒙特卡洛模拟以减少估计误差。"
+             "Black-Litterman：结合均衡收益和您的观点。",
+    )
+
+    # --- 优化目标 / Optimization objective ---
     st.sidebar.markdown("##### Optimization Goal / 优化目标")
     opt_mode = st.sidebar.radio(
         "Select optimization objective",
-        options=["Maximum Sharpe", "Minimum Volatility", "Black-Litterman"],
+        options=["Maximum Sharpe", "Minimum Volatility"],
         index=0,
         label_visibility="collapsed",
         help="Maximum Sharpe: best risk-adjusted return. "
-             "Minimum Volatility: lowest possible risk. "
-             "Black-Litterman: combine equilibrium with your views. / "
-             "最大夏普比率：最优风险调整收益。最小波动率：最低风险。"
-             "Black-Litterman：结合均衡收益和您的观点。",
+             "Minimum Volatility: lowest possible risk. / "
+             "最大夏普比率：最优风险调整收益。最小波动率：最低风险。",
     )
+
+    # --- 重抽样MVO参数 / Resampled MVO parameters ---
+    resampled_config = {}
+    if opt_method == "Resampled MVO (Michaud)":
+        st.sidebar.markdown("##### Resampled MVO Parameters / 重抽样MVO参数")
+
+        resampled_config["n_simulations"] = st.sidebar.slider(
+            "Number of simulations / 模拟次数",
+            min_value=100,
+            max_value=5000,
+            value=1000,
+            step=100,
+            help="More simulations = more stable results but slower. / "
+                 "更多模拟 = 更稳定的结果但更慢。",
+        )
+
+    # --- 资产类别约束 / Asset class constraints ---
+    asset_class_constraints = {}
+    st.sidebar.markdown("##### Asset Class Constraints / 资产类别约束")
+    use_asset_class_constraints = st.sidebar.checkbox(
+        "Enable asset class constraints / 启用资产类别约束",
+        value=False,
+        help="Add minimum and maximum weight constraints for asset classes. / "
+             "为资产类别添加最小和最大权重约束。",
+    )
+
+    if use_asset_class_constraints and len(selected_keys) >= 2:
+        st.sidebar.caption(
+            "Set min/max weights for each asset class / "
+            "为每个资产类别设置最小/最大权重"
+        )
+
+        # 根据所选资产动态创建约束
+        # Dynamically create constraints based on selected assets
+        # 简单分类：股票类、债券类、其他
+        # Simple classification: equity, bonds, other
+        equity_keys = [k for k in selected_keys if 'EQUITY' in k]
+        bond_keys = [k for k in selected_keys if 'BOND' in k]
+        other_keys = [k for k in selected_keys if k not in equity_keys and k not in bond_keys]
+
+        if equity_keys:
+            col1, col2 = st.sidebar.columns(2)
+            with col1:
+                equity_min = st.number_input(
+                    "Equity Min %",
+                    min_value=0,
+                    max_value=100,
+                    value=20,
+                    step=5,
+                    key="equity_min",
+                ) / 100
+            with col2:
+                equity_max = st.number_input(
+                    "Equity Max %",
+                    min_value=0,
+                    max_value=100,
+                    value=80,
+                    step=5,
+                    key="equity_max",
+                ) / 100
+            asset_class_constraints['equity'] = {
+                'assets': [DEFAULT_ASSET_CLASSES[k]["name"] for k in equity_keys],
+                'min': equity_min,
+                'max': equity_max,
+            }
+
+        if bond_keys:
+            col1, col2 = st.sidebar.columns(2)
+            with col1:
+                bond_min = st.number_input(
+                    "Bond Min %",
+                    min_value=0,
+                    max_value=100,
+                    value=10,
+                    step=5,
+                    key="bond_min",
+                ) / 100
+            with col2:
+                bond_max = st.number_input(
+                    "Bond Max %",
+                    min_value=0,
+                    max_value=100,
+                    value=50,
+                    step=5,
+                    key="bond_max",
+                ) / 100
+            asset_class_constraints['bonds'] = {
+                'assets': [DEFAULT_ASSET_CLASSES[k]["name"] for k in bond_keys],
+                'min': bond_min,
+                'max': bond_max,
+            }
+
+        if other_keys:
+            col1, col2 = st.sidebar.columns(2)
+            with col1:
+                other_min = st.number_input(
+                    "Other Min %",
+                    min_value=0,
+                    max_value=100,
+                    value=0,
+                    step=5,
+                    key="other_min",
+                ) / 100
+            with col2:
+                other_max = st.number_input(
+                    "Other Max %",
+                    min_value=0,
+                    max_value=100,
+                    value=30,
+                    step=5,
+                    key="other_max",
+                ) / 100
+            asset_class_constraints['other'] = {
+                'assets': [DEFAULT_ASSET_CLASSES[k]["name"] for k in other_keys],
+                'min': other_min,
+                'max': other_max,
+            }
 
     # --- Black-Litterman 专用参数 / BL-specific parameters ---
     bl_config = {}
@@ -206,8 +340,11 @@ def _render_sidebar() -> dict:
         "period": period,
         "risk_free_rate": risk_free_rate,
         "allow_short": allow_short,
+        "opt_method": opt_method,
         "opt_mode": opt_mode,
-        "bl_config": bl_config if opt_mode == "Black-Litterman" else None,
+        "bl_config": bl_config if opt_method == "Black-Litterman" else None,
+        "resampled_config": resampled_config if opt_method == "Resampled MVO (Michaud)" else None,
+        "asset_class_constraints": asset_class_constraints if use_asset_class_constraints else None,
     }
 
 
@@ -262,19 +399,19 @@ def _run_optimization(
     risk_free_rate: float,
     allow_short: bool,
     opt_mode: str,
+    opt_method: str = "Traditional MVO",
+    resampled_config: dict = None,
+    asset_class_constraints: dict = None,
 ) -> dict:
     """
     Run the portfolio optimization and return all results.
     运行投资组合优化并返回所有结果。
 
-    Performs three types of optimization:
-    执行三种优化:
-        1. Maximum Sharpe ratio portfolio (最大夏普比率组合)
-        2. Minimum volatility portfolio (最小波动率组合)
-        3. Efficient frontier (有效前沿)
-
-    Plus generates random portfolios for visualization.
-    同时生成随机组合用于可视化。
+    Supports multiple optimization methods:
+    支持多种优化方法:
+        1. Traditional MVO (传统MVO)
+        2. Resampled MVO - Michaud method (重抽样MVO - Michaud方法)
+        3. MVO with asset class constraints (带资产类别约束的MVO)
 
     Args:
         returns: DataFrame of daily asset returns.
@@ -285,6 +422,12 @@ def _run_optimization(
                      是否允许做空。
         opt_mode: 'Maximum Sharpe' or 'Minimum Volatility'.
                   'Maximum Sharpe' 或 'Minimum Volatility'。
+        opt_method: Optimization method name.
+                    优化方法名称。
+        resampled_config: Configuration for resampled MVO.
+                          重抽样MVO配置。
+        asset_class_constraints: Asset class constraint configuration.
+                                 资产类别约束配置。
 
     Returns:
         Dict with optimizer results, efficient frontier, and random portfolios.
@@ -293,26 +436,83 @@ def _run_optimization(
     # 创建优化器实例 / Create optimizer instance
     optimizer = PortfolioOptimizer(returns, risk_free_rate=risk_free_rate)
 
-    # 运行两种优化 / Run both optimizations
-    max_sharpe = optimizer.maximize_sharpe(allow_short=allow_short)
-    min_vol = optimizer.minimize_volatility(allow_short=allow_short)
+    # 根据优化方法运行优化
+    # Run optimization based on method
+    if opt_method == "Resampled MVO (Michaud)":
+        # 重抽样MVO
+        # Resampled MVO
+        n_simulations = resampled_config.get("n_simulations", 1000) if resampled_config else 1000
 
-    # 构建有效前沿（使用较少的点以加快速度）
-    # Build efficient frontier (use fewer points for speed)
-    frontier = optimizer.efficient_frontier(
-        n_points=50, allow_short=allow_short
-    )
+        if opt_mode == "Maximum Sharpe":
+            selected = optimizer.resampled_maximize_sharpe(
+                n_simulations=n_simulations,
+                allow_short=allow_short,
+            )
+        else:
+            # 对于最小波动率，使用传统MVO（重抽样主要用于最大夏普）
+            # For minimum volatility, use traditional MVO (resampling mainly for max Sharpe)
+            selected = optimizer.minimize_volatility(allow_short=allow_short)
+
+        # 重抽样有效前沿
+        # Resampled efficient frontier
+        frontier = optimizer.resampled_efficient_frontier(
+            n_points=50,
+            n_simulations=n_simulations,
+            allow_short=allow_short,
+        )
+
+        # 也计算传统前沿用于对比
+        # Also calculate traditional frontier for comparison
+        traditional_frontier = optimizer.efficient_frontier(
+            n_points=50, allow_short=allow_short
+        )
+
+        # 运行传统MVO用于对比
+        # Run traditional MVO for comparison
+        max_sharpe = optimizer.maximize_sharpe(allow_short=allow_short)
+        min_vol = optimizer.minimize_volatility(allow_short=allow_short)
+
+    elif asset_class_constraints:
+        # 带资产类别约束的MVO
+        # MVO with asset class constraints
+        selected = optimizer.optimize_with_asset_class_constraints(
+            asset_classes=asset_class_constraints,
+            allow_short=allow_short,
+        )
+
+        # 传统有效前沿（无约束）
+        # Traditional efficient frontier (unconstrained)
+        frontier = optimizer.efficient_frontier(
+            n_points=50, allow_short=allow_short
+        )
+
+        # 运行传统MVO用于对比
+        # Run traditional MVO for comparison
+        max_sharpe = optimizer.maximize_sharpe(allow_short=allow_short)
+        min_vol = optimizer.minimize_volatility(allow_short=allow_short)
+
+    else:
+        # 传统MVO
+        # Traditional MVO
+        max_sharpe = optimizer.maximize_sharpe(allow_short=allow_short)
+        min_vol = optimizer.minimize_volatility(allow_short=allow_short)
+
+        # 构建有效前沿
+        # Build efficient frontier
+        frontier = optimizer.efficient_frontier(
+            n_points=50, allow_short=allow_short
+        )
+
+        # 根据用户选择的优化模式确定"选中的组合"
+        # Determine the "selected portfolio" based on user's optimization mode
+        if opt_mode == "Maximum Sharpe":
+            selected = max_sharpe
+        else:
+            selected = min_vol
 
     # 生成随机组合云（用于可视化对比）
     # Generate random portfolio cloud (for visual comparison)
     random_ports = optimizer.random_portfolios(n_portfolios=3000)
-
-    # 根据用户选择的优化模式确定"选中的组合"
-    # Determine the "selected portfolio" based on user's optimization mode
-    if opt_mode == "Maximum Sharpe":
-        selected = max_sharpe
-    else:
-        selected = min_vol
 
     return {
         "optimizer": optimizer,
@@ -321,6 +521,7 @@ def _run_optimization(
         "frontier": frontier,
         "random_portfolios": random_ports,
         "selected": selected,
+        "opt_method": opt_method,
     }
 
 
@@ -452,6 +653,50 @@ def _render_selected_portfolio(results: dict) -> None:
             f"夏普比率 = {sharpe:.2f}（{quality}）。"
             f"这意味着每承担一单位风险，组合获得 {sharpe:.2f} 单位的超额收益。"
         )
+
+    st.divider()
+
+
+def _render_asset_class_weights(results: dict) -> None:
+    """
+    Render asset class weights if available.
+    渲染资产类别权重（如果可用）。
+
+    Args:
+        results: Dict from _run_optimization.
+                 来自 _run_optimization 的结果字典。
+    """
+    selected = results["selected"]
+
+    # 检查是否有资产类别权重信息
+    # Check if asset class weights information is available
+    if "asset_class_weights" not in selected:
+        return
+
+    st.markdown("### 📊 Asset Class Weights / 资产类别权重")
+
+    asset_class_weights = selected["asset_class_weights"]
+
+    # 创建资产类别权重表
+    # Create asset class weights table
+    weights_data = []
+    for class_name, weight in asset_class_weights.items():
+        weights_data.append({
+            "Asset Class / 资产类别": class_name.capitalize(),
+            "Weight / 权重": f"{weight:.2%}",
+        })
+
+    st.dataframe(
+        pd.DataFrame(weights_data),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    st.caption(
+        "💡 Asset class constraints help maintain diversification and "
+        "prevent over-concentration in any single asset class. / "
+        "资产类别约束有助于保持多元化，防止过度集中于任何单一资产类别。"
+    )
 
     st.divider()
 
@@ -712,14 +957,35 @@ def render() -> None:
         st.dataframe(weights_df, use_container_width=True, hide_index=True)
 
     else:
-        # MVO 模式：现有逻辑
-        # MVO mode: existing logic
+        # MVO 模式：支持传统MVO、重抽样MVO、资产类别约束
+        # MVO mode: support traditional MVO, resampled MVO, asset class constraints
+        opt_method = config["opt_method"]
+
+        # 显示优化方法描述
+        # Show optimization method description
+        if opt_method == "Resampled MVO (Michaud)":
+            st.info(
+                "🔄 **Resampled MVO (Michaud Method)**: Uses Monte Carlo simulation to "
+                "reduce estimation error and produce more diversified portfolios. / "
+                "**重抽样MVO（Michaud方法）**：使用蒙特卡洛模拟来减少估计误差，"
+                "产生更多元化的投资组合。"
+            )
+        elif config.get("asset_class_constraints"):
+            st.info(
+                "📊 **Asset Class Constraints**: Portfolio weights are constrained "
+                "to stay within specified ranges for each asset class. / "
+                "**资产类别约束**：投资组合权重被约束在每个资产类别的指定范围内。"
+            )
+
         with st.spinner("Running portfolio optimization... / 正在运行投资组合优化..."):
             results = _run_optimization(
                 returns,
                 config["risk_free_rate"],
                 config["allow_short"],
                 config["opt_mode"],
+                opt_method=opt_method,
+                resampled_config=config.get("resampled_config"),
+                asset_class_constraints=config.get("asset_class_constraints"),
             )
 
         # 检查优化是否成功 / Check optimization success
@@ -740,6 +1006,11 @@ def render() -> None:
         # 5. 所选最优组合详情 / Selected Portfolio Details
         # ====================================
         _render_selected_portfolio(results)
+
+        # ====================================
+        # 5.5 资产类别权重 / Asset Class Weights
+        # ====================================
+        _render_asset_class_weights(results)
 
         # ====================================
         # 6. 组合对比表 / Portfolio Comparison
