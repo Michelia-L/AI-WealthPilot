@@ -37,7 +37,7 @@
 | 🎯 **Retirement Planner<br/>两阶段退休规划器** | 人力资本 (Human Capital) 与金融资本转换、长寿风险 (Longevity Risk)、存活率分析 | **Geometric Brownian Motion (GBM)** 路径依赖模拟、资产负债生命周期模拟 | **✅ 已上线** |
 | 🧠 **Client Profiling<br/>客户画像与评估系统** | 投资政策声明 (IPS) 框架、Ability & Willingness 双轨风险容忍度模型 | `dataclasses` 强类型数据模型、双轨制滑块问卷、`JSON` 本地持久化与版本回溯 | **✅ 已上线** |
 | 📈 **Market Dashboard<br/>市场实时监控系统** | 跨资产大类配置、多资产相关性矩阵、多维历史风险统计分析 | `yfinance` 实时 API 动态拉取、`Plotly` 移动平均线、相关性热力图 | **✅ 已上线** |
-| 🤖 **AI Advisor Agent<br/>AI 顾问 Agent** | 行为金融学 (Behavioral Finance) 偏差识别、个性化客户资产配置建议书生成 | `OpenAI GPT-4o` 接口接入、理财顾问专业 Prompt 模版构建与上下文工程 | **📋 规划中** |
+| 🤖 **AI Advisor Agent<br/>AI 顾问 Agent** | 行为金融学 (Behavioral Finance) 偏差识别、个性化客户资产配置建议书生成 | `DeepSeek V4 Pro` (OpenAI 兼容 SDK)、理财顾问专业 Prompt 模版构建与上下文工程 | **✅ 已上线** |
 | 📝 **IPS Generator<br/>RAG 驱动的 IPS 生成器** | 经典 IPS 的 7 大核心要素 (Objectives & Constraints) 自动化生成 | `ChromaDB` 向量数据库、`LangChain` 链式框架、CFA 官方知识库精准 RAG 召回 | **📋 规划中** |
 | 🔄 **Rebalancing Monitor<br/>动态再平衡模块** | 日历再平衡 (Calendar) 与区间再平衡 (Percentage)、考虑税收与摩擦成本的再平衡 | 资产权重漂移 (Drift) 分析、交易滑点仿真、智能再平衡警报触发 | **📋 规划中** |
 
@@ -61,8 +61,8 @@ graph TB
         RM[Risk Metrics Evaluator<br/>VaR / CVaR / Sortino / Drawdown]
     end
 
-    subgraph AI_Layer ["AI Agent & Knowledge Layer (Planned)"]
-        Agent[AI Advisor Agent<br/>GPT-4o / Context Engineer]
+    subgraph AI_Layer ["AI Agent & Knowledge Layer"]
+        Agent[AI Advisor Agent<br/>DeepSeek V4 Pro / Context Engineer]
         RAG[RAG Vector Base<br/>ChromaDB + LangChain]
         CFA_KB[(CFA Curriculum &<br/>PWM Regulation Base)]
     end
@@ -184,22 +184,36 @@ AI-WealthPilot/
 │   ├── portfolio/                # 【核心量化计算引擎】
 │   │   ├── optimizer.py          # 均值-方差优化器（包含 SLSQP 求解、切点求解、随机 Dir 模拟）
 │   │   ├── simulator.py          # 蒙特卡洛模拟器（GBM 随机路径、两阶段退休生命周期模拟）
-│   │   └── risk_metrics.py       # 风险统计指标库（Sharpe, Sortino, MaxDrawdown, VaR, CVaR）
+│   │   ├── risk_metrics.py       # 风险统计指标库（Sharpe, Sortino, MaxDrawdown, VaR, CVaR）
+│   │   └── views.py              # Black-Litterman 观点处理器（P、Q、Omega 矩阵生成）
 │   ├── data/                     # 【数据采集与处理模块】
 │   │   └── market_data.py        # yfinance 实时数据管线（多线程下载、收益率转换、相关性热力图输入）
 │   ├── visualization/            # 【图表渲染中心】
 │   │   └── charts.py             # 基于 Plotly 的多维交互式专业级精美图表画板
 │   ├── pages/                    # 【Streamlit 前端页面模块】
 │   │   ├── market_dashboard.py   # 市场实时走势、多资产行情监控看板
-│   │   ├── portfolio_optimizer.py# MVO 有效前沿动态优化配置交互页面
+│   │   ├── portfolio_optimizer.py# MVO & Black-Litterman 有效前沿动态优化配置交互页面
 │   │   ├── retirement_planner.py # 蒙特卡洛两阶段财富生命周期规划页面
-│   │   └── client_profiling.py   # CFA IPS 规范下的风险评估问卷与客户画像档案库
+│   │   ├── client_profiling.py   # CFA IPS 规范下的风险评估问卷与客户画像档案库
+│   │   └── ai_advisor.py         # AI 顾问建议书生成页面（流式输出）
+│   ├── agents/                   # 【AI Agent 智能体模块】
+│   │   ├── profiler.py           # 客户画像 Agent（CFA IPS 框架实现）
+│   │   ├── advisor.py            # DeepSeek V4 Pro 建议书生成器
+│   │   ├── portfolio_recommender.py # 个性化投资组合推荐模块
+│   │   └── report_storage.py     # 建议书持久化存储（JSON）
 │   └── rag/                      # 【RAG 知识库模块】 (Phase 4 规划中)
 ├── tests/                        # 【单元测试与自动化验证套件】
 │   ├── test_portfolio.py         # 量化引擎的测试用例（覆盖 MVO 边界值、GBM 极限值与风险指标）
-│   └── test_profiler.py          # 客户画像评估逻辑自动化测试（内置 22 个严格测试用例）
+│   ├── test_profiler.py          # 客户画像评估逻辑自动化测试（内置 22 个严格测试用例）
+│   ├── test_advisor.py           # AI 顾问 Agent 集成测试
+│   ├── test_black_litterman.py   # Black-Litterman 模型测试
+│   ├── test_advanced_portfolio.py# 高级投资组合优化测试（重抽样前沿、资产类别约束、正则化）
+│   ├── test_portfolio_recommender.py # 投资组合推荐逻辑测试
+│   ├── test_comparison_export.py # 多客户对比报告生成与导出测试
+│   └── test_phase3_features.py   # Phase 3 功能端到端集成测试
 ├── data/
 │   ├── profiles/                 # 客户画像 JSON 强类型持久化本地数据库
+│   ├── reports/                  # AI 生成的建议书存储目录（JSON）
 │   └── sample/                   # 离线缓存与基准测试数据集
 ├── requirements.txt              # 严格版本锁定的第三方依赖声明清单
 └── README.md                     # 项目主视觉展示说明书
@@ -218,9 +232,9 @@ AI-WealthPilot/
 *   **前端展现与可视化**：
     *   `Streamlit`：基于 Python 快速构建的高级响应式金融交互 Web 系统。
     *   `Plotly`：基于 JS 引擎的金融终端级高交互图表渲染，支持缩放、悬浮提示 (Hover) 与动态路径显示。
-*   **AI Agent & 知识检索 (Phase 3.5 & 4 演进中)**：
-    *   `OpenAI` & `LangChain`：集成大型语言模型，搭建具备记忆体 (Memory) 与推理链 (Chain of Thought) 的财富顾问 Agent。
-    *   `ChromaDB` / `FAISS`：低延迟本地向量数据库，用于 CFA Curriculum 与国家金融监管法规文本的 Embedding 编码与精准语义检索。
+*   **AI Agent & 知识检索**：
+    *   `DeepSeek V4 Pro`（通过 `openai` SDK 接入）：驱动 AI 顾问 Agent 的先进大语言模型，支持流式输出个性化 CFA 合规建议书。
+    *   `LangChain` & `ChromaDB` / `FAISS`（Phase 4 规划中）：具备推理链和记忆体的 AI 框架，配合本地向量数据库索引 CFA 课程体系，实现精准语义检索。
 *   **测试与工程规范**：
     *   `pytest`：自动化单元测试框架，多测试集并联运行。
     *   `python-dotenv`：生产与开发环境变量解耦管理。
@@ -256,7 +270,9 @@ pip install -r requirements.txt
 ### 4. 配置环境变量
 ```bash
 cp .env.example .env
-# 使用文本编辑器打开 .env，在其中配置您的 OPENAI_API_KEY（若仅使用量化引擎与仪表盘，可暂不配置）
+# 使用文本编辑器打开 .env，在其中配置您的 DEEPSEEK_API_KEY（AI 顾问功能必需）
+# 在 DeepSeek 平台获取 Key: https://platform.deepseek.com
+# 量化引擎与仪表盘功能无需配置 API Key 即可使用
 ```
 
 ### 5. 启动系统仪表盘
@@ -279,6 +295,12 @@ pytest -v
 测试集包括：
 *   **`tests/test_portfolio.py`**：验证 MVO 优化器在各种资产规模下的收敛性、最大夏普比率权重的合理性、蒙特卡洛模拟 GBM 漂移项 Jensen 调整的精确度，以及 VaR/CVaR 对非对称尾部损失计算的正确性。
 *   **`tests/test_profiler.py`**：涵盖 22 个细分测试用例，从能力评分、意愿评分、就低原则冲突解决，到 JSON 序列化持久化与本地加载，保证客户画像数据的无损读取。
+*   **`tests/test_black_litterman.py`**：验证 Black-Litterman 模型的完整实现，包括均衡收益计算、观点处理和后验收益推导。
+*   **`tests/test_advanced_portfolio.py`**：高级投资组合优化测试，覆盖重抽样有效前沿、资产类别约束和协方差矩阵正则化。
+*   **`tests/test_advisor.py`**：AI 顾问 Agent（DeepSeek V4 Pro）集成测试。
+*   **`tests/test_portfolio_recommender.py`**：验证风险评分到资产配置的映射逻辑。
+*   **`tests/test_comparison_export.py`**：多客户对比报告生成与导出测试。
+*   **`tests/test_phase3_features.py`**：Phase 3 功能端到端集成测试。
 
 ---
 

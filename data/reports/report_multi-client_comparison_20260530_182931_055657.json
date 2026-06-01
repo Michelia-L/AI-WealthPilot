@@ -1,0 +1,13 @@
+{
+  "report_id": "20260530_182931_055657",
+  "client_name": "Multi-Client Comparison",
+  "profile_filepath": "",
+  "content": "============================================================\nCLIENT PROFILE COMPARISON REPORT / 客户画像对比报告\n============================================================\nReport Date / 报告日期: 2026-05-30T18:29:31.055121\n\n------------------------------------------------------------\nRISK PROFILE COMPARISON / 风险画像对比\n------------------------------------------------------------\nClient               Score      Level               \n--------------------------------------------------\nYoung Conservative   2.0        Conservative        \nMiddle Aggressive    4.5        Aggressive          \nRetiree              2.5        Conservative        \n\n------------------------------------------------------------\nFINANCIAL COMPARISON / 财务对比\n------------------------------------------------------------\nClient               Net Worth       Savings Rate   \n--------------------------------------------------\nYoung Conservative   $      80,000        37.5%\nMiddle Aggressive    $   1,200,000        52.0%\nRetiree              $   1,200,000        25.0%\n\n------------------------------------------------------------\nBEHAVIORAL BIASES / 行为偏差\n------------------------------------------------------------\nYoung Conservative   2 biases detected\nMiddle Aggressive    1 biases detected\nRetiree              0 biases detected\n\n------------------------------------------------------------\nKEY INSIGHTS / 关键洞察\n------------------------------------------------------------\n1. Risk tolerance varies significantly: Middle Aggressive (4.5) vs Young Conservative (2.0). / 风险容忍度差异显著：Middle Aggressive (4.5) vs Young Conservative (2.0)。\n2. Net worth range: Middle Aggressive has 15.0x the net worth of Young Conservative. / 净资产范围：Middle Aggressive 是 Young Conservative 的 15.0 倍。\n3. Client(s) with most behavioral biases (Young Conservative: 2 biases) may benefit from enhanced behavioral coaching. / 行为偏差最多的客户 (Young Conservative: 2 个偏差) 可能需要更多的行为金融指导。\n",
+  "model": "comparison-engine",
+  "generated_at": "2026-05-30T18:29:31.055657",
+  "prompt_tokens": 0,
+  "completion_tokens": 0,
+  "total_tokens": 0,
+  "filepath": "C:\\Users\\24843\\.gemini\\antigravity\\scratch\\AI-WealthPilot\\data\\reports\\report_multi-client_comparison_20260530_182931_055657.json",
+  "notes": "Automated comparison report"
+}

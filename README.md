@@ -37,7 +37,7 @@
 | 🎯 **Retirement Planner** | Human & Financial Capital Transition, Longevity Risk Management, Survival Rate Analysis | **Geometric Brownian Motion (GBM)** path-dependent simulation, asset-liability lifecycle modeling | **✅ Done** |
 | 🧠 **Client Profiling** | Investment Policy Statement (IPS) framework, Ability & Willingness dual-track risk tolerance scoring model | `dataclasses` strong typing, interactive slider questionnaires, `JSON` local persistence & versioning | **✅ Done** |
 | 📈 **Market Dashboard** | Multi-asset class configuration, cross-asset correlation matrix, multi-dimensional historical risk analysis | `yfinance` real-time API pipeline, `Plotly` technical chart lines, correlation heatmap rendering | **✅ Done** |
-| 🤖 **AI Advisor Agent** | Behavioral Finance bias identification, personalized asset allocation & advisor proposal generation | `OpenAI GPT-4o` API, professional wealth advisor prompt templates, context engineering | **📋 Planned** |
+| 🤖 **AI Advisor Agent** | Behavioral Finance bias identification, personalized asset allocation & advisor proposal generation | `DeepSeek V4 Pro` (OpenAI-compatible SDK), professional wealth advisor prompt templates, context engineering | **✅ Done** |
 | 📝 **IPS Generator** | Classical IPS framework (7 elements: Objectives & Constraints) automated drafting | `ChromaDB` vector store, `LangChain` framework, precise RAG retrieval based on CFA PWM curriculum | **📋 Planned** |
 | 🔄 **Rebalancing Monitor** | Calendar & Percentage-of-Portfolio rebalancing, tax-loss harvesting, friction cost controls | Drift analysis, transaction slippage emulation, smart rebalancing alert triggers | **📋 Planned** |
 
@@ -184,22 +184,36 @@ AI-WealthPilot/
 │   ├── portfolio/                # [Quantitative Engine Core]
 │   │   ├── optimizer.py          # MVO optimization solver, Tangency finder, Dirichlet simulation
 │   │   ├── simulator.py          # Monte Carlo simulator (GBM paths & two-stage retirement lifecycle)
-│   │   └── risk_metrics.py       # Performance & risk metrics (Sharpe, Sortino, MaxDD, VaR, CVaR)
+│   │   ├── risk_metrics.py       # Performance & risk metrics (Sharpe, Sortino, MaxDD, VaR, CVaR)
+│   │   └── views.py              # Black-Litterman view processor (P, Q, Omega matrices)
 │   ├── data/                     # [Data Pipeline]
 │   │   └── market_data.py        # yfinance downloader, return processors, correlation calculations
 │   ├── visualization/            # [Chart Renderer]
 │   │   └── charts.py             # Plotly interactive chart renderers (MVO, MC, heatmaps)
 │   ├── pages/                    # [Streamlit Front-end Pages]
 │   │   ├── market_dashboard.py   # Quotes monitor, historical charts, correlations
-│   │   ├── portfolio_optimizer.py# Interactive MVO asset allocator & efficient frontier
+│   │   ├── portfolio_optimizer.py# Interactive MVO & Black-Litterman asset allocator
 │   │   ├── retirement_planner.py # Monte Carlo simulation planner
-│   │   └── client_profiling.py   # CFA IPS questionnaire & profile registry
+│   │   ├── client_profiling.py   # CFA IPS questionnaire & profile registry
+│   │   └── ai_advisor.py         # AI advisory report generation (streaming)
+│   ├── agents/                   # [AI Agent Layer]
+│   │   ├── profiler.py           # Client profiling agent (CFA IPS framework)
+│   │   ├── advisor.py            # DeepSeek V4 Pro advisory report generator
+│   │   ├── portfolio_recommender.py # Personalized allocation recommendations
+│   │   └── report_storage.py     # Advisory report persistence (JSON)
 │   └── rag/                      # [RAG Knowledge Base] (Phase 4 development)
 ├── tests/                        # [Automated Test Suite]
-│   ├── test_portfolio.py         # Unit tests for MVO solver, GBM simulator, and risk metrics
-│   └── test_profiler.py          # Extensive unit tests (22 cases) verifying client profiling logic
+│   ├── test_portfolio.py         # MVO solver, GBM simulator, and risk metrics tests
+│   ├── test_profiler.py          # Client profiling logic (22 cases)
+│   ├── test_advisor.py           # AI advisor agent tests
+│   ├── test_black_litterman.py   # Black-Litterman model tests
+│   ├── test_advanced_portfolio.py# Advanced portfolio optimization tests
+│   ├── test_portfolio_recommender.py # Portfolio recommendation tests
+│   ├── test_comparison_export.py # Multi-client comparison & export tests
+│   └── test_phase3_features.py   # Phase 3 feature integration tests
 ├── data/
 │   ├── profiles/                 # Client profiles stored as structured JSON documents
+│   ├── reports/                  # Generated advisory reports (JSON)
 │   └── sample/                   # Baseline and offline asset returns data caches
 ├── requirements.txt              # Production dependency lock list
 └── README.md                     # Main English landing documentation
@@ -218,9 +232,9 @@ This system is built using modern quantitative finance and AI engineering archit
 *   **Interactive Visualization UI**:
     *   `Streamlit`: Python-native framework for deploying highly responsive financial Web terminals.
     *   `Plotly`: JavaScript-driven interactive vector charting supporting zoom, pan, hover tooltips, and dynamic curve plotting.
-*   **AI Agent & Knowledge Retrieval (Phase 3.5 & 4)**:
-    *   `OpenAI` & `LangChain`: Connects LLMs with cognitive reasoning chains and contextual memory to form the AI Advisor.
-    *   `ChromaDB` / `FAISS`: Local vector store indexing the CFA Curriculum and financial regulatory corpora for semantic search RAG retrieval.
+*   **AI Agent & Knowledge Retrieval**:
+    *   `DeepSeek V4 Pro` (via `openai` SDK): State-of-the-art LLM powering the AI Advisor Agent, generating personalized CFA-compliant advisory reports with streaming output.
+    *   `LangChain` & `ChromaDB` / `FAISS` (Phase 4): Cognitive reasoning chains with local vector store indexing the CFA Curriculum for semantic search RAG retrieval.
 *   **CI/CD & Testing**:
     *   `pytest`: Test runner managing high-speed, parallel test suites.
     *   `python-dotenv`: Environment variable encapsulation.
@@ -256,7 +270,9 @@ pip install -r requirements.txt
 ### 4. Setup Environment Variables
 ```bash
 cp .env.example .env
-# Open .env in a text editor to configure your OPENAI_API_KEY (optional for quant/dashboard engine)
+# Open .env and set your DEEPSEEK_API_KEY (required for AI Advisor)
+# Get your key at: https://platform.deepseek.com
+# The quant engine and dashboard work without an API key
 ```
 
 ### 5. Launch the Streamlit Terminal
@@ -278,6 +294,12 @@ pytest -v
 The test coverage includes:
 *   **`tests/test_portfolio.py`**: Ensures the MVO solver converges on mathematical boundaries, the Tangency Portfolio matches theoretical maximum Sharpe outputs, the GBM simulation maintains the log-normal expectation with Jensen's drag, and tail calculations are correct.
 *   **`tests/test_profiler.py`**: A 22-case validation suite spanning scoring algorithms, conflict default overrides, and JSON serialization.
+*   **`tests/test_black_litterman.py`**: Validates the Black-Litterman model implementation including equilibrium returns, view processing, and posterior computation.
+*   **`tests/test_advanced_portfolio.py`**: Tests for resampled efficient frontier, asset class constraints, and covariance matrix regularization.
+*   **`tests/test_advisor.py`**: Integration tests for the AI Advisor Agent (DeepSeek V4 Pro).
+*   **`tests/test_portfolio_recommender.py`**: Validates risk-score-to-allocation mapping logic.
+*   **`tests/test_comparison_export.py`**: Multi-client comparison report generation and export tests.
+*   **`tests/test_phase3_features.py`**: End-to-end integration tests for Phase 3 features.
 
 ---
 

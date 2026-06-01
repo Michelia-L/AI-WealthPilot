@@ -37,7 +37,7 @@
 | 🎯 **Retirement Planner<br/>二段階リタイアメント設計** | 人的資本（Human Capital）と金融資本の移転、長寿リスク管理、資産生存率分析 | **幾何ブラウン運動（GBM）**パス依存シミュレーション、ライフサイクル資産負債モデル | **✅ 実装済** |
 | 🧠 **Client Profiling<br/>顧客プロファイリング＆評価** | 投資政策ステートメント（IPS）フレームワーク、Ability & Willingness 双方向リスク許容度評価モデル | `dataclasses` 強力な型定義データモデル、対話型スライダー問診票、`JSON` ローカル永続化と履歴管理 | **✅ 実装済** |
 | 📈 **Market Dashboard<br/>リアルタイム市場モニタリング** | 複数資産クラス配分、クロスアセット相関行列、多次元ヒストリカルリスク分析 | `yfinance` リアルタイムAPIパイプライン、`Plotly` テクニカルチャート、相関ヒートマップ | **✅ 実装済** |
-| 🤖 **AI Advisor Agent<br/>AI アドバイザー・エージェント** | 行動ファイナンス（Behavioral Finance）バイアス検知、個別化された資産配分提案書の自動生成 | `OpenAI GPT-4o` API、プロフェッショナルな顧客対応プロンプトテンプレート、コンテキストエンジニアリング | **📋 開発予定** |
+| 🤖 **AI Advisor Agent<br/>AI アドバイザー・エージェント** | 行動ファイナンス（Behavioral Finance）バイアス検知、個別化された資産配分提案書の自動生成 | `DeepSeek V4 Pro` (OpenAI互換SDK)、プロフェッショナルな顧客対応プロンプトテンプレート、コンテキストエンジニアリング | **✅ 実装済** |
 | 📝 **IPS Generator<br/>RAG駆動型 IPS 生成器** | 古典的 IPS の 7 つの構成要素（運用目標と制約条件）の自動起草 | `ChromaDB` ベクトルデータベース、`LangChain` フレームワーク、CFA PWM シラバスに基づく精密な RAG 検索 | **📋 開発予定** |
 | 🔄 **Rebalancing Monitor<br/>動的リバランス監視** | カレンダー・リバランスおよび許容レンジ（%）リバランス、税効率および取引摩擦コスト制御 | ポートフォリオウェイト乖離（Drift）分析、取引スリッページシミュレーション、スマートアラート | **📋 開発予定** |
 
@@ -61,8 +61,8 @@ graph TB
         RM[Risk Metrics Evaluator<br/>VaR / CVaR / Sortino / Drawdown]
     end
 
-    subgraph AI_Layer ["AI Agent & Knowledge Layer (Planned)"]
-        Agent[AI Advisor Agent<br/>GPT-4o / Context Engineer]
+    subgraph AI_Layer ["AI Agent & Knowledge Layer"]
+        Agent[AI Advisor Agent<br/>DeepSeek V4 Pro / Context Engineer]
         RAG[RAG Vector Base<br/>ChromaDB + LangChain]
         CFA_KB[(CFA Curriculum &<br/>PWM Regulation Base)]
     end
@@ -184,22 +184,36 @@ AI-WealthPilot/
 │   ├── portfolio/                # 【クオンツ計算コアエンジン】
 │   │   ├── optimizer.py          # MVO最適化ソルバー、接点ポートフォリオ探索、ディリクレ経路シミュレーション
 │   │   ├── simulator.py          # モンテカルロシミュレーター（GBMパス生成＆リタイアメント２段階ライフサイクル）
-│   │   └── risk_metrics.py       # リスク・リターン評価指標ライブラリ（Sharpe, Sortino, MaxDD, VaR, CVaR）
+│   │   ├── risk_metrics.py       # リスク・リターン評価指標ライブラリ（Sharpe, Sortino, MaxDD, VaR, CVaR）
+│   │   └── views.py              # Black-Litterman ビュー・プロセッサー（P、Q、Ω行列生成）
 │   ├── data/                     # 【データパイプライン】
 │   │   └── market_data.py        # yfinanceデータ取得、リターン算出、相関行列計算
 │   ├── visualization/            # 【チャートレンダラー】
 │   │   └── charts.py             # Plotlyベースのインタラクティブチャート（MVO, MC, ヒートマップ等）
 │   ├── pages/                    # 【Streamlit フロントエンド画面】
 │   │   ├── market_dashboard.py   # マーケット動向監視、主要アセットヒストリカルデータ表示
-│   │   ├── portfolio_optimizer.py# MVO効率的フロンティア対話型資産配分シミュレーション
+│   │   ├── portfolio_optimizer.py# MVO & Black-Litterman 効率的フロンティア対話型資産配分シミュレーション
 │   │   ├── retirement_planner.py # モンテカルロ法を用いた資産寿命シミュレーション設計
-│   │   └── client_profiling.py   # CFA IPS 準拠の対話型リスク評価・問診票および顧客プロファイル管理
+│   │   ├── client_profiling.py   # CFA IPS 準拠の対話型リスク評価・問診票および顧客プロファイル管理
+│   │   └── ai_advisor.py         # AI アドバイザリー報告書生成画面（ストリーミング出力）
+│   ├── agents/                   # 【AIエージェント層】
+│   │   ├── profiler.py           # 顧客プロファイリング・エージェント（CFA IPSフレームワーク実装）
+│   │   ├── advisor.py            # DeepSeek V4 Pro アドバイザリー報告書ジェネレーター
+│   │   ├── portfolio_recommender.py # 個別化ポートフォリオ推奨モジュール
+│   │   └── report_storage.py     # アドバイザリー報告書の永続化ストレージ（JSON）
 │   └── rag/                      # 【RAG ナレッジベース】（Phase 4 実装予定）
 ├── tests/                        # 【自動テストプログラム】
 │   ├── test_portfolio.py         # ポートフォリオエンジンの整合性、GBM及びリスク統計値のテスト
-│   └── test_profiler.py          # 顧客プロファイリングロジックの厳格な検証（22テストケース）
+│   ├── test_profiler.py          # 顧客プロファイリングロジックの厳格な検証（22テストケース）
+│   ├── test_advisor.py           # AIアドバイザー・エージェント（DeepSeek V4 Pro）統合テスト
+│   ├── test_black_litterman.py   # Black-Littermanモデルの検証テスト
+│   ├── test_advanced_portfolio.py# 高度ポートフォリオ最適化テスト（リサンプルドフロンティア、資産クラス制約）
+│   ├── test_portfolio_recommender.py # ポートフォリオ推奨ロジックの検証テスト
+│   ├── test_comparison_export.py # 複数顧客比較レポート生成・エクスポートテスト
+│   └── test_phase3_features.py   # Phase 3機能のエンドツーエンド統合テスト
 ├── data/
 │   ├── profiles/                 # 顧客プロファイルデータを保持するJSONデータベース
+│   ├── reports/                  # AI生成アドバイザリー報告書の保存ディレクトリ（JSON）
 │   └── sample/                   # オフライン資産リターンデータのキャッシュフォルダ
 ├── requirements.txt              # 本番依存ライブラリ一覧
 └── README.md                     # メイン英語ドキュメント（GitHubデフォルト）
@@ -218,9 +232,9 @@ AI-WealthPilot/
 *   **インタラクティブ UI/UX**：
     *   `Streamlit`：Python だけで洗練された金融端末風 Web インターフェースを構築するライブラリ。
     *   `Plotly`：JavaScript 駆動の高性能描画ライブラリで、拡大・縮小、ホバー（懸架情報表示）などの操作をサポートするインタラクティブベクトルグラフを提供。
-*   **AI エージェント ＆ ナレッジベース（Phase 3.5 & 4）**：
-    *   `OpenAI` & `LangChain`：LLMに推論能力（Chain of Thought）とメモリをもたせ、プロフェッショナルなアドバイザーエージェントを構築。
-    *   `ChromaDB` / `FAISS`：CFA Curriculum や各国の金融規制法案を Embedding 化して保存し、セマンティック検索を用いて回答を補強する RAG データベース。
+*   **AI エージェント ＆ ナレッジベース**：
+    *   `DeepSeek V4 Pro`（`openai` SDK 経由）：AIアドバイザー・エージェントを駆動する最先端LLM。ストリーミング出力による個別化CFA準拠アドバイザリー報告書を生成。
+    *   `LangChain` & `ChromaDB` / `FAISS`（Phase 4 実装予定）：推論能力とメモリを持つAIフレームワーク。ローカルベクトルデータベースでCFAカリキュラムをインデックス化し、セマンティック検索によるRAGを実現。
 *   **テスト＆CI/CD**：
     *   `pytest`：並列テストランナーによる堅牢なコード検証。
     *   `python-dotenv`：環境変数の分離管理。
@@ -256,7 +270,9 @@ pip install -r requirements.txt
 ### 4. 環境変数の設定
 ```bash
 cp .env.example .env
-# 必要に応じて .env ファイルを開き、OPENAI_API_KEY を設定します（量化エンジン単独動作時は不要）
+# .envファイルを開き、DEEPSEEK_API_KEY を設定します（AIアドバイザー機能に必要）
+# DeepSeekプラットフォームでKeyを取得: https://platform.deepseek.com
+# 量化エンジンとダッシュボードはAPI Keyなしで動作します
 ```
 
 ### 5. Webアプリケーションの起動
@@ -278,6 +294,12 @@ pytest -v
 テストカバレッジ：
 *   **`tests/test_portfolio.py`**：MVO ソルバーが制約条件下で収斂すること、接点ポートフォリオが理論上の最大シャープ・レシオと合致すること、GBM 幾何ブラウン運動シミュレーションにおける対数正規修正の正確性、VaR/CVaR の算出ロジックを検証します。
 *   **`tests/test_profiler.py`**：Ability/Willingness のスコアリングモデル、コンフリクト時のセーフティガード（就低原則）、および JSON ファイル書き出しの完全性を保証する 22 ケースの自動テストを実行します。
+*   **`tests/test_black_litterman.py`**：Black-Litterman モデルの実装を検証。均衡リターン計算、ビュー処理、事後リターンの導出を含みます。
+*   **`tests/test_advanced_portfolio.py`**：リサンプルド効率的フロンティア、資産クラス制約、共分散行列の正則化をカバーする高度ポートフォリオ最適化テスト。
+*   **`tests/test_advisor.py`**：AIアドバイザー・エージェント（DeepSeek V4 Pro）の統合テスト。
+*   **`tests/test_portfolio_recommender.py`**：リスクスコアから資産配分へのマッピングロジックを検証。
+*   **`tests/test_comparison_export.py`**：複数顧客の比較レポート生成とエクスポートのテスト。
+*   **`tests/test_phase3_features.py`**：Phase 3 機能のエンドツーエンド統合テスト。
 
 ---
 
