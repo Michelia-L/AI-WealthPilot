@@ -5,8 +5,8 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (override=True to prioritize .env file over system/terminal env vars)
+load_dotenv(override=True)
 
 # ============================================================
 # Path Configuration

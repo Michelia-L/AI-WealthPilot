@@ -50,7 +50,7 @@ def _render_sidebar() -> dict:
         Dict with all user inputs.
         包含所有用户输入的字典。
     """
-    st.sidebar.markdown("### 🎯 Retirement Settings")
+    st.sidebar.markdown("### ⌬ Retirement Settings")
 
     # --- 个人信息 / Personal Info ---
     st.sidebar.markdown("##### Personal / 个人信息")
@@ -196,7 +196,7 @@ def _render_summary_metrics(result: dict, config: dict) -> None:
         config: User configuration dict.
                 用户配置字典。
     """
-    st.markdown("### 📊 Retirement Plan Summary / 退休规划摘要")
+    st.markdown("### ⧉ Retirement Plan Summary / 退休规划摘要")
 
     survival_rate = result["survival_rate"]
     accum = result["accumulation"]
@@ -282,7 +282,7 @@ def _render_accumulation_paths(result: dict) -> None:
         result: Simulation result dict.
                 模拟结果字典。
     """
-    st.markdown("### 📈 Accumulation Phase — Portfolio Growth / 积累阶段")
+    st.markdown("### ↗ Accumulation Phase — Portfolio Growth / 积累阶段")
 
     accum = result["accumulation"]
 
@@ -346,7 +346,7 @@ def _render_distribution_analysis(result: dict, config: dict) -> None:
         config: User configuration dict.
                 用户配置字典。
     """
-    st.markdown("### 🏖️ Distribution Phase — Retirement Spending / 分配阶段")
+    st.markdown("### ⌖ Distribution Phase — Retirement Spending / 分配阶段")
 
     dist_paths = result["distribution_paths"]
     survival_rate = result["survival_rate"]
@@ -425,7 +425,7 @@ def _render_sensitivity_analysis(config: dict) -> None:
         config: User configuration dict.
                 用户配置字典。
     """
-    st.markdown("### 🔍 Sensitivity Analysis / 敏感性分析")
+    st.markdown("### ⌬ Sensitivity Analysis / 敏感性分析")
     st.markdown(
         "**How does changing your annual savings affect the outcome? / "
         "改变年度储蓄金额如何影响结果？**"
@@ -498,7 +498,7 @@ def render() -> None:
            敏感性分析：储蓄变化的影响
     """
     # 页面标题 / Page title
-    st.title("🎯 Retirement Planner")
+    st.title("✦ Retirement Planner")
     st.markdown(
         "Goal-based retirement planning using Monte Carlo simulation. "
         "Find out if your savings are on track for a comfortable retirement. / "

@@ -95,7 +95,7 @@ def _render_profile_selector() -> ClientProfile | None:
         Selected ClientProfile instance, or None if no profiles exist.
         所选的 ClientProfile 实例，如果没有画像则返回 None。
     """
-    st.markdown("#### 📂 Select Client Profile / 选择客户画像")
+    st.markdown("#### ⧉ Select Client Profile / 选择客户画像")
 
     profiles = list_profiles()
 
@@ -154,7 +154,7 @@ def _render_profile_preview(profile: ClientProfile) -> None:
     Args:
         profile: ClientProfile instance to preview.
     """
-    st.markdown("#### 👤 Profile Preview / 画像预览")
+    st.markdown("#### ⌬ Profile Preview / 画像预览")
 
     # Row 1: 基本信息 / Basic info
     col1, col2, col3, col4 = st.columns(4)
@@ -272,7 +272,7 @@ def _render_report(report: AdvisorReport, profile: ClientProfile = None) -> None
             st.caption(f"🕐 Generated: {report.generated_at[:19]}")
 
     # === 保存和导出选项 / Save and Export Options ===
-    st.markdown("#### 💾 Save Report / 保存报告")
+    st.markdown("#### ⧉ Save Report / 保存报告")
 
     col1, col2, col3 = st.columns(3)
 
@@ -351,7 +351,7 @@ def _render_historical_reports(profile: ClientProfile = None) -> None:
         profile: Optional ClientProfile to filter reports by.
                  可选的 ClientProfile，用于按客户筛选报告。
     """
-    st.markdown("#### 📚 Historical Reports / 历史报告")
+    st.markdown("#### ⧉ Historical Reports / 历史报告")
 
     if profile:
         # 获取特定客户的历史报告 / Get reports for specific client
@@ -444,7 +444,7 @@ def render() -> None:
         6. Report metadata footer (报告元数据页脚)
     """
     # === 页面标题 / Page Title ===
-    st.title("🤖 AI Wealth Advisor / AI 财富顾问")
+    st.title("✦ AI Wealth Advisor / AI 财富顾问")
     st.markdown(
         "Generate a personalized, CFA-compliant investment advisory report "
         "powered by **DeepSeek V4 Pro**. Select a client profile below to "
@@ -470,7 +470,7 @@ def render() -> None:
     st.divider()
 
     # === Step 4: 生成建议书 / Generate Advisory Report ===
-    st.markdown("#### 🚀 Generate Advisory Report / 生成建议书")
+    st.markdown("#### ✦ Generate Advisory Report / 生成建议书")
 
     if not api_ready:
         st.button(

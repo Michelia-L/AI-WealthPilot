@@ -75,7 +75,7 @@ def _render_sidebar() -> dict:
         Dict with all user selections.
         包含所有用户选择的字典。
     """
-    st.sidebar.markdown("### ⚙️ Optimizer Settings")
+    st.sidebar.markdown("### ⌬ Optimizer Settings")
 
     # --- 资产类别选择 / Asset class selection ---
     st.sidebar.markdown("##### Asset Classes / 资产类别")
@@ -545,7 +545,7 @@ def _render_efficient_frontier(results: dict) -> None:
         results: Dict from _run_optimization.
                  来自 _run_optimization 的结果字典。
     """
-    st.markdown("### 📈 Efficient Frontier / 有效前沿")
+    st.markdown("### ↗ Efficient Frontier / 有效前沿")
 
     fig = plot_efficient_frontier(
         frontier=results["frontier"],
@@ -587,7 +587,7 @@ def _render_selected_portfolio(results: dict) -> None:
     selected = results["selected"]
     opt_mode = "Maximum Sharpe" if selected is results["max_sharpe"] else "Minimum Volatility"
 
-    st.markdown(f"### 🎯 Optimal Portfolio: {opt_mode} / 最优组合")
+    st.markdown(f"### ✦ Optimal Portfolio: {opt_mode} / 最优组合")
 
     # 三列布局展示关键指标 / Three-column layout for key metrics
     col1, col2, col3 = st.columns(3)
@@ -673,7 +673,7 @@ def _render_asset_class_weights(results: dict) -> None:
     if "asset_class_weights" not in selected:
         return
 
-    st.markdown("### 📊 Asset Class Weights / 资产类别权重")
+    st.markdown("### ⌬ Asset Class Weights / 资产类别权重")
 
     asset_class_weights = selected["asset_class_weights"]
 
@@ -714,7 +714,7 @@ def _render_comparison_table(results: dict) -> None:
         results: Dict from _run_optimization.
                  来自 _run_optimization 的结果字典。
     """
-    st.markdown("### 📊 Portfolio Comparison / 组合对比")
+    st.markdown("### ⧉ Portfolio Comparison / 组合对比")
 
     max_sharpe = results["max_sharpe"]
     min_vol = results["min_vol"]
@@ -769,7 +769,7 @@ def _render_asset_universe(optimizer: PortfolioOptimizer) -> None:
         optimizer: PortfolioOptimizer instance.
                    PortfolioOptimizer 实例。
     """
-    st.markdown("### 📋 Asset Universe Summary / 资产池摘要")
+    st.markdown("### ⧉ Asset Universe Summary / 资产池摘要")
 
     summary_data = []
     for name in optimizer.asset_names:
@@ -819,7 +819,7 @@ def render() -> None:
            资产池：输入数据摘要
     """
     # 页面标题 / Page title
-    st.title("📊 Portfolio Optimizer")
+    st.title("⧉ Portfolio Optimizer")
 
     # 根据优化模式显示不同的描述
     # Show different description based on optimization mode
@@ -919,7 +919,7 @@ def render() -> None:
 
         # 复用现有组件展示选中的组合
         # Reuse existing component to show selected portfolio
-        st.markdown("### 🎯 Optimal Portfolio (BL Max Sharpe) / 最优组合（BL 最大夏普）")
+        st.markdown("### ✦ Optimal Portfolio (BL Max Sharpe) / 最优组合（BL 最大夏普）")
 
         selected = results["selected"]
         col1, col2, col3 = st.columns(3)
@@ -1066,7 +1066,7 @@ def _render_bl_views_input(
         List of ViewInput objects.
         ViewInput 对象列表。
     """
-    st.markdown("### 🎯 Investor Views / 投资者观点")
+    st.markdown("### ⌬ Investor Views / 投资者观点")
     st.caption(
         "Add your investment views. The Black-Litterman model will blend these "
         "views with market equilibrium returns. / "
@@ -1322,7 +1322,7 @@ def _render_bl_returns_comparison(bl_optimizer: BlackLittermanOptimizer) -> None
         bl_optimizer: BlackLittermanOptimizer instance with views applied.
                       已应用观点的 BlackLittermanOptimizer 实例。
     """
-    st.markdown("### 📊 Returns Comparison / 收益率对比")
+    st.markdown("### ⧉ Returns Comparison / 收益率对比")
 
     data = []
     for i, name in enumerate(bl_optimizer.asset_names):
@@ -1373,7 +1373,7 @@ def _render_bl_efficient_frontier_comparison(
         mvo_random: Random portfolios for scatter cloud.
                     随机组合用于散点云。
     """
-    st.markdown("### 📈 Efficient Frontier Comparison / 有效前沿对比")
+    st.markdown("### ↗ Efficient Frontier Comparison / 有效前沿对比")
 
     fig = go.Figure()
 
@@ -1467,7 +1467,7 @@ def _render_bl_impact_analysis(bl_optimizer: BlackLittermanOptimizer) -> None:
         bl_optimizer: BlackLittermanOptimizer instance with views applied.
                       已应用观点的 BlackLittermanOptimizer 实例。
     """
-    st.markdown("### 📉 View Impact Analysis / 观点影响分析")
+    st.markdown("### ↘ View Impact Analysis / 观点影响分析")
 
     adjustments = []
     for i, name in enumerate(bl_optimizer.asset_names):

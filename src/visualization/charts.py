@@ -11,31 +11,93 @@ from typing import Optional
 
 
 # ============================================================
-# Color Palette — Premium dark theme
+# Color Palette — Premium dark theme (Vantablack-Gold-Emerald)
 # ============================================================
 COLORS = {
-    "primary": "#6366f1",      # Indigo
-    "secondary": "#8b5cf6",    # Purple
-    "accent": "#0ea5e9",       # Sky blue
-    "success": "#10b981",      # Emerald
-    "warning": "#f59e0b",      # Amber
+    "primary": "#D4AF37",      # Luxury Gold
+    "secondary": "#10B981",    # Emerald
+    "accent": "#06B6D4",       # Teal
+    "success": "#10B981",      # Emerald
+    "warning": "#FFD700",      # Iconic Gold
     "danger": "#ef4444",       # Red
-    "bg_dark": "#0f172a",      # Slate 900
-    "bg_card": "#1e293b",      # Slate 800
-    "text": "#f1f5f9",         # Slate 100
+    "bg_dark": "#050505",      # OLED Vantablack
+    "bg_card": "#09090b",      # Deep Core Card
+    "text": "#f8fafc",         # Slate 50
     "text_muted": "#94a3b8",   # Slate 400
-    "grid": "#334155",         # Slate 700
+    "grid": "rgba(255, 255, 255, 0.03)", # Ultra-thin transparent grid lines
 }
 
 CHART_LAYOUT = dict(
     template="plotly_dark",
-    paper_bgcolor=COLORS["bg_dark"],
-    plot_bgcolor=COLORS["bg_card"],
-    font=dict(family="Inter, sans-serif", color=COLORS["text"]),
+    paper_bgcolor="rgba(0,0,0,0)",  # Transparent to blend with glassmorphic cards
+    plot_bgcolor="rgba(9, 9, 11, 0.4)",  # Match the .inner-core background
+    font=dict(family="Plus Jakarta Sans, sans-serif", color=COLORS["text"]),
     margin=dict(l=40, r=40, t=60, b=40),
-    xaxis=dict(gridcolor=COLORS["grid"]),
-    yaxis=dict(gridcolor=COLORS["grid"]),
+    xaxis=dict(
+        gridcolor=COLORS["grid"],
+        linecolor="rgba(255, 255, 255, 0.05)",
+        tickfont=dict(family="JetBrains Mono, monospace", size=10, color=COLORS["text_muted"]),
+    ),
+    yaxis=dict(
+        gridcolor=COLORS["grid"],
+        linecolor="rgba(255, 255, 255, 0.05)",
+        tickfont=dict(family="JetBrains Mono, monospace", size=10, color=COLORS["text_muted"]),
+    ),
+    hoverlabel=dict(
+        bgcolor="#09090b",
+        bordercolor="rgba(255, 255, 255, 0.1)",
+        font=dict(family="Plus Jakarta Sans, sans-serif", size=12, color="#f8fafc"),
+    ),
 )
+
+
+def get_asset_color(name_or_ticker: str, index: int) -> str:
+    """
+    Resolves the configured color for an asset, ensuring brand consistency.
+    Keeps Gold's iconic color (#FFD700 / #D4AF37) and Bitcoin's orange.
+    """
+    try:
+        from src.config import ASSET_UNIVERSE, DEFAULT_ASSET_CLASSES
+
+        # 1. Check direct matches in ASSET_UNIVERSE
+        for ticker, info in ASSET_UNIVERSE.items():
+            if name_or_ticker == ticker or name_or_ticker == info.get("name"):
+                return info.get("color", "#D4AF37")
+
+        # 2. Check matches in DEFAULT_ASSET_CLASSES
+        for key, info in DEFAULT_ASSET_CLASSES.items():
+            if name_or_ticker == info.get("ticker") or name_or_ticker == info.get("name"):
+                if "gold" in name_or_ticker.lower() or info.get("ticker") == "GLD":
+                    return "#FFD700"  # Iconic Gold
+                if "btc" in name_or_ticker.lower() or "bitcoin" in name_or_ticker.lower() or info.get("ticker") == "BTC-USD":
+                    return "#F7931A"  # Bitcoin Orange
+                
+                premium_colors = {
+                    "EQUITY": "#06B6D4",      # Teal
+                    "BOND": "#3B82F6",        # Blue
+                    "TREASURY": "#60A5FA",    # Light blue
+                    "COMMODITIES": "#A855F7", # Purple
+                    "REIT": "#EC4899",        # Pink
+                    "CASH": "#9CA3AF",        # Gray
+                }
+                for cls_key, color in premium_colors.items():
+                    if cls_key in key:
+                        return color
+    except Exception:
+        pass
+
+    # 3. Fallback premium color palette
+    fallback_palette = [
+        "#D4AF37",  # Gold
+        "#10B981",  # Emerald
+        "#06B6D4",  # Teal
+        "#3B82F6",  # Blue
+        "#A855F7",  # Purple
+        "#EC4899",  # Pink
+        "#F59E0B",  # Amber
+    ]
+    return fallback_palette[index % len(fallback_palette)]
+
 
 
 def plot_efficient_frontier(
@@ -113,14 +175,17 @@ def plot_allocation_pie(weights: dict, title: str = "Portfolio Allocation") -> g
     # Filter out near-zero weights
     filtered = {k: v for k, v in weights.items() if abs(v) > 0.005}
 
+    # Resolve colors dynamically using our premium color resolver
+    asset_colors = [get_asset_color(label, i) for i, label in enumerate(filtered.keys())]
+
     fig = go.Figure(go.Pie(
         labels=list(filtered.keys()),
         values=list(filtered.values()),
         hole=0.45,
         textinfo="label+percent",
         marker=dict(
-            colors=px.colors.qualitative.Set2[:len(filtered)],
-            line=dict(color=COLORS["bg_dark"], width=2),
+            colors=asset_colors,
+            line=dict(color="#030712", width=2),
         ),
     ))
 
@@ -250,7 +315,6 @@ def plot_price_history(
         yaxis_title = "Price"
 
     fig = go.Figure()
-    colors = px.colors.qualitative.Set2
 
     for i, col in enumerate(data.columns):
         fig.add_trace(go.Scatter(
@@ -258,7 +322,7 @@ def plot_price_history(
             y=data[col],
             mode="lines",
             name=col,
-            line=dict(width=2, color=colors[i % len(colors)]),
+            line=dict(width=2, color=get_asset_color(col, i)),
             connectgaps=True,
         ))
 

@@ -50,7 +50,7 @@ def _render_basic_info() -> dict:
     Returns:
         Dict with basic info fields.
     """
-    st.markdown("#### 👤 Basic Information / 基本信息")
+    st.markdown("#### ⌬ Basic Information / 基本信息")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -95,7 +95,7 @@ def _render_financial_situation() -> dict:
     Returns:
         Dict with financial fields.
     """
-    st.markdown("#### 💰 Financial Situation / 财务状况")
+    st.markdown("#### ⧉ Financial Situation / 财务状况")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -144,7 +144,7 @@ def _render_investment_goals() -> list[dict]:
     Returns:
         List of goal dicts.
     """
-    st.markdown("#### 🎯 Investment Goals / 投资目标")
+    st.markdown("#### ✦ Investment Goals / 投资目标")
 
     # 使用 session state 管理目标列表
     # Use session state to manage the goals list
@@ -211,7 +211,7 @@ def _render_risk_ability_questions() -> dict:
     Returns:
         Dict mapping question keys to selected option keys.
     """
-    st.markdown("#### 📊 Risk Ability Assessment / 风险承受能力评估")
+    st.markdown("#### ⌬ Risk Ability Assessment / 风险承受能力评估")
     st.caption(
         "These questions assess your **objective capacity** to bear risk. / "
         "这些问题评估你承担风险的**客观能力**。"
@@ -247,7 +247,7 @@ def _render_risk_willingness_questions() -> dict:
     Returns:
         Dict mapping question keys to selected option keys.
     """
-    st.markdown("#### 💭 Risk Willingness Assessment / 风险承担意愿评估")
+    st.markdown("#### ⌬ Risk Willingness Assessment / 风险承担意愿评估")
     st.caption(
         "These questions assess your **psychological comfort** with risk. "
         "Answer honestly — there are no right or wrong answers. / "
@@ -281,7 +281,7 @@ def _render_profile_summary(profile: ClientProfile) -> None:
     Args:
         profile: Completed ClientProfile instance.
     """
-    st.markdown("#### 📋 Profile Summary / 画像摘要")
+    st.markdown("#### ⧉ Profile Summary / 画像摘要")
 
     # === 客户概览 / Client Overview ===
     col1, col2, col3, col4 = st.columns(4)
@@ -410,7 +410,7 @@ def render() -> None:
         6. Additional settings / 附加设置
         7. Generate & save profile / 生成并保存画像
     """
-    st.title("🧠 Client Profiling / 客户画像")
+    st.title("⌬ Client Profiling / 客户画像")
     st.markdown(
         "Complete the questionnaire below to generate your investment profile "
         "based on the CFA Investment Policy Statement (IPS) framework. / "
@@ -456,7 +456,7 @@ def render() -> None:
     # ====================================
     # Step 6: Additional Settings / 附加设置
     # ====================================
-    st.markdown("#### ⚙️ Additional Settings / 附加设置")
+    st.markdown("#### ⌬ Additional Settings / 附加设置")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -488,7 +488,7 @@ def render() -> None:
     # ====================================
     # Step 7: Generate Profile / 生成画像
     # ====================================
-    st.markdown("#### ✅ Generate Profile / 生成画像")
+    st.markdown("#### ✦ Generate Profile / 生成画像")
 
     if st.button("🧮 Generate My Profile / 生成我的画像", type="primary"):
         # 基本校验 / Basic validation
@@ -528,7 +528,7 @@ def render() -> None:
     # 已保存画像列表 / Saved Profiles List
     # ====================================
     st.divider()
-    st.markdown("#### 📂 Saved Profiles / 已保存的画像")
+    st.markdown("#### ⧉ Saved Profiles / 已保存的画像")
 
     profiles = list_profiles()
     if profiles:
@@ -549,7 +549,7 @@ def render() -> None:
     # Profile Comparison / 画像对比
     # ====================================
     st.divider()
-    st.markdown("#### 📊 Profile Comparison / 画像对比")
+    st.markdown("#### ⧉ Profile Comparison / 画像对比")
 
     if len(profiles) >= 2:
         # Build name-to-filepath mapping for loading profiles

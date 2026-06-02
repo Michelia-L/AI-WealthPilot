@@ -138,7 +138,7 @@ def _render_sidebar() -> tuple[list[str], str]:
         Tuple of (selected_tickers, yfinance_period_string).
         返回元组：(选中的 ticker 列表, yfinance 时间范围字符串)。
     """
-    st.sidebar.markdown("### 🎛️ Dashboard Settings")
+    st.sidebar.markdown("### ⌬ Dashboard Settings")
     st.sidebar.markdown("##### Asset Categories / 资产类别")
 
     # 让用户选择要展示的资产类别
@@ -192,7 +192,7 @@ def _render_market_overview(quotes_df: pd.DataFrame) -> None:
                    ticker, name, category, price, previous_close, change, change_pct.
                    来自 get_latest_quotes 的 DataFrame。
     """
-    st.markdown("### 📊 Market Overview / 市场概览")
+    st.markdown("### ⧉ Market Overview / 市场概览")
 
     if quotes_df is None or quotes_df.empty:
         st.warning("⚠️ Unable to fetch live quotes. Please try again later.")
@@ -203,50 +203,38 @@ def _render_market_overview(quotes_df: pd.DataFrame) -> None:
     st.markdown(
         """
         <style>
-        .market-card {
-            background-color: var(--secondary-background-color);
-            border: 1px solid rgba(128, 128, 128, 0.15);
-            border-radius: 10px;
-            padding: 14px 16px;
-            margin-bottom: 12px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-        }
-        .market-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
-            border-color: var(--primary-color);
-        }
         .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
         }
         .card-title {
-            font-size: 0.85rem;
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 0.88rem;
             font-weight: 600;
-            color: var(--text-color);
-            opacity: 0.9;
+            color: #f8fafc !important;
+            opacity: 0.95;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
             max-width: 150px;
         }
         .card-symbol {
+            font-family: 'JetBrains Mono', monospace !important;
             font-size: 0.65rem;
-            background-color: rgba(128, 128, 128, 0.15);
-            color: var(--text-color);
-            padding: 1px 4px;
-            border-radius: 3px;
-            font-family: monospace;
-            opacity: 0.8;
+            background-color: rgba(255, 255, 255, 0.05) !important;
+            color: #94a3b8 !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            padding: 2px 6px;
+            border-radius: 4px;
         }
         .card-price {
-            font-size: 1.45rem;
+            font-family: 'JetBrains Mono', monospace !important;
+            font-size: 1.55rem;
             font-weight: 700;
-            color: var(--text-color);
-            margin-bottom: 4px;
+            color: #ffffff !important;
+            margin-bottom: 8px;
             line-height: 1.2;
         }
         .card-change {
@@ -257,13 +245,13 @@ def _render_market_overview(quotes_df: pd.DataFrame) -> None:
             gap: 3px;
         }
         .card-change.up {
-            color: #10b981;
+            color: #10b981 !important;
         }
         .card-change.down {
-            color: #ef4444;
+            color: #ef4444 !important;
         }
         .card-change.flat {
-            color: #9ca3af;
+            color: #94a3b8 !important;
         }
         .change-icon {
             font-size: 0.65rem;
@@ -356,29 +344,33 @@ def _render_market_overview(quotes_df: pd.DataFrame) -> None:
                         change_desc = f"{change_val_str} ({change_pct_str})" if change_val_str else change_pct_str
 
                     card_html = f"""
-                    <div class="market-card">
-                        <div class="card-header">
-                            <span class="card-title" title="{row['name']}">{row['name']}</span>
-                            <span class="card-symbol">{ticker}</span>
-                        </div>
-                        <div class="card-price">{price_str}</div>
-                        <div class="card-change {change_class}">
-                            <span class="change-icon">{change_icon}</span>
-                            <span>{change_desc}</span>
+                    <div class="bezel-card">
+                        <div class="inner-core">
+                            <div class="card-header">
+                                <span class="card-title" title="{row['name']}">{row['name']}</span>
+                                <span class="card-symbol">{ticker}</span>
+                            </div>
+                            <div class="card-price">{price_str}</div>
+                            <div class="card-change {change_class}">
+                                <span class="change-icon">{change_icon}</span>
+                                <span>{change_desc}</span>
+                            </div>
                         </div>
                     </div>
                     """
                 else:
                     card_html = f"""
-                    <div class="market-card">
-                        <div class="card-header">
-                            <span class="card-title" title="{row['name']}">{row['name']}</span>
-                            <span class="card-symbol">{ticker}</span>
-                        </div>
-                        <div class="card-price">N/A</div>
-                        <div class="card-change flat">
-                            <span class="change-icon">•</span>
-                            <span>No Data</span>
+                    <div class="bezel-card">
+                        <div class="inner-core">
+                            <div class="card-header">
+                                <span class="card-title" title="{row['name']}">{row['name']}</span>
+                                <span class="card-symbol">{ticker}</span>
+                            </div>
+                            <div class="card-price">N/A</div>
+                            <div class="card-change flat">
+                                <span class="change-icon">•</span>
+                                <span>No Data</span>
+                            </div>
                         </div>
                     </div>
                     """
@@ -407,7 +399,7 @@ def _render_price_chart(prices_df: pd.DataFrame, period_label: str) -> None:
         period_label: Human-readable period label for the chart title.
                       用于图表标题的可读时间范围标签。
     """
-    st.markdown("### 📈 Price History / 价格走势")
+    st.markdown("### ↗ Price History / 价格走势")
 
     if prices_df is None or prices_df.empty:
         st.warning("⚠️ Unable to fetch price history. Please try again later.")
@@ -462,7 +454,7 @@ def _render_correlation_heatmap(prices_df: pd.DataFrame) -> None:
         prices_df: DataFrame of adjusted close prices.
                    调整后收盘价 DataFrame。
     """
-    st.markdown("### 🔗 Correlation Matrix / 相关性矩阵")
+    st.markdown("### ⌬ Correlation Matrix / 相关性矩阵")
 
     if prices_df is None or prices_df.empty or prices_df.shape[1] < 2:
         st.info("ℹ️ Select at least 2 assets to view correlation. / "
@@ -516,7 +508,7 @@ def _render_risk_statistics(prices_df: pd.DataFrame) -> None:
         prices_df: DataFrame of adjusted close prices.
                    调整后收盘价 DataFrame。
     """
-    st.markdown("### 📋 Risk & Return Statistics / 风险收益统计")
+    st.markdown("### ⧉ Risk & Return Statistics / 风险收益统计")
 
     if prices_df is None or prices_df.empty:
         st.warning("⚠️ No data available for statistics. / 无数据可用于统计。")
@@ -602,7 +594,7 @@ def render() -> None:
            风险统计：绩效指标表格
     """
     # 页面标题和说明 / Page title and description
-    st.title("📈 Global Market Dashboard")
+    st.title("✦ Global Market Dashboard")
     st.markdown(
         "Real-time market data and analytics for your asset universe. / "
         "资产池的实时市场数据和分析。"
