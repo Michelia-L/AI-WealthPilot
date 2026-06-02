@@ -265,78 +265,51 @@ class TestClientProfile:
 
 class TestProfilePersistence:
 
-    def test_save_and_load(self, sample_profile, tmp_path):
+    def test_save_and_load(self, sample_profile):
         """Saved profile should be loadable and match original."""
-        # Monkey-patch the profiles directory to use tmp_path
-        import src.agents.profiler as profiler_module
-        original_dir = profiler_module.PROFILES_DIR
-        profiler_module.PROFILES_DIR = tmp_path / "profiles"
+        filepath = save_profile(sample_profile)
+        assert filepath.exists()
 
-        try:
-            filepath = save_profile(sample_profile)
-            assert filepath.exists()
+        loaded = load_profile(filepath)
+        assert loaded.name == sample_profile.name
+        assert loaded.age == sample_profile.age
+        assert loaded.financial.annual_income == sample_profile.financial.annual_income
+        assert loaded.financial.net_worth == sample_profile.financial.net_worth
+        assert len(loaded.goals) == len(sample_profile.goals)
+        assert loaded.risk_profile.ability_score == sample_profile.risk_profile.ability_score
 
-            loaded = load_profile(filepath)
-            assert loaded.name == sample_profile.name
-            assert loaded.age == sample_profile.age
-            assert loaded.financial.annual_income == sample_profile.financial.annual_income
-            assert loaded.financial.net_worth == sample_profile.financial.net_worth
-            assert len(loaded.goals) == len(sample_profile.goals)
-            assert loaded.risk_profile.ability_score == sample_profile.risk_profile.ability_score
-        finally:
-            profiler_module.PROFILES_DIR = original_dir
-
-    def test_save_creates_directory(self, tmp_path):
+    def test_save_creates_directory(self, monkeypatch, tmp_path):
         """save_profile should create the profiles directory if it doesn't exist."""
-        import src.agents.profiler as profiler_module
-        original_dir = profiler_module.PROFILES_DIR
         new_dir = tmp_path / "nonexistent" / "profiles"
-        profiler_module.PROFILES_DIR = new_dir
+        monkeypatch.setattr("src.agents.profiler.PROFILES_DIR", new_dir)
 
-        try:
-            profile = ClientProfile(name="Dir Test")
-            filepath = save_profile(profile)
-            assert new_dir.exists()
-            assert filepath.exists()
-        finally:
-            profiler_module.PROFILES_DIR = original_dir
+        profile = ClientProfile(name="Dir Test")
+        filepath = save_profile(profile)
+        assert new_dir.exists()
+        assert filepath.exists()
 
-    def test_list_profiles(self, tmp_path):
+    def test_list_profiles(self):
         """list_profiles should return saved profiles sorted by date."""
-        import src.agents.profiler as profiler_module
-        original_dir = profiler_module.PROFILES_DIR
-        profiler_module.PROFILES_DIR = tmp_path / "profiles"
+        # Save two profiles
+        p1 = ClientProfile(name="Alice", age=25)
+        p2 = ClientProfile(name="Bob", age=40)
+        save_profile(p1)
+        save_profile(p2)
 
-        try:
-            # Save two profiles
-            p1 = ClientProfile(name="Alice", age=25)
-            p2 = ClientProfile(name="Bob", age=40)
-            save_profile(p1)
-            save_profile(p2)
+        profiles = list_profiles()
+        assert len(profiles) == 2
+        names = [p["name"] for p in profiles]
+        assert "Alice" in names
+        assert "Bob" in names
 
-            profiles = list_profiles()
-            assert len(profiles) == 2
-            names = [p["name"] for p in profiles]
-            assert "Alice" in names
-            assert "Bob" in names
-        finally:
-            profiler_module.PROFILES_DIR = original_dir
-
-    def test_json_is_valid(self, sample_profile, tmp_path):
+    def test_json_is_valid(self, sample_profile):
         """Saved JSON should be valid and contain all expected fields."""
-        import src.agents.profiler as profiler_module
-        original_dir = profiler_module.PROFILES_DIR
-        profiler_module.PROFILES_DIR = tmp_path / "profiles"
+        filepath = save_profile(sample_profile)
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
 
-        try:
-            filepath = save_profile(sample_profile)
-            with open(filepath, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            assert "name" in data
-            assert "financial" in data
-            assert "risk_profile" in data
-            assert "goals" in data
-            assert isinstance(data["goals"], list)
-        finally:
-            profiler_module.PROFILES_DIR = original_dir
+        assert "name" in data
+        assert "financial" in data
+        assert "risk_profile" in data
+        assert "goals" in data
+        assert isinstance(data["goals"], list)

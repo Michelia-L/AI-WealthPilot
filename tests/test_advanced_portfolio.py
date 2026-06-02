@@ -117,7 +117,8 @@ class TestNumericalStability:
         assert np.isfinite(condition), "Condition number should be finite"
         assert condition > 0, "Condition number should be positive"
 
-    def test_regularization_for_ill_conditioned(self, ill_conditioned_returns):
+    @pytest.mark.parametrize("method", ["diagonal", "eigenvalue"])
+    def test_regularization_for_ill_conditioned(self, ill_conditioned_returns, method):
         """
         Ill-conditioned covariance matrix should be regularized.
         病态协方差矩阵应被正则化。
@@ -136,18 +137,19 @@ class TestNumericalStability:
             # 正则化后的条件数应该更小
             # Condition number after regularization should be smaller
             regularized_optimizer = PortfolioOptimizer(ill_conditioned_returns)
-            regularized_optimizer.cov_matrix = regularized_optimizer._regularize_covariance_matrix()
+            regularized_optimizer.cov_matrix = regularized_optimizer._regularize_covariance_matrix(method=method)
             new_condition = regularized_optimizer._check_condition_number()
 
-            assert new_condition < condition, "Regularization should reduce condition number"
+            assert new_condition < condition, f"Regularization using {method} should reduce condition number"
 
-    def test_regularization_preserves_symmetry(self, sample_returns):
+    @pytest.mark.parametrize("method", ["diagonal", "eigenvalue"])
+    def test_regularization_preserves_symmetry(self, sample_returns, method):
         """
         Regularized covariance matrix should remain symmetric.
         正则化后的协方差矩阵应保持对称。
         """
         optimizer = PortfolioOptimizer(sample_returns)
-        regularized = optimizer._regularize_covariance_matrix()
+        regularized = optimizer._regularize_covariance_matrix(method=method)
 
         # 检查对称性
         # Check symmetry
@@ -157,18 +159,28 @@ class TestNumericalStability:
             err_msg="Regularized matrix should be symmetric",
         )
 
-    def test_regularization_preserves_positive_definiteness(self, sample_returns):
+    @pytest.mark.parametrize("method", ["diagonal", "eigenvalue"])
+    def test_regularization_preserves_positive_definiteness(self, sample_returns, method):
         """
         Regularized covariance matrix should be positive definite.
         正则化后的协方差矩阵应为正定矩阵。
         """
         optimizer = PortfolioOptimizer(sample_returns)
-        regularized = optimizer._regularize_covariance_matrix()
+        regularized = optimizer._regularize_covariance_matrix(method=method)
 
         # 检查特征值是否都为正
         # Check if all eigenvalues are positive
         eigenvalues = np.linalg.eigvalsh(regularized.values)
         assert np.all(eigenvalues > 0), "Regularized matrix should be positive definite"
+
+    def test_regularization_invalid_method(self, sample_returns):
+        """
+        Providing an unknown regularization method should raise ValueError.
+        提供未知的正则化方法应该抛出 ValueError。
+        """
+        optimizer = PortfolioOptimizer(sample_returns)
+        with pytest.raises(ValueError, match="Unknown regularization method"):
+            optimizer._regularize_covariance_matrix(method="invalid_method_name")
 
     def test_optimizer_works_with_ill_conditioned_matrix(self, ill_conditioned_returns):
         """

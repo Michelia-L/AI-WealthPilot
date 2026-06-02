@@ -280,19 +280,15 @@ class TestReportStorage:
             completion_tokens=2000,
         )
 
-        try:
-            # Verify saved report
-            assert saved.report_id
-            assert saved.client_name == "Test Client"
-            assert saved.total_tokens == 3000
+        # Verify saved report
+        assert saved.report_id
+        assert saved.client_name == "Test Client"
+        assert saved.total_tokens == 3000
 
-            # Load and verify
-            loaded = load_report(Path(saved.filepath))
-            assert loaded.content == sample_report_content
-            assert loaded.model == "deepseek-v4-pro"
-        finally:
-            # Cleanup
-            delete_report(Path(saved.filepath))
+        # Load and verify
+        loaded = load_report(Path(saved.filepath))
+        assert loaded.content == sample_report_content
+        assert loaded.model == "deepseek-v4-pro"
 
     def test_list_reports(self, sample_report_content):
         """Test listing saved reports."""
@@ -303,17 +299,13 @@ class TestReportStorage:
             model="test-model",
         )
 
-        try:
-            # List reports
-            reports = list_reports()
-            assert len(reports) > 0
+        # List reports
+        reports = list_reports()
+        assert len(reports) > 0
 
-            # Find our report
-            found = [r for r in reports if r["report_id"] == saved.report_id]
-            assert len(found) == 1
-        finally:
-            # Cleanup
-            delete_report(Path(saved.filepath))
+        # Find our report
+        found = [r for r in reports if r["report_id"] == saved.report_id]
+        assert len(found) == 1
 
     def test_list_reports_filter_by_client(self, sample_report_content):
         """Test filtering reports by client name."""
@@ -329,15 +321,10 @@ class TestReportStorage:
             model="test-model",
         )
 
-        try:
-            # Filter by client name
-            reports = list_reports(client_name="Client A")
-            found = [r for r in reports if r["client_name"] == "Client A"]
-            assert len(found) >= 1
-        finally:
-            # Cleanup
-            delete_report(Path(saved1.filepath))
-            delete_report(Path(saved2.filepath))
+        # Filter by client name
+        reports = list_reports(client_name="Client A")
+        found = [r for r in reports if r["client_name"] == "Client A"]
+        assert len(found) >= 1
 
     def test_delete_report(self, sample_report_content):
         """Test deleting a report."""
@@ -363,17 +350,13 @@ class TestReportStorage:
             model="test-model",
         )
 
-        try:
-            loaded = load_report(Path(saved.filepath))
-            markdown = export_report_markdown(loaded)
+        loaded = load_report(Path(saved.filepath))
+        markdown = export_report_markdown(loaded)
 
-            # Verify Markdown format
-            assert "# Investment Advisory Report" in markdown
-            assert "Export Test" in markdown
-            assert sample_report_content in markdown
-        finally:
-            # Cleanup
-            delete_report(Path(saved.filepath))
+        # Verify Markdown format
+        assert "# Investment Advisory Report" in markdown
+        assert "Export Test" in markdown
+        assert sample_report_content in markdown
 
     def test_update_report_notes(self, sample_report_content):
         """Test updating report notes."""
@@ -383,19 +366,15 @@ class TestReportStorage:
             model="test-model",
         )
 
-        try:
-            filepath = Path(saved.filepath)
+        filepath = Path(saved.filepath)
 
-            # Update notes
-            result = update_report_notes(filepath, "Test notes added")
-            assert result is True
+        # Update notes
+        result = update_report_notes(filepath, "Test notes added")
+        assert result is True
 
-            # Verify notes
-            loaded = load_report(filepath)
-            assert loaded.notes == "Test notes added"
-        finally:
-            # Cleanup
-            delete_report(filepath)
+        # Verify notes
+        loaded = load_report(filepath)
+        assert loaded.notes == "Test notes added"
 
 
 # ============================================================
@@ -411,36 +390,29 @@ class TestPhase3Integration:
         profile_path = save_profile(sample_profile)
         assert profile_path.exists()
 
-        try:
-            # 2. Load and verify profile
-            loaded = load_profile(profile_path)
-            assert loaded.name == sample_profile.name
+        # 2. Load and verify profile
+        loaded = load_profile(profile_path)
+        assert loaded.name == sample_profile.name
 
-            # 3. Identify biases
-            biases = identify_behavioral_biases(loaded)
-            assert isinstance(biases, list)
+        # 3. Identify biases
+        biases = identify_behavioral_biases(loaded)
+        assert isinstance(biases, list)
 
-            # 4. Save report with profile reference
-            report = save_report(
-                content=sample_report_content,
-                client_name=loaded.name,
-                model="deepseek-v4-pro",
-                profile_filepath=str(profile_path),
-            )
-            assert report.client_name == loaded.name
+        # 4. Save report with profile reference
+        report = save_report(
+            content=sample_report_content,
+            client_name=loaded.name,
+            model="deepseek-v4-pro",
+            profile_filepath=str(profile_path),
+        )
+        assert report.client_name == loaded.name
 
-            # 5. Get reports for this profile
-            profile_reports = get_reports_for_profile(str(profile_path))
-            assert len(profile_reports) >= 1
+        # 5. Get reports for this profile
+        profile_reports = get_reports_for_profile(str(profile_path))
+        assert len(profile_reports) >= 1
 
-            # 6. Update profile
-            loaded.age = 36
-            update_profile(profile_path, loaded)
-            updated = load_profile(profile_path)
-            assert updated.age == 36
-
-        finally:
-            # Cleanup
-            profile_path.unlink(missing_ok=True)
-            if report.filepath:
-                Path(report.filepath).unlink(missing_ok=True)
+        # 6. Update profile
+        loaded.age = 36
+        update_profile(profile_path, loaded)
+        updated = load_profile(profile_path)
+        assert updated.age == 36
