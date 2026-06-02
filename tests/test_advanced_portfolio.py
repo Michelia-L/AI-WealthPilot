@@ -541,3 +541,113 @@ class TestIntegration:
 
         result3 = optimizer.efficient_frontier(n_points=10)
         assert len(result3) > 0
+
+
+class TestCovarianceShrinkage:
+    """
+    Test suite for covariance shrinkage estimators (Ledoit-Wolf and OAS).
+    协方差收缩估计量（Ledoit-Wolf 和 OAS）测试套件。
+    """
+
+    def test_invalid_covariance_method(self, sample_returns):
+        """
+        Verify that providing an unsupported covariance_method raises a ValueError.
+        """
+        with pytest.raises(ValueError, match="Unknown covariance method"):
+            PortfolioOptimizer(sample_returns, covariance_method="invalid_method")
+
+    def test_ledoit_wolf_covariance_properties(self, sample_returns):
+        """
+        Verify that ledoit-wolf covariance is symmetric and positive definite,
+        and is different from sample covariance.
+        """
+        optimizer_sample = PortfolioOptimizer(sample_returns, covariance_method='sample')
+        optimizer_lw = PortfolioOptimizer(sample_returns, covariance_method='ledoit-wolf')
+
+        # Check shape, index and columns match
+        assert optimizer_lw.cov_matrix.shape == optimizer_sample.cov_matrix.shape
+        assert (optimizer_lw.cov_matrix.index == optimizer_sample.cov_matrix.index).all()
+
+        # Should not be identical to sample covariance
+        assert not np.allclose(optimizer_lw.cov_matrix.values, optimizer_sample.cov_matrix.values)
+
+        # Symmetry check
+        np.testing.assert_array_almost_equal(
+            optimizer_lw.cov_matrix.values,
+            optimizer_lw.cov_matrix.values.T,
+            err_msg="Ledoit-Wolf covariance matrix should be symmetric"
+        )
+
+        # Positive definiteness check (all eigenvalues > 0)
+        eigenvalues = np.linalg.eigvalsh(optimizer_lw.cov_matrix.values)
+        assert np.all(eigenvalues > 0), "Ledoit-Wolf covariance matrix should be positive definite"
+
+    def test_oas_covariance_properties(self, sample_returns):
+        """
+        Verify that oas covariance is symmetric and positive definite,
+        and is different from sample covariance.
+        """
+        optimizer_sample = PortfolioOptimizer(sample_returns, covariance_method='sample')
+        optimizer_oas = PortfolioOptimizer(sample_returns, covariance_method='oas')
+
+        # Check shape, index and columns match
+        assert optimizer_oas.cov_matrix.shape == optimizer_sample.cov_matrix.shape
+        assert (optimizer_oas.cov_matrix.index == optimizer_sample.cov_matrix.index).all()
+
+        # Should not be identical to sample covariance
+        assert not np.allclose(optimizer_oas.cov_matrix.values, optimizer_sample.cov_matrix.values)
+
+        # Symmetry check
+        np.testing.assert_array_almost_equal(
+            optimizer_oas.cov_matrix.values,
+            optimizer_oas.cov_matrix.values.T,
+            err_msg="OAS covariance matrix should be symmetric"
+        )
+
+        # Positive definiteness check (all eigenvalues > 0)
+        eigenvalues = np.linalg.eigvalsh(optimizer_oas.cov_matrix.values)
+        assert np.all(eigenvalues > 0), "OAS covariance matrix should be positive definite"
+
+    def test_shrinkage_optimization_run(self, sample_returns):
+        """
+        Verify optimization works with both estimators.
+        """
+        for method in ['ledoit-wolf', 'oas']:
+            optimizer = PortfolioOptimizer(sample_returns, covariance_method=method)
+
+            # Max Sharpe
+            res_sharpe = optimizer.maximize_sharpe()
+            assert res_sharpe['success'], f"maximize_sharpe failed with {method}"
+            weights_sum = sum(res_sharpe['weights'].values())
+            assert abs(weights_sum - 1.0) < 1e-6
+
+            # Min Volatility
+            res_vol = optimizer.minimize_volatility()
+            assert res_vol['success'], f"minimize_volatility failed with {method}"
+            weights_sum = sum(res_vol['weights'].values())
+            assert abs(weights_sum - 1.0) < 1e-6
+
+    def test_black_litterman_with_shrinkage(self, sample_returns):
+        """
+        Verify BlackLittermanOptimizer works with shrinkage.
+        """
+        from src.portfolio.optimizer import BlackLittermanOptimizer
+        from src.portfolio.views import ViewInput
+
+        # Initialize with ledoit-wolf
+        bl_opt = BlackLittermanOptimizer(sample_returns, covariance_method='ledoit-wolf')
+        assert bl_opt.covariance_method == 'ledoit-wolf'
+
+        view = ViewInput(
+            view_type="absolute",
+            asset_long="US_EQ",
+            expected_return=0.08,
+            confidence=60.0,
+        )
+        bl_opt.apply_views([view])
+        assert bl_opt.views_applied
+
+        result = bl_opt.bl_maximize_sharpe()
+        assert result['success']
+        weights_sum = sum(result['weights'].values())
+        assert abs(weights_sum - 1.0) < 1e-6

@@ -65,6 +65,7 @@ class PortfolioOptimizer:
         self,
         returns: pd.DataFrame,
         risk_free_rate: float = RISK_FREE_RATE,
+        covariance_method: str = 'sample',
     ):
         """
         Initialize the optimizer with historical return data.
@@ -78,13 +79,22 @@ class PortfolioOptimizer:
                             Typically the yield on short-term government bonds (e.g., 10-year Treasury).
                             年化无风险利率，用于夏普比率计算。
                             通常使用短期国债收益率（如十年期美国国债）。
+            covariance_method: Method to estimate covariance matrix ('sample', 'ledoit-wolf', 'oas').
+                               协方差矩阵估计方法（'sample', 'ledoit-wolf', 'oas'）。
         """
+        if covariance_method not in ['sample', 'ledoit-wolf', 'oas']:
+            raise ValueError(
+                f"Unknown covariance method: {covariance_method}. "
+                f"Supported methods are 'sample', 'ledoit-wolf', 'oas'."
+            )
+
         self.returns = returns
         # 资产数量 / Number of assets in the universe
         self.n_assets = returns.shape[1]
         # 资产名称列表 / List of asset names (column headers)
         self.asset_names = returns.columns.tolist()
         self.risk_free_rate = risk_free_rate
+        self.covariance_method = covariance_method
 
         # ============================================================
         # 将日频统计量年化 / Annualize daily statistics
@@ -95,11 +105,30 @@ class PortfolioOptimizer:
         # Assumption: daily returns are i.i.d. — a standard MVO assumption
         self.mean_returns = returns.mean() * TRADING_DAYS_PER_YEAR
 
-        # 年化协方差矩阵 = 日协方差矩阵 × 年交易日数
-        # Annualized covariance matrix = daily covariance matrix × trading days per year
-        # 协方差矩阵是 MVO 的核心输入，描述了资产之间的联动关系
-        # The covariance matrix is the core input of MVO, capturing co-movements between assets
-        self.cov_matrix = returns.cov() * TRADING_DAYS_PER_YEAR
+        # 估算年化协方差矩阵
+        # Estimate annualized covariance matrix
+        if covariance_method == 'ledoit-wolf':
+            from sklearn.covariance import ledoit_wolf
+            shrunk_cov, _ = ledoit_wolf(returns.values)
+            self.cov_matrix = pd.DataFrame(
+                shrunk_cov,
+                index=returns.columns,
+                columns=returns.columns,
+            ) * TRADING_DAYS_PER_YEAR
+        elif covariance_method == 'oas':
+            from sklearn.covariance import oas
+            shrunk_cov, _ = oas(returns.values)
+            self.cov_matrix = pd.DataFrame(
+                shrunk_cov,
+                index=returns.columns,
+                columns=returns.columns,
+            ) * TRADING_DAYS_PER_YEAR
+        else:
+            # 年化协方差矩阵 = 日协方差矩阵 × 年交易日数
+            # Annualized covariance matrix = daily covariance matrix × trading days per year
+            # 协方差矩阵是 MVO 的核心输入，描述了资产之间的联动关系
+            # The covariance matrix is the core input of MVO, capturing co-movements between assets
+            self.cov_matrix = returns.cov() * TRADING_DAYS_PER_YEAR
 
         # ============================================================
         # 协方差矩阵正则化和条件数检查
@@ -683,6 +712,7 @@ class PortfolioOptimizer:
             temp_optimizer = PortfolioOptimizer(
                 self.returns,  # 保持原始收益率数据（用于协方差计算）
                 risk_free_rate=self.risk_free_rate,
+                covariance_method=self.covariance_method,
             )
 
             # 覆盖预期收益为抽样值
@@ -767,6 +797,7 @@ class PortfolioOptimizer:
             temp_optimizer = PortfolioOptimizer(
                 self.returns,
                 risk_free_rate=self.risk_free_rate,
+                covariance_method=self.covariance_method,
             )
             temp_optimizer.mean_returns = pd.Series(
                 sampled_annual_returns,
@@ -1031,6 +1062,7 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
         market_cap_weights: Optional[np.ndarray] = None,
         delta: Optional[float] = None,
         tau: float = 0.025,
+        covariance_method: str = 'sample',
     ):
         """
         Initialize the Black-Litterman optimizer.
@@ -1051,10 +1083,16 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
                    δ = (E[R_mkt] - R_f) / σ²_mkt
             tau: Uncertainty scaling factor for the prior (typically 0.025-0.05).
                  先验分布的不确定性缩放因子（通常为0.025-0.05）。
+            covariance_method: Method to estimate covariance matrix ('sample', 'ledoit-wolf', 'oas').
+                               协方差矩阵估计方法（'sample', 'ledoit-wolf', 'oas'）。
         """
         # Initialize parent class
         # 初始化父类
-        super().__init__(returns, risk_free_rate)
+        super().__init__(
+            returns=returns,
+            risk_free_rate=risk_free_rate,
+            covariance_method=covariance_method,
+        )
 
         self.tau = tau
 
