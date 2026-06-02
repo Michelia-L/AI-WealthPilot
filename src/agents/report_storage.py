@@ -29,6 +29,7 @@ CFA Reference / CFA 参考:
 
 import json
 import re
+import markdown
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
@@ -348,102 +349,7 @@ def _markdown_to_html(markdown_text: str) -> str:
     Returns:
         HTML formatted string.
     """
-    lines = markdown_text.split('\n')
-    html_lines = []
-    in_list = False
-    in_paragraph = False
-
-    for line in lines:
-        stripped = line.strip()
-
-        # Empty line - close paragraph if open
-        if not stripped:
-            if in_paragraph:
-                html_lines.append('</p>')
-                in_paragraph = False
-            if in_list:
-                html_lines.append('</ul>')
-                in_list = False
-            continue
-
-        # Headers
-        if stripped.startswith('### '):
-            if in_paragraph:
-                html_lines.append('</p>')
-                in_paragraph = False
-            if in_list:
-                html_lines.append('</ul>')
-                in_list = False
-            html_lines.append(f'<h3>{stripped[4:]}</h3>')
-            continue
-        if stripped.startswith('## '):
-            if in_paragraph:
-                html_lines.append('</p>')
-                in_paragraph = False
-            if in_list:
-                html_lines.append('</ul>')
-                in_list = False
-            html_lines.append(f'<h2>{stripped[3:]}</h2>')
-            continue
-        if stripped.startswith('# '):
-            if in_paragraph:
-                html_lines.append('</p>')
-                in_paragraph = False
-            if in_list:
-                html_lines.append('</ul>')
-                in_list = False
-            html_lines.append(f'<h1>{stripped[2:]}</h1>')
-            continue
-
-        # Horizontal rules
-        if stripped == '---' or stripped == '***':
-            if in_paragraph:
-                html_lines.append('</p>')
-                in_paragraph = False
-            if in_list:
-                html_lines.append('</ul>')
-                in_list = False
-            html_lines.append('<hr>')
-            continue
-
-        # List items
-        if stripped.startswith('- ') or stripped.startswith('* '):
-            if in_paragraph:
-                html_lines.append('</p>')
-                in_paragraph = False
-            if not in_list:
-                html_lines.append('<ul>')
-                in_list = True
-            # Apply bold/italic within list items
-            item_text = stripped[2:]
-            item_text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', item_text)
-            item_text = re.sub(r'\*(.+?)\*', r'<em>\1</em>', item_text)
-            html_lines.append(f'<li>{item_text}</li>')
-            continue
-
-        # Regular text - handle as paragraph
-        if in_list:
-            html_lines.append('</ul>')
-            in_list = False
-
-        # Apply bold/italic
-        processed = stripped
-        processed = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', processed)
-        processed = re.sub(r'\*(.+?)\*', r'<em>\1</em>', processed)
-
-        if not in_paragraph:
-            html_lines.append(f'<p>{processed}')
-            in_paragraph = True
-        else:
-            html_lines.append(f'<br>{processed}')
-
-    # Close any open tags
-    if in_paragraph:
-        html_lines.append('</p>')
-    if in_list:
-        html_lines.append('</ul>')
-
-    return '\n'.join(html_lines)
+    return markdown.markdown(markdown_text, extensions=['extra', 'nl2br'], output_format='html5')
 
 
 def export_report_markdown(report: StoredReport) -> str:
