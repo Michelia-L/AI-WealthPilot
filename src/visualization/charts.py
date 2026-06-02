@@ -237,11 +237,16 @@ def plot_price_history(
     """
     Line chart of asset prices. If normalize=True, rebases all to 100.
     """
+    # Clean the prices by forward-filling and backward-filling missing values.
+    # This prevents NaN values (e.g. from different holiday schedules) from breaking the lines
+    # and avoids division-by-NaN issues during normalization if the first row contains NaN.
+    cleaned_prices = prices.ffill().bfill()
+
     if normalize:
-        data = (prices / prices.iloc[0]) * 100
+        data = (cleaned_prices / cleaned_prices.iloc[0]) * 100
         yaxis_title = "Normalized Price (base=100)"
     else:
-        data = prices
+        data = cleaned_prices
         yaxis_title = "Price"
 
     fig = go.Figure()
@@ -254,6 +259,7 @@ def plot_price_history(
             mode="lines",
             name=col,
             line=dict(width=2, color=colors[i % len(colors)]),
+            connectgaps=True,
         ))
 
     fig.update_layout(

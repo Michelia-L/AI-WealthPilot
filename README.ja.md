@@ -190,7 +190,7 @@ AI-WealthPilot/
 │   │   └── market_data.py        # yfinanceデータ取得、リターン算出、相関行列計算
 │   ├── visualization/            # 【チャートレンダラー】
 │   │   └── charts.py             # Plotlyベースのインタラクティブチャート（MVO, MC, ヒートマップ等）
-│   ├── pages/                    # 【Streamlit フロントエンド画面】
+│   ├── views/                    # 【Streamlit フロントエンド画面】
 │   │   ├── market_dashboard.py   # マーケット動向監視、主要アセットヒストリカルデータ表示
 │   │   ├── portfolio_optimizer.py# MVO & Black-Litterman 効率的フロンティア対話型資産配分シミュレーション
 │   │   ├── retirement_planner.py # モンテカルロ法を用いた資産寿命シミュレーション設計

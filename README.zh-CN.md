@@ -190,12 +190,12 @@ AI-WealthPilot/
 │   │   └── market_data.py        # yfinance 实时数据管线（多线程下载、收益率转换、相关性热力图输入）
 │   ├── visualization/            # 【图表渲染中心】
 │   │   └── charts.py             # 基于 Plotly 的多维交互式专业级精美图表画板
-│   ├── pages/                    # 【Streamlit 前端页面模块】
+│   ├── views/                    # 【Streamlit 前端视图模块】
 │   │   ├── market_dashboard.py   # 市场实时走势、多资产行情监控看板
-│   │   ├── portfolio_optimizer.py# MVO & Black-Litterman 有效前沿动态优化配置交互页面
-│   │   ├── retirement_planner.py # 蒙特卡洛两阶段财富生命周期规划页面
+│   │   ├── portfolio_optimizer.py# MVO & Black-Litterman 有效前沿动态优化配置交互视图
+│   │   ├── retirement_planner.py # 蒙特卡洛两阶段财富生命周期规划视图
 │   │   ├── client_profiling.py   # CFA IPS 规范下的风险评估问卷与客户画像档案库
-│   │   └── ai_advisor.py         # AI 顾问建议书生成页面（流式输出）
+│   │   └── ai_advisor.py         # AI 顾问建议书生成视图（流式输出）
 │   ├── agents/                   # 【AI Agent 智能体模块】
 │   │   ├── profiler.py           # 客户画像 Agent（CFA IPS 框架实现）
 │   │   ├── advisor.py            # DeepSeek V4 Pro 建议书生成器

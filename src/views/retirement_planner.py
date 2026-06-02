@@ -88,22 +88,25 @@ def _render_sidebar() -> dict:
 
     # --- 市场假设 / Market Assumptions ---
     st.sidebar.markdown("##### Market Assumptions / 市场假设")
-    expected_return = st.sidebar.slider(
+    expected_return_pct = st.sidebar.slider(
         "Expected annual return / 预期年收益率",
-        min_value=0.02, max_value=0.15, value=0.07, step=0.005,
+        min_value=2.0, max_value=15.0, value=7.0, step=0.5,
         format="%.1f%%",
         help="Long-term expected annualized return of your portfolio. "
              "A balanced portfolio typically returns 6-8%. / "
              "投资组合的长期预期年化收益率。平衡型组合通常在 6-8%。",
     )
-    volatility = st.sidebar.slider(
+    expected_return = expected_return_pct / 100.0
+
+    volatility_pct = st.sidebar.slider(
         "Annual volatility / 年化波动率",
-        min_value=0.05, max_value=0.30, value=0.15, step=0.005,
+        min_value=5.0, max_value=30.0, value=15.0, step=0.5,
         format="%.1f%%",
         help="Annualized standard deviation of returns. "
              "A balanced portfolio typically has 10-15% volatility. / "
              "年化收益率标准差。平衡型组合通常在 10-15%。",
     )
+    volatility = volatility_pct / 100.0
 
     # --- 模拟设置 / Simulation Settings ---
     st.sidebar.markdown("##### Simulation / 模拟设置")
@@ -289,7 +292,7 @@ def _render_accumulation_paths(result: dict) -> None:
         n_display=200,
         percentiles=True,
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, theme=None)
 
     # 百分位数统计表 / Percentile statistics table
     st.markdown("**Terminal Value Distribution at Retirement / 退休时终端值分布**")
@@ -355,7 +358,7 @@ def _render_distribution_analysis(result: dict, config: dict) -> None:
         percentiles=True,
         goal_amount=0,  # 零线表示资金耗尽 / Zero line = funds depleted
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, theme=None)
 
     # 分析资金耗尽的时间分布 / Analyze timing of fund depletion
     n_sims, n_periods = dist_paths.shape

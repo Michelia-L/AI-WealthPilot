@@ -554,7 +554,7 @@ def _render_efficient_frontier(results: dict) -> None:
         min_vol=results["min_vol"],
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, theme=None)
 
     # 添加解读说明 / Add interpretation caption
     st.caption(
@@ -621,7 +621,7 @@ def _render_selected_portfolio(results: dict) -> None:
             selected["weights"],
             title=f"Asset Allocation — {opt_mode}",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, theme=None)
 
     with table_col:
         # 权重详情表 / Detailed weights table
@@ -1447,7 +1447,7 @@ def _render_bl_efficient_frontier_comparison(
         hovermode="closest",
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, theme=None)
 
     st.caption(
         "💡 The BL frontier shifts based on your views. If views are bullish, "
@@ -1515,7 +1515,7 @@ def _render_bl_impact_analysis(bl_optimizer: BlackLittermanOptimizer) -> None:
     # 添加零线
     fig.add_hline(y=0, line_dash="dash", line_color="#64748B")
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, theme=None)
 
     st.caption(
         "💡 Green bars = BL increased expected return vs equilibrium. "

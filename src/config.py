@@ -34,19 +34,25 @@ ASSET_UNIVERSE = {
     "GC=F": {"name": "Gold Futures", "category": "Commodity", "color": "#FFD700", "currency": "USD", "symbol": "$"},
     "SI=F": {"name": "Silver Futures", "category": "Commodity", "color": "#C0C0C0", "currency": "USD", "symbol": "$"},
     # US Equity (美元计价 / USD-denominated)
-    "^GSPC": {"name": "S&P 500", "category": "US Equity", "color": "#1F77B4", "currency": "USD", "symbol": "$"},
-    "^IXIC": {"name": "NASDAQ", "category": "US Equity", "color": "#2CA02C", "currency": "USD", "symbol": "$"},
-    "^DJI": {"name": "Dow Jones", "category": "US Equity", "color": "#9467BD", "currency": "USD", "symbol": "$"},
+    "^GSPC": {"name": "S&P 500", "category": "US Equity", "color": "#1F77B4", "currency": "Index", "symbol": ""},
+    "^IXIC": {"name": "NASDAQ", "category": "US Equity", "color": "#2CA02C", "currency": "Index", "symbol": ""},
+    "^DJI": {"name": "Dow Jones", "category": "US Equity", "color": "#9467BD", "currency": "Index", "symbol": ""},
     # CN Equity (人民币计价 / CNY-denominated)
-    "000300.SS": {"name": "CSI 300", "category": "CN Equity", "color": "#D62728", "currency": "CNY", "symbol": "¥"},
+    "000300.SS": {"name": "CSI 300", "category": "CN Equity", "color": "#D62728", "currency": "Index", "symbol": ""},
     # HK Equity (港币计价 / HKD-denominated)
-    "^HSI": {"name": "Hang Seng", "category": "HK Equity", "color": "#FF7F0E", "currency": "HKD", "symbol": "HK$"},
+    "^HSI": {"name": "Hang Seng", "category": "HK Equity", "color": "#FF7F0E", "currency": "Index", "symbol": ""},
     # JP Equity (日元计价 / JPY-denominated)
-    "^N225": {"name": "Nikkei 225", "category": "JP Equity", "color": "#E377C2", "currency": "JPY", "symbol": "¥"},
+    "^N225": {"name": "Nikkei 225", "category": "JP Equity", "color": "#E377C2", "currency": "Index", "symbol": ""},
     # UK Equity (英镑计价 / GBP-denominated)
-    "^FTSE": {"name": "FTSE 100", "category": "UK Equity", "color": "#17BECF", "currency": "GBP", "symbol": "£"},
+    "^FTSE": {"name": "FTSE 100", "category": "UK Equity", "color": "#17BECF", "currency": "Index", "symbol": ""},
     # EU Equity (欧元计价 / EUR-denominated)
-    "^GDAXI": {"name": "DAX", "category": "EU Equity", "color": "#BCBD22", "currency": "EUR", "symbol": "€"},
+    "^GDAXI": {"name": "DAX", "category": "EU Equity", "color": "#BCBD22", "currency": "Index", "symbol": ""},
+    # KR Equity (韩元计价 / KRW-denominated)
+    "^KS11": {"name": "KOSPI", "category": "KR Equity", "color": "#4A90E2", "currency": "Index", "symbol": ""},
+    # TW Equity (新台币计价 / TWD-denominated)
+    "^TWII": {"name": "TAIEX", "category": "TW Equity", "color": "#50E3C2", "currency": "Index", "symbol": ""},
+    # IN Equity (印度卢比计价 / INR-denominated)
+    "^NSEI": {"name": "Nifty 50", "category": "IN Equity", "color": "#F5A623", "currency": "Index", "symbol": ""},
     # Currencies (汇率 / Exchange rates)
     "DX-Y.NYB": {"name": "US Dollar Index", "category": "Currency", "color": "#7F7F7F", "currency": "Index", "symbol": ""},
     "CNY=X": {"name": "USD/CNY", "category": "Currency", "color": "#8C564B", "currency": "Rate", "symbol": ""},
@@ -57,11 +63,17 @@ DEFAULT_ASSET_CLASSES = {
     "US_EQUITY": {"ticker": "SPY", "name": "US Equities (S&P 500)"},
     "INTL_EQUITY": {"ticker": "EFA", "name": "International Developed Equities"},
     "EM_EQUITY": {"ticker": "EEM", "name": "Emerging Market Equities"},
+    "CHINA_EQUITY": {"ticker": "ASHR", "name": "China A-Shares (ASHR)"},
     "US_BOND": {"ticker": "AGG", "name": "US Aggregate Bonds"},
+    "LONG_TREASURY_BOND": {"ticker": "TLT", "name": "Long-Term US Treasuries (TLT)"},
+    "HIGH_YIELD_BOND": {"ticker": "HYG", "name": "High Yield Bonds (HYG)"},
+    "EM_BOND": {"ticker": "EMB", "name": "Emerging Market Bonds (EMB)"},
     "TIPS": {"ticker": "TIP", "name": "Treasury Inflation-Protected"},
     "GOLD": {"ticker": "GLD", "name": "Gold"},
+    "COMMODITIES": {"ticker": "DBC", "name": "Broad Commodities (DBC)"},
     "REIT": {"ticker": "VNQ", "name": "Real Estate (REITs)"},
     "CRYPTO": {"ticker": "BTC-USD", "name": "Bitcoin"},
+    "CASH": {"ticker": "BIL", "name": "Cash Equivalents (BIL)"},
 }
 
 # ============================================================

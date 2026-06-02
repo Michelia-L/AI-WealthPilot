@@ -58,3 +58,6 @@ CLAUDE.md
 # Temporary Scratch Scripts
 scratch/
 
+# Runtime user profiles and reports
+data/profiles/
+data/reports/

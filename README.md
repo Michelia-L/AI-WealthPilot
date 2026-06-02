@@ -190,7 +190,7 @@ AI-WealthPilot/
 │   │   └── market_data.py        # yfinance downloader, return processors, correlation calculations
 │   ├── visualization/            # [Chart Renderer]
 │   │   └── charts.py             # Plotly interactive chart renderers (MVO, MC, heatmaps)
-│   ├── pages/                    # [Streamlit Front-end Pages]
+│   ├── views/                    # [Streamlit Front-end Views]
 │   │   ├── market_dashboard.py   # Quotes monitor, historical charts, correlations
 │   │   ├── portfolio_optimizer.py# Interactive MVO & Black-Litterman asset allocator
 │   │   ├── retirement_planner.py # Monte Carlo simulation planner

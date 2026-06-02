@@ -69,23 +69,23 @@ st.sidebar.caption("v0.3.0 · AI Advisor Online")
 if page == "📈 Market Dashboard":
     # 导入并渲染市场仪表板页面
     # Import and render the Market Dashboard page
-    from src.pages.market_dashboard import render as render_market_dashboard
+    from src.views.market_dashboard import render as render_market_dashboard
     render_market_dashboard()
 
 elif page == "📊 Portfolio Optimizer":
-    from src.pages.portfolio_optimizer import render as render_portfolio_optimizer
+    from src.views.portfolio_optimizer import render as render_portfolio_optimizer
     render_portfolio_optimizer()
 
 elif page == "🎯 Retirement Planner":
-    from src.pages.retirement_planner import render as render_retirement_planner
+    from src.views.retirement_planner import render as render_retirement_planner
     render_retirement_planner()
 
 elif page == "🧠 Client Profiling":
-    from src.pages.client_profiling import render as render_client_profiling
+    from src.views.client_profiling import render as render_client_profiling
     render_client_profiling()
 
 elif page == "🤖 AI Advisor":
     # 导入并渲染 AI 顾问页面
     # Import and render the AI Advisor page
-    from src.pages.ai_advisor import render as render_ai_advisor
+    from src.views.ai_advisor import render as render_ai_advisor
     render_ai_advisor()

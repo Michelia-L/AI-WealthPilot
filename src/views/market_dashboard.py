@@ -182,14 +182,10 @@ def _render_market_overview(quotes_df: pd.DataFrame) -> None:
     Render the real-time market overview section with metric cards.
     渲染实时市场概览区域，以指标卡片形式展示。
 
-    Uses Streamlit's st.metric component to display:
-    使用 Streamlit 的 st.metric 组件展示：
-    - Asset name (资产名称)
-    - Latest price (最新价格)
-    - Daily change amount and percentage (日涨跌额和涨跌幅)
+    Uses custom HTML/CSS cards for a premium financial terminal look,
+    compatible with both light and dark themes.
 
-    The cards are arranged in rows of 4 columns for a clean layout.
-    卡片按每行 4 列排列，保持整洁的布局。
+    使用自定义 HTML/CSS 卡片实现金融终端级视觉，兼容亮色和暗色主题。
 
     Args:
         quotes_df: DataFrame from get_latest_quotes with columns:
@@ -203,6 +199,80 @@ def _render_market_overview(quotes_df: pd.DataFrame) -> None:
         st.warning("⚠️ 无法获取实时行情，请稍后重试。")
         return
 
+    # Injected CSS styles for market ticker cards
+    st.markdown(
+        """
+        <style>
+        .market-card {
+            background-color: var(--secondary-background-color);
+            border: 1px solid rgba(128, 128, 128, 0.15);
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+        .market-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+            border-color: var(--primary-color);
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .card-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-color);
+            opacity: 0.9;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 150px;
+        }
+        .card-symbol {
+            font-size: 0.65rem;
+            background-color: rgba(128, 128, 128, 0.15);
+            color: var(--text-color);
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+            opacity: 0.8;
+        }
+        .card-price {
+            font-size: 1.45rem;
+            font-weight: 700;
+            color: var(--text-color);
+            margin-bottom: 4px;
+            line-height: 1.2;
+        }
+        .card-change {
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+        .card-change.up {
+            color: #10b981;
+        }
+        .card-change.down {
+            color: #ef4444;
+        }
+        .card-change.flat {
+            color: #9ca3af;
+        }
+        .change-icon {
+            font-size: 0.65rem;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     # 按资产类别分组展示 / Group by asset category for display
     categories_in_data = quotes_df["category"].unique()
 
@@ -214,20 +284,18 @@ def _render_market_overview(quotes_df: pd.DataFrame) -> None:
         # 类别标题 / Category header
         st.markdown(f"**{category}**")
 
-        # 每行最多 4 个指标卡片 / Up to 4 metric cards per row
+        # 每行最多 4 个指标卡片 / Up to 4 cards per row
         cols = st.columns(min(len(cat_data), 4))
         for i, (_, row) in enumerate(cat_data.iterrows()):
             col = cols[i % 4]
             with col:
-                # 格式化价格和涨跌幅
-                # Format price and change values
+                ticker = row.get("ticker", "")
                 price = row.get("price")
                 change = row.get("change")
                 change_pct = row.get("change_pct")
 
                 if pd.notna(price):
                     # 获取资产的货币符号 / Get asset's currency symbol
-                    ticker = row.get("ticker", "")
                     asset_info = ASSET_UNIVERSE.get(ticker, {})
                     currency_symbol = asset_info.get("symbol", "$")
                     currency = asset_info.get("currency", "USD")
@@ -235,7 +303,6 @@ def _render_market_overview(quotes_df: pd.DataFrame) -> None:
                     # 根据货币类型和价格大小选择合适的格式
                     # Choose format based on currency type and price magnitude
                     if currency in ["Rate", "Index"]:
-                        # 汇率和指数不加货币符号 / Exchange rates and indices: no currency symbol
                         if price > 1000:
                             price_str = f"{price:,.0f}"
                         elif price > 1:
@@ -243,7 +310,6 @@ def _render_market_overview(quotes_df: pd.DataFrame) -> None:
                         else:
                             price_str = f"{price:,.4f}"
                     elif currency == "JPY":
-                        # 日元没有小数位 / JPY has no decimal places
                         price_str = f"{currency_symbol}{price:,.0f}"
                     elif price > 1000:
                         price_str = f"{currency_symbol}{price:,.0f}"
@@ -252,18 +318,72 @@ def _render_market_overview(quotes_df: pd.DataFrame) -> None:
                     else:
                         price_str = f"{currency_symbol}{price:,.4f}"
 
-                    # delta 参数控制涨跌颜色：正数绿色，负数红色
-                    # delta parameter controls color: positive=green, negative=red
-                    delta_str = (
-                        f"{change_pct:+.2f}%" if pd.notna(change_pct) else None
-                    )
-                    st.metric(
-                        label=row["name"],
-                        value=price_str,
-                        delta=delta_str,
-                    )
+                    # 格式化涨跌值 / Format change amount
+                    change_val_str = ""
+                    if pd.notna(change):
+                        abs_change = abs(change)
+                        if currency in ["Rate", "Index"]:
+                            if abs_change > 1000:
+                                change_val_str = f"{abs_change:,.0f}"
+                            elif abs_change > 1:
+                                change_val_str = f"{abs_change:,.2f}"
+                            else:
+                                change_val_str = f"{abs_change:,.4f}"
+                        elif currency == "JPY":
+                            change_val_str = f"{currency_symbol}{abs_change:,.0f}"
+                        elif abs_change > 1000:
+                            change_val_str = f"{currency_symbol}{abs_change:,.0f}"
+                        elif abs_change > 1:
+                            change_val_str = f"{currency_symbol}{abs_change:,.2f}"
+                        else:
+                            change_val_str = f"{currency_symbol}{abs_change:,.4f}"
+
+                    # 格式化百分比 / Format percentage
+                    change_pct_str = f"{change_pct:+.2f}%" if pd.notna(change_pct) else "0.00%"
+
+                    # 确定涨跌样式 / Determine classes and icons
+                    if change > 0:
+                        change_class = "up"
+                        change_icon = "▲"
+                        change_desc = f"+{change_val_str} ({change_pct_str})" if change_val_str else change_pct_str
+                    elif change < 0:
+                        change_class = "down"
+                        change_icon = "▼"
+                        change_desc = f"-{change_val_str} ({change_pct_str})" if change_val_str else change_pct_str
+                    else:
+                        change_class = "flat"
+                        change_icon = "•"
+                        change_desc = f"{change_val_str} ({change_pct_str})" if change_val_str else change_pct_str
+
+                    card_html = f"""
+                    <div class="market-card">
+                        <div class="card-header">
+                            <span class="card-title" title="{row['name']}">{row['name']}</span>
+                            <span class="card-symbol">{ticker}</span>
+                        </div>
+                        <div class="card-price">{price_str}</div>
+                        <div class="card-change {change_class}">
+                            <span class="change-icon">{change_icon}</span>
+                            <span>{change_desc}</span>
+                        </div>
+                    </div>
+                    """
                 else:
-                    st.metric(label=row["name"], value="N/A")
+                    card_html = f"""
+                    <div class="market-card">
+                        <div class="card-header">
+                            <span class="card-title" title="{row['name']}">{row['name']}</span>
+                            <span class="card-symbol">{ticker}</span>
+                        </div>
+                        <div class="card-price">N/A</div>
+                        <div class="card-change flat">
+                            <span class="change-icon">•</span>
+                            <span>No Data</span>
+                        </div>
+                    </div>
+                    """
+                
+                st.markdown(card_html, unsafe_allow_html=True)
 
     st.divider()
 
@@ -316,7 +436,7 @@ def _render_price_chart(prices_df: pd.DataFrame, period_label: str) -> None:
 
     # 使用 Streamlit 渲染 Plotly 图表，占满容器宽度
     # Render the Plotly chart in Streamlit, using full container width
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, theme=None)
 
     st.divider()
 
@@ -356,7 +476,7 @@ def _render_correlation_heatmap(prices_df: pd.DataFrame) -> None:
     # Use existing visualization function to generate the heatmap
     fig = plot_correlation_heatmap(corr_matrix)
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, theme=None)
 
     # 添加解读提示 / Add interpretation tips
     st.caption(
