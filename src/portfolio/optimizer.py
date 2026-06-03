@@ -145,6 +145,10 @@ class PortfolioOptimizer:
         else:
             self.is_regularized = False
 
+        # 缓存 numpy 数组格式以提高优化器迭代性能
+        # Cache numpy array formats to optimize iteration speed
+        self.cov_values = self.cov_matrix.values
+
     def _check_condition_number(self) -> float:
         """
         Check the condition number of the covariance matrix.
@@ -292,7 +296,7 @@ class PortfolioOptimizer:
         # σ_p = √(w^T × Σ × w)（组合波动率 = 权重的二次型的平方根）
         # Portfolio volatility = square root of the quadratic form of weights and covariance
         portfolio_volatility = np.sqrt(
-            np.dot(weights.T, np.dot(self.cov_matrix, weights))
+            np.dot(weights.T, np.dot(self.cov_values, weights))
         )
 
         # 夏普比率 = (组合收益率 - 无风险利率) / 组合波动率
@@ -322,7 +326,10 @@ class PortfolioOptimizer:
             minimize    σ_p = √(w^T × Σ × w)       最小化组合波动率
             subject to  Σw_i = 1                     权重之和等于 1（全额投资约束）
                         w^T × μ = target_return      收益率等于目标值（可选）
-                        0 ≤ w_i ≤ 1 (if no shorting) 禁止做空时权重在 [0,1] 范围
+                        0 ≤ w_i ≤ 1 (if no shorting) 禁止做空时权重在 [0,1] range
+
+        We optimize by minimizing the portfolio variance (w^T * Sigma * w) instead of standard deviation
+        and pass the analytical Jacobian (2 * Sigma * w) for numerical stability and a massive speedup.
 
         CFA Reference / CFA 参考:
             CFA L3 Asset Allocation: The Global Minimum-Variance Portfolio (GMV)
@@ -356,6 +363,10 @@ class PortfolioOptimizer:
         # Set weight bounds: [-1, 1] if shorting allowed, else [0, 1]
         bounds = ((-1, 1) if allow_short else (0, 1),) * n
 
+        # 缓存的 numpy 数组，避免在迭代中多次提取和 Pandas Series 开销
+        cov = self.cov_values
+        mean_vals = self.mean_returns.values
+
         # 约束条件列表 / List of constraints
         # 约束1：权重之和 = 1（全额投资约束 / fully invested constraint）
         constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1}]
@@ -365,15 +376,17 @@ class PortfolioOptimizer:
         if target_return is not None:
             constraints.append({
                 "type": "eq",
-                "fun": lambda w: np.dot(w, self.mean_returns) - target_return,
+                "fun": lambda w: np.dot(w, mean_vals) - target_return,
             })
 
         # 使用 SLSQP 求解器进行约束优化
-        # 目标函数：最小化组合波动率 σ_p = √(w^T × Σ × w)
-        # Use SLSQP solver for constrained optimization
-        # Objective function: minimize portfolio volatility σ_p = √(w^T × Σ × w)
+        # 目标函数：最小化组合方差 σ_p^2 = w^T × Σ × w
+        # 雅可比导数：2 × Σ × w
+        # Replaced standard deviation with variance for numerical stability and speed.
+        # Minimizing variance yields identical weights to minimizing standard deviation.
         result = minimize(
-            fun=lambda w: np.sqrt(np.dot(w.T, np.dot(self.cov_matrix, w))),
+            fun=lambda w: np.dot(w.T, np.dot(cov, w)),
+            jac=lambda w: 2.0 * np.dot(cov, w),
             x0=init_weights,
             method="SLSQP",
             bounds=bounds,
@@ -686,51 +699,52 @@ class PortfolioOptimizer:
         # Store all simulation frontier results
         all_frontiers = []
 
-        # 计算年化协方差矩阵（用于模拟）
-        # Calculate annualized covariance matrix (for simulation)
-        # 注意：这里使用日协方差矩阵，因为我们要模拟日收益
-        # Note: Use daily covariance matrix here because we simulate daily returns
-        daily_cov = self.returns.cov()
+        # 在循环外计算好协方差矩阵/T和日均收益，避免在循环中重复计算
+        # Calculate daily covariance and mean outside the loop
+        daily_cov = self.returns.cov().values
+        daily_mean = self.returns.mean().values
         n_days = len(self.returns)
+        cov_over_T = daily_cov / n_days
 
-        for sim in range(n_simulations):
-            # 从多元正态分布中抽样日预期收益
-            # Sample daily expected returns from multivariate normal distribution
-            # 使用样本均值和协方差矩阵/T（标准误差）
-            # Use sample mean and covariance matrix/T (standard error)
-            sampled_daily_returns = np.random.multivariate_normal(
-                self.returns.mean().values,
-                daily_cov.values / n_days,
-            )
+        # 临时覆盖以进行原地优化，保存原始预期收益
+        # Temporarily override mean_returns to perform in-place optimization
+        original_mean_returns = self.mean_returns
 
-            # 年化抽样收益
-            # Annualize sampled returns
-            sampled_annual_returns = sampled_daily_returns * TRADING_DAYS_PER_YEAR
+        try:
+            for sim in range(n_simulations):
+                # 从多元正态分布中抽样日预期收益
+                # Sample daily expected returns from multivariate normal distribution
+                # 使用样本均值和协方差矩阵/T（标准误差）
+                # Use sample mean and covariance matrix/T (standard error)
+                sampled_daily_returns = np.random.multivariate_normal(
+                    daily_mean,
+                    cov_over_T,
+                )
 
-            # 创建临时优化器，使用抽样的预期收益但原始协方差矩阵
-            # Create temporary optimizer with sampled expected returns but original covariance
-            temp_optimizer = PortfolioOptimizer(
-                self.returns,  # 保持原始收益率数据（用于协方差计算）
-                risk_free_rate=self.risk_free_rate,
-                covariance_method=self.covariance_method,
-            )
+                # 年化抽样收益
+                # Annualize sampled returns
+                sampled_annual_returns = sampled_daily_returns * TRADING_DAYS_PER_YEAR
 
-            # 覆盖预期收益为抽样值
-            # Override expected returns with sampled values
-            temp_optimizer.mean_returns = pd.Series(
-                sampled_annual_returns,
-                index=self.asset_names,
-            )
+                # 原地覆盖预期收益，避免在循环中重复实例化 PortfolioOptimizer
+                # Mutate mean_returns in-place to avoid expensive optimizer reinstantiation
+                self.mean_returns = pd.Series(
+                    sampled_annual_returns,
+                    index=self.asset_names,
+                )
 
-            # 计算该次模拟的有效前沿
-            # Calculate efficient frontier for this simulation
-            frontier = temp_optimizer.efficient_frontier(
-                n_points=n_points,
-                allow_short=allow_short,
-            )
+                # 计算该次模拟的有效前沿
+                # Calculate efficient frontier for this simulation
+                frontier = self.efficient_frontier(
+                    n_points=n_points,
+                    allow_short=allow_short,
+                )
 
-            if not frontier.empty:
-                all_frontiers.append(frontier)
+                if not frontier.empty:
+                    all_frontiers.append(frontier)
+        finally:
+            # 恢复原始收益
+            # Restore original expected returns
+            self.mean_returns = original_mean_returns
 
         if not all_frontiers:
             # 如果没有成功的模拟，返回空DataFrame
@@ -780,39 +794,43 @@ class PortfolioOptimizer:
         all_returns = []
         all_vols = []
 
-        daily_cov = self.returns.cov()
+        # 在循环外计算，避免重复开销
+        daily_cov = self.returns.cov().values
+        daily_mean = self.returns.mean().values
         n_days = len(self.returns)
+        cov_over_T = daily_cov / n_days
 
-        for sim in range(n_simulations):
-            # 抽样预期收益
-            # Sample expected returns
-            sampled_daily_returns = np.random.multivariate_normal(
-                self.returns.mean().values,
-                daily_cov.values / n_days,
-            )
-            sampled_annual_returns = sampled_daily_returns * TRADING_DAYS_PER_YEAR
+        # 临时覆盖以进行原地优化，保存原始预期收益
+        original_mean_returns = self.mean_returns
 
-            # 创建临时优化器
-            # Create temporary optimizer
-            temp_optimizer = PortfolioOptimizer(
-                self.returns,
-                risk_free_rate=self.risk_free_rate,
-                covariance_method=self.covariance_method,
-            )
-            temp_optimizer.mean_returns = pd.Series(
-                sampled_annual_returns,
-                index=self.asset_names,
-            )
+        try:
+            for sim in range(n_simulations):
+                # 抽样预期收益
+                # Sample expected returns
+                sampled_daily_returns = np.random.multivariate_normal(
+                    daily_mean,
+                    cov_over_T,
+                )
+                sampled_annual_returns = sampled_daily_returns * TRADING_DAYS_PER_YEAR
 
-            # 寻找最大夏普组合
-            # Find maximum Sharpe portfolio
-            result = temp_optimizer.maximize_sharpe(allow_short=allow_short)
+                # 原地覆盖预期收益，避免在循环中重复实例化 PortfolioOptimizer
+                self.mean_returns = pd.Series(
+                    sampled_annual_returns,
+                    index=self.asset_names,
+                )
 
-            if result['success']:
-                weights = np.array(list(result['weights'].values()))
-                all_weights.append(weights)
-                all_returns.append(result['return'])
-                all_vols.append(result['volatility'])
+                # 寻找最大夏普组合
+                # Find maximum Sharpe portfolio
+                result = self.maximize_sharpe(allow_short=allow_short)
+
+                if result['success']:
+                    weights = np.array(list(result['weights'].values()))
+                    all_weights.append(weights)
+                    all_returns.append(result['return'])
+                    all_vols.append(result['volatility'])
+        finally:
+            # 恢复原始预期收益
+            self.mean_returns = original_mean_returns
 
         if not all_weights:
             # 如果没有成功的模拟，返回等权组合
@@ -847,6 +865,112 @@ class PortfolioOptimizer:
             'success': True,
             'n_simulations': n_simulations,
             'weight_std': np.std(all_weights, axis=0).tolist(),  # 权重标准差（不确定性度量）
+        }
+
+    def resampled_minimize_volatility(
+        self,
+        target_return: Optional[float] = None,
+        n_simulations: int = 1000,
+        allow_short: bool = False,
+    ) -> dict:
+        """
+        Find the minimum volatility portfolio using resampled returns.
+        使用重抽样收益寻找最小波动率组合。
+
+        Similar to resampled_maximize_sharpe, this method averages the optimal weights
+        from multiple simulations to construct a robust minimum volatility portfolio.
+        This mitigates the estimation error in MVO inputs.
+
+        CFA Reference / CFA 参考:
+            CFA L3 Asset Allocation: Resampled MVO reduces the sensitivity of MVO
+            to small changes in inputs by performing Monte Carlo simulations of returns
+            and averaging the resulting optimal portfolios.
+
+        Args:
+            target_return: Optional target return constraint (年化目标收益率约束).
+            n_simulations: Number of Monte Carlo simulations (蒙特卡洛模拟次数).
+            allow_short: If True, allow short selling (如果为True，允许做空).
+
+        Returns:
+            Dict with 'weights', 'return', 'volatility', 'sharpe', 'success',
+            'n_simulations', and 'weight_std'.
+            返回字典，包含：权重、收益率、波动率、夏普比率、成功标志、模拟次数和权重标准差。
+        """
+        # Store optimal weights from all simulations
+        all_weights = []
+        all_returns = []
+        all_vols = []
+
+        # Get daily covariance and mean outside loop
+        daily_cov = self.returns.cov().values
+        daily_mean = self.returns.mean().values
+        n_days = len(self.returns)
+        cov_over_T = daily_cov / n_days
+
+        # Temporarily override mean_returns for in-place optimization
+        original_mean_returns = self.mean_returns
+
+        try:
+            for sim in range(n_simulations):
+                # Sample expected returns from multivariate normal distribution
+                # μ_i ~ N(μ_hat, Σ/T)
+                sampled_daily_returns = np.random.multivariate_normal(
+                    daily_mean,
+                    cov_over_T,
+                )
+                sampled_annual_returns = sampled_daily_returns * TRADING_DAYS_PER_YEAR
+
+                # Override mean_returns in-place to avoid expensive optimizer reinstantiation
+                self.mean_returns = pd.Series(
+                    sampled_annual_returns,
+                    index=self.asset_names,
+                )
+
+                # Solve minimum volatility for this simulation
+                # minimize w^T * Sigma * w
+                result = self.minimize_volatility(
+                    target_return=target_return,
+                    allow_short=allow_short,
+                )
+
+                if result['success']:
+                    weights = np.array(list(result['weights'].values()))
+                    all_weights.append(weights)
+                    all_returns.append(result['return'])
+                    all_vols.append(result['volatility'])
+        finally:
+            # Restore original expected returns
+            self.mean_returns = original_mean_returns
+
+        if not all_weights:
+            # Fallback: equal weight portfolio
+            equal_weights = np.ones(self.n_assets) / self.n_assets
+            ret, vol, sharpe = self.portfolio_performance(equal_weights)
+            return {
+                'weights': dict(zip(self.asset_names, equal_weights)),
+                'return': ret,
+                'volatility': vol,
+                'sharpe': sharpe,
+                'success': False,
+            }
+
+        # Average optimal weights across simulations: w_resampled = (1/N) * sum(w_i)
+        avg_weights = np.mean(all_weights, axis=0)
+
+        # Normalize weights to ensure they sum to 1.0 (correcting potential float errors)
+        avg_weights = avg_weights / np.sum(avg_weights)
+
+        # Compute resampled portfolio metrics under the original parameters
+        ret, vol, sharpe = self.portfolio_performance(avg_weights)
+
+        return {
+            'weights': dict(zip(self.asset_names, avg_weights)),
+            'return': ret,
+            'volatility': vol,
+            'sharpe': sharpe,
+            'success': True,
+            'n_simulations': n_simulations,
+            'weight_std': np.std(all_weights, axis=0).tolist(),
         }
 
     def optimize_with_asset_class_constraints(

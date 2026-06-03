@@ -641,6 +641,31 @@ class TestMonteCarloSimulator:
         assert accum.paths.shape[0] == 100  # n_simulations
         assert accum.paths.shape[1] == 31   # 30 accumulation years + 1
 
+    def test_retirement_planning_inflation_impact(self):
+        """
+        Retirement planning with positive inflation should result in a lower
+        survival rate compared to zero inflation due to higher nominal cash outflows.
+        """
+        sim = MonteCarloSimulator(
+            expected_return=0.08, volatility=0.15,
+            n_simulations=500, n_years=30, seed=42,
+        )
+        # Without inflation (0.0)
+        res_no_inf = sim.retirement_planning(
+            current_age=30, retirement_age=60, life_expectancy=85,
+            current_savings=100000, annual_savings=50000,
+            desired_annual_income=200000, inflation_rate=0.0
+        )
+        # With inflation (3.0%)
+        res_inf = sim.retirement_planning(
+            current_age=30, retirement_age=60, life_expectancy=85,
+            current_savings=100000, annual_savings=50000,
+            desired_annual_income=200000, inflation_rate=0.03
+        )
+        assert res_inf["survival_rate"] < res_no_inf["survival_rate"], (
+            f"Inflation should decrease survival rate (with: {res_inf['survival_rate']:.2%}, without: {res_no_inf['survival_rate']:.2%})"
+        )
+
 
 # ============================================================
 # Risk Metrics Tests — 风险度量测试

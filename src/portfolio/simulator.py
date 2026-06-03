@@ -358,6 +358,7 @@ class MonteCarloSimulator:
         current_savings: float,
         annual_savings: float,
         desired_annual_income: float,
+        inflation_rate: float = 0.025,
     ) -> dict:
         """
         Two-phase retirement simulation — the cornerstone of wealth management planning.
@@ -408,6 +409,8 @@ class MonteCarloSimulator:
                             积累阶段的年度储蓄金额。
             desired_annual_income: Annual income needed during retirement (in today's dollars).
                                    退休期间每年需要的收入（以今日美元计）。
+            inflation_rate: Annual inflation rate to adjust retirement withdrawals (e.g., 0.025).
+                            年度通货膨胀率，用于调整退休后的年度提款名义值。
 
         Returns:
             Dict with / 返回字典，包含:
@@ -462,10 +465,7 @@ class MonteCarloSimulator:
             seed=self.rng.integers(0, 2**31),
         )
 
-        # 分配阶段的初始值 = 积累阶段每条路径的终端值（路径依赖）
-        # 这样每条路径都是连续的：积累阶段的好/坏结果会影响分配阶段
-        # Distribution initial value = terminal value from each accumulation path (path-dependent)
-        # This makes each path continuous: good/bad accumulation outcomes flow into distribution
+        # 分配阶段的初始值 = 积累阶段每条路径 of terminal values
         dist_paths = np.zeros((self.n_simulations, dist_years + 1))
         dist_paths[:, 0] = accum_result.terminal_values
 
@@ -477,9 +477,17 @@ class MonteCarloSimulator:
         for t in range(1, dist_years + 1):
             z = rng.standard_normal(self.n_simulations)
             growth = np.exp(drift + self.volatility * 0.7 * z)
-            # 每年：组合增长后减去年度提款
-            # Each year: portfolio grows then subtract annual withdrawal
-            dist_paths[:, t] = dist_paths[:, t - 1] * growth - desired_annual_income
+            
+            # Adjust the desired annual income (today's dollars) for inflation.
+            # The number of inflation years is: accumulation years + current retirement year (t)
+            # Formula: Nominal Withdrawal = Real Income * (1 + inflation_rate) ^ (T_accum + t)
+            # 公式：名义提取额 = 实际收入 * (1 + 通胀率) ^ (积累期 + 当前退休期t)
+            inflation_factor = (1.0 + inflation_rate) ** (accum_years + t)
+            nominal_withdrawal = desired_annual_income * inflation_factor
+
+            # 每年：组合增长后减去名义年度提款
+            # Each year: portfolio grows then subtract inflation-adjusted annual withdrawal
+            dist_paths[:, t] = dist_paths[:, t - 1] * growth - nominal_withdrawal
             # 组合价值不能为负 / Portfolio value cannot be negative
             dist_paths[:, t] = np.maximum(dist_paths[:, t], 0)
 

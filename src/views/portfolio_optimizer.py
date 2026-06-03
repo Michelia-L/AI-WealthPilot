@@ -143,7 +143,7 @@ def _render_top_controls() -> Dict[str, Any]:
                     "Number of simulations / 模拟次数",
                     min_value=100,
                     max_value=5000,
-                    value=1000,
+                    value=200,
                     step=100,
                     key="opt_n_simulations"
                 )
@@ -295,6 +295,7 @@ def _fetch_and_prepare_data(
     return returns
 
 
+@st.cache_data
 def _run_optimization(
     returns: pd.DataFrame,
     risk_free_rate: float,
@@ -336,10 +337,13 @@ def _run_optimization(
                 allow_short=allow_short,
             )
         else:
-            selected = optimizer.minimize_volatility(allow_short=allow_short)
+            selected = optimizer.resampled_minimize_volatility(
+                n_simulations=n_simulations,
+                allow_short=allow_short,
+            )
 
         frontier = optimizer.resampled_efficient_frontier(
-            n_points=50,
+            n_points=25,
             n_simulations=n_simulations,
             allow_short=allow_short,
         )

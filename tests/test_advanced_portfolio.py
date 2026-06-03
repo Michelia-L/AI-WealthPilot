@@ -311,6 +311,36 @@ class TestResampledMVO:
         # Note: This is not absolute, but holds in most cases
         print(f"Traditional HHI: {traditional_hhi:.4f}, Resampled HHI: {resampled_hhi:.4f}")
 
+    def test_resampled_minimize_volatility_structure(self, sample_returns):
+        """
+        Resampled min volatility should return correct dict structure.
+        """
+        optimizer = PortfolioOptimizer(sample_returns)
+        result = optimizer.resampled_minimize_volatility(n_simulations=50)
+
+        expected_keys = {'weights', 'return', 'volatility', 'sharpe', 'success'}
+        assert set(result.keys()).issuperset(expected_keys)
+
+    def test_resampled_minimize_volatility_weights_sum_to_one(self, sample_returns):
+        """
+        Resampled min volatility weights should sum to 1.
+        """
+        optimizer = PortfolioOptimizer(sample_returns)
+        result = optimizer.resampled_minimize_volatility(n_simulations=50)
+
+        total = sum(result['weights'].values())
+        assert abs(total - 1.0) < 1e-6, f"Weights should sum to 1, got {total}"
+
+    def test_resampled_minimize_volatility_provides_uncertainty(self, sample_returns):
+        """
+        Resampled min volatility should provide weight standard deviation.
+        """
+        optimizer = PortfolioOptimizer(sample_returns)
+        result = optimizer.resampled_minimize_volatility(n_simulations=50)
+
+        assert 'weight_std' in result, "Should provide weight standard deviation"
+        assert len(result['weight_std']) == optimizer.n_assets
+
 
 class TestAssetClassConstraints:
     """
