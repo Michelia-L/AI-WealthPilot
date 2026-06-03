@@ -512,7 +512,7 @@ def _run_optimization(
 
     # 生成随机组合云（用于可视化对比）
     # Generate random portfolio cloud (for visual comparison)
-    random_ports = optimizer.random_portfolios(n_portfolios=3000)
+    random_ports = optimizer.random_portfolios(n_portfolios=1000)
 
     return {
         "optimizer": optimizer,
@@ -1287,7 +1287,7 @@ def _run_bl_optimization(
     mvo_max_sharpe = mvo_opt.maximize_sharpe(allow_short=allow_short)
     mvo_min_vol = mvo_opt.minimize_volatility(allow_short=allow_short)
     mvo_frontier = mvo_opt.efficient_frontier(n_points=50, allow_short=allow_short)
-    mvo_random = mvo_opt.random_portfolios(n_portfolios=3000)
+    mvo_random = mvo_opt.random_portfolios(n_portfolios=1000)
 
     # Select portfolio based on mode (default to max Sharpe)
     # 根据模式选择组合（默认为最大夏普）

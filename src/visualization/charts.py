@@ -114,7 +114,7 @@ def plot_efficient_frontier(
 
     # Random portfolios cloud
     if random_portfolios is not None:
-        fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scattergl(
             x=random_portfolios["volatility"] * 100,
             y=random_portfolios["return"] * 100,
             mode="markers",
