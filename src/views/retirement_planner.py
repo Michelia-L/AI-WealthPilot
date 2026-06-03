@@ -303,12 +303,12 @@ def _render_accumulation_paths(result: dict) -> None:
             "75th", "95th (Optimistic / 乐观)", "Mean / 均值",
         ],
         "Portfolio Value ($) / 组合价值": [
-            f"${accum.percentile_5:,.0f}",
-            f"${accum.percentile_25:,.0f}",
-            f"${accum.median_terminal:,.0f}",
-            f"${accum.percentile_75:,.0f}",
-            f"${accum.percentile_95:,.0f}",
-            f"${accum.mean_terminal:,.0f}",
+            accum.percentile_5,
+            accum.percentile_25,
+            accum.median_terminal,
+            accum.percentile_75,
+            accum.percentile_95,
+            accum.mean_terminal,
         ],
     }
 
@@ -316,6 +316,11 @@ def _render_accumulation_paths(result: dict) -> None:
         pd.DataFrame(stats_data),
         use_container_width=True,
         hide_index=True,
+        column_config={
+            "Portfolio Value ($) / 组合价值": st.column_config.NumberColumn(
+                format="$%,.0f"
+            )
+        }
     )
 
     st.caption(
@@ -456,14 +461,22 @@ def _render_sensitivity_analysis(config: dict) -> None:
         is_current = " ⬅ Current" if mult == 1.0 else ""
         results.append({
             "Annual Savings / 年度储蓄": f"${test_savings:,}{is_current}",
-            "Survival Rate / 存活率": f"{test_result['survival_rate']:.1%}",
-            "Median at Retirement / 退休中位值": f"${test_result['accumulation'].median_terminal:,.0f}",
+            "Survival Rate / 存活率": test_result['survival_rate'] * 100,
+            "Median at Retirement / 退休中位值": test_result['accumulation'].median_terminal,
         })
 
     st.dataframe(
         pd.DataFrame(results),
         use_container_width=True,
         hide_index=True,
+        column_config={
+            "Survival Rate / 存活率": st.column_config.NumberColumn(
+                format="%.1f%%"
+            ),
+            "Median at Retirement / 退休中位值": st.column_config.NumberColumn(
+                format="$%,.0f"
+            ),
+        }
     )
 
     st.caption(

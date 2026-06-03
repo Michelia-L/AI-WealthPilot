@@ -630,12 +630,21 @@ def _render_selected_portfolio(results: dict) -> None:
         weights_df = pd.DataFrame([
             {
                 "Asset / 资产": asset,
-                "Weight / 权重": f"{weight:.2%}",
+                "Weight / 权重": weight * 100,
                 "Allocation / 配置": "Long / 多" if weight >= 0 else "Short / 空",
             }
             for asset, weight in selected["weights"].items()
         ])
-        st.dataframe(weights_df, use_container_width=True, hide_index=True)
+        st.dataframe(
+            weights_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Weight / 权重": st.column_config.NumberColumn(
+                    format="%.2f%%"
+                )
+            }
+        )
 
         # 收益率解读 / Return interpretation
         sharpe = selected["sharpe"]
@@ -683,13 +692,18 @@ def _render_asset_class_weights(results: dict) -> None:
     for class_name, weight in asset_class_weights.items():
         weights_data.append({
             "Asset Class / 资产类别": class_name.capitalize(),
-            "Weight / 权重": f"{weight:.2%}",
+            "Weight / 权重": weight * 100,
         })
 
     st.dataframe(
         pd.DataFrame(weights_data),
         use_container_width=True,
         hide_index=True,
+        column_config={
+            "Weight / 权重": st.column_config.NumberColumn(
+                format="%.2f%%"
+            )
+        }
     )
 
     st.caption(
@@ -777,14 +791,22 @@ def _render_asset_universe(optimizer: PortfolioOptimizer) -> None:
         ann_vol = np.sqrt(optimizer.cov_matrix.loc[name, name])
         summary_data.append({
             "Asset / 资产": name,
-            "Ann. Return / 年化收益率": f"{ann_ret:.2%}",
-            "Ann. Volatility / 年化波动率": f"{ann_vol:.2%}",
+            "Ann. Return / 年化收益率": ann_ret * 100,
+            "Ann. Volatility / 年化波动率": ann_vol * 100,
         })
 
     st.dataframe(
         pd.DataFrame(summary_data),
         use_container_width=True,
         hide_index=True,
+        column_config={
+            "Ann. Return / 年化收益率": st.column_config.NumberColumn(
+                format="%.2f%%"
+            ),
+            "Ann. Volatility / 年化波动率": st.column_config.NumberColumn(
+                format="%.2f%%"
+            ),
+        }
     )
 
     st.caption(
@@ -949,12 +971,21 @@ def render() -> None:
         weights_df = pd.DataFrame([
             {
                 "Asset / 资产": asset,
-                "Weight / 权重": f"{weight:.2%}",
+                "Weight / 权重": weight * 100,
                 "Allocation / 配置": "Long / 多" if weight >= 0 else "Short / 空",
             }
             for asset, weight in selected["weights"].items()
         ])
-        st.dataframe(weights_df, use_container_width=True, hide_index=True)
+        st.dataframe(
+            weights_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Weight / 权重": st.column_config.NumberColumn(
+                    format="%.2f%%"
+                )
+            }
+        )
 
     else:
         # MVO 模式：支持传统MVO、重抽样MVO、资产类别约束
