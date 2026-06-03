@@ -108,29 +108,27 @@ def _render_top_controls() -> Tuple[List[str], str]:
             - List of selected tickers.
             - Selected period string for yfinance.
     """
-    # Inject custom CSS styles for the top control bar
-    st.markdown("""
-        <style>
-        .premium-header {
-            background: linear-gradient(135deg, #FDE047 0%, #D4AF37 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            font-family: 'Cinzel', serif;
-            font-size: 2.2rem;
-            font-weight: 700;
-            margin-bottom: -10px;
-        }
-        .premium-subtitle {
-            color: #94A3B8;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 0.95rem;
-            letter-spacing: 0.05em;
-            margin-bottom: 25px;
-        }
-        </style>
-        <div class="premium-header">Global Markets Pulse</div>
-        <div class="premium-subtitle">REAL-TIME TELEMETRY & QUANTITATIVE ANALYTICS</div>
-    """, unsafe_allow_html=True)
+    # Inject custom CSS styles for the top control bar (with no inner indentation to prevent markdown parsing issues)
+    st.markdown("""<style>
+.premium-header {
+    background: linear-gradient(135deg, #FDE047 0%, #D4AF37 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-family: 'Cinzel', serif;
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: -10px;
+}
+.premium-subtitle {
+    color: #94A3B8;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.95rem;
+    letter-spacing: 0.05em;
+    margin-bottom: 25px;
+}
+</style>
+<div class="premium-header">Global Markets Pulse</div>
+<div class="premium-subtitle">REAL-TIME TELEMETRY & QUANTITATIVE ANALYTICS</div>""", unsafe_allow_html=True)
 
     # Top-bar controls using columns
     col1, col2, col3 = st.columns([2, 1, 1])
@@ -174,115 +172,113 @@ def _render_market_overview(quotes_df: Optional[pd.DataFrame]) -> None:
         st.warning("⚠️ Market telemetry disconnected. Please verify connection. / 行情连接中断。")
         return
 
-    # Premium grid and glassmorphic card styles
+    # Premium grid and glassmorphic card styles (without inner indentation to prevent markdown compiling to code blocks)
     st.markdown(
-        """
-        <style>
-        .asset-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-            gap: 18px;
-            padding: 10px 0 25px 0;
-        }
-        .premium-card {
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 16px;
-            padding: 20px;
-            position: relative;
-            overflow: hidden;
-            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-        }
-        .premium-card::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0; height: 2px;
-            background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.5), transparent);
-            opacity: 0;
-            transition: opacity 0.4s ease;
-        }
-        .premium-card:hover {
-            transform: translateY(-5px);
-            border-color: rgba(212, 175, 55, 0.4);
-            box-shadow: 0 12px 30px rgba(212, 175, 55, 0.15), 0 0 20px rgba(212, 175, 55, 0.1) inset;
-        }
-        .premium-card:hover::before {
-            opacity: 1;
-        }
-        .card-header-v2 {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 15px;
-        }
-        .asset-name {
-            font-family: 'Outfit', sans-serif;
-            font-size: 1.05rem;
-            font-weight: 600;
-            color: #F8FAFC;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 160px;
-        }
-        .asset-ticker {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.7rem;
-            color: #D4AF37;
-            background: rgba(212, 175, 55, 0.1);
-            padding: 3px 8px;
-            border-radius: 6px;
-            border: 1px solid rgba(212, 175, 55, 0.2);
-        }
-        .asset-price {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: #FFFFFF;
-            line-height: 1.1;
-            margin-bottom: 8px;
-        }
-        .trend-pill {
-            display: inline-flex;
-            align-items: center;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85rem;
-            font-weight: 600;
-            gap: 6px;
-        }
-        .trend-up {
-            background: rgba(16, 185, 129, 0.15);
-            color: #10B981;
-            border: 1px solid rgba(16, 185, 129, 0.2);
-        }
-        .trend-down {
-            background: rgba(239, 68, 68, 0.15);
-            color: #EF4444;
-            border: 1px solid rgba(239, 68, 68, 0.2);
-        }
-        .trend-flat {
-            background: rgba(148, 163, 184, 0.15);
-            color: #94A3B8;
-            border: 1px solid rgba(148, 163, 184, 0.2);
-        }
-        .category-label {
-            font-family: 'Outfit', sans-serif;
-            color: #64748B;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            font-size: 0.75rem;
-            font-weight: 600;
-            margin-bottom: 10px;
-            margin-top: 5px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            padding-bottom: 5px;
-        }
-        </style>
-        """,
+        """<style>
+.asset-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 18px;
+    padding: 10px 0 25px 0;
+}
+.premium-card {
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+.premium-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.5), transparent);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+.premium-card:hover {
+    transform: translateY(-5px);
+    border-color: rgba(212, 175, 55, 0.4);
+    box-shadow: 0 12px 30px rgba(212, 175, 55, 0.15), 0 0 20px rgba(212, 175, 55, 0.1) inset;
+}
+.premium-card:hover::before {
+    opacity: 1;
+}
+.card-header-v2 {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 15px;
+}
+.asset-name {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #F8FAFC;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
+}
+.asset-ticker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: #D4AF37;
+    background: rgba(212, 175, 55, 0.1);
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(212, 175, 55, 0.2);
+}
+.asset-price {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #FFFFFF;
+    line-height: 1.1;
+    margin-bottom: 8px;
+}
+.trend-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+    gap: 6px;
+}
+.trend-up {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10B981;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+.trend-down {
+    background: rgba(239, 68, 68, 0.15);
+    color: #EF4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+.trend-flat {
+    background: rgba(148, 163, 184, 0.15);
+    color: #94A3B8;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+}
+.category-label {
+    font-family: 'Outfit', sans-serif;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+    margin-top: 5px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 5px;
+}
+</style>""",
         unsafe_allow_html=True,
     )
 
@@ -328,30 +324,31 @@ def _render_market_overview(quotes_df: Optional[pd.DataFrame]) -> None:
                 change_str = f"{currency_symbol}{change_val:,.{decimals}f}" if currency_symbol else f"{change_val:,.{decimals}f}"
                 pct_str = f"{abs(change_pct):.2f}%" if pd.notna(change_pct) else "0.00%"
 
-                cards_html += f"""
-                <div class="premium-card">
-                    <div class="card-header-v2">
-                        <div class="asset-name" title="{row['name']}">{row['name']}</div>
-                        <div class="asset-ticker">{ticker}</div>
-                    </div>
-                    <div class="asset-price">{price_str}</div>
-                    <div class="trend-pill {trend_class}">
-                        <span>{icon}</span>
-                        <span>{change_str} ({pct_str})</span>
-                    </div>
-                </div>
-                """
+                # Construct HTML without any leading indentation on individual lines to avoid markdown parser issues
+                cards_html += (
+                    f'<div class="premium-card">'
+                    f'<div class="card-header-v2">'
+                    f'<div class="asset-name" title="{row["name"]}">{row["name"]}</div>'
+                    f'<div class="asset-ticker">{ticker}</div>'
+                    f'</div>'
+                    f'<div class="asset-price">{price_str}</div>'
+                    f'<div class="trend-pill {trend_class}">'
+                    f'<span>{icon}</span>'
+                    f'<span>{change_str} ({pct_str})</span>'
+                    f'</div>'
+                    f'</div>'
+                )
             else:
-                cards_html += f"""
-                <div class="premium-card">
-                    <div class="card-header-v2">
-                        <div class="asset-name">{row['name']}</div>
-                        <div class="asset-ticker">{ticker}</div>
-                    </div>
-                    <div class="asset-price">N/A</div>
-                    <div class="trend-pill trend-flat"><span>•</span><span>NO DATA</span></div>
-                </div>
-                """
+                cards_html += (
+                    f'<div class="premium-card">'
+                    f'<div class="card-header-v2">'
+                    f'<div class="asset-name">{row["name"]}</div>'
+                    f'<div class="asset-ticker">{ticker}</div>'
+                    f'</div>'
+                    f'<div class="asset-price">N/A</div>'
+                    f'<div class="trend-pill trend-flat"><span>•</span><span>NO DATA</span></div>'
+                    f'</div>'
+                )
         cards_html += "</div>"
         st.markdown(cards_html, unsafe_allow_html=True)
 
@@ -513,7 +510,7 @@ def render() -> None:
         return
 
     # 2. Real-time market overview cards (CSS Grid layout)
-    with st.spinner("Synchronizing with market telemetry... / 同步市场 data..."):
+    with st.spinner("Synchronizing with market telemetry... / 同步市场数据..."):
         quotes_df = _cached_get_quotes(tuple(selected_tickers))
     _render_market_overview(quotes_df)
 
