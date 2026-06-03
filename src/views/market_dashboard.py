@@ -550,11 +550,11 @@ def _render_risk_statistics(prices_df: pd.DataFrame) -> None:
 
         stats_records.append({
             "Asset / 资产": display_name,
-            "Ann. Return / 年化收益": f"{ann_return:.2%}",
-            "Ann. Volatility / 年化波动率": f"{ann_vol:.2%}",
-            "Sharpe / 夏普": f"{sr:.2f}",
-            "Max Drawdown / 最大回撤": f"{dd['max_drawdown']:.2%}",
-            "VaR 95%": f"{var_95:.2%}",
+            "Ann. Return / 年化收益": ann_return * 100,
+            "Ann. Volatility / 年化波动率": ann_vol * 100,
+            "Sharpe / 夏普": sr,
+            "Max Drawdown / 最大回撤": dd['max_drawdown'] * 100,
+            "VaR 95%": var_95 * 100,
         })
 
     if stats_records:
@@ -565,6 +565,23 @@ def _render_risk_statistics(prices_df: pd.DataFrame) -> None:
             stats_df,
             use_container_width=True,
             hide_index=True,
+            column_config={
+                "Ann. Return / 年化收益": st.column_config.NumberColumn(
+                    format="%.2f%%"
+                ),
+                "Ann. Volatility / 年化波动率": st.column_config.NumberColumn(
+                    format="%.2f%%"
+                ),
+                "Sharpe / 夏普": st.column_config.NumberColumn(
+                    format="%.2f"
+                ),
+                "Max Drawdown / 最大回撤": st.column_config.NumberColumn(
+                    format="%.2f%%"
+                ),
+                "VaR 95%": st.column_config.NumberColumn(
+                    format="%.2f%%"
+                ),
+            }
         )
     else:
         st.info("ℹ️ Not enough data to compute statistics. / 数据不足，无法计算统计指标。")
