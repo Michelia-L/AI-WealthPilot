@@ -38,14 +38,22 @@
 
 - 🎓 **对标 CFA® 三级私人财富管理框架**  
   实现客观财务**承受能力 (Ability)** 与主观心理**承担意愿 (Willingness)** 的双轨制风险承受度模型。严格执行 CFA 的审慎原则，当两者冲突时“就低不就高”，以最大化保护客户利益。
-- 🧮 **现代投资组合理论与优化 (MPT/MVO)**  
-  利用 `SciPy` 的 SLSQP 算法求解约束优化问题，绘制有效前沿 (Efficient Frontier)，求解切点组合 (Tangency Portfolio，即最大夏普比率组合) 以及资本配置线 (CAL)。
+- 🧮 **现代投资组合理论与优化与正则化 (MPT/MVO)**  
+  利用 `SciPy` 的 SLSQP 算法求解约束优化问题，绘制有效前沿 (Efficient Frontier)，求解切点组合 (Tangency Portfolio，即最大夏普比率组合) 以及资本配置线 (CAL)。实现自动条件数检测与对角加载（Diagonal Loading）或特征值裁剪（Eigenvalue Clipping）的数值正则化，确保生产级数值稳定性。
+- 💎 **协方差矩阵收缩估计量**  
+  支持 Ledoit-Wolf 和 OAS (Oracle Approximating Shrinkage) 估计量（依赖 `scikit-learn`），与传统样本协方差相比，能够显著降低 MVO 对输入参数估计误差的敏感度，解决噪声扩展问题。
+- 📐 **资产类别层级的权重约束**  
+  支持在群组层级（如股票类、债券类、另类资产类）注入最小/最大权重约束，而不仅限于单资产约束，契合机构级战略资产配置（SAA）指引。
 - 🎲 **生命周期蒙特卡洛模拟**  
   基于离散时间**几何布朗运动 (GBM)** 随机过程，并引入 **Jensen 不等式对数正态修正 (波动率拖累修正)** 进行 10,000 条财富路径模拟，真实还原“退休前积累”与“退休后提取”的双阶段演化。
 - 🛡️ **精细化尾部风险度量**  
   提供只惩罚下行波动的 **Sortino Ratio (索提诺比率)**，并基于历史模拟法提供高精度的日度 **VaR (在险价值)** 与 **CVaR (条件在险价值/预期亏损)** 评估，特别适用于非对称、肥尾分布资产。
+- 👥 **多客户画像对比分析系统**  
+  支持多客户画像的横向对比与全景洞察，自动计算风险偏好、储蓄率、行为偏差等维度的差异，并生成结构化的对比 JSON 报告与分析洞察。
 - 🤖 **AI 顾问 Agent**  
   基于先进大语言模型 (`DeepSeek V4 Pro`) 深度分析客户多维指标，识别其可能存在的行为金融偏差（如损失厌恶、过度自信），生成专业、合规的流式理财建议书。
+- 📄 **多格式高级文档导出**  
+  支持将 AI 顾问建议书无缝转换为独立的、带有精美内嵌 CSS 样式的 HTML 文档、Markdown 以及原生 JSON，便于跨平台分发和打印。
 - 📊 **金融终端级视觉交互**  
   基于 Streamlit 定制的深色调金融终端，搭载多维 Plotly 交互式图表，实现缩放、悬浮提示和多路径拟合曲线的高清渲染。
 
@@ -131,25 +139,39 @@ graph TB
     $$\sum_{i=1}^N w_i = 1 \quad (\text{全额投资约束})$$
     $$w_i \in [0, 1] \quad (\text{仅做多约束})$$
     $$w^T \mu = R_{\text{target}} \quad (\text{目标收益率约束})$$
+    $$\min_{c} \le \sum_{i \in \mathcal{C}_c} w_i \le \max_{c} \quad (\text{资产类别群组约束})$$
 
-其中 $w \in \mathbb{R}^N$ 为投资资产权重向量，$\Sigma \in \mathbb{R}^{N \times N}$ 为年化资产协方差矩阵，$\mu \in \mathbb{R}^N$ 为年化资产预期收益率向量。
+其中 $w \in \mathbb{R}^N$ 为投资资产权重向量，$\Sigma \in \mathbb{R}^{N \times N}$ 为年化资产协方差矩阵，$\mu \in \mathbb{R}^N$ 为年化资产预期收益率向量，$\mathcal{C}_c$ 为属于资产类别群组 $c$ 的资产索引集合。
 
-### 2. 资本配置线 (CAL) 与切点组合 (Tangency Portfolio)
+### 2. 协方差收缩与数值正则化
+为了降低估计误差和噪声，多资产协方差矩阵 $\Sigma$ 可以使用收缩估计量进行估计，或在条件数过大时进行正则化：
+
+*   **Ledoit-Wolf 与 OAS 收缩**：将样本协方差矩阵 $S$ 与高度结构化的目标矩阵 $F$（如常相关模型）进行线性组合：
+    $$\Sigma_{\text{shrunk}} = (1 - \rho) S + \rho F$$
+    其中 $\rho \in (0, 1)$ 是通过 Ledoit-Wolf 或 OAS 算法解析计算出的最优收缩强度。
+*   **条件数检测与对角加载**：如果条件数 $\text{cond}(\Sigma) > 10^{10}$（表示矩阵接近奇异且极其病态），则通过对角加载进行正则化：
+    $$\Sigma_{\text{reg}} = \Sigma + \epsilon I$$
+    其中 $\epsilon = 10^{-6}$，$I$ 为单位矩阵。
+*   **特征值裁剪**：将小特征值或负特征值裁剪为正值门限，以确保矩阵的半正定性：
+    $$\Sigma_{\text{reg}} = V \max(\Lambda, \epsilon) V^T$$
+    其中 $\Lambda$ 是特征值对角矩阵，$V$ 是对应的特征向量矩阵。
+
+### 3. 资本配置线 (CAL) 与切点组合 (Tangency Portfolio)
 切点组合代表了在无风险利率下最大化夏普比率 (Sharpe Ratio) 的最优投资组合组合：
 
 $$\max_{w} \text{Sharpe} = \frac{w^T \mu - R_f}{\sqrt{w^T \Sigma w}}$$
 
 其中 $R_f$ 为年化无风险利率（系统默认取美债基准 $4.5\%$）。
 
-### 3. 几何布朗运动 (GBM) 与波动率拖累修正 (Volatility Drag)
-为对长期财富变化做合理模拟，系统采用离散时间步长的几何布朗运动，引入了 Jensen 不等式对数正态修正（即波动率拖累修正），以防止多期累积产生的系统性高估：
+### 4. 几何布朗运动 (GBM) 与波动率拖累修正 (Volatility Drag)
+为对长期财富变化做合理模拟，系统采用离散时间步长的几何布朗运动，引入了 Jensen 不等式对数正态修正（即波动率拖累修正），以防止多期累计产生的系统性高估：
 
 $$S_{t+\Delta t} = S_t \exp \left( \left(\mu - \frac{1}{2}\sigma^2\right)\Delta t + \sigma \sqrt{\Delta t} Z_t \right)$$
 
 - **积累阶段**：$V_{t+1} = V_t e^{(\mu - \frac{1}{2}\sigma^2) + \sigma Z_t} + \text{Annual Savings}$
 - **分配阶段**：$V_{t+1} = V_t e^{(\mu_{new} - \frac{1}{2}\sigma^2_{new}) + \sigma_{new} Z_t} - \text{Annual Outflow}$
 
-### 4. 尾部风险与下行偏差统计
+### 5. 尾部风险与下行偏差统计
 - **下行偏差 ($\sigma_{\text{downside}}$)**：仅对低于零或无风险收益率的波动进行惩罚。
   $$\sigma_{\text{downside}} = \sqrt{\frac{252}{T} \sum_{t=1}^T \left(\min(R_{p,t}, 0)\right)^2}$$
 - **Sortino 比率**：

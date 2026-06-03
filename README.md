@@ -38,14 +38,22 @@ The system couples a **Modern Portfolio Theory (MPT)** optimization solver with 
 
 - 🎓 **CFA® Level III Framework Alignment**  
   Implements the dual-track client profiling methodology, evaluating objective financial **Ability** and subjective psychological **Willingness** to take risk, defaulting to the conservative lower-of-the-two score to protect the client.
-- 🧮 **Rigorous Portfolio Optimization**  
-  Uses the `SciPy` SLSQP solver for Mean-Variance Optimization (MVO) to compute the Efficient Frontier, find the Tangency Portfolio (maximizing Sharpe ratio), and plot the Capital Allocation Line (CAL).
+- 🧮 **Rigorous Portfolio Optimization & Regularization**  
+  Uses the `SciPy` SLSQP solver for Mean-Variance Optimization (MVO) to compute the Efficient Frontier, find the Tangency Portfolio (maximizing Sharpe ratio), and plot the Capital Allocation Line (CAL). Integrates condition number checking and automatic diagonal loading or eigenvalue clipping to maintain production-grade numerical stability.
+- 💎 **Covariance Shrinkage Estimators**  
+  Supports Ledoit-Wolf and Oracle Approximating Shrinkage (OAS) estimators (utilizing `scikit-learn`) alongside traditional sample covariance. This mitigates MVO's high sensitivity to input estimation errors and noise expansion.
+- 📐 **Asset Class Constraints**  
+  Supports injection of minimum/maximum weight constraints at the group level (e.g., equities, bonds, alternatives) rather than just single-asset level, allowing institutional tactical asset allocation guidelines.
 - 🎲 **Life-Cycle Monte Carlo Simulation**  
   Simulates 10,000 asset paths using discrete-time **Geometric Brownian Motion (GBM)** with a **Jensen's Inequality Volatility Drag Adjustment** across two phases: Accumulation (savings injection) and Distribution (retirement withdrawals).
 - 🛡️ **Tail Risk Assessment**  
   Computes downside risk metrics, including **Sortino Ratio** (penalizing only downside volatility), daily **Value at Risk (VaR)**, and **Conditional VaR (CVaR / Expected Shortfall)** via historical simulation.
+- 👥 **Multi-Client Profile Comparison**  
+  Allows side-by-side comparison of different client portfolios and profiles, generating structured JSON comparative reports with automated behavioral finance and financial metrics insights.
 - 🤖 **AI Advisor Agent**  
   Employs LLMs (`DeepSeek V4 Pro`) to analyze client metrics, identify behavioral finance biases (e.g., loss aversion, overconfidence), and generate personalized wealth advisor proposals.
+- 📄 **Enhanced Multi-Format Document Export**  
+  Supports seamless export of AI advisor recommendations to standalone HTML (styled with inline premium CSS), Markdown, and raw JSON documents.
 - 📊 **Institutional-Grade UI**  
   Interactive dark-themed client terminal built with Streamlit and powered by custom multi-dimensional Plotly charts.
 
@@ -133,17 +141,31 @@ Given a covariance matrix and the expected returns of $N$ assets, the system sol
     $$\sum_{i=1}^N w_i = 1 \quad (\text{Fully Invested Constraint})$$
     $$w_i \in [0, 1] \quad (\text{Long-Only Constraint})$$
     $$w^T \mu = R_{\text{target}} \quad (\text{Target Return Constraint})$$
+    $$\min_{c} \le \sum_{i \in \mathcal{C}_c} w_i \le \max_{c} \quad (\text{Asset Class Constraints})$$
 
-Where $w \in \mathbb{R}^N$ represents asset allocation weights, $\Sigma \in \mathbb{R}^{N \times N}$ is the annualized asset covariance matrix, and $\mu \in \mathbb{R}^N$ is the annualized expected return vector.
+Where $w \in \mathbb{R}^N$ represents asset allocation weights, $\Sigma \in \mathbb{R}^{N \times N}$ is the annualized asset covariance matrix, $\mu \in \mathbb{R}^N$ is the annualized expected return vector, and $\mathcal{C}_c$ is the set of asset indices belonging to asset class group $c$.
 
-### 2. Capital Allocation Line (CAL) & Tangency Portfolio
+### 2. Covariance Shrinkage & Regularization
+To address estimation error and noise, the covariance matrix $\Sigma$ can be estimated using shrinkage estimators or regularized when the condition number is too large:
+
+*   **Ledoit-Wolf & OAS Shrinkage**: Combines the sample covariance matrix $S$ with a highly structured target matrix $F$ (e.g., constant correlation model):
+    $$\Sigma_{\text{shrunk}} = (1 - \rho) S + \rho F$$
+    where $\rho \in (0, 1)$ is the optimal shrinkage intensity computed analytically by Ledoit-Wolf or OAS algorithms.
+*   **Condition Number Check & Diagonal Loading**: If $\text{cond}(\Sigma) > 10^{10}$, the matrix is near-singular and regularized via diagonal loading:
+    $$\Sigma_{\text{reg}} = \Sigma + \epsilon I$$
+    where $\epsilon = 10^{-6}$ and $I$ is the identity matrix.
+*   **Eigenvalue Clipping**: Clips small or negative eigenvalues to preserve positive definiteness:
+    $$\Sigma_{\text{reg}} = V \max(\Lambda, \epsilon) V^T$$
+    where $\Lambda$ is the diagonal matrix of eigenvalues and $V$ represents the eigenvectors.
+
+### 3. Capital Allocation Line (CAL) & Tangency Portfolio
 The Tangency Portfolio represents the combination of risky assets that maximizes the Sharpe Ratio:
 
 $$\max_{w} \text{Sharpe} = \frac{w^T \mu - R_f}{\sqrt{w^T \Sigma w}}$$
 
 Where $R_f$ is the annualized risk-free rate (defaults to U.S. Treasury benchmark at $4.5\%$).
 
-### 3. Geometric Brownian Motion (GBM) & Volatility Drag
+### 4. Geometric Brownian Motion (GBM) & Volatility Drag
 To compound returns realistically over long horizons, we simulate wealth paths using discrete-time Geometric Brownian Motion with a Jensen's Inequality correction (Volatility Drag Adjustment):
 
 $$S_{t+\Delta t} = S_t \exp \left( \left(\mu - \frac{1}{2}\sigma^2\right)\Delta t + \sigma \sqrt{\Delta t} Z_t \right)$$
@@ -151,7 +173,7 @@ $$S_{t+\Delta t} = S_t \exp \left( \left(\mu - \frac{1}{2}\sigma^2\right)\Delta 
 - **Accumulation Phase**: $V_{t+1} = V_t e^{(\mu - \frac{1}{2}\sigma^2) + \sigma Z_t} + \text{Annual Savings}$
 - **Distribution Phase**: $V_{t+1} = V_t e^{(\mu_{new} - \frac{1}{2}\sigma^2_{new}) + \sigma_{new} Z_t} - \text{Annual Outflow}$
 
-### 4. Downside Risk & Tail Risk Metrics
+### 5. Downside Risk & Tail Risk Metrics
 - **Downside Deviation ($\sigma_{\text{downside}}$)**: penalizes only returns falling below zero or the risk-free rate:
   $$\sigma_{\text{downside}} = \sqrt{\frac{252}{T} \sum_{t=1}^T \left(\min(R_{p,t}, 0)\right)^2}$$
 - **Sortino Ratio**:
