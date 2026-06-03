@@ -46,7 +46,7 @@ class TestFetchPriceHistory:
         )
         mock_download.return_value = mock_df
 
-        result = fetch_price_history(tickers=None, period="5y", interval="1d")
+        result = fetch_price_history(tickers=None, period="5y", interval="1d", adjust_currency=False)
 
         # Verify yf.download was called correctly
         mock_download.assert_called_once_with(
@@ -71,7 +71,7 @@ class TestFetchPriceHistory:
         )
         mock_download.return_value = mock_df
 
-        result = fetch_price_history(tickers, period="1y", interval="1d")
+        result = fetch_price_history(tickers, period="1y", interval="1d", adjust_currency=False)
 
         mock_download.assert_called_once_with(
             tickers, period="1y", interval="1d", auto_adjust=True
@@ -91,7 +91,7 @@ class TestFetchPriceHistory:
         )
         mock_download.return_value = mock_df
 
-        result = fetch_price_history(tickers, period="2y", interval="1d")
+        result = fetch_price_history(tickers, period="2y", interval="1d", adjust_currency=False)
 
         mock_download.assert_called_once_with(
             tickers, period="2y", interval="1d", auto_adjust=True
@@ -114,11 +114,61 @@ class TestFetchPriceHistory:
         )
         mock_download.return_value = mock_df
 
-        result = fetch_price_history(tickers)
+        result = fetch_price_history(tickers, adjust_currency=False)
 
         assert len(result) == 2
         # The index at pos 1 should be the third day (index date 2026-06-03)
         assert result.index[1] == dates[2]
+
+    @patch("src.data.market_data.yf.download")
+    def test_fetch_price_history_with_currency_adjustment_usd(self, mock_download):
+        """Should convert non-USD prices to USD correctly using downloaded exchange rates."""
+        tickers = ["000300.SS", "^GSPC"]
+        expected_download = ["000300.SS", "^GSPC", "CNY=X"]
+        
+        dates = pd.date_range(start="2026-06-01", periods=3)
+        mock_data = {
+            ("Close", "^GSPC"): [100.0, 101.0, 102.0],
+            ("Close", "000300.SS"): [7000.0, 7100.0, 7200.0],
+            ("Close", "CNY=X"): [7.0, 7.1, 7.2]
+        }
+        mock_df = pd.DataFrame(mock_data, index=dates)
+        mock_df.columns = pd.MultiIndex.from_tuples(mock_df.columns)
+        mock_download.return_value = mock_df
+
+        result = fetch_price_history(tickers, base_currency="USD", adjust_currency=True)
+
+        called_args = mock_download.call_args[0][0]
+        assert set(called_args) == set(expected_download)
+        assert list(result.columns) == tickers
+        
+        np.testing.assert_array_almost_equal(result["^GSPC"].values, [100.0, 101.0, 102.0])
+        np.testing.assert_array_almost_equal(result["000300.SS"].values, [1000.0, 1000.0, 1000.0])
+
+    @patch("src.data.market_data.yf.download")
+    def test_fetch_price_history_with_currency_adjustment_cny(self, mock_download):
+        """Should convert USD and other prices to CNY correctly using downloaded exchange rates."""
+        tickers = ["000300.SS", "^GSPC"]
+        expected_download = ["000300.SS", "^GSPC", "CNY=X"]
+        
+        dates = pd.date_range(start="2026-06-01", periods=3)
+        mock_data = {
+            ("Close", "^GSPC"): [100.0, 101.0, 102.0],
+            ("Close", "000300.SS"): [7000.0, 7100.0, 7200.0],
+            ("Close", "CNY=X"): [7.0, 7.1, 7.2]
+        }
+        mock_df = pd.DataFrame(mock_data, index=dates)
+        mock_df.columns = pd.MultiIndex.from_tuples(mock_df.columns)
+        mock_download.return_value = mock_df
+
+        result = fetch_price_history(tickers, base_currency="CNY", adjust_currency=True)
+
+        called_args = mock_download.call_args[0][0]
+        assert set(called_args) == set(expected_download)
+        assert list(result.columns) == tickers
+        
+        np.testing.assert_array_almost_equal(result["000300.SS"].values, [7000.0, 7100.0, 7200.0])
+        np.testing.assert_array_almost_equal(result["^GSPC"].values, [700.0, 717.1, 734.4])
 
 
 class TestComputeReturns:

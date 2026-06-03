@@ -26,34 +26,41 @@ import yfinance as yf
 from datetime import datetime, timedelta
 from typing import Optional
 
-# 从项目配置中导入资产池和年交易日数
-# Import the asset universe definition and trading days constant from project config
-from src.config import ASSET_UNIVERSE, TRADING_DAYS_PER_YEAR
+# 从项目配置中导入资产池、年交易日数和基准货币
+# Import the asset universe definition, trading days constant, and base currency from project config
+from src.config import ASSET_UNIVERSE, TRADING_DAYS_PER_YEAR, BASE_CURRENCY
 
 
 def fetch_price_history(
     tickers: Optional[list[str]] = None,
     period: str = "5y",
     interval: str = "1d",
+    base_currency: Optional[str] = None,
+    adjust_currency: bool = True,
 ) -> pd.DataFrame:
     """
-    Fetch adjusted close prices for a list of tickers.
-    获取一组股票/资产的调整后收盘价。
+    Fetch adjusted close prices for a list of tickers, with optional currency translation.
+    获取一组股票/资产的调整后收盘价，支持可选的汇率折算。
 
     This function downloads historical price data from Yahoo Finance.
     It uses "adjusted close" prices (auto_adjust=True), which account for
-    stock splits and dividends, ensuring the price series accurately
-    reflects the true total return an investor would have received.
+    stock splits and dividends. If adjust_currency is True, it automatically
+    downloads required exchange rates and converts all asset price series to
+    the specified base currency to prevent exchange rate distortion.
 
     本函数从 Yahoo Finance 下载历史价格数据。
-    使用"调整后收盘价"（auto_adjust=True），已经考虑了股票拆分和分红，
-    确保价格序列准确反映投资者实际获得的总回报。
+    使用"调整后收盘价"（auto_adjust=True），已经考虑了股票拆分和分红。
+    如果 adjust_currency 为 True，系统会自动下载所需的汇率，并将所有资产的价格
+    序列折算为指定的基准货币计价，以防止汇率波动扭曲投资组合的统计特征。
 
     CFA Reference / CFA 参考:
-        Adjusted close prices are essential for computing accurate historical
-        returns, which form the basis of Mean-Variance Optimization (MVO).
-        调整后收盘价对于计算准确的历史收益率至关重要，
-        而历史收益率是均值-方差优化（MVO）的基础输入。
+        - CFA L3: Asset Allocation - Currency Management & Asset Allocation
+          Asset returns and covariances must be computed in a consistent base/reporting
+          currency. Unadjusted local returns ignore exchange rate volatility and the
+          covariance between asset returns and currency movements, leading to distorted
+          Mean-Variance Optimization (MVO) frontiers.
+          资产收益率和协方差必须在统一的基准/报告货币下计算。未调整的本币收益率忽略了
+          汇率波动率以及资产收益率与汇率变动之间的协方差，从而导致均值-方差优化（MVO）前沿失真。
 
     Args:
         tickers: List of Yahoo Finance ticker symbols.
@@ -61,46 +68,102 @@ def fetch_price_history(
                  Yahoo Finance 股票代码列表。
                  默认使用 ASSET_UNIVERSE 中的所有代码。
         period: Data period to download (e.g., '1y', '5y', '10y', 'max').
-                A longer period provides more data for statistical analysis,
-                but may include regime changes.
                 下载数据的时间跨度（如 '1y'、'5y'、'10y'、'max'）。
-                更长的时间跨度提供更多统计分析数据，但可能包含市场制度变化。
         interval: Data interval / frequency (e.g., '1d', '1wk', '1mo').
-                  Daily data ('1d') is the most common for portfolio analysis.
                   数据频率（如 '1d' 日频、'1wk' 周频、'1mo' 月频）。
-                  日频数据（'1d'）是投资组合分析中最常用的。
+        base_currency: The target reporting currency (e.g., 'USD', 'CNY').
+                       Defaults to BASE_CURRENCY from config.py.
+                       目标报告货币（如 'USD'、'CNY'）。
+                       默认使用 config.py 中的 BASE_CURRENCY。
+        adjust_currency: If True, convert all assets' prices to base_currency.
+                         如果为 True，将所有资产的价格折算为 base_currency 计价。
 
     Returns:
-        DataFrame with DatetimeIndex and one column per ticker (adjusted close).
-        返回以日期为索引、每个资产为一列的 DataFrame（调整后收盘价）。
+        DataFrame with DatetimeIndex and one column per ticker (adjusted close in base currency).
+        返回以日期为索引、每个资产为一列的 DataFrame（基准货币计价的调整后收盘价）。
     """
     # 如果没有指定 tickers，则使用配置文件中定义的完整资产池
     # If no tickers specified, use the full asset universe from config
     if tickers is None:
         tickers = list(ASSET_UNIVERSE.keys())
 
+    if base_currency is None:
+        base_currency = BASE_CURRENCY
+
+    # 确定需要下载的汇率 Tickers
+    # Determine the exchange rate tickers to download
+    fx_tickers_to_download = []
+    if adjust_currency:
+        for t in tickers:
+            asset_info = ASSET_UNIVERSE.get(t, {})
+            curr = asset_info.get("currency", "USD")
+            # 如果资产结算货币不是 base_currency，且不是 Index/Rate，需要该货币相对于 USD 的汇率
+            # If asset currency is different from base_currency, and not Index/Rate, fetch its rate to USD
+            if curr not in ["Index", "Rate", base_currency]:
+                if curr != "USD":
+                    fx_tickers_to_download.append(f"{curr}=X")
+        # 如果 base_currency 不是 USD，且不是 Index/Rate，我们也需要 base_currency 相对于 USD 的汇率来进行二次折算
+        # If base_currency is not USD, we also need its rate to USD for secondary conversion
+        if base_currency not in ["Index", "Rate", "USD"]:
+            fx_tickers_to_download.append(f"{base_currency}=X")
+
+        # 去重
+        # Deduplicate
+        fx_tickers_to_download = list(set(fx_tickers_to_download))
+
+    # 合并下载列表（保持原请求的 tickers 顺序）
+    # Combine download list (preserving original tickers order)
+    all_download_tickers = []
+    for t in (tickers + fx_tickers_to_download):
+        if t not in all_download_tickers:
+            all_download_tickers.append(t)
+
     # 使用 yfinance 批量下载数据
-    # auto_adjust=True: 自动将收盘价调整为考虑分红和拆分后的价格
+    # auto_adjust=True: 自动将收盘价调整为考虑分红 and 拆分后的价格
     # Download data in batch using yfinance
-    # auto_adjust=True: automatically adjusts prices for dividends and splits
-    data = yf.download(tickers, period=period, interval=interval, auto_adjust=True)
+    data = yf.download(all_download_tickers, period=period, interval=interval, auto_adjust=True)
 
-    # yfinance 在下载多个 ticker 时返回多层列索引 (MultiIndex)
-    # 单个 ticker 时返回普通列索引，需要分别处理
-    # yfinance returns MultiIndex columns for multiple tickers,
-    # but single-level columns for a single ticker — handle both cases
+    # 提取收盘价，统一转换为以 Ticker 为列名的 DataFrame
+    # Extract Close prices, unify to a DataFrame with tickers as columns
     if isinstance(data.columns, pd.MultiIndex):
-        # 多个 ticker：从多层索引中提取 "Close" 层
-        # Multiple tickers: extract the "Close" level from MultiIndex
-        prices = data["Close"]
+        prices = data["Close"].copy()
     else:
-        # 单个 ticker：选取 Close 列并重命名为 ticker 名称
-        # Single ticker: select Close column and rename to ticker symbol
-        prices = data[["Close"]]
-        prices.columns = tickers
+        prices = data[["Close"]].copy()
+        prices.columns = all_download_tickers
 
-    # 删除所有值都为 NaN 的行（例如不同资产上市时间不同导致的缺失）
-    # Drop rows where ALL values are NaN (e.g., due to different listing dates)
+    # 填充因为跨市场节假日不一致导致的缺失值（仅针对下载的汇率列，保留资产原有的 NaN 特征）
+    # Forward/backward fill only the exchange rate columns to handle trading days mismatch
+    fx_cols = [c for c in prices.columns if c.endswith("=X")]
+    if fx_cols:
+        prices[fx_cols] = prices[fx_cols].ffill().bfill()
+
+    # 进行汇率折算
+    # Perform currency translation
+    if adjust_currency:
+        for t in tickers:
+            asset_info = ASSET_UNIVERSE.get(t, {})
+            curr = asset_info.get("currency", "USD")
+
+            # 1. 第一步：将非美元资产的价格折算为美元计价的价格
+            # Step 1: convert non-USD prices to USD-denominated prices
+            if curr not in ["Index", "Rate", "USD"]:
+                fx_t = f"{curr}=X"
+                if fx_t in prices.columns:
+                    prices[t] = prices[t] / prices[fx_t]
+
+            # 2. 第二步：若基准货币不是美元，则将美元价格折算为基准货币价格
+            # Step 2: if base_currency is not USD, convert USD-denominated prices to base currency
+            if base_currency != "USD" and curr not in ["Index", "Rate"]:
+                base_fx_t = f"{base_currency}=X"
+                if base_fx_t in prices.columns:
+                    prices[t] = prices[t] * prices[base_fx_t]
+
+    # 仅保留用户请求的资产代码，过滤掉汇率序列
+    # Keep only the requested tickers, filtering out temporary exchange rates
+    prices = prices[tickers]
+
+    # 删除所有值都为 NaN 的行
+    # Drop rows where ALL values are NaN
     prices = prices.dropna(how="all")
 
     return prices
