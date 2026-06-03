@@ -114,8 +114,8 @@ def sortino_ratio(
         Sortino = (R_p - R_f) / σ_downside
 
         Where / 其中:
-        - σ_downside = standard deviation of NEGATIVE returns only
-          下行偏差 = 仅计算负收益率的标准差
+        - σ_downside = downside deviation relative to target return (MAR = 0)
+          下行偏差 = 相对于目标收益率（通常设为 0）的下行标准差
 
     Key Difference from Sharpe / 与夏普比率的关键区别:
         The Sharpe ratio treats all volatility as "risk", but investors
@@ -144,18 +144,20 @@ def sortino_ratio(
         Annualized Sortino ratio as a float.
         年化索提诺比率（浮点数）。
     """
-    # 年化超额收益 / Annualized excess return
+    # Annualized excess return
     excess = returns.mean() * TRADING_DAYS_PER_YEAR - risk_free_rate
 
-    # 仅筛选负收益率（亏损的交易日）来计算下行偏差
-    # Filter only negative returns (losing days) to compute downside deviation
-    downside = returns[returns < 0]
+    # Clip positive returns to 0, keeping only negative returns (relative to MAR=0)
+    downside_diff = np.minimum(returns.values, 0.0)
 
-    # 年化下行偏差 = 负收益率的标准差 × √252
-    # Annualized downside deviation = std of negative returns × √252
-    downside_vol = downside.std() * np.sqrt(TRADING_DAYS_PER_YEAR)
+    # Compute annualized downside deviation using total sample size - 1 (N-1) for sample standard deviation
+    n = len(returns)
+    if n > 1:
+        downside_vol = np.sqrt(np.sum(downside_diff ** 2) / (n - 1)) * np.sqrt(TRADING_DAYS_PER_YEAR)
+    else:
+        downside_vol = 0.0
 
-    # 避免除以零 / Avoid division by zero
+    # Avoid division by zero
     return excess / downside_vol if downside_vol > 0 else 0.0
 
 

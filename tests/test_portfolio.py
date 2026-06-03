@@ -706,10 +706,23 @@ class TestRiskMetrics:
         """
         sr = sharpe_ratio(sample_returns["US_EQ"])
         so = sortino_ratio(sample_returns["US_EQ"])
-        # 索提诺比率通常 ≥ 夏普比率 / Sortino is typically ≥ Sharpe
+        # Sortino is typically >= Sharpe
         assert so >= sr - 0.5, (
             f"Sortino ({so:.2f}) should be roughly >= Sharpe ({sr:.2f})"
         )
+
+    def test_sortino_ratio_exact_value(self):
+        """
+        Sortino ratio exact mathematical validation with a small known series.
+        """
+        returns = pd.Series([-0.01, -0.02, 0.03, 0.04, -0.015, 0.01, 0.02, -0.005])
+        so = sortino_ratio(returns, risk_free_rate=0.045)
+        # Expected value is calculated under N-1 denominator (N=8):
+        # excess return = mean(returns)*252 - 0.045 = 1.53
+        # downside diff relative to MAR=0: -0.01, -0.02, 0, 0, -0.015, 0, 0, -0.005
+        # downside vol = sqrt(sum(diff**2)/7)*sqrt(252) ≈ 0.1643166
+        # Sortino = 1.53 / 0.1643166 ≈ 9.31128
+        assert abs(so - 9.31128) < 1e-4
 
     # ------ Max drawdown tests ------
 
