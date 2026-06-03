@@ -7,124 +7,128 @@ Monte Carlo simulation. Users input their financial situation and
 retirement goals, and the system simulates thousands of possible
 outcomes to estimate the probability of a comfortable retirement.
 
-交互式 Streamlit 页面，使用蒙特卡洛模拟进行基于目标的退休规划。
-用户输入财务状况和退休目标，系统模拟数千种可能结果，
-估算舒适退休的概率。
-
-CFA Reference / CFA 参考:
+CFA References:
     - CFA L3 Private Wealth Management: Goal-Based Planning
-      CFA 三级私人财富管理：基于目标的规划
+      (Constructing client profiles and identifying retirement goals).
     - CFA L3: Monte Carlo simulation for retirement readiness assessment
-      CFA 三级：使用蒙特卡洛模拟评估退休准备充足性
+      (Simulating asset growth paths and estimating survival probability).
     - CFA L3: Human Capital vs Financial Capital framework
-      CFA 三级：人力资本 vs 金融资本框架
+      (Balancing work-life savings phase with post-retirement spending).
 """
 
 import streamlit as st
 import pandas as pd
 import numpy as np
-from typing import Optional
+from typing import Optional, Dict, Any
 
-# 导入蒙特卡洛模拟器 / Import Monte Carlo simulator
+# Import Monte Carlo simulator
 from src.portfolio.simulator import MonteCarloSimulator
 
-# 导入可视化函数 / Import visualization functions
+# Import visualization functions
 from src.visualization.charts import plot_monte_carlo_paths
 
-# 导入配置 / Import configuration
+# Import configuration
 from src.config import MONTE_CARLO_SIMULATIONS
 
 
-def _render_sidebar() -> dict:
+def _render_top_controls() -> Dict[str, Any]:
     """
-    Render sidebar inputs for retirement planning parameters.
-    渲染退休规划参数的侧栏输入。
-
-    Groups inputs into three sections:
-    将输入分为三组:
-        1. Personal Info (个人信息): age, retirement age, life expectancy
-        2. Financial Info (财务信息): current savings, annual savings, retirement income
-        3. Market Assumptions (市场假设): expected return, volatility
-
+    Render retirement planning controls in the main page body using a premium expander.
+    
     Returns:
-        Dict with all user inputs.
-        包含所有用户输入的字典。
+        Dict with all retirement parameters.
     """
-    st.sidebar.markdown("### ⌬ Retirement Settings")
+    # Inject styling for the console
+    st.markdown("""<style>
+.premium-console {
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 25px;
+}
+</style>""", unsafe_allow_html=True)
+    
+    with st.expander("🛠️ Adjust Retirement Parameters / 调整退休规划参数", expanded=True):
+        col1, col2, col3 = st.columns([1, 1, 1])
+        
+        with col1:
+            st.markdown("##### 👤 Personal Info / 个人信息")
+            current_age = st.number_input(
+                "Current age / 当前年龄",
+                min_value=18, max_value=80, value=30, step=1,
+                key="ret_current_age"
+            )
+            retirement_age = st.number_input(
+                "Target retirement age / 目标退休年龄",
+                min_value=current_age + 1, max_value=100, value=60, step=1,
+                key="ret_retirement_age"
+            )
+            life_expectancy = st.number_input(
+                "Life expectancy / 预期寿命",
+                min_value=retirement_age + 1, max_value=120, value=85, step=1,
+                help="Consider family history and health status. / 考虑家族史和健康状况。",
+                key="ret_life_expectancy"
+            )
+            
+        with col2:
+            st.markdown("##### 💰 Financial Info / 财务及储蓄")
+            current_savings = st.number_input(
+                "Current savings ($) / 当前储蓄",
+                min_value=0, value=100_000, step=10_000, format="%d",
+                key="ret_current_savings"
+            )
+            annual_savings = st.number_input(
+                "Annual savings ($) / 年度储蓄",
+                min_value=0, value=50_000, step=5_000, format="%d",
+                help="How much you save per year during working years. / 工作期间每年储蓄金额。",
+                key="ret_annual_savings"
+            )
+            desired_income = st.number_input(
+                "Desired retirement income ($/yr) / 退休后年收入",
+                min_value=0, value=80_000, step=5_000, format="%d",
+                help="Annual income needed during retirement (in today's dollars). / 退休后每年需要的收入（以今日美元计）。",
+                key="ret_desired_income"
+            )
+            
+        with col3:
+            st.markdown("##### 📈 Assumptions & Sim / 假设与模拟")
+            expected_return_pct = st.slider(
+                "Expected annual return / 预期年收益率",
+                min_value=2.0, max_value=15.0, value=7.0, step=0.5,
+                format="%.1f%%",
+                help="Long-term expected annualized return of your portfolio. A balanced portfolio typically returns 6-8%. / 投资组合的长期预期年化收益率。平衡型组合通常在 6-8%。",
+                key="ret_expected_return"
+            )
+            expected_return = expected_return_pct / 100.0
 
-    # --- 个人信息 / Personal Info ---
-    st.sidebar.markdown("##### Personal / 个人信息")
-    current_age = st.sidebar.number_input(
-        "Current age / 当前年龄",
-        min_value=18, max_value=80, value=30, step=1,
-    )
-    retirement_age = st.sidebar.number_input(
-        "Target retirement age / 目标退休年龄",
-        min_value=current_age + 1, max_value=100, value=60, step=1,
-    )
-    life_expectancy = st.sidebar.number_input(
-        "Life expectancy / 预期寿命",
-        min_value=retirement_age + 1, max_value=120, value=85, step=1,
-        help="Consider family history and health status. / 考虑家族史和健康状况。",
-    )
+            volatility_pct = st.slider(
+                "Annual volatility / 年化波动率",
+                min_value=5.0, max_value=30.0, value=15.0, step=0.5,
+                format="%.1f%%",
+                help="Annualized standard deviation of returns. A balanced portfolio typically has 10-15% volatility. / 年化收益率标准差。平衡型组合通常在 10-15%。",
+                key="ret_volatility"
+            )
+            volatility = volatility_pct / 100.0
 
-    # --- 财务信息 / Financial Info ---
-    st.sidebar.markdown("##### Financial / 财务信息")
-    current_savings = st.sidebar.number_input(
-        "Current savings ($) / 当前储蓄",
-        min_value=0, value=100_000, step=10_000, format="%d",
-    )
-    annual_savings = st.sidebar.number_input(
-        "Annual savings ($) / 年度储蓄",
-        min_value=0, value=50_000, step=5_000, format="%d",
-        help="How much you save per year during working years. / 工作期间每年储蓄金额。",
-    )
-    desired_income = st.sidebar.number_input(
-        "Desired retirement income ($/yr) / 退休后年收入",
-        min_value=0, value=80_000, step=5_000, format="%d",
-        help="Annual income needed during retirement (in today's dollars). / "
-             "退休后每年需要的收入（以今日美元计）。",
-    )
-
-    # --- 市场假设 / Market Assumptions ---
-    st.sidebar.markdown("##### Market Assumptions / 市场假设")
-    expected_return_pct = st.sidebar.slider(
-        "Expected annual return / 预期年收益率",
-        min_value=2.0, max_value=15.0, value=7.0, step=0.5,
-        format="%.1f%%",
-        help="Long-term expected annualized return of your portfolio. "
-             "A balanced portfolio typically returns 6-8%. / "
-             "投资组合的长期预期年化收益率。平衡型组合通常在 6-8%。",
-    )
-    expected_return = expected_return_pct / 100.0
-
-    volatility_pct = st.sidebar.slider(
-        "Annual volatility / 年化波动率",
-        min_value=5.0, max_value=30.0, value=15.0, step=0.5,
-        format="%.1f%%",
-        help="Annualized standard deviation of returns. "
-             "A balanced portfolio typically has 10-15% volatility. / "
-             "年化收益率标准差。平衡型组合通常在 10-15%。",
-    )
-    volatility = volatility_pct / 100.0
-
-    # --- 模拟设置 / Simulation Settings ---
-    st.sidebar.markdown("##### Simulation / 模拟设置")
-    n_simulations = st.sidebar.select_slider(
-        "Number of simulations / 模拟次数",
-        options=[1_000, 5_000, 10_000, 50_000],
-        value=10_000,
-        help="More simulations = more stable estimates, but slower. / "
-             "模拟次数越多，估计越稳定，但计算越慢。",
-    )
-
-    st.sidebar.divider()
-    accum_years = retirement_age - current_age
-    dist_years = life_expectancy - retirement_age
-    st.sidebar.caption(
-        f"📊 Accumulation: {accum_years} years · Distribution: {dist_years} years · "
-        f"{n_simulations:,} paths"
-    )
+            n_simulations = st.select_slider(
+                "Number of simulations / 模拟次数",
+                options=[1_000, 5_000, 10_000, 50_000],
+                value=10_000,
+                help="More simulations = more stable estimates, but slower. / 模拟次数越多，估计越稳定，但计算越慢。",
+                key="ret_n_simulations"
+            )
+            
+        accum_years = retirement_age - current_age
+        dist_years = life_expectancy - retirement_age
+        
+        st.markdown(
+            f'<div style="text-align: right; color: #94A3B8; font-size: 0.85rem; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.05);">'
+            f'🎯 <b>Accumulation:</b> {accum_years} years &nbsp;|&nbsp; <b>Distribution:</b> {dist_years} years &nbsp;|&nbsp; <b>Paths:</b> {n_simulations:,}'
+            f'</div>',
+            unsafe_allow_html=True
+        )
 
     return {
         "current_age": current_age,
@@ -139,32 +143,29 @@ def _render_sidebar() -> dict:
     }
 
 
-def _run_simulation(config: dict) -> dict:
+def _run_simulation(config: Dict[str, Any]) -> Dict[str, Any]:
     """
     Run the two-phase retirement Monte Carlo simulation.
-    运行两阶段退休蒙特卡洛模拟。
 
-    Phase 1 (Accumulation / 积累阶段):
-        Client works and saves. Portfolio grows with contributions.
-        客户工作并储蓄，组合随缴款增长。
-
-    Phase 2 (Distribution / 分配阶段):
-        Client retires and withdraws. Portfolio depletes over time.
-        客户退休并提款，组合随时间消耗。
+    Phase 1 (Accumulation):
+        Client works and saves. Portfolio grows with contributions and market returns.
+        Formula: V_t = V_{t-1} * (1 + R_t) + Contribution
+    
+    Phase 2 (Distribution):
+        Client retires and withdraws. Portfolio depletes with withdrawals and market returns.
+        Formula: V_t = (V_{t-1} - Withdrawal) * (1 + R_t)
 
     Args:
         config: Dict with all planning parameters.
-                包含所有规划参数的字典。
 
     Returns:
         Dict with simulation results.
-        包含模拟结果的字典。
     """
     sim = MonteCarloSimulator(
         expected_return=config["expected_return"],
         volatility=config["volatility"],
         n_simulations=config["n_simulations"],
-        seed=42,  # 固定种子以便复现 / Fixed seed for reproducibility
+        seed=42,  # Fixed seed for reproducibility
     )
 
     result = sim.retirement_planning(
@@ -179,34 +180,23 @@ def _run_simulation(config: dict) -> dict:
     return result
 
 
-def _render_summary_metrics(result: dict, config: dict) -> None:
+def _render_summary_metrics(result: Dict[str, Any], config: Dict[str, Any]) -> None:
     """
     Render the top-level summary metrics for the retirement plan.
-    渲染退休规划的顶层摘要指标。
-
-    Displays:
-    展示:
-        - Survival rate (存活率): probability portfolio lasts through retirement
-        - Median terminal value at retirement (退休时中位终端值)
-        - Accumulation / Distribution years (积累/分配年数)
 
     Args:
         result: Simulation result dict from _run_simulation.
-                来自 _run_simulation 的模拟结果字典。
         config: User configuration dict.
-                用户配置字典。
     """
     st.markdown("### ⧉ Retirement Plan Summary / 退休规划摘要")
 
     survival_rate = result["survival_rate"]
     accum = result["accumulation"]
 
-    # 四列布局 / Four-column layout
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        # 存活率颜色：>=85% 绿色，>=70% 黄色，<70% 红色
-        # Survival rate color: >=85% green, >=70% yellow, <70% red
+        # Survival rate bounds: >=85% green, >=70% yellow, <70% red
         if survival_rate >= 0.85:
             delta_color = "normal"
             status = "On Track / 状态良好"
@@ -242,7 +232,7 @@ def _render_summary_metrics(result: dict, config: dict) -> None:
             value=f"{result['distribution_years']} years / 年",
         )
 
-    # 存活率解读 / Survival rate interpretation
+    # Detailed survival rate text
     if survival_rate >= 0.90:
         st.success(
             f"✅ Your portfolio has a **{survival_rate:.1%}** probability of lasting "
@@ -268,25 +258,18 @@ def _render_summary_metrics(result: dict, config: dict) -> None:
     st.divider()
 
 
-def _render_accumulation_paths(result: dict) -> None:
+def _render_accumulation_paths(result: Dict[str, Any]) -> None:
     """
     Render the accumulation phase Monte Carlo paths chart.
-    渲染积累阶段的蒙特卡洛路径图。
-
-    Shows thousands of simulated portfolio growth paths during
-    the working years, with percentile bands and goal line.
-
-    展示工作期间数千条模拟的组合增长路径，包含百分位带和目标线。
 
     Args:
         result: Simulation result dict.
-                模拟结果字典。
     """
     st.markdown("### ↗ Accumulation Phase — Portfolio Growth / 积累阶段")
 
     accum = result["accumulation"]
 
-    # 使用可视化函数绘制路径图 / Use visualization function for paths chart
+    # Generate paths chart
     fig = plot_monte_carlo_paths(
         accum.paths,
         n_display=200,
@@ -294,7 +277,6 @@ def _render_accumulation_paths(result: dict) -> None:
     )
     st.plotly_chart(fig, use_container_width=True, theme=None)
 
-    # 百分位数统计表 / Percentile statistics table
     st.markdown("**Terminal Value Distribution at Retirement / 退休时终端值分布**")
 
     stats_data = {
@@ -324,55 +306,44 @@ def _render_accumulation_paths(result: dict) -> None:
     )
 
     st.caption(
-        "💡 The **5th percentile** represents a pessimistic scenario (bad luck with returns). "
-        "The **95th percentile** represents an optimistic scenario. "
+        "💡 The 5th percentile represents a pessimistic scenario (bad luck with returns). "
+        "The 95th percentile represents an optimistic scenario. "
         "Planning based on the median or 25th percentile is more conservative. / "
-        "**第 5 百分位**代表悲观情景（收益较差）。"
-        "**第 95 百分位**代表乐观情景。"
+        "第 5 百分位代表悲观情景（收益较差）。"
+        "第 95 百分位代表乐观情景。"
         "基于中位数或第 25 百分位做规划更为保守。"
     )
 
     st.divider()
 
 
-def _render_distribution_analysis(result: dict, config: dict) -> None:
+def _render_distribution_analysis(result: Dict[str, Any], config: Dict[str, Any]) -> None:
     """
     Render the distribution (retirement) phase analysis.
-    渲染分配（退休）阶段分析。
-
-    Shows the depletion paths during retirement and analyzes
-    the risk of running out of money.
-
-    展示退休期间的资金消耗路径，分析资金耗尽的风险。
 
     Args:
         result: Simulation result dict.
-                模拟结果字典。
         config: User configuration dict.
-                用户配置字典。
     """
     st.markdown("### ⌖ Distribution Phase — Retirement Spending / 分配阶段")
 
     dist_paths = result["distribution_paths"]
-    survival_rate = result["survival_rate"]
 
-    # 绘制分配阶段路径 / Plot distribution phase paths
+    # Plot distribution phase paths
     fig = plot_monte_carlo_paths(
         dist_paths,
         n_display=200,
         percentiles=True,
-        goal_amount=0,  # 零线表示资金耗尽 / Zero line = funds depleted
+        goal_amount=0,  # Zero represents running out of money
     )
     st.plotly_chart(fig, use_container_width=True, theme=None)
 
-    # 分析资金耗尽的时间分布 / Analyze timing of fund depletion
+    # Analyze timing of fund depletion
     n_sims, n_periods = dist_paths.shape
     depletion_years = []
 
     for i in range(n_sims):
         path = dist_paths[i]
-        # 找到第一条路径中资金首次变为 0 的年份
-        # Find the first year where funds hit zero
         depleted = np.where(path <= 0)[0]
         if len(depleted) > 0:
             depletion_years.append(depleted[0])
@@ -381,7 +352,6 @@ def _render_distribution_analysis(result: dict, config: dict) -> None:
 
     depletion_years = np.array(depletion_years)
 
-    # 展示耗尽统计 / Display depletion statistics
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -392,8 +362,6 @@ def _render_distribution_analysis(result: dict, config: dict) -> None:
         )
 
     with col2:
-        # 在退休后 10 年内耗尽的比例
-        # Fraction depleted within 10 years of retirement
         early_depletion = np.mean(depletion_years <= 10)
         st.metric(
             label="Depleted in ≤10 years / 10年内耗尽",
@@ -416,19 +384,12 @@ def _render_distribution_analysis(result: dict, config: dict) -> None:
     st.divider()
 
 
-def _render_sensitivity_analysis(config: dict) -> None:
+def _render_sensitivity_analysis(config: Dict[str, Any]) -> None:
     """
-    Render sensitivity analysis — how changing savings rate affects survival.
-    渲染敏感性分析 —— 储蓄率变化如何影响存活率。
-
-    Shows a table of survival rates at different savings levels,
-    helping the user understand how much they need to save.
-
-    展示不同储蓄水平下的存活率表，帮助用户了解需要储蓄多少。
+    Render sensitivity analysis showing how changing savings rate affects survival rate.
 
     Args:
         config: User configuration dict.
-                用户配置字典。
     """
     st.markdown("### ⌬ Sensitivity Analysis / 敏感性分析")
     st.markdown(
@@ -436,7 +397,7 @@ def _render_sensitivity_analysis(config: dict) -> None:
         "改变年度储蓄金额如何影响结果？**"
     )
 
-    # 测试不同的储蓄水平 / Test different savings levels
+    # Evaluate multiple savings scenarios
     base_savings = config["annual_savings"]
     savings_multipliers = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
 
@@ -446,7 +407,7 @@ def _render_sensitivity_analysis(config: dict) -> None:
         sim = MonteCarloSimulator(
             expected_return=config["expected_return"],
             volatility=config["volatility"],
-            n_simulations=5_000,  # 较少模拟次数以加快速度 / Fewer sims for speed
+            n_simulations=5_000,  # Fewer simulations for speed
             seed=42,
         )
         test_result = sim.retirement_planning(
@@ -461,7 +422,7 @@ def _render_sensitivity_analysis(config: dict) -> None:
         is_current = " ⬅ Current" if mult == 1.0 else ""
         results.append({
             "Annual Savings / 年度储蓄": f"${test_savings:,}{is_current}",
-            "Survival Rate / 存活率": test_result['survival_rate'] * 100,
+            "Survival Rate / 存活率": test_result['survival_rate'] * 100.0,
             "Median at Retirement / 退休中位值": test_result['accumulation'].median_terminal,
         })
 
@@ -490,27 +451,8 @@ def _render_sensitivity_analysis(config: dict) -> None:
 def render() -> None:
     """
     Main render function for the Retirement Planner page.
-    退休规划器页面的主渲染函数。
-
-    This function is called by the app router (src/app.py).
-    It orchestrates user inputs, simulation, and all visualizations.
-
-    本函数由应用路由（src/app.py）调用。
-    它协调用户输入、模拟和所有可视化。
-
-    Page layout / 页面布局:
-        1. Sidebar: personal, financial, and market assumptions
-           侧栏：个人信息、财务信息、市场假设
-        2. Summary Metrics: survival rate, key numbers
-           摘要指标：存活率、关键数字
-        3. Accumulation Paths: Monte Carlo growth visualization
-           积累路径：蒙特卡洛增长可视化
-        4. Distribution Analysis: retirement spending simulation
-           分配分析：退休支出模拟
-        5. Sensitivity Analysis: impact of changing savings
-           敏感性分析：储蓄变化的影响
+    Orchestrates user inputs, simulation, and all visualizations.
     """
-    # 页面标题 / Page title
     st.title("✦ Retirement Planner")
     st.markdown(
         "Goal-based retirement planning using Monte Carlo simulation. "
@@ -520,12 +462,10 @@ def render() -> None:
     )
     st.divider()
 
-    # ====================================
-    # 1. 侧栏输入 / Sidebar Inputs
-    # ====================================
-    config = _render_sidebar()
+    # 1. Controls Console in Main Page Body
+    config = _render_top_controls()
 
-    # 基本输入校验 / Basic input validation
+    # Basic input validation
     if config["current_savings"] == 0 and config["annual_savings"] == 0:
         st.warning(
             "⚠️ Please enter your current savings or annual savings amount. / "
@@ -540,33 +480,23 @@ def render() -> None:
         )
         return
 
-    # ====================================
-    # 2. 运行模拟 / Run Simulation
-    # ====================================
+    # 2. Run Simulation
     with st.spinner("Running Monte Carlo simulation... / 正在运行蒙特卡洛模拟..."):
         result = _run_simulation(config)
 
-    # ====================================
-    # 3. 摘要指标 / Summary Metrics
-    # ====================================
+    # 3. Summary Metrics
     _render_summary_metrics(result, config)
 
-    # ====================================
-    # 4. 积累阶段路径图 / Accumulation Paths
-    # ====================================
+    # 4. Accumulation Paths Chart
     _render_accumulation_paths(result)
 
-    # ====================================
-    # 5. 分配阶段分析 / Distribution Analysis
-    # ====================================
+    # 5. Distribution Analysis
     _render_distribution_analysis(result, config)
 
-    # ====================================
-    # 6. 敏感性分析 / Sensitivity Analysis
-    # ====================================
+    # 6. Sensitivity Analysis
     _render_sensitivity_analysis(config)
 
-    # 页脚 / Footer
+    # Footer
     st.divider()
     st.caption(
         "💡 Simulation uses Geometric Brownian Motion (GBM) with annual time steps. "
