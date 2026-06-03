@@ -1,29 +1,26 @@
 """
-AI WealthPilot - Market Dashboard Page
-AI WealthPilot - 市场仪表板页面
+AI WealthPilot - Market Dashboard Page (Premium UI Edition)
+AI WealthPilot - 市场仪表板页面 (高端重构版)
 
-This module implements the interactive Market Dashboard for the Streamlit app.
+This module implements the premium interactive Market Dashboard for the Streamlit app.
 It displays real-time market quotes, historical price charts, correlation
-heatmaps, and risk/return statistics for the user's asset universe.
+heatmaps, and risk/return statistics for the user's asset universe using a
+modern, institutional-grade financial terminal experience with glassmorphism,
+CSS grids, and top-bar control layouts.
 
-本模块实现 Streamlit 应用的交互式市场仪表板。
-展示实时市场行情、历史价格走势图、相关性热力图，
-以及用户资产池的风险/收益统计数据。
-
-CFA Reference / CFA 参考:
+CFA References:
     - CFA L3: Capital Market Expectations — Monitoring market conditions
       is essential for forming forward-looking return assumptions.
-      CFA 三级：资本市场预期 —— 监控市场状况对形成前瞻性收益假设至关重要。
     - CFA L1: Quantitative Methods — Correlation analysis for diversification.
-      CFA 一级：定量方法 —— 用于分散化分析的相关性分析。
+    - CFA L3: Portfolio Management — Portfolio risk and return metrics.
 """
 
 import streamlit as st
 import pandas as pd
 import numpy as np
-from typing import Optional
+from typing import Optional, Tuple, List
 
-# 导入数据获取函数 / Import data fetching functions
+# Import data fetching functions
 from src.data.market_data import (
     fetch_price_history,
     compute_returns,
@@ -31,13 +28,13 @@ from src.data.market_data import (
     get_latest_quotes,
 )
 
-# 导入可视化函数 / Import visualization functions
+# Import visualization functions
 from src.visualization.charts import (
     plot_price_history,
     plot_correlation_heatmap,
 )
 
-# 导入风险指标函数 / Import risk metrics functions
+# Import risk metrics functions
 from src.portfolio.risk_metrics import (
     sharpe_ratio,
     max_drawdown,
@@ -45,13 +42,11 @@ from src.portfolio.risk_metrics import (
     conditional_var,
 )
 
-# 导入配置 / Import configuration
+# Import configuration
 from src.config import ASSET_UNIVERSE, TRADING_DAYS_PER_YEAR
 
-
 # ============================================================
-# 时间范围映射表：UI 显示文本 → yfinance 的 period 参数
-# Time period mapping: UI display text → yfinance period parameter
+# Time period mapping table: UI label -> yfinance period parameter
 # ============================================================
 PERIOD_OPTIONS = {
     "1 Month": "1mo",
@@ -62,606 +57,491 @@ PERIOD_OPTIONS = {
     "5 Years": "5y",
 }
 
-# ============================================================
-# 资产类别列表（从 ASSET_UNIVERSE 中自动提取不重复的类别）
-# Asset categories (automatically extracted from ASSET_UNIVERSE)
-# ============================================================
-ALL_CATEGORIES = sorted(set(
-    info["category"] for info in ASSET_UNIVERSE.values()
-))
-
+ALL_CATEGORIES: List[str] = sorted(set(info["category"] for info in ASSET_UNIVERSE.values()))
 
 # ============================================================
-# 数据缓存函数（使用 Streamlit 缓存，避免频繁请求 API）
-# Cached data functions (using Streamlit cache to avoid frequent API calls)
+# Data Caching Functions (TTL = 300s to balance speed & rate limits)
 # ============================================================
-
 @st.cache_data(ttl=300, show_spinner=False)
-def _cached_fetch_prices(tickers: tuple, period: str) -> Optional[pd.DataFrame]:
+def _cached_fetch_prices(tickers: Tuple[str, ...], period: str) -> Optional[pd.DataFrame]:
     """
     Cached wrapper for fetch_price_history.
-    fetch_price_history 的缓存包装函数。
-
-    Uses tuple for tickers (instead of list) because Streamlit's cache
-    requires hashable arguments.
-    tickers 使用 tuple（而非 list），因为 Streamlit 的缓存要求参数可哈希。
-
-    TTL = 300 seconds (5 minutes): balances freshness vs API rate limits.
-    TTL = 300 秒（5 分钟）：在数据新鲜度和 API 请求限制之间取平衡。
-
+    
     Args:
         tickers: Tuple of Yahoo Finance ticker symbols.
-                 Yahoo Finance 股票代码元组。
         period: Data period string (e.g., '1y', '5y').
-                数据时间范围字符串（如 '1y'、'5y'）。
 
     Returns:
-        DataFrame of adjusted close prices, or None if fetch fails.
-        调整后收盘价 DataFrame，获取失败时返回 None。
+        DataFrame of adjusted close prices, or None if the fetch fails.
     """
     try:
         return fetch_price_history(list(tickers), period=period)
     except Exception:
         return None
 
-
 @st.cache_data(ttl=300, show_spinner=False)
-def _cached_get_quotes(tickers: tuple) -> Optional[pd.DataFrame]:
+def _cached_get_quotes(tickers: Tuple[str, ...]) -> Optional[pd.DataFrame]:
     """
     Cached wrapper for get_latest_quotes.
-    get_latest_quotes 的缓存包装函数。
-
+    
     Args:
         tickers: Tuple of ticker symbols.
-                 股票代码元组。
 
     Returns:
-        DataFrame of latest quotes, or None if fetch fails.
-        最新行情 DataFrame，获取失败时返回 None。
+        DataFrame of latest quotes, or None if the fetch fails.
     """
     try:
         return get_latest_quotes(list(tickers))
     except Exception:
         return None
 
+# ============================================================
+# UI Components
+# ============================================================
 
-def _render_sidebar() -> tuple[list[str], str]:
+def _render_top_controls() -> Tuple[List[str], str]:
     """
-    Render the sidebar controls and return user selections.
-    渲染侧栏控件并返回用户选择。
-
-    Provides two controls / 提供两个控件:
-    1. Asset category multi-select (资产类别多选)
-    2. Time period selector (时间范围选择)
-
+    Premium top control bar to replace the legacy sidebar layout.
+    
     Returns:
-        Tuple of (selected_tickers, yfinance_period_string).
-        返回元组：(选中的 ticker 列表, yfinance 时间范围字符串)。
+        Tuple containing:
+            - List of selected tickers.
+            - Selected period string for yfinance.
     """
-    st.sidebar.markdown("### ⌬ Dashboard Settings")
-    st.sidebar.markdown("##### Asset Categories / 资产类别")
+    # Inject custom CSS styles for the top control bar
+    st.markdown("""
+        <style>
+        .premium-header {
+            background: linear-gradient(135deg, #FDE047 0%, #D4AF37 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-family: 'Cinzel', serif;
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: -10px;
+        }
+        .premium-subtitle {
+            color: #94A3B8;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.95rem;
+            letter-spacing: 0.05em;
+            margin-bottom: 25px;
+        }
+        </style>
+        <div class="premium-header">Global Markets Pulse</div>
+        <div class="premium-subtitle">REAL-TIME TELEMETRY & QUANTITATIVE ANALYTICS</div>
+    """, unsafe_allow_html=True)
 
-    # 让用户选择要展示的资产类别
-    # Let the user choose which asset categories to display
-    selected_categories = st.sidebar.multiselect(
-        "Select categories",
-        options=ALL_CATEGORIES,
-        default=ALL_CATEGORIES,
-        label_visibility="collapsed",
-    )
+    # Top-bar controls using columns
+    col1, col2, col3 = st.columns([2, 1, 1])
+    
+    with col1:
+        selected_categories = st.multiselect(
+            "Filter by Asset Class / 资产类别过滤",
+            options=ALL_CATEGORIES,
+            default=ALL_CATEGORIES,
+            help="Select the asset classes you want to monitor."
+        )
 
-    # 根据选中的类别筛选 tickers
-    # Filter tickers based on selected categories
-    selected_tickers = [
-        ticker for ticker, info in ASSET_UNIVERSE.items()
-        if info["category"] in selected_categories
-    ]
-
-    st.sidebar.markdown("##### Time Period / 时间范围")
-
-    # 时间范围选择器
-    # Time period selector
-    period_label = st.sidebar.select_slider(
-        "Select period",
-        options=list(PERIOD_OPTIONS.keys()),
-        value="1 Year",
-        label_visibility="collapsed",
-    )
-    period = PERIOD_OPTIONS[period_label]
-
-    # 显示当前选中的资产数量
-    # Show how many assets are currently selected
-    st.sidebar.divider()
-    st.sidebar.caption(f"📊 Showing {len(selected_tickers)} assets · {period_label}")
+    with col2:
+        period_label = st.selectbox(
+            "Analysis Horizon / 分析视窗",
+            options=list(PERIOD_OPTIONS.keys()),
+            index=3,  # Default to "1 Year"
+        )
+        period = PERIOD_OPTIONS[period_label]
+        
+    with col3:
+        st.markdown("<br>", unsafe_allow_html=True)
+        # Select active tickers based on selected categories
+        selected_tickers = [
+            ticker for ticker, info in ASSET_UNIVERSE.items()
+            if info["category"] in selected_categories
+        ]
+        st.caption(f"🎯 **{len(selected_tickers)}** assets actively monitored")
 
     return selected_tickers, period
 
 
-def _render_market_overview(quotes_df: pd.DataFrame) -> None:
+def _render_market_overview(quotes_df: Optional[pd.DataFrame]) -> None:
     """
-    Render the real-time market overview section with metric cards.
-    渲染实时市场概览区域，以指标卡片形式展示。
-
-    Uses custom HTML/CSS cards for a premium financial terminal look,
-    compatible with both light and dark themes.
-
-    使用自定义 HTML/CSS 卡片实现金融终端级视觉，兼容亮色和暗色主题。
-
+    CSS Grid responsive layout with glassmorphic cards, replacing legacy flow layouts.
+    
     Args:
-        quotes_df: DataFrame from get_latest_quotes with columns:
-                   ticker, name, category, price, previous_close, change, change_pct.
-                   来自 get_latest_quotes 的 DataFrame。
+        quotes_df: DataFrame containing columns: ticker, name, category, price, change, change_pct.
     """
-    st.markdown("### ⧉ Market Overview / 市场概览")
-
     if quotes_df is None or quotes_df.empty:
-        st.warning("⚠️ Unable to fetch live quotes. Please try again later.")
-        st.warning("⚠️ 无法获取实时行情，请稍后重试。")
+        st.warning("⚠️ Market telemetry disconnected. Please verify connection. / 行情连接中断。")
         return
 
-    # Injected CSS styles for market ticker cards
+    # Premium grid and glassmorphic card styles
     st.markdown(
         """
         <style>
-        .card-header {
+        .asset-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 18px;
+            padding: 10px 0 25px 0;
+        }
+        .premium-card {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+        .premium-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.5), transparent);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+        .premium-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(212, 175, 55, 0.4);
+            box-shadow: 0 12px 30px rgba(212, 175, 55, 0.15), 0 0 20px rgba(212, 175, 55, 0.1) inset;
+        }
+        .premium-card:hover::before {
+            opacity: 1;
+        }
+        .card-header-v2 {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
+            align-items: flex-start;
+            margin-bottom: 15px;
         }
-        .card-title {
-            font-family: 'Outfit', sans-serif !important;
-            font-size: 0.88rem;
+        .asset-name {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.05rem;
             font-weight: 600;
-            color: #f8fafc !important;
-            opacity: 0.95;
+            color: #F8FAFC;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 150px;
+            max-width: 160px;
         }
-        .card-symbol {
-            font-family: 'JetBrains Mono', monospace !important;
-            font-size: 0.65rem;
-            background-color: rgba(255, 255, 255, 0.05) !important;
-            color: #94a3b8 !important;
-            border: 1px solid rgba(255, 255, 255, 0.08) !important;
-            padding: 2px 6px;
-            border-radius: 4px;
+        .asset-ticker {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: #D4AF37;
+            background: rgba(212, 175, 55, 0.1);
+            padding: 3px 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(212, 175, 55, 0.2);
         }
-        .card-price {
-            font-family: 'JetBrains Mono', monospace !important;
-            font-size: 1.55rem;
+        .asset-price {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.8rem;
             font-weight: 700;
-            color: #ffffff !important;
+            color: #FFFFFF;
+            line-height: 1.1;
             margin-bottom: 8px;
-            line-height: 1.2;
         }
-        .card-change {
-            font-size: 0.8rem;
-            font-weight: 600;
-            display: flex;
+        .trend-pill {
+            display: inline-flex;
             align-items: center;
-            gap: 3px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            font-weight: 600;
+            gap: 6px;
         }
-        .card-change.up {
-            color: #10b981 !important;
+        .trend-up {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10B981;
+            border: 1px solid rgba(16, 185, 129, 0.2);
         }
-        .card-change.down {
-            color: #ef4444 !important;
+        .trend-down {
+            background: rgba(239, 68, 68, 0.15);
+            color: #EF4444;
+            border: 1px solid rgba(239, 68, 68, 0.2);
         }
-        .card-change.flat {
-            color: #94a3b8 !important;
+        .trend-flat {
+            background: rgba(148, 163, 184, 0.15);
+            color: #94A3B8;
+            border: 1px solid rgba(148, 163, 184, 0.2);
         }
-        .change-icon {
-            font-size: 0.65rem;
+        .category-label {
+            font-family: 'Outfit', sans-serif;
+            color: #64748B;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            margin-top: 5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 5px;
         }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-    # 按资产类别分组展示 / Group by asset category for display
-    categories_in_data = quotes_df["category"].unique()
+    categories_in_data = sorted(quotes_df["category"].unique())
 
     for category in categories_in_data:
         cat_data = quotes_df[quotes_df["category"] == category]
         if cat_data.empty:
             continue
 
-        # 类别标题 / Category header
-        st.markdown(f"**{category}**")
+        st.markdown(f"<div class='category-label'>✦ {category}</div>", unsafe_allow_html=True)
+        
+        cards_html = "<div class='asset-grid'>"
+        
+        for _, row in cat_data.iterrows():
+            ticker = row.get("ticker", "")
+            price = row.get("price")
+            change = row.get("change")
+            change_pct = row.get("change_pct")
 
-        # 每行最多 4 个指标卡片 / Up to 4 cards per row
-        cols = st.columns(min(len(cat_data), 4))
-        for i, (_, row) in enumerate(cat_data.iterrows()):
-            col = cols[i % 4]
-            with col:
-                ticker = row.get("ticker", "")
-                price = row.get("price")
-                change = row.get("change")
-                change_pct = row.get("change_pct")
+            if pd.notna(price):
+                asset_info = ASSET_UNIVERSE.get(ticker, {})
+                currency_symbol = asset_info.get("symbol", "$")
+                currency = asset_info.get("currency", "USD")
 
-                if pd.notna(price):
-                    # 获取资产的货币符号 / Get asset's currency symbol
-                    asset_info = ASSET_UNIVERSE.get(ticker, {})
-                    currency_symbol = asset_info.get("symbol", "$")
-                    currency = asset_info.get("currency", "USD")
-
-                    # 根据货币类型和价格大小选择合适的格式
-                    # Choose format based on currency type and price magnitude
-                    if currency in ["Rate", "Index"]:
-                        if price > 1000:
-                            price_str = f"{price:,.0f}"
-                        elif price > 1:
-                            price_str = f"{price:,.2f}"
-                        else:
-                            price_str = f"{price:,.4f}"
-                    elif currency == "JPY":
-                        price_str = f"{currency_symbol}{price:,.0f}"
-                    elif price > 1000:
-                        price_str = f"{currency_symbol}{price:,.0f}"
-                    elif price > 1:
-                        price_str = f"{currency_symbol}{price:,.2f}"
-                    else:
-                        price_str = f"{currency_symbol}{price:,.4f}"
-
-                    # 格式化涨跌值 / Format change amount
-                    change_val_str = ""
-                    if pd.notna(change):
-                        abs_change = abs(change)
-                        if currency in ["Rate", "Index"]:
-                            if abs_change > 1000:
-                                change_val_str = f"{abs_change:,.0f}"
-                            elif abs_change > 1:
-                                change_val_str = f"{abs_change:,.2f}"
-                            else:
-                                change_val_str = f"{abs_change:,.4f}"
-                        elif currency == "JPY":
-                            change_val_str = f"{currency_symbol}{abs_change:,.0f}"
-                        elif abs_change > 1000:
-                            change_val_str = f"{currency_symbol}{abs_change:,.0f}"
-                        elif abs_change > 1:
-                            change_val_str = f"{currency_symbol}{abs_change:,.2f}"
-                        else:
-                            change_val_str = f"{currency_symbol}{abs_change:,.4f}"
-
-                    # 格式化百分比 / Format percentage
-                    change_pct_str = f"{change_pct:+.2f}%" if pd.notna(change_pct) else "0.00%"
-
-                    # 确定涨跌样式 / Determine classes and icons
-                    if change > 0:
-                        change_class = "up"
-                        change_icon = "▲"
-                        change_desc = f"+{change_val_str} ({change_pct_str})" if change_val_str else change_pct_str
-                    elif change < 0:
-                        change_class = "down"
-                        change_icon = "▼"
-                        change_desc = f"-{change_val_str} ({change_pct_str})" if change_val_str else change_pct_str
-                    else:
-                        change_class = "flat"
-                        change_icon = "•"
-                        change_desc = f"{change_val_str} ({change_pct_str})" if change_val_str else change_pct_str
-
-                    card_html = f"""
-                    <div class="bezel-card">
-                        <div class="inner-core">
-                            <div class="card-header">
-                                <span class="card-title" title="{row['name']}">{row['name']}</span>
-                                <span class="card-symbol">{ticker}</span>
-                            </div>
-                            <div class="card-price">{price_str}</div>
-                            <div class="card-change {change_class}">
-                                <span class="change-icon">{change_icon}</span>
-                                <span>{change_desc}</span>
-                            </div>
-                        </div>
-                    </div>
-                    """
+                # Format price decimals dynamically based on magnitude and currency
+                if currency in ["Rate", "Index"] or currency == "JPY":
+                    decimals = 0 if price > 1000 else (2 if price > 1 else 4)
                 else:
-                    card_html = f"""
-                    <div class="bezel-card">
-                        <div class="inner-core">
-                            <div class="card-header">
-                                <span class="card-title" title="{row['name']}">{row['name']}</span>
-                                <span class="card-symbol">{ticker}</span>
-                            </div>
-                            <div class="card-price">N/A</div>
-                            <div class="card-change flat">
-                                <span class="change-icon">•</span>
-                                <span>No Data</span>
-                            </div>
-                        </div>
-                    </div>
-                    """
+                    decimals = 0 if price > 1000 else (2 if price > 1 else 4)
                 
-                st.markdown(card_html, unsafe_allow_html=True)
+                price_str = f"{currency_symbol}{price:,.{decimals}f}" if currency_symbol else f"{price:,.{decimals}f}"
 
-    st.divider()
+                # Format changes and color pill styles
+                if pd.notna(change) and change > 0:
+                    trend_class, icon = "trend-up", "▲"
+                elif pd.notna(change) and change < 0:
+                    trend_class, icon = "trend-down", "▼"
+                else:
+                    trend_class, icon = "trend-flat", "•"
+
+                change_val = abs(change) if pd.notna(change) else 0.0
+                change_str = f"{currency_symbol}{change_val:,.{decimals}f}" if currency_symbol else f"{change_val:,.{decimals}f}"
+                pct_str = f"{abs(change_pct):.2f}%" if pd.notna(change_pct) else "0.00%"
+
+                cards_html += f"""
+                <div class="premium-card">
+                    <div class="card-header-v2">
+                        <div class="asset-name" title="{row['name']}">{row['name']}</div>
+                        <div class="asset-ticker">{ticker}</div>
+                    </div>
+                    <div class="asset-price">{price_str}</div>
+                    <div class="trend-pill {trend_class}">
+                        <span>{icon}</span>
+                        <span>{change_str} ({pct_str})</span>
+                    </div>
+                </div>
+                """
+            else:
+                cards_html += f"""
+                <div class="premium-card">
+                    <div class="card-header-v2">
+                        <div class="asset-name">{row['name']}</div>
+                        <div class="asset-ticker">{ticker}</div>
+                    </div>
+                    <div class="asset-price">N/A</div>
+                    <div class="trend-pill trend-flat"><span>•</span><span>NO DATA</span></div>
+                </div>
+                """
+        cards_html += "</div>"
+        st.markdown(cards_html, unsafe_allow_html=True)
 
 
-def _render_price_chart(prices_df: pd.DataFrame, period_label: str) -> None:
+def _render_price_chart(prices_df: Optional[pd.DataFrame], period_label: str) -> None:
     """
-    Render the historical price chart section.
-    渲染历史价格走势图区域。
-
-    Uses normalized prices (base=100) to allow meaningful comparison
-    across assets with very different price scales (e.g., BTC ~$60,000
-    vs Silver ~$30). This is a standard technique in financial analysis.
-
-    使用归一化价格（基准=100）以便在价格差异很大的资产之间
-    进行有意义的比较（如 BTC ~$60,000 vs 白银 ~$30）。
-    这是金融分析中的标准方法。
-
+    Render historical price chart with options for performance normalization.
+    
     Args:
-        prices_df: DataFrame of adjusted close prices with DatetimeIndex.
-                   调整后收盘价 DataFrame，日期索引。
-        period_label: Human-readable period label for the chart title.
-                      用于图表标题的可读时间范围标签。
+        prices_df: DataFrame of historical adjusted close prices.
+        period_label: Selected analysis horizon label.
     """
-    st.markdown("### ↗ Price History / 价格走势")
-
     if prices_df is None or prices_df.empty:
-        st.warning("⚠️ Unable to fetch price history. Please try again later.")
-        st.warning("⚠️ 无法获取价格历史数据，请稍后重试。")
+        st.warning("⚠️ Unavailable historical data.")
         return
 
-    # 让用户选择是否归一化（默认开启）
-    # Let user toggle normalization (default: on)
-    normalize = st.checkbox(
-        "Normalize prices (base=100) / 归一化价格（基准=100）",
+    # Elegant toggle for normalization
+    normalize = st.toggle(
+        "Normalize Performance (Base = 100) / 表现基准归一化", 
         value=True,
-        help="Normalizing rebases all assets to 100 at the start date, "
-             "making it easy to compare percentage performance across assets "
-             "with different price scales. / "
-             "归一化将所有资产在起始日期设为100，"
-             "方便比较不同价格量级的资产的百分比表现。",
+        help="Rebases all assets to 100 at start date for direct percentage comparison."
     )
 
-    # 使用已有的可视化函数生成 Plotly 图表
-    # Use the existing visualization function to generate the Plotly chart
+    # Dynamically map the period label to standard name if needed
+    period_str = next((k for k, v in PERIOD_OPTIONS.items() if v == period_label), period_label)
+    
     fig = plot_price_history(
         prices_df,
         normalize=normalize,
-        title=f"Asset Price History — {period_label}",
+        title=f"Asset Performance Trajectory — {period_str}",
     )
-
-    # 使用 Streamlit 渲染 Plotly 图表，占满容器宽度
-    # Render the Plotly chart in Streamlit, using full container width
+    
+    # Fine-tune chart height and margins for a modern look
+    fig.update_layout(height=550, margin=dict(t=50, b=20, l=20, r=20))
     st.plotly_chart(fig, use_container_width=True, theme=None)
 
-    st.divider()
 
-
-def _render_correlation_heatmap(prices_df: pd.DataFrame) -> None:
+def _render_correlation_heatmap(prices_df: Optional[pd.DataFrame]) -> None:
     """
-    Render the correlation heatmap section.
-    渲染相关性热力图区域。
-
-    Correlation between asset returns is a key input for portfolio
-    diversification. Low or negative correlation between assets means
-    combining them can reduce overall portfolio risk.
-
-    资产收益率之间的相关性是投资组合分散化的关键输入。
-    资产间低相关或负相关意味着组合它们可以降低整体组合风险。
-
-    CFA Reference / CFA 参考:
-        CFA L1/L2: The correlation matrix feeds directly into the
-        covariance matrix used in Mean-Variance Optimization (MVO).
-        CFA 一级/二级：相关性矩阵直接用于计算均值-方差优化（MVO）中的协方差矩阵。
-
+    Render asset return correlation heatmap and interpretation guide.
+    
     Args:
-        prices_df: DataFrame of adjusted close prices.
-                   调整后收盘价 DataFrame。
+        prices_df: DataFrame of historical adjusted close prices.
     """
-    st.markdown("### ⌬ Correlation Matrix / 相关性矩阵")
-
     if prices_df is None or prices_df.empty or prices_df.shape[1] < 2:
-        st.info("ℹ️ Select at least 2 assets to view correlation. / "
-                "请至少选择 2 个资产以查看相关性。")
+        st.info("ℹ️ Requires at least 2 assets to compute correlation matrix.")
         return
 
-    # 计算相关性矩阵 / Compute correlation matrix
-    corr_matrix = compute_correlation_matrix(prices_df)
-
-    # 使用已有的可视化函数生成热力图
-    # Use existing visualization function to generate the heatmap
-    fig = plot_correlation_heatmap(corr_matrix)
-
-    st.plotly_chart(fig, use_container_width=True, theme=None)
-
-    # 添加解读提示 / Add interpretation tips
-    st.caption(
-        "💡 **How to read / 如何解读**: "
-        "Values close to **+1.0** (red) indicate strong positive correlation — "
-        "assets tend to move together. "
-        "Values close to **-1.0** (blue) indicate strong negative correlation — "
-        "good for diversification. / "
-        "接近 **+1.0**（红色）表示强正相关——资产倾向于同涨同跌。"
-        "接近 **-1.0**（蓝色）表示强负相关——有利于分散化。"
-    )
-
-    st.divider()
+    col_chart, col_desc = st.columns([3, 1])
+    
+    with col_chart:
+        corr_matrix = compute_correlation_matrix(prices_df)
+        fig = plot_correlation_heatmap(corr_matrix)
+        fig.update_layout(height=550)
+        st.plotly_chart(fig, use_container_width=True, theme=None)
+        
+    with col_desc:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown("##### 🔍 Interpretation")
+        st.markdown("""
+        **Diversification Analysis**
+        - <span style="color:#ef4444;font-weight:bold;">Red (+1.0)</span>: High positive correlation. Assets move in tandem.
+        - <span style="color:#3b82f6;font-weight:bold;">Blue (-1.0)</span>: High negative correlation. Excellent for hedging.
+        - <span style="color:#f8fafc;font-weight:bold;">White (0.0)</span>: Uncorrelated. Pure diversification benefit.
+        
+        *Tip: Construct portfolios with lower correlating assets to maximize your Sharpe Ratio.*
+        """, unsafe_allow_html=True)
 
 
-def _render_risk_statistics(prices_df: pd.DataFrame) -> None:
+def _render_risk_statistics(prices_df: Optional[pd.DataFrame]) -> None:
     """
-    Render the risk/return statistics table.
-    渲染风险/收益统计表。
-
-    Computes key performance metrics for each asset:
-    为每个资产计算关键绩效指标：
-    - Annualized Return (年化收益率)
-    - Annualized Volatility (年化波动率)
-    - Sharpe Ratio (夏普比率)
-    - Max Drawdown (最大回撤)
-    - 95% VaR (95% 在险价值)
-
-    CFA Reference / CFA 参考:
-        CFA L1/L3: These are the standard metrics used to evaluate
-        and compare investment performance. Sharpe ratio is the most
-        common risk-adjusted return measure.
-        CFA 一级/三级：这些是评估和比较投资绩效的标准指标。
-        夏普比率是最常用的风险调整收益衡量标准。
-
+    Compute and display key risk/return statistics for the assets.
+    
     Args:
-        prices_df: DataFrame of adjusted close prices.
-                   调整后收盘价 DataFrame。
+        prices_df: DataFrame of historical adjusted close prices.
     """
-    st.markdown("### ⧉ Risk & Return Statistics / 风险收益统计")
-
     if prices_df is None or prices_df.empty:
-        st.warning("⚠️ No data available for statistics. / 无数据可用于统计。")
         return
 
-    # 计算日收益率 / Compute daily returns
     returns_df = compute_returns(prices_df, method="simple")
-
-    # 为每个资产计算统计指标 / Compute statistics for each asset
     stats_records = []
+    
     for col in returns_df.columns:
         ret_series = returns_df[col].dropna()
         price_series = prices_df[col].dropna()
 
         if len(ret_series) < 20:
-            # 数据太少，跳过 / Too little data, skip
             continue
 
-        # 查找资产的显示名称 / Look up the asset's display name
         asset_info = ASSET_UNIVERSE.get(col, {})
         display_name = asset_info.get("name", col)
 
-        # 年化收益率 = 日均收益率 × 252
-        # Annualized return = daily mean × 252
+        # Financial logic formulas explained (CFA Level 1 & Portfolio Management):
+        # 1. Annualized Return: R_ann = E(R_p) = Mean(R_daily) * 252 (trading days)
+        #    This scales the expected daily return to an annual basis.
         ann_return = float(ret_series.mean() * TRADING_DAYS_PER_YEAR)
-
-        # 年化波动率 = 日标准差 × √252
-        # Annualized volatility = daily std × √252
+        
+        # 2. Annualized Volatility: Vol_ann = StdDev(R_daily) * sqrt(252)
+        #    This scales the daily standard deviation using the square root of time rule.
         ann_vol = float(ret_series.std() * np.sqrt(TRADING_DAYS_PER_YEAR))
-
-        # 夏普比率 / Sharpe ratio
+        
+        # 3. Sharpe Ratio: SR = (R_p - R_f) / Vol_p
+        #    Risk-adjusted performance measure representing reward per unit of volatility.
         sr = sharpe_ratio(ret_series)
-
-        # 最大回撤 / Maximum drawdown
+        
+        # 4. Maximum Drawdown: MaxDD = (Peak - Trough) / Peak
+        #    Represents the largest peak-to-trough drop in value before a new peak is achieved.
         dd = max_drawdown(price_series)
-
-        # 95% VaR / 95% Value at Risk
+        
+        # 5. Value at Risk (VaR 95%): Daily VaR at 95% confidence level.
+        #    Estimates the maximum potential loss over a 1-day horizon with 95% probability.
         var_95 = value_at_risk(ret_series, confidence=0.95)
 
         stats_records.append({
-            "Asset / 资产": display_name,
-            "Ann. Return / 年化收益": ann_return * 100,
-            "Ann. Volatility / 年化波动率": ann_vol * 100,
-            "Sharpe / 夏普": sr,
-            "Max Drawdown / 最大回撤": dd['max_drawdown'] * 100,
-            "VaR 95%": var_95 * 100,
+            "Asset": display_name,
+            "Ticker": col,
+            "Ann. Return": ann_return * 100.0,
+            "Ann. Volatility": ann_vol * 100.0,
+            "Sharpe Ratio": sr,
+            "Max Drawdown": dd['max_drawdown'] * 100.0,
+            "Daily VaR (95%)": var_95 * 100.0,
         })
 
     if stats_records:
-        stats_df = pd.DataFrame(stats_records)
-        # 使用 Streamlit 的交互式数据表格展示
-        # Display using Streamlit's interactive data table
+        df = pd.DataFrame(stats_records)
+        
+        # Display using Streamlit's new column_config features
         st.dataframe(
-            stats_df,
+            df,
             use_container_width=True,
             hide_index=True,
             column_config={
-                "Ann. Return / 年化收益": st.column_config.NumberColumn(
-                    format="%.2f%%"
-                ),
-                "Ann. Volatility / 年化波动率": st.column_config.NumberColumn(
-                    format="%.2f%%"
-                ),
-                "Sharpe / 夏普": st.column_config.NumberColumn(
-                    format="%.2f"
-                ),
-                "Max Drawdown / 最大回撤": st.column_config.NumberColumn(
-                    format="%.2f%%"
-                ),
-                "VaR 95%": st.column_config.NumberColumn(
-                    format="%.2f%%"
-                ),
+                "Asset": st.column_config.TextColumn("Asset (资产)", width="medium"),
+                "Ticker": st.column_config.TextColumn("Ticker", width="small"),
+                "Ann. Return": st.column_config.NumberColumn("Return (年化收益)", format="%.2f%%", help="Annualized Expected Return"),
+                "Ann. Volatility": st.column_config.NumberColumn("Volatility (年化波动)", format="%.2f%%", help="Annualized Standard Deviation"),
+                "Sharpe Ratio": st.column_config.NumberColumn("Sharpe (夏普比率)", format="%.2f", help="Risk-adjusted return"),
+                "Max Drawdown": st.column_config.NumberColumn("Max DD (最大回撤)", format="%.2f%%", help="Maximum observed peak-to-trough drop"),
+                "Daily VaR (95%)": st.column_config.NumberColumn("VaR (在险价值)", format="%.2f%%", help="95% Confidence Daily Value at Risk"),
             }
         )
     else:
-        st.info("ℹ️ Not enough data to compute statistics. / 数据不足，无法计算统计指标。")
+        st.info("ℹ️ Insufficient data points for statistical significance.")
 
+# ============================================================
+# Main Render Function
+# ============================================================
 
 def render() -> None:
     """
-    Main render function for the Market Dashboard page.
-    市场仪表板页面的主渲染函数。
-
-    This function is the entry point called by the app router (src/app.py).
-    It orchestrates the sidebar controls and all dashboard sections.
-
-    本函数是应用路由（src/app.py）调用的入口点。
-    它协调侧栏控件和所有仪表板区域的渲染。
-
-    Page layout / 页面布局:
-        1. Sidebar: asset category filter + time period selector
-           侧栏：资产类别筛选 + 时间范围选择
-        2. Market Overview: real-time quote cards
-           市场概览：实时行情卡片
-        3. Price History: interactive line chart
-           价格走势：交互式折线图
-        4. Correlation Heatmap: asset return correlations
-           相关性热力图：资产收益率相关性
-        5. Risk Statistics: performance metrics table
-           风险统计：绩效指标表格
+    Render function for the Market Dashboard.
+    Orchestrates the top-bar control, CSS grids, and Tabbed layout.
     """
-    # 页面标题和说明 / Page title and description
-    st.title("✦ Global Market Dashboard")
-    st.markdown(
-        "Real-time market data and analytics for your asset universe. / "
-        "资产池的实时市场数据和分析。"
-    )
-    st.divider()
-
-    # ====================================
-    # 1. 侧栏控件 / Sidebar Controls
-    # ====================================
-    selected_tickers, period = _render_sidebar()
+    # 1. Top control bar (replacing the sidebar)
+    selected_tickers, period = _render_top_controls()
 
     if not selected_tickers:
-        st.warning("⚠️ Please select at least one asset category from the sidebar. / "
-                   "请从侧栏至少选择一个资产类别。")
+        st.warning("⚠️ No assets selected. Please adjust your filters.")
         return
 
-    # ====================================
-    # 2. 市场概览 — 实时行情 / Market Overview — Live Quotes
-    # ====================================
-    with st.spinner("Fetching live market data... / 正在获取实时行情数据..."):
+    # 2. Real-time market overview cards (CSS Grid layout)
+    with st.spinner("Synchronizing with market telemetry... / 同步市场 data..."):
         quotes_df = _cached_get_quotes(tuple(selected_tickers))
     _render_market_overview(quotes_df)
 
-    # ====================================
-    # 3. 价格走势图 / Price History Chart
-    # ====================================
-    # 将 period 映射回显示标签用于图表标题
-    # Map period back to display label for chart title
-    period_label = next(
-        (k for k, v in PERIOD_OPTIONS.items() if v == period), period
-    )
-
-    with st.spinner("Fetching historical prices... / 正在获取历史价格..."):
+    # Prefetch historical data for downstream tabs
+    with st.spinner("Downloading historical price vectors... / 获取历史序列..."):
         prices_df = _cached_fetch_prices(tuple(selected_tickers), period)
-    _render_price_chart(prices_df, period_label)
 
-    # ====================================
-    # 4. 相关性热力图 / Correlation Heatmap
-    # ====================================
-    _render_correlation_heatmap(prices_df)
+    # 3. Tabbed layout (refactoring the long scrollable page to provide focused views)
+    st.markdown("<br>", unsafe_allow_html=True)
+    tab1, tab2, tab3 = st.tabs([
+        "📈 Price Trajectory (价格走势)", 
+        "🕸️ Correlation Matrix (资产相关性)", 
+        "📊 Risk & Metrics (风险统计)"
+    ])
+    
+    with tab1:
+        _render_price_chart(prices_df, period)
+        
+    with tab2:
+        _render_correlation_heatmap(prices_df)
+        
+    with tab3:
+        _render_risk_statistics(prices_df)
 
-    # ====================================
-    # 5. 风险统计表 / Risk & Return Statistics
-    # ====================================
-    _render_risk_statistics(prices_df)
-
-    # 页脚 / Footer
-    st.divider()
-    st.caption(
-        "💡 Data sourced from Yahoo Finance via yfinance. "
-        "Cached for 5 minutes to reduce API calls. / "
-        "数据来自 Yahoo Finance（通过 yfinance），缓存 5 分钟以减少 API 调用。"
-    )
+    # Footer disclaimer
+    st.markdown("""
+        <div style='text-align: center; margin-top: 50px; color: #64748B; font-size: 0.8rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px;'>
+            ✦ Data sourced from Yahoo Finance via yfinance. Real-time metrics cached for 5 minutes. <br>
+            ✦ Quantitative outputs are for informational purposes only.
+        </div>
+    """, unsafe_allow_html=True)
