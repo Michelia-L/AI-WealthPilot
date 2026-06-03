@@ -91,6 +91,13 @@ def _render_top_controls() -> Dict[str, Any]:
                 help="Annual income needed during retirement (in today's dollars). / 退休后每年需要的收入（以今日美元计）。",
                 key="ret_desired_income"
             )
+            inflation_rate_pct = st.number_input(
+                "Expected annual inflation (%) / 预期年通胀率",
+                min_value=0.0, max_value=10.0, value=2.5, step=0.1,
+                help="Annual inflation rate to adjust retirement withdrawals (e.g., 2.5%). / 年度通货膨胀率，用于调整退休提取名义金额。",
+                key="ret_inflation_rate"
+            )
+            inflation_rate = inflation_rate_pct / 100.0
             
         with col3:
             st.markdown("##### 📈 Assumptions & Sim / 假设与模拟")
@@ -140,6 +147,7 @@ def _render_top_controls() -> Dict[str, Any]:
         "expected_return": expected_return,
         "volatility": volatility,
         "n_simulations": n_simulations,
+        "inflation_rate": inflation_rate,
     }
 
 
@@ -175,6 +183,7 @@ def _run_simulation(config: Dict[str, Any]) -> Dict[str, Any]:
         current_savings=config["current_savings"],
         annual_savings=config["annual_savings"],
         desired_annual_income=config["desired_income"],
+        inflation_rate=config["inflation_rate"],
     )
 
     return result
@@ -417,6 +426,7 @@ def _render_sensitivity_analysis(config: Dict[str, Any]) -> None:
             current_savings=config["current_savings"],
             annual_savings=test_savings,
             desired_annual_income=config["desired_income"],
+            inflation_rate=config["inflation_rate"],
         )
 
         is_current = " ⬅ Current" if mult == 1.0 else ""
