@@ -23,6 +23,7 @@ CFA Reference / CFA 参考:
 
 import pandas as pd
 import yfinance as yf
+import numpy as np
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -209,7 +210,6 @@ def compute_returns(prices: pd.DataFrame, method: str = "log") -> pd.DataFrame:
         收益率 DataFrame（第一行因差分产生 NaN 而被删除）。
     """
     if method == "log":
-        import numpy as np
         # 对数收益率公式: r_t = ln(P_t / P_{t-1})
         # Log return formula: r_t = ln(P_t / P_{t-1})
         returns = np.log(prices / prices.shift(1))
