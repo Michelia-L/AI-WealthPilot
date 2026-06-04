@@ -27,6 +27,10 @@ Key Outputs / 关键输出:
       退休规划成功概率
 """
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import numpy as np
 import pandas as pd
 from src.portfolio.optimizer import PortfolioOptimizer, BlackLittermanOptimizer

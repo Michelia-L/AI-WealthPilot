@@ -34,13 +34,16 @@ CFA Reference / CFA 参考:
       CFA 三级：私人财富管理，蒙特卡洛模拟
 """
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import webbrowser
 import tempfile
-import os
 
 # Import core modules
 # 导入核心模块
