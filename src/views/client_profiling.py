@@ -19,6 +19,7 @@ CFA Reference / CFA 参考:
 import streamlit as st
 from pathlib import Path
 from typing import Optional
+import pandas as pd
 
 from src.agents.profiler import (
     ClientProfile,
@@ -380,7 +381,7 @@ def _render_profile_summary(profile: ClientProfile) -> None:
             for g in profile.goals
         ]
         st.dataframe(
-            __import__("pandas").DataFrame(goals_data),
+            pd.DataFrame(goals_data),
             use_container_width=True,
             hide_index=True,
         )
@@ -585,7 +586,6 @@ def render() -> None:
                     # Interactive comparison table / 交互式对比表
                     st.markdown("**Detailed Comparison / 详细对比**")
 
-                    import pandas as pd
                     comparison_data = []
                     for name in comparison.client_names:
                         summary = comparison.financial_summary.get(name, {})
