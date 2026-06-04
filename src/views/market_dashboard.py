@@ -305,10 +305,20 @@ def _render_market_overview(quotes_df: Optional[pd.DataFrame]) -> None:
                 currency = asset_info.get("currency", "USD")
 
                 # Format price decimals dynamically based on magnitude and currency
-                if currency in ["Rate", "Index"] or currency == "JPY":
-                    decimals = 0 if price > 1000 else (2 if price > 1 else 4)
+                if currency == "Rate":
+                    # Exchange rates always require 4 decimals for precision
+                    decimals = 4
+                elif currency == "Index" or ticker.startswith("^"):
+                    # Index tickers (like ^GSPC, ^IXIC) or USD Index always require 2 decimals
+                    decimals = 2
+                elif currency == "JPY":
+                    # JPY assets are generally formatted as integers
+                    decimals = 0
                 else:
+                    # General currencies (USD, CNY, etc.): 0 decimals for large assets (e.g. BTC, Gold),
+                    # 2 decimals for medium assets (e.g. Silver), and 4 decimals for micro-assets (< 1)
                     decimals = 0 if price > 1000 else (2 if price > 1 else 4)
+
                 
                 price_str = f"{currency_symbol}{price:,.{decimals}f}" if currency_symbol else f"{price:,.{decimals}f}"
 
