@@ -217,6 +217,11 @@ AI-WealthPilot/
 │   ├── test_advanced_portfolio.py# Resampled frontier & regularization tests
 │   ├── test_advisor.py           # DeepSeek advisor integration tests
 │   └── test_phase3_features.py   # End-to-end features integration tests
+├── examples/                     # [Demo & Showcase Scripts]
+│   ├── demo_quick.py             # Simple quick demo (MVO + BL + Monte Carlo)
+│   ├── demo_interview.py         # CFA-aligned core interview demo (MVO + MC + Risk)
+│   ├── demo_comprehensive.py     # Complete visual demo with Plotly charts opening in browser
+│   └── demo_advanced_optimization.py # Advanced regularization & Resampled MVO demo
 └── data/
     ├── profiles/                 # Client profiles (JSON document store)
     ├── reports/                  # Generated AI proposals (JSON)
@@ -277,6 +282,26 @@ To run the automated tests covering portfolio mathematics, client profiling scor
 
 ```bash
 pytest -v
+```
+
+---
+
+## Running Demos
+
+We provide standalone scripts inside the `examples/` directory to run the quantitative engine offline and showcase core functionalities:
+
+```bash
+# Run the core interview demo (MVO, Monte Carlo, Sharpe/VaR/CVaR)
+python examples/demo_interview.py
+
+# Run the quick demo (MVO, Black-Litterman, Monte Carlo)
+python examples/demo_quick.py
+
+# Run the advanced optimization features demo (OAS, Resampled MVO)
+python examples/demo_advanced_optimization.py
+
+# Run the comprehensive demo with interactive Plotly browser charts
+python examples/demo_comprehensive.py
 ```
 
 ---

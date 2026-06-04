@@ -215,6 +215,11 @@ AI-WealthPilot/
 │   ├── test_advanced_portfolio.py# 重抽样有效前沿与矩阵正则化测试
 │   ├── test_advisor.py           # DeepSeek 顾问 Agent 集成测试
 │   └── test_phase3_features.py   # 阶段3功能端到端集成测试
+├── examples/                     # 【示例与演示脚本】
+│   ├── demo_quick.py             # 快速入门演示（MVO + BL + 蒙特卡洛）
+│   ├── demo_interview.py         # 对标 CFA 核心演示（MVO + 蒙特卡洛 + 风险指标）
+│   ├── demo_comprehensive.py     # 完整可视化演示（在浏览器中打开交互式 Plotly 图表）
+│   └── demo_advanced_optimization.py # 高级优化特性演示（矩阵正则化与重抽样 MVO）
 └── data/
     ├── profiles/                 # 客户画像 JSON 数据库
     ├── reports/                  # 生成的建议书 JSON 数据库
@@ -275,6 +280,26 @@ AI-WealthPilot/
 
 ```bash
 pytest -v
+```
+
+---
+
+## 运行演示脚本
+
+我们在 `examples/` 目录下提供了几个独立的演示脚本，用于离线运行量化引擎并展示核心功能：
+
+```bash
+# 运行对标 CFA 的核心面试演示（包含 MVO、蒙特卡洛、夏普比率/VaR/CVaR 风险指标）
+python examples/demo_interview.py
+
+# 运行快速入门演示（包含 MVO、Black-Litterman、蒙特卡洛模拟）
+python examples/demo_quick.py
+
+# 运行高级优化特性演示（包含协方差收缩、重抽样 MVO）
+python examples/demo_advanced_optimization.py
+
+# 运行完整可视化演示（会在浏览器中自动打开交互式 Plotly 图表）
+python examples/demo_comprehensive.py
 ```
 
 ---
