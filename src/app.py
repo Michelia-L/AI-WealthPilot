@@ -26,6 +26,7 @@ if PROJECT_ROOT not in sys.path:
 
 import streamlit as st
 from src.views.styles import inject_premium_styles
+from src.config import APP_VERSION
 
 # ============================================================
 # Page Configuration / 页面配置
@@ -67,7 +68,7 @@ page = st.sidebar.radio(
 )
 
 st.sidebar.divider()
-st.sidebar.caption("v0.3.0 · AI Advisor Online")
+st.sidebar.caption(f"v{APP_VERSION} · AI Advisor Online")
 
 # ============================================================
 # Page Router / 页面路由

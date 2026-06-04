@@ -19,7 +19,7 @@ SAMPLE_DATA_DIR = DATA_DIR / "sample"
 # Application Settings
 # ============================================================
 APP_NAME = "AI WealthPilot"
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.3.0"
 APP_ENV = os.getenv("APP_ENV", "development")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
@@ -107,7 +107,7 @@ DEEPSEEK_MODEL = "deepseek-v4-pro"
 # 建议书输出最大 token 数 / Max output tokens for advisory reports
 DEEPSEEK_MAX_TOKENS = 128000
 # 温度参数：低温保证专业性和一致性 / Temperature: low for professionalism
-DEEPSEEK_TEMPERATURE = 1
+DEEPSEEK_TEMPERATURE = 0.3
 
 # ============================================================
 # Legacy API Keys (for future RAG modules — Phase 4)

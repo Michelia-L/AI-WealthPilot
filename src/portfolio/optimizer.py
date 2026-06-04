@@ -751,11 +751,40 @@ class PortfolioOptimizer:
             # If no successful simulations, return empty DataFrame
             return pd.DataFrame()
 
-        # 计算重抽样前沿：逐点平均所有模拟的前沿
-        # Calculate resampled frontier: average all simulation frontiers point-by-point
-        # 首先，将所有前沿对齐到相同的目标收益率
-        # First, align all frontiers to the same target returns
-        resampled_frontier = pd.concat(all_frontiers).groupby(level=0).mean()
+        # 计算重抽样前沿：在统一的收益率轴上对齐后取平均
+        # Calculate resampled frontier: align on unified return axis then average
+        # NOTE: Simple groupby(level=0) is INCORRECT because different simulations
+        # may have different numbers of successful points (some target returns are
+        # infeasible), so integer index i does NOT correspond to the same target
+        # return across simulations. We must interpolate onto a common return axis.
+
+        # Step 1: Build a unified return axis spanning the intersection of all frontiers
+        # 步骤1: 构建跨越所有前沿交集的统一收益率轴
+        all_ret_values = np.concatenate([f['return'].values for f in all_frontiers])
+        unified_returns = np.linspace(all_ret_values.min(), all_ret_values.max(), n_points)
+
+        # Step 2: For each frontier, interpolate all columns onto the unified axis
+        # 步骤2: 对每个前沿，将所有列插值到统一轴上
+        weight_cols = [c for c in all_frontiers[0].columns
+                       if c not in ('return', 'volatility', 'sharpe')]
+        interp_cols = ['volatility'] + weight_cols
+
+        interpolated = []
+        for frontier in all_frontiers:
+            frontier_sorted = frontier.sort_values('return')
+            row_data = {'return': unified_returns}
+            for col in interp_cols:
+                row_data[col] = np.interp(
+                    unified_returns,
+                    frontier_sorted['return'].values,
+                    frontier_sorted[col].values,
+                )
+            interpolated.append(pd.DataFrame(row_data))
+
+        # Step 3: Average across all simulations
+        # 步骤3: 在所有模拟上取平均
+        resampled_frontier = pd.concat(interpolated).groupby(level=0).mean()
+        resampled_frontier['return'] = unified_returns
 
         # 重新计算夏普比率（因为平均后需要重新计算）
         # Recalculate Sharpe ratio (need to recalculate after averaging)

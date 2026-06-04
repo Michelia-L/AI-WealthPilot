@@ -106,6 +106,11 @@ def _get_target_volatility(risk_score: float) -> float:
         Target annualized volatility (e.g., 0.12 for 12%).
         目标年化波动率（如 0.12 表示 12%）。
     """
+    # Clamp risk_score to valid range [1.0, 5.0]
+    # Risk scores outside this range indicate uninitialized or invalid profiles
+    # 将风险评分限制在 [1.0, 5.0] 的有效范围内
+    risk_score = max(1.0, min(5.0, risk_score))
+
     # Linear interpolation between risk levels
     # 风险等级之间的线性插值
     if risk_score <= 1.5:

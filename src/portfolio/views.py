@@ -184,6 +184,14 @@ class ViewProcessor:
         K = len(views)
         N = self.n_assets
 
+        # Validate views before processing / 处理前先验证观点
+        warnings = self.validate_views(views)
+        errors = [w for w in warnings if "Unknown asset" in w]
+        if errors:
+            raise ValueError(
+                f"Invalid views detected / 检测到无效观点: {'; '.join(errors)}"
+            )
+
         # Initialize P matrix and Q vector with zeros
         # 用零初始化 P 矩阵和 Q 向量
         P = np.zeros((K, N))
@@ -202,6 +210,11 @@ class ViewProcessor:
             elif view.view_type == 'relative':
                 # Relative view: P[k, long_idx] = 1, P[k, short_idx] = -1
                 # 相对观点：P[k, 多头索引] = 1, P[k, 空头索引] = -1
+                if view.asset_short is None:
+                    raise ValueError(
+                        f"View {k+1}: relative view requires 'asset_short' to be set. / "
+                        f"观点{k+1}：相对观点需要设置 'asset_short'。"
+                    )
                 long_idx = self.asset_to_idx[view.asset_long]
                 short_idx = self.asset_to_idx[view.asset_short]
                 P[k, long_idx] = 1.0

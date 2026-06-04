@@ -129,6 +129,9 @@ def _render_profile_selector() -> ClientProfile | None:
     if selected_path:
         try:
             profile = load_profile(Path(selected_path))
+            # Store the filepath for downstream use (e.g., linking reports)
+            # 保存文件路径供下游使用（如关联报告）
+            st.session_state.advisor_selected_profile_path = selected_path
             return profile
         except Exception as e:
             st.error(
@@ -283,7 +286,7 @@ def _render_report(report: AdvisorReport, profile: ClientProfile = None) -> None
                     content=report.content,
                     client_name=report.client_name,
                     model=report.model,
-                    profile_filepath=str(profile) if profile else None,
+                    profile_filepath=st.session_state.get("advisor_selected_profile_path") if profile else None,
                     prompt_tokens=report.prompt_tokens,
                     completion_tokens=report.completion_tokens,
                 )

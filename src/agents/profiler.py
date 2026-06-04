@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Optional
 
 from src.config import DATA_DIR
+from src.utils import sanitize_filename
 
 
 # ============================================================
@@ -450,7 +451,7 @@ def save_profile(profile: ClientProfile) -> Path:
 
     # 使用客户名和时间戳作为文件名
     # Use client name and timestamp as filename
-    safe_name = profile.name.replace(" ", "_").lower() if profile.name else "unnamed"
+    safe_name = sanitize_filename(profile.name)
     filename = f"{safe_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     filepath = PROFILES_DIR / filename
 
