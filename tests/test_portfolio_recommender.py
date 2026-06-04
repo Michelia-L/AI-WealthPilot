@@ -16,11 +16,11 @@ from src.agents.profiler import (
     FinancialSituation,
     InvestmentGoal,
     RiskProfile,
+    classify_risk_score,
 )
 from src.agents.portfolio_recommender import (
     PortfolioRecommendation,
     _get_target_volatility,
-    _classify_risk_level,
     recommend_portfolio,
     get_recommended_allocation_text,
 )
@@ -177,12 +177,12 @@ class TestRiskScoreMapping:
             assert vols[i] < vols[i + 1]
 
     def test_classify_risk_levels(self):
-        """Test risk level classification."""
-        assert _classify_risk_level(1.0) == "Conservative"
-        assert _classify_risk_level(2.0) == "Moderately Conservative"
-        assert _classify_risk_level(3.0) == "Moderate"
-        assert _classify_risk_level(4.0) == "Moderately Aggressive"
-        assert _classify_risk_level(5.0) == "Aggressive"
+        """Test risk level classification via shared classify_risk_score."""
+        assert classify_risk_score(1.0) == "Conservative / 保守型"
+        assert classify_risk_score(2.0) == "Moderately Conservative / 稳健型"
+        assert classify_risk_score(3.0) == "Moderate / 平衡型"
+        assert classify_risk_score(4.0) == "Moderately Aggressive / 成长型"
+        assert classify_risk_score(5.0) == "Aggressive / 进取型"
 
 
 # ============================================================
@@ -307,7 +307,8 @@ class TestRecommenderIntegration:
         assert risk_score > 0
 
         # 2. Classify risk level
-        risk_level = _classify_risk_level(risk_score)
+        risk_label = classify_risk_score(risk_score)
+        risk_level = risk_label.split(" / ")[0]
         assert risk_level in [
             "Conservative",
             "Moderately Conservative",

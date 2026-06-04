@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from src.agents.profiler import ClientProfile, RiskProfile
+from src.agents.profiler import RISK_SCORE_BREAKPOINTS, classify_risk_score
 from src.portfolio.optimizer import PortfolioOptimizer
 from src.config import RISK_FREE_RATE
 
@@ -72,19 +73,20 @@ class PortfolioRecommendation:
 # 风险评分到目标波动率的映射
 # ============================================================
 
-# 风险评分 → 目标波动率范围
-# Risk score → target volatility range
+# Risk score → target volatility range (documentation constant).
+# Breakpoints align with RISK_SCORE_BREAKPOINTS from profiler.
+# 风险评分 → 目标波动率范围（文档常量）。断点与 profiler 的 RISK_SCORE_BREAKPOINTS 对齐。
 RISK_VOLATILITY_MAP = {
     # Conservative / 保守型: 1.0-1.5 → 5-8% volatility
-    "conservative": {"min_score": 1.0, "max_score": 1.5, "target_vol": 0.06},
+    "conservative": {"min_score": 1.0, "max_score": RISK_SCORE_BREAKPOINTS[0], "target_vol": 0.06},
     # Moderately Conservative / 稳健型: 1.5-2.5 → 8-12% volatility
-    "moderately_conservative": {"min_score": 1.5, "max_score": 2.5, "target_vol": 0.10},
+    "moderately_conservative": {"min_score": RISK_SCORE_BREAKPOINTS[0], "max_score": RISK_SCORE_BREAKPOINTS[1], "target_vol": 0.10},
     # Moderate / 平衡型: 2.5-3.5 → 12-15% volatility
-    "moderate": {"min_score": 2.5, "max_score": 3.5, "target_vol": 0.13},
+    "moderate": {"min_score": RISK_SCORE_BREAKPOINTS[1], "max_score": RISK_SCORE_BREAKPOINTS[2], "target_vol": 0.13},
     # Moderately Aggressive / 成长型: 3.5-4.5 → 15-18% volatility
-    "moderately_aggressive": {"min_score": 3.5, "max_score": 4.5, "target_vol": 0.16},
+    "moderately_aggressive": {"min_score": RISK_SCORE_BREAKPOINTS[2], "max_score": RISK_SCORE_BREAKPOINTS[3], "target_vol": 0.16},
     # Aggressive / 进取型: 4.5-5.0 → 18-22% volatility
-    "aggressive": {"min_score": 4.5, "max_score": 5.0, "target_vol": 0.20},
+    "aggressive": {"min_score": RISK_SCORE_BREAKPOINTS[3], "max_score": 5.0, "target_vol": 0.20},
 }
 
 
@@ -111,46 +113,25 @@ def _get_target_volatility(risk_score: float) -> float:
     # 将风险评分限制在 [1.0, 5.0] 的有效范围内
     risk_score = max(1.0, min(5.0, risk_score))
 
-    # Linear interpolation between risk levels
-    # 风险等级之间的线性插值
-    if risk_score <= 1.5:
+    # Linear interpolation between risk levels using shared breakpoints
+    # 使用共享断点进行风险等级之间的线性插值
+    bp = RISK_SCORE_BREAKPOINTS  # [1.5, 2.5, 3.5, 4.5]
+
+    if risk_score <= bp[0]:
         # Conservative: 5-8% volatility
         return 0.05 + (risk_score - 1.0) * 0.06
-    elif risk_score <= 2.5:
+    elif risk_score <= bp[1]:
         # Moderately Conservative: 8-12% volatility
-        return 0.08 + (risk_score - 1.5) * 0.04
-    elif risk_score <= 3.5:
+        return 0.08 + (risk_score - bp[0]) * 0.04
+    elif risk_score <= bp[2]:
         # Moderate: 12-15% volatility
-        return 0.12 + (risk_score - 2.5) * 0.03
-    elif risk_score <= 4.5:
+        return 0.12 + (risk_score - bp[1]) * 0.03
+    elif risk_score <= bp[3]:
         # Moderately Aggressive: 15-18% volatility
-        return 0.15 + (risk_score - 3.5) * 0.03
+        return 0.15 + (risk_score - bp[2]) * 0.03
     else:
         # Aggressive: 18-22% volatility
-        return 0.18 + (risk_score - 4.5) * 0.04
-
-
-def _classify_risk_level(risk_score: float) -> str:
-    """
-    Classify risk score into risk level category.
-    将风险评分分类为风险等级类别。
-
-    Args:
-        risk_score: Client's final risk score (1-5).
-
-    Returns:
-        Risk level string in English.
-    """
-    if risk_score <= 1.5:
-        return "Conservative"
-    elif risk_score <= 2.5:
-        return "Moderately Conservative"
-    elif risk_score <= 3.5:
-        return "Moderate"
-    elif risk_score <= 4.5:
-        return "Moderately Aggressive"
-    else:
-        return "Aggressive"
+        return 0.18 + (risk_score - bp[3]) * 0.04
 
 
 # ============================================================
@@ -198,7 +179,7 @@ def recommend_portfolio(
     # Step 1: Get risk score from profile
     # 步骤 1: 从画像获取风险评分
     risk_score = profile.risk_profile.final_score
-    risk_level = _classify_risk_level(risk_score)
+    risk_level = classify_risk_score(risk_score).split(" / ")[0]
 
     # Step 2: Map to target volatility
     # 步骤 2: 映射到目标波动率

@@ -61,17 +61,7 @@ def _render_top_controls() -> Dict[str, Any]:
     Returns:
         Dict with all optimizer parameters.
     """
-    # Inject styling for the console
-    st.markdown("""<style>
-.premium-console {
-    background: rgba(15, 23, 42, 0.4);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 25px;
-}
-</style>""", unsafe_allow_html=True)
+    # Note: .premium-console CSS is now injected globally via styles.py
     
     with st.expander("🛠️ Adjust Optimization Parameters / 调整投资组合优化参数", expanded=True):
         col1, col2, col3 = st.columns([1.2, 1, 1.2])
@@ -415,17 +405,24 @@ def _render_efficient_frontier(results: Dict[str, Any]) -> None:
     st.divider()
 
 
-def _render_selected_portfolio(results: Dict[str, Any]) -> None:
+def _render_selected_portfolio(
+    selected: Dict[str, Any],
+    title: str = "Optimal Portfolio / 最优组合",
+    show_pie: bool = True,
+    show_sharpe_quality: bool = True,
+) -> None:
     """
-    Render the selected optimal portfolio's details: pie chart + metrics + weights table.
+    Render an optimal portfolio's details: metrics + optional pie chart + weights table.
+
+    Reusable for both MVO and Black-Litterman results.
 
     Args:
-        results: Dict from _run_optimization.
+        selected: Portfolio dict with 'return', 'volatility', 'sharpe', 'weights' keys.
+        title: Heading text for the section.
+        show_pie: Whether to render the allocation pie chart.
+        show_sharpe_quality: Whether to render the Sharpe ratio quality caption.
     """
-    selected = results["selected"]
-    opt_mode = "Maximum Sharpe" if selected is results["max_sharpe"] else "Minimum Volatility"
-
-    st.markdown(f"### ✦ Optimal Portfolio: {opt_mode} / 最优组合")
+    st.markdown(f"### ✦ {title}")
 
     col1, col2, col3 = st.columns(3)
 
@@ -449,14 +446,16 @@ def _render_selected_portfolio(results: Dict[str, Any]) -> None:
 
     st.markdown("")
 
-    chart_col, table_col = st.columns([1, 1])
-
-    with chart_col:
-        fig = plot_allocation_pie(
-            selected["weights"],
-            title=f"Asset Allocation — {opt_mode}",
-        )
-        st.plotly_chart(fig, use_container_width=True, theme=None)
+    if show_pie:
+        chart_col, table_col = st.columns([1, 1])
+        with chart_col:
+            fig = plot_allocation_pie(
+                selected["weights"],
+                title=f"Asset Allocation — {title.split(' / ')[0]}",
+            )
+            st.plotly_chart(fig, use_container_width=True, theme=None)
+    else:
+        table_col = st.container()
 
     with table_col:
         st.markdown("**Asset Weights / 资产权重**")
@@ -480,15 +479,16 @@ def _render_selected_portfolio(results: Dict[str, Any]) -> None:
             }
         )
 
-        sharpe = selected["sharpe"]
-        quality = "Good / 良好" if sharpe > 1.0 else ("Moderate / 中等" if sharpe > 0.5 else "Below average / 偏低")
+        if show_sharpe_quality:
+            sharpe = selected["sharpe"]
+            quality = "Good / 良好" if sharpe > 1.0 else ("Moderate / 中等" if sharpe > 0.5 else "Below average / 偏低")
 
-        st.caption(
-            f"📊 Sharpe ratio = {sharpe:.2f} ({quality}). "
-            f"This means for each unit of risk taken, the portfolio earns "
-            f"{sharpe:.2f} units of excess return above the risk-free rate. / "
-            f"夏普比率 = {sharpe:.2f}（{quality}）。这意味着每承担一单位风险，组合获得 {sharpe:.2f} 单位的超额收益。"
-        )
+            st.caption(
+                f"📊 Sharpe ratio = {sharpe:.2f} ({quality}). "
+                f"This means for each unit of risk taken, the portfolio earns "
+                f"{sharpe:.2f} units of excess return above the risk-free rate. / "
+                f"夏普比率 = {sharpe:.2f}（{quality}）。这意味着每承担一单位风险，组合获得 {sharpe:.2f} 单位的超额收益。"
+            )
 
     st.divider()
 
@@ -1113,49 +1113,11 @@ def render() -> None:
         )
         _render_bl_impact_analysis(results["bl_optimizer"])
 
-        st.markdown("### ✦ Optimal Portfolio (BL Max Sharpe) / 最优组合（BL 最大夏普）")
-
-        selected = results["selected"]
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.metric(
-                label="Annualized Return / 年化收益率",
-                value=f"{selected['return']:.2%}",
-            )
-
-        with col2:
-            st.metric(
-                label="Annualized Volatility / 年化波动率",
-                value=f"{selected['volatility']:.2%}",
-            )
-
-        with col3:
-            st.metric(
-                label="Sharpe Ratio / 夏普比率",
-                value=f"{selected['sharpe']:.2f}",
-            )
-
-        st.markdown("")
-
-        st.markdown("**Asset Weights / 资产权重**")
-        weights_df = pd.DataFrame([
-            {
-                "Asset / 资产": asset,
-                "Weight / 权重": weight * 100.0,
-                "Allocation / 配置": "Long / 多" if weight >= 0 else "Short / 空",
-            }
-            for asset, weight in selected["weights"].items()
-        ])
-        st.dataframe(
-            weights_df,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Weight / 权重": st.column_config.NumberColumn(
-                    format="%.2f%%"
-                )
-            }
+        _render_selected_portfolio(
+            results["selected"],
+            title="Optimal Portfolio (BL Max Sharpe) / 最优组合（BL 最大夏普）",
+            show_pie=False,
+            show_sharpe_quality=False,
         )
 
     else:
@@ -1191,7 +1153,12 @@ def render() -> None:
             return
 
         _render_efficient_frontier(results)
-        _render_selected_portfolio(results)
+        selected = results["selected"]
+        opt_mode = config["opt_mode"]
+        _render_selected_portfolio(
+            selected,
+            title=f"Optimal Portfolio: {opt_mode} / 最优组合：{opt_mode}",
+        )
         _render_asset_class_weights(results)
         _render_comparison_table(results)
 

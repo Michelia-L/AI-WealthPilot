@@ -39,6 +39,48 @@ from src.utils import sanitize_filename
 
 
 # ============================================================
+# Risk Score Classification Constants
+# 风险评分分类常量
+# ============================================================
+
+# Breakpoints for mapping a 1-5 risk score to risk tolerance levels.
+# Used by profiler, portfolio recommender, and other downstream modules.
+# 将 1-5 风险评分映射到风险承受能力等级的断点值。
+RISK_SCORE_BREAKPOINTS: list[float] = [1.5, 2.5, 3.5, 4.5]
+
+# Bilingual risk level labels, ordered to match RISK_SCORE_BREAKPOINTS.
+# Index 0 = score <= 1.5, index 4 = score > 4.5.
+# 双语风险等级标签，与 RISK_SCORE_BREAKPOINTS 顺序对应。
+RISK_LEVEL_LABELS: list[str] = [
+    "Conservative / 保守型",
+    "Moderately Conservative / 稳健型",
+    "Moderate / 平衡型",
+    "Moderately Aggressive / 成长型",
+    "Aggressive / 进取型",
+]
+
+
+def classify_risk_score(score: float) -> str:
+    """
+    Classify a risk score (1-5) into a bilingual risk tolerance label.
+    将风险评分 (1-5) 分类为双语风险承受能力标签。
+
+    This is the single source of truth for risk level classification.
+    这是风险等级分类的唯一真实来源。
+
+    Args:
+        score: Risk score in range [1.0, 5.0].
+
+    Returns:
+        Bilingual risk level string, e.g. "Conservative / 保守型".
+    """
+    for i, breakpoint in enumerate(RISK_SCORE_BREAKPOINTS):
+        if score <= breakpoint:
+            return RISK_LEVEL_LABELS[i]
+    return RISK_LEVEL_LABELS[-1]
+
+
+# ============================================================
 # Data Model — Client Profile
 # 数据模型 —— 客户画像
 # ============================================================
@@ -148,20 +190,13 @@ class RiskProfile:
         根据最终评分分类风险承受能力等级。
         Classify risk tolerance level based on final score.
 
+        Delegates to module-level classify_risk_score() which is the
+        single source of truth for breakpoints and labels.
+
         Returns:
             Risk tolerance level string.
         """
-        score = self.final_score
-        if score <= 1.5:
-            return "Conservative / 保守型"
-        elif score <= 2.5:
-            return "Moderately Conservative / 稳健型"
-        elif score <= 3.5:
-            return "Moderate / 平衡型"
-        elif score <= 4.5:
-            return "Moderately Aggressive / 成长型"
-        else:
-            return "Aggressive / 进取型"
+        return classify_risk_score(self.final_score)
 
 
 @dataclass

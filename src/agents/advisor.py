@@ -347,6 +347,46 @@ def is_api_configured() -> bool:
 
 
 # ============================================================
+# Shared Helpers — Reduce Duplication Across API Functions
+# 共享辅助函数 —— 减少 API 函数之间的重复
+# ============================================================
+
+def _create_initial_report(profile: ClientProfile) -> AdvisorReport:
+    """
+    Create an initial AdvisorReport with metadata pre-filled.
+    创建一个预填充元数据的初始 AdvisorReport。
+
+    Args:
+        profile: ClientProfile instance.
+
+    Returns:
+        AdvisorReport with client_name, model, and timestamp set.
+    """
+    return AdvisorReport(
+        client_name=profile.name,
+        model=DEEPSEEK_MODEL,
+        generated_at=datetime.now().isoformat(),
+    )
+
+
+def _build_messages(profile: ClientProfile) -> list[dict]:
+    """
+    Build the message list for the DeepSeek API call.
+    构建 DeepSeek API 调用的消息列表。
+
+    Args:
+        profile: ClientProfile instance.
+
+    Returns:
+        List of message dicts with system and user roles.
+    """
+    return [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": _build_user_prompt(profile)},
+    ]
+
+
+# ============================================================
 # Core Generation Functions
 # 核心生成函数
 # ============================================================
@@ -372,20 +412,12 @@ def generate_advice(profile: ClientProfile) -> AdvisorReport:
         AdvisorReport with the generated advisory content.
         包含生成的建议内容的 AdvisorReport。
     """
-    report = AdvisorReport(
-        client_name=profile.name,
-        model=DEEPSEEK_MODEL,
-        generated_at=datetime.now().isoformat(),
-    )
+    report = _create_initial_report(profile)
 
     try:
         client = _get_client()
 
-        # 构建消息列表 / Build message list
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": _build_user_prompt(profile)},
-        ]
+        messages = _build_messages(profile)
 
         logger.info(
             f"Generating advisory report for client: {profile.name} "
@@ -471,19 +503,12 @@ def generate_advice_stream(
     Returns:
         Complete AdvisorReport (accessible via generator.value pattern).
     """
-    report = AdvisorReport(
-        client_name=profile.name,
-        model=DEEPSEEK_MODEL,
-        generated_at=datetime.now().isoformat(),
-    )
+    report = _create_initial_report(profile)
 
     try:
         client = _get_client()
 
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": _build_user_prompt(profile)},
-        ]
+        messages = _build_messages(profile)
 
         logger.info(
             f"Starting streaming advisory report for: {profile.name}"
@@ -562,48 +587,8 @@ def stream_advice(profile: ClientProfile) -> tuple[Generator[str, None, None], l
     report_container = []
 
     def _stream():
-        """Inner generator that captures the report."""
-        report = AdvisorReport(
-            client_name=profile.name,
-            model=DEEPSEEK_MODEL,
-            generated_at=datetime.now().isoformat(),
-        )
-
-        try:
-            client = _get_client()
-
-            messages = [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": _build_user_prompt(profile)},
-            ]
-
-            stream = client.chat.completions.create(
-                model=DEEPSEEK_MODEL,
-                messages=messages,
-                max_tokens=DEEPSEEK_MAX_TOKENS,
-                temperature=DEEPSEEK_TEMPERATURE,
-                stream=True,
-            )
-
-            full_content = []
-            for chunk in stream:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    text = chunk.choices[0].delta.content
-                    full_content.append(text)
-                    yield text
-
-            report.content = "".join(full_content)
-            report.success = True
-
-        except ValueError as e:
-            report.error_message = str(e)
-
-        except Exception as e:
-            report.error_message = (
-                f"Failed to generate report: {str(e)} / "
-                f"生成报告失败：{str(e)}"
-            )
-
+        """Inner generator that delegates to generate_advice_stream."""
+        report = yield from generate_advice_stream(profile)
         report_container.append(report)
 
     return _stream(), report_container

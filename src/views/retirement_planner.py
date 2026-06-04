@@ -38,17 +38,7 @@ def _render_top_controls() -> Dict[str, Any]:
     Returns:
         Dict with all retirement parameters.
     """
-    # Inject styling for the console
-    st.markdown("""<style>
-.premium-console {
-    background: rgba(15, 23, 42, 0.4);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 25px;
-}
-</style>""", unsafe_allow_html=True)
+    # Note: .premium-console CSS is now injected globally via styles.py
     
     with st.expander("🛠️ Adjust Retirement Parameters / 调整退休规划参数", expanded=True):
         col1, col2, col3 = st.columns([1, 1, 1])

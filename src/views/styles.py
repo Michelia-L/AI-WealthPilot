@@ -431,6 +431,16 @@ def inject_premium_styles() -> None:
             z-index: 99999;
             background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
         }
+
+        /* Premium console — shared glass-panel for page control expanders */
+        .premium-console {
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
         </style>
         <div class="noise-overlay"></div>
         """,
