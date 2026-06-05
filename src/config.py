@@ -81,7 +81,8 @@ DEFAULT_ASSET_CLASSES = {
 # ============================================================
 # Portfolio Optimization Defaults
 # ============================================================
-RISK_FREE_RATE = 0.045  # Current approximate risk-free rate
+DEFAULT_RISK_FREE_RATE = 0.045  # Static fallback risk-free rate (4.5%)
+RISK_FREE_RATE = DEFAULT_RISK_FREE_RATE  # For backward compatibility
 TRADING_DAYS_PER_YEAR = 252
 MONTE_CARLO_SIMULATIONS = 10000
 MONTE_CARLO_YEARS = 30
@@ -114,3 +115,4 @@ DEEPSEEK_TEMPERATURE = 0.3
 # 遗留 API Keys（用于未来 RAG 模块 —— Phase 4）
 # ============================================================
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+FRED_API_KEY = os.getenv("FRED_API_KEY", "")

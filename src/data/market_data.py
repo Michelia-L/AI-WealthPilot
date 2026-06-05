@@ -21,15 +21,17 @@ CFA Reference / CFA 参考:
       数据质量和一致性对任何量化投资流程至关重要（GIPS 标准）。
 """
 
+import os
+import requests
 import pandas as pd
 import yfinance as yf
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Optional
 
-# 从项目配置中导入资产池、年交易日数和基准货币
-# Import the asset universe definition, trading days constant, and base currency from project config
-from src.config import ASSET_UNIVERSE, TRADING_DAYS_PER_YEAR, BASE_CURRENCY
+# 从项目配置中导入资产池、年交易日数、基准货币、默认无风险利率和 FRED API Key
+# Import the asset universe definition, trading days constant, base currency, default risk-free rate, and FRED API Key from project config
+from src.config import ASSET_UNIVERSE, TRADING_DAYS_PER_YEAR, BASE_CURRENCY, DEFAULT_RISK_FREE_RATE, FRED_API_KEY
 
 
 def fetch_price_history(
@@ -323,6 +325,82 @@ def get_latest_quotes(tickers: Optional[list[str]] = None) -> pd.DataFrame:
         df["change_pct"] = (df["change"] / df["previous_close"]) * 100
 
     return df
+
+
+def fetch_risk_free_rate(
+    fred_api_key: Optional[str] = None,
+    default_rate: Optional[float] = None,
+) -> float:
+    """
+    Fetch the current annualized risk-free rate dynamically.
+    动态获取当前年化无风险利率。
+
+    This function attempts to fetch the rate in the following order:
+    1. FRED API (using 'DGS3MO' - 3-Month Treasury Constant Maturity Rate) if API key is provided.
+    2. yfinance (using '^IRX' - 13-Week Treasury Bill yield).
+    3. Falls back to default_rate (which defaults to DEFAULT_RISK_FREE_RATE).
+
+    本函数按以下顺序尝试获取利率：
+    1. 如果提供了 API 密钥，从 FRED API 获取（使用 'DGS3MO' - 3个月期国债常数到期利率）。
+    2. 通过 yfinance 获取（使用 '^IRX' - 13周美国国债收益率）。
+    3. 发生异常或获取失败时，使用默认的 default_rate。
+
+    Args:
+        fred_api_key: Optional FRED API key. If None, loaded from environment variables or config.
+                      可选的 FRED API 密钥。如果为 None，则从环境变量或配置中加载。
+        default_rate: Fallback risk-free rate (e.g., 0.045 for 4.5%).
+                      默认/备用的无风险利率（例如 0.045 表示 4.5%）。
+
+    Returns:
+        float: The risk-free rate as a decimal (e.g., 0.045).
+               以小数表示的无风险利率。
+    """
+    fallback_rate = default_rate if default_rate is not None else DEFAULT_RISK_FREE_RATE
+    api_key = fred_api_key or FRED_API_KEY or os.getenv("FRED_API_KEY")
+
+    # 1. Try FRED API if key is available
+    if api_key:
+        try:
+            url = "https://api.stlouisfed.org/fred/series/observations"
+            params = {
+                "series_id": "DGS3MO",
+                "api_key": api_key,
+                "file_type": "json",
+                "sort_order": "desc",
+                "limit": 1
+            }
+            response = requests.get(url, params=params, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                observations = data.get("observations", [])
+                if observations:
+                    val_str = observations[0].get("value")
+                    if val_str and val_str != ".":
+                        return float(val_str) / 100.0
+        except Exception:
+            # Silent fallback to yfinance
+            pass
+
+    # 2. Try yfinance ^IRX (13-Week Treasury Bill)
+    try:
+        ticker = yf.Ticker("^IRX")
+        # Try fast_info first
+        rate_pct = ticker.fast_info.get("lastPrice")
+        if rate_pct is not None and rate_pct > 0:
+            return float(rate_pct) / 100.0
+            
+        # Fallback to history if fast_info fails
+        hist = ticker.history(period="1d")
+        if not hist.empty:
+            rate_val = hist["Close"].iloc[-1]
+            if rate_val is not None and rate_val > 0:
+                return float(rate_val) / 100.0
+    except Exception:
+        # Silent fallback to static default
+        pass
+
+    # 3. Fallback to static default rate
+    return fallback_rate
 
 
 # ==========================================

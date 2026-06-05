@@ -22,7 +22,7 @@ from typing import Optional, Dict, Any, List, Tuple
 import plotly.graph_objects as go
 
 # Import data fetching and processing functions
-from src.data.market_data import fetch_price_history, compute_returns
+from src.data.market_data import fetch_price_history, compute_returns, fetch_risk_free_rate
 
 # Import portfolio optimizers
 from src.portfolio.optimizer import PortfolioOptimizer, BlackLittermanOptimizer
@@ -43,6 +43,7 @@ from src.config import (
     BL_DEFAULT_TAU,
     BL_DEFAULT_DELTA,
     BL_DEFAULT_CONFIDENCE,
+    FRED_API_KEY,
 )
 
 # ============================================================
@@ -52,6 +53,18 @@ ASSET_OPTIONS: Dict[str, str] = {
     key: f"{val['name']} ({val['ticker']})"
     for key, val in DEFAULT_ASSET_CLASSES.items()
 }
+
+
+@st.cache_data(ttl=86400, show_spinner="Fetching latest risk-free rate...")
+def get_dynamic_risk_free_rate() -> float:
+    """
+    Fetch the risk-free rate dynamically and cache it for 24 hours.
+    获取动态无风险利率并缓存24小时。
+    """
+    try:
+        return fetch_risk_free_rate(fred_api_key=FRED_API_KEY, default_rate=RISK_FREE_RATE)
+    except Exception:
+        return RISK_FREE_RATE
 
 
 def _render_top_controls() -> Dict[str, Any]:
@@ -83,11 +96,14 @@ def _render_top_controls() -> Dict[str, Any]:
                 key="opt_period"
             )
             
+            # Fetch dynamic risk-free rate
+            dynamic_rf = get_dynamic_risk_free_rate()
+            
             risk_free_rate = st.number_input(
                 "Annual risk-free rate / 无风险利率",
                 min_value=0.0,
                 max_value=0.20,
-                value=RISK_FREE_RATE,
+                value=dynamic_rf,
                 step=0.005,
                 format="%.3f",
                 help="Typically the yield on 10-year government bonds. / 通常使用十年期国债收益率。",

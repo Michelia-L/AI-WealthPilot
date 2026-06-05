@@ -16,6 +16,7 @@ from src.data.market_data import (
     compute_returns,
     compute_correlation_matrix,
     get_latest_quotes,
+    fetch_risk_free_rate,
 )
 
 
@@ -282,3 +283,88 @@ class TestGetLatestQuotes:
         assert len(df) == 1
         assert df.iloc[0]["ticker"] == "SUCCESS"
         assert df.iloc[0]["price"] == 150.0
+
+
+class TestFetchRiskFreeRate:
+    """
+    Test suite for fetch_risk_free_rate.
+    测试动态获取无风险利率。
+    """
+
+    @patch("src.data.market_data.requests.get")
+    def test_fetch_risk_free_rate_fred_success(self, mock_get):
+        """Should return FRED rate when api key is provided and request succeeds."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "observations": [{"value": "3.85"}]
+        }
+        mock_get.return_value = mock_response
+
+        rate = fetch_risk_free_rate(fred_api_key="mock_key", default_rate=0.045)
+        # Expected: 3.85 / 100 = 0.0385
+        assert rate == 0.0385
+        mock_get.assert_called_once()
+        assert "DGS3MO" in mock_get.call_args[1]["params"]["series_id"]
+
+    @patch("src.data.market_data.requests.get")
+    def test_fetch_risk_free_rate_fred_missing_value(self, mock_get):
+        """Should fall back to yfinance when FRED returns invalid data (e.g. '.')."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "observations": [{"value": "."}]
+        }
+        mock_get.return_value = mock_response
+
+        # Mock yfinance to fail to verify it reaches yfinance then falls back
+        with patch("src.data.market_data.yf.Ticker") as mock_ticker_class:
+            mock_ticker_class.side_effect = Exception("yfinance error")
+            rate = fetch_risk_free_rate(fred_api_key="mock_key", default_rate=0.045)
+            # Should fall back to default_rate
+            assert rate == 0.045
+
+    @patch("src.data.market_data.requests.get")
+    @patch("src.data.market_data.yf.Ticker")
+    def test_fetch_risk_free_rate_yfinance_fast_info(self, mock_ticker_class, mock_get):
+        """Should return yfinance rate using fast_info when FRED key is not provided."""
+        # Mock FRED request to not be called (since no key)
+        # Mock yfinance fast_info
+        mock_ticker = MagicMock()
+        mock_fast_info = MagicMock()
+        mock_fast_info.get.side_effect = lambda key, default=None: {"lastPrice": 3.62}.get(key, default)
+        mock_ticker.fast_info = mock_fast_info
+        mock_ticker_class.return_value = mock_ticker
+
+        rate = fetch_risk_free_rate(fred_api_key=None, default_rate=0.045)
+        # Expected: 3.62 / 100 = 0.0362
+        assert rate == 0.0362
+        mock_get.assert_not_called()
+        mock_ticker_class.assert_called_once_with("^IRX")
+
+    @patch("src.data.market_data.requests.get")
+    @patch("src.data.market_data.yf.Ticker")
+    def test_fetch_risk_free_rate_yfinance_history_fallback(self, mock_ticker_class, mock_get):
+        """Should fall back to ticker.history when fast_info returns None or empty."""
+        mock_ticker = MagicMock()
+        mock_fast_info = MagicMock()
+        mock_fast_info.get.return_value = None  # fast_info fails
+        mock_ticker.fast_info = mock_fast_info
+        
+        # Mock history DataFrame
+        mock_hist = pd.DataFrame({"Close": [3.55]}, index=pd.date_range("2026-06-01", periods=1))
+        mock_ticker.history.return_value = mock_hist
+        mock_ticker_class.return_value = mock_ticker
+
+        rate = fetch_risk_free_rate(fred_api_key=None, default_rate=0.045)
+        # Expected: 3.55 / 100 = 0.0355
+        assert rate == 0.0355
+
+    @patch("src.data.market_data.requests.get")
+    @patch("src.data.market_data.yf.Ticker")
+    def test_fetch_risk_free_rate_all_fail_fallback(self, mock_ticker_class, mock_get):
+        """Should return default_rate when all sources fail."""
+        mock_ticker_class.side_effect = Exception("yf connection failure")
+
+        rate = fetch_risk_free_rate(fred_api_key=None, default_rate=0.045)
+        assert rate == 0.045
