@@ -111,6 +111,53 @@ DEEPSEEK_MAX_TOKENS = 128000
 DEEPSEEK_TEMPERATURE = 0.3
 
 # ============================================================
+# CME (Capital Market Expectations) Configuration
+# CME（资本市场预期）配置
+# ============================================================
+CME_LOOKBACK_YEARS = 5           # Historical data lookback / 历史数据回溯年数
+CME_INFLATION_ASSUMPTION = 0.025  # Long-term inflation assumption / 长期通胀率假设
+CME_DATA_INTERVAL = "1d"          # Data frequency / 数据频率
+
+# IPS asset class → proxy ticker mapping
+# IPS 资产类别 → 代理 Ticker 映射
+# These are tradable proxies used to compute CME for IPS asset classes.
+# 用于为 IPS 资产类别计算 CME 的可交易代理。
+IPS_ASSET_CLASS_TICKERS = {
+    "domestic_equity": {
+        "ticker": "000300.SS",
+        "name": "国内权益（A股/沪深300）",
+    },
+    "international_equity_dm": {
+        "ticker": "EFA",
+        "name": "国际权益（发达市场）",
+    },
+    "international_equity_hk": {
+        "ticker": "EWH",
+        "name": "港股",
+    },
+    "fixed_income": {
+        "ticker": "AGG",
+        "name": "固定收益",
+    },
+    "alternative_gold": {
+        "ticker": "GLD",
+        "name": "另类-黄金",
+    },
+    "alternative_reit": {
+        "ticker": "VNQ",
+        "name": "另类-REITs",
+    },
+    "cash": {
+        "ticker": "BIL",
+        "name": "现金等价物",
+    },
+}
+
+# SAA Validation thresholds
+# SAA 验证阈值
+SAA_VOLATILITY_TOLERANCE_PP = 0.03  # Accept if vol within +3pp of frontier / 容忍波动率偏离前沿 3pp
+
+# ============================================================
 # Legacy API Keys (for future RAG modules — Phase 4)
 # 遗留 API Keys（用于未来 RAG 模块 —— Phase 4）
 # ============================================================

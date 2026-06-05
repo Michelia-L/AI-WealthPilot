@@ -144,7 +144,7 @@ async def run_demo():
 
     # Step 2: Run the IPS workflow
     print("🚀 步骤 2: 启动 LangGraph IPS 生成工作流...")
-    print("   (生成 → 适配性审查 → 合规性审查 → 一致性审查 → [修订] → 终审)")
+    print("   (CME生成 → IPS生成 → 适配性审查 → 合规性审查 → 一致性审查 → SAA验证 → [修订] → 终审)")
     print()
 
     result = await generate_ips(
@@ -221,6 +221,17 @@ async def run_demo():
         print(f"{'─' * 60}")
         print(f"   修订轮次: {audit.get('total_rounds', 0)}")
         print(f"   最终状态: {audit.get('final_status', 'N/A')}")
+
+        # CME metadata from audit trail
+        metadata = audit.get("generation_metadata", {})
+        if metadata.get("cme_as_of_date"):
+            print(f"\n   📈 资本市场预期 (CME):")
+            print(f"      数据截止: {metadata.get('cme_as_of_date', 'N/A')}")
+            print(f"      回溯年数: {metadata.get('cme_lookback_years', 'N/A')}")
+            print(f"      无风险利率: {metadata.get('cme_risk_free_rate', 'N/A')}")
+            print(f"      利率来源: {metadata.get('cme_rf_source', 'N/A')}")
+            print(f"      资产类别数: {metadata.get('cme_asset_count', 'N/A')}")
+
         for rev in audit.get("revision_history", []):
             print(f"\n   第 {rev['round_number']} 轮修订:")
             print(f"   版本变更: {rev.get('ips_version_before', '?')} → {rev.get('ips_version_after', '?')}")

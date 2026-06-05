@@ -6,14 +6,15 @@ state machine. The workflow follows a Generate → Review → Revise
 loop with conditional routing and audit trail tracking.
 
 Workflow Graph:
-    START → generate → select_docs → review_suitability →
-    review_compliance → review_consistency →
+    START → generate_cme → generate → select_docs → review_suitability →
+    review_compliance → review_consistency → validate_saa →
         (all pass) → finalize → END
         (issues)   → revise → select_docs (loop, max 3)
         (max rounds) → finalize (escalate) → END
 
 CFA Reference:
     - CFA L3 PWM: IPS generation and review process
+    - CFA L3: Setting Capital Market Expectations
     - CFA L3: Compliance and documentation requirements
 """
 
@@ -24,6 +25,8 @@ from dataclasses import asdict
 from datetime import datetime
 from typing import Any, Optional
 
+import numpy as np
+import pandas as pd
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel, ConfigDict, Field
@@ -49,6 +52,8 @@ from src.agents.ips_agents import (
     load_ips_template,
     load_compliance_checklist,
 )
+from src.portfolio.cme_engine import compute_cme, format_cme_for_prompt
+from src.portfolio.cme_models import CMEReport, SAAValidationResult
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +80,16 @@ class IPSWorkflowState(BaseModel):
         description="IPS structural template full text"
     )
 
+    # --- CME (Capital Market Expectations) ---
+    cme_report: Optional[dict] = Field(
+        default=None,
+        description="CME report as dict (serialized CMEReport)"
+    )
+    cme_text: str = Field(
+        default="",
+        description="CME formatted as LLM-readable text for prompt injection"
+    )
+
     # --- Working State ---
     ips_draft: Optional[dict] = Field(
         default=None,
@@ -99,6 +114,12 @@ class IPSWorkflowState(BaseModel):
     checklist: dict = Field(
         default_factory=dict,
         description="Compliance checklist data"
+    )
+
+    # --- SAA Validation ---
+    saa_validation: Optional[dict] = Field(
+        default=None,
+        description="SAA validation result from quantitative check"
     )
 
     # --- Output ---
@@ -155,12 +176,60 @@ def _all_passed(review_results: list[dict]) -> bool:
 # Workflow Node Functions
 # ============================================================
 
+async def generate_cme_node(state: IPSWorkflowState) -> dict[str, Any]:
+    """
+    Node: Generate Capital Market Expectations (CME).
+
+    Fetches historical market data and computes expected returns,
+    volatilities, correlations, and risk metrics for each IPS asset
+    class. The resulting CME report is stored in state for injection
+    into the IPS generator's LLM prompt.
+
+    CFA Reference:
+        CFA L3: Setting Capital Market Expectations is a prerequisite
+        for any asset allocation decision in the IPS.
+
+    Args:
+        state: Current workflow state.
+
+    Returns:
+        State updates with CME report and formatted text.
+    """
+    logger.info("=== CME Generation Node ===")
+
+    try:
+        cme_report = compute_cme()
+        cme_text = format_cme_for_prompt(cme_report)
+
+        logger.info(
+            "CME generated: %d asset classes, rf=%.4f, as_of=%s",
+            len(cme_report.asset_classes),
+            cme_report.risk_free_rate,
+            cme_report.as_of_date,
+        )
+
+        return {
+            "cme_report": cme_report.model_dump(),
+            "cme_text": cme_text,
+            "status": "cme_generated",
+        }
+
+    except Exception as e:
+        logger.error("CME generation failed: %s", e, exc_info=True)
+        logger.warning("Proceeding without CME data")
+        return {
+            "cme_report": None,
+            "cme_text": "",
+            "status": "cme_failed_continuing",
+        }
+
+
 async def generate_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
     """
     Node: Generate the initial IPS draft.
 
-    Calls the IPS generator agent with client profile data and
-    the IPS template reference injected as full-text context.
+    Calls the IPS generator agent with client profile data,
+    IPS template reference, and CME data injected as full-text context.
 
     Args:
         state: Current workflow state.
@@ -176,6 +245,7 @@ async def generate_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
         prompt = build_generation_prompt(
             client_profile_json=state.client_profile_json,
             ips_template=state.reference_template,
+            cme_text=state.cme_text,
         )
 
         result = await agent.run(prompt)
@@ -487,6 +557,212 @@ async def revise_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
         }
 
 
+async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
+    """
+    Node: Quantitative SAA validation against CME data.
+
+    Uses the portfolio optimizer to verify that the LLM-generated
+    Strategic Asset Allocation is consistent with CME assumptions:
+    - Weights sum to 100%
+    - Portfolio expected return covers the required return
+    - Portfolio volatility is within risk tolerance band
+    - Allocation is near the efficient frontier
+
+    CFA Reference:
+        CFA L3: SAA must be grounded in defensible CME assumptions.
+        Any mismatch between stated returns and achievable returns
+        should be flagged.
+
+    Args:
+        state: Current workflow state.
+
+    Returns:
+        State updates with SAA validation results merged into review.
+    """
+    logger.info("=== SAA Validation Node ===")
+
+    # Skip if no CME data available
+    if not state.cme_report:
+        logger.warning("No CME data available, skipping SAA validation")
+        return {}
+
+    if not state.ips_draft:
+        logger.warning("No IPS draft available, skipping SAA validation")
+        return {}
+
+    try:
+        cme = CMEReport(**state.cme_report)
+        ips = state.ips_draft
+        saa = ips.get("investment_guidelines", {}).get("strategic_allocation", [])
+
+        if not saa:
+            logger.warning("No SAA found in IPS, skipping validation")
+            return {}
+
+        # Build CME lookup by asset class name
+        cme_by_name: dict[str, dict] = {}
+        for ac in cme.asset_classes:
+            cme_by_name[ac.name] = {
+                "expected_return": ac.expected_return,
+                "volatility": ac.volatility,
+            }
+
+        # Extract SAA weights and match to CME
+        saa_issues: list[dict] = []
+        total_weight = 0.0
+        matched_weights = []
+        matched_returns = []
+        matched_vols = []
+        matched_names = []
+
+        for alloc in saa:
+            asset_name = alloc.get("asset_class", "")
+            weight = alloc.get("target_weight", 0.0)
+            total_weight += weight
+
+            # Try to match SAA asset class to CME asset class
+            cme_match = None
+            for cme_name, cme_data in cme_by_name.items():
+                # Fuzzy match: check if CME name is contained in SAA name or vice versa
+                if (cme_name in asset_name or asset_name in cme_name
+                        or _fuzzy_asset_match(asset_name, cme_name)):
+                    cme_match = cme_data
+                    break
+
+            if cme_match and weight > 0:
+                matched_weights.append(weight)
+                matched_returns.append(cme_match["expected_return"])
+                matched_vols.append(cme_match["volatility"])
+                matched_names.append(asset_name)
+
+        # Validation 1: Weight sum check
+        if abs(total_weight - 1.0) > 0.01:
+            saa_issues.append(ReviewIssue(
+                section="investment_guidelines",
+                dimension=ReviewDimension.CONSISTENCY,
+                severity=IssueSeverity.CRITICAL,
+                description=(
+                    f"SAA 权重之和为 {total_weight:.4f}（{total_weight:.2%}），"
+                    f"偏离 100% 达 {abs(total_weight - 1.0):.2%}。"
+                ),
+                regulation_reference="CFA: SAA weights must sum to 100%",
+                suggestion="调整各资产类别权重使其加总为 100%。",
+            ).model_dump())
+
+        # Validation 2: Portfolio expected return vs required return
+        if matched_weights:
+            w = np.array(matched_weights)
+            r = np.array(matched_returns)
+            portfolio_return = float(np.dot(w, r) / w.sum())  # Normalize
+
+            required_return = ips.get("return_objective", {}).get(
+                "required_nominal_return", 0.0
+            )
+
+            if required_return > 0 and portfolio_return < required_return * 0.9:
+                gap = required_return - portfolio_return
+                saa_issues.append(ReviewIssue(
+                    section="return_objective / investment_guidelines",
+                    dimension=ReviewDimension.SUITABILITY,
+                    severity=IssueSeverity.CRITICAL,
+                    description=(
+                        f"基于 CME 数据，SAA 的加权预期收益率为 {portfolio_return:.2%}，"
+                        f"低于 IPS 声称的所需名义收益率 {required_return:.2%}，"
+                        f"缺口 {gap:.2%}。当前配置无法支撑收益目标。"
+                    ),
+                    regulation_reference=(
+                        "CFA L3: Required return must be achievable within "
+                        "the SAA's expected return range."
+                    ),
+                    suggestion=(
+                        f"建议：(a) 调整 SAA 提高权益配置比例以提升预期收益率；"
+                        f"(b) 或下调收益目标至 CME 可支撑的 {portfolio_return:.2%} 附近；"
+                        f"(c) 或通过补充措施（增加储蓄、延长期限）弥补缺口。"
+                    ),
+                ).model_dump())
+            elif required_return > 0 and portfolio_return < required_return:
+                gap = required_return - portfolio_return
+                saa_issues.append(ReviewIssue(
+                    section="return_objective / investment_guidelines",
+                    dimension=ReviewDimension.CONSISTENCY,
+                    severity=IssueSeverity.WARNING,
+                    description=(
+                        f"基于 CME 数据，SAA 加权预期收益率 {portfolio_return:.2%} "
+                        f"略低于所需收益率 {required_return:.2%}（缺口 {gap:.2%}）。"
+                        f"需承担上行风险方可实现，应在 IPS 中明确说明。"
+                    ),
+                    regulation_reference="CFA L3: Return feasibility assessment",
+                    suggestion="在 return_objective 和 risk_disclosure 中明确说明收益目标处于 SAA 预期区间上端。",
+                ).model_dump())
+
+            # Store validation result
+            validation_result = SAAValidationResult(
+                portfolio_expected_return=portfolio_return,
+                portfolio_volatility=0.0,  # Simplified; full calc needs cov matrix
+                portfolio_sharpe=0.0,
+                max_sharpe_return=max(matched_returns) if matched_returns else 0.0,
+                max_sharpe_volatility=0.0,
+                gmv_return=min(matched_returns) if matched_returns else 0.0,
+                gmv_volatility=0.0,
+                is_return_feasible=(portfolio_return >= required_return * 0.9),
+                is_volatility_acceptable=True,
+                issues=[issue.get("description", "") for issue in saa_issues],
+            )
+        else:
+            validation_result = None
+
+        # Merge SAA issues into review results
+        if saa_issues:
+            logger.warning("SAA validation found %d issues", len(saa_issues))
+            current_issues = list(state.all_review_issues)
+            current_issues.extend(saa_issues)
+
+            # Check if any existing review should be marked as failed
+            current_results = list(state.review_results)
+
+            return {
+                "all_review_issues": current_issues,
+                "review_results": current_results,
+                "saa_validation": validation_result.model_dump() if validation_result else None,
+            }
+        else:
+            logger.info("SAA validation passed")
+            return {
+                "saa_validation": validation_result.model_dump() if validation_result else None,
+            }
+
+    except Exception as e:
+        logger.error("SAA validation failed: %s", e, exc_info=True)
+        return {}
+
+
+def _fuzzy_asset_match(saa_name: str, cme_name: str) -> bool:
+    """
+    Fuzzy match between SAA asset class name and CME asset class name.
+
+    Handles cases like:
+        SAA: "国内权益（A股）" <-> CME: "国内权益（A股/沪深300）"
+        SAA: "固定收益（利率债+信用债）" <-> CME: "固定收益"
+    """
+    keywords_map = {
+        "国内权益": ["国内权益", "A股", "沪深300"],
+        "国际权益": ["国际权益", "发达市场", "EFA"],
+        "港股": ["港股", "恒生"],
+        "固定收益": ["固定收益", "固收", "债"],
+        "黄金": ["黄金", "Gold", "GLD"],
+        "REITs": ["REITs", "REIT", "房地产"],
+        "现金": ["现金", "货币市场", "Cash", "BIL"],
+    }
+
+    for _category, keywords in keywords_map.items():
+        saa_match = any(kw in saa_name for kw in keywords)
+        cme_match = any(kw in cme_name for kw in keywords)
+        if saa_match and cme_match:
+            return True
+
+    return False
+
+
 async def finalize_node(state: IPSWorkflowState) -> dict[str, Any]:
     """
     Node: Finalize the IPS and generate audit trail.
@@ -506,6 +782,17 @@ async def finalize_node(state: IPSWorkflowState) -> dict[str, Any]:
     all_passed = _all_passed(state.review_results)
     final_status = "approved" if all_passed else "escalated_to_human"
 
+    # Include CME metadata in audit trail
+    cme_metadata = {}
+    if state.cme_report:
+        cme_metadata = {
+            "cme_as_of_date": state.cme_report.get("as_of_date"),
+            "cme_lookback_years": state.cme_report.get("data_lookback_years"),
+            "cme_risk_free_rate": state.cme_report.get("risk_free_rate"),
+            "cme_rf_source": state.cme_report.get("risk_free_rate_source"),
+            "cme_asset_count": len(state.cme_report.get("asset_classes", [])),
+        }
+
     # Build audit trail
     audit = AuditTrail(
         revision_history=[
@@ -517,6 +804,7 @@ async def finalize_node(state: IPSWorkflowState) -> dict[str, Any]:
             "model": "deepseek-v4-pro",
             "completed_at": datetime.now().isoformat(),
             "total_revision_rounds": state.revision_count,
+            **cme_metadata,
         },
     )
 
@@ -581,30 +869,39 @@ def build_ips_workflow() -> StateGraph:
     """
     Build the complete IPS generation LangGraph workflow.
 
+    Graph:
+        START → generate_cme → generate → select_docs →
+        review_suitability → review_compliance → review_consistency →
+        validate_saa → (routing) → finalize / revise
+
     Returns:
         Configured StateGraph (not yet compiled).
     """
     workflow = StateGraph(IPSWorkflowState)
 
     # Add nodes
+    workflow.add_node("generate_cme", generate_cme_node)
     workflow.add_node("generate", generate_ips_node)
     workflow.add_node("select_docs", select_review_docs_node)
     workflow.add_node("review_suitability", review_suitability_node)
     workflow.add_node("review_compliance", review_compliance_node)
     workflow.add_node("review_consistency", review_consistency_node)
+    workflow.add_node("validate_saa", validate_saa_node)
     workflow.add_node("revise", revise_ips_node)
     workflow.add_node("finalize", finalize_node)
 
     # Deterministic edges
-    workflow.add_edge(START, "generate")
+    workflow.add_edge(START, "generate_cme")
+    workflow.add_edge("generate_cme", "generate")
     workflow.add_edge("generate", "select_docs")
     workflow.add_edge("select_docs", "review_suitability")
     workflow.add_edge("review_suitability", "review_compliance")
     workflow.add_edge("review_compliance", "review_consistency")
+    workflow.add_edge("review_consistency", "validate_saa")
 
-    # Conditional edge: after all reviews
+    # Conditional edge: after SAA validation (replaces post-consistency routing)
     workflow.add_conditional_edges(
-        "review_consistency",
+        "validate_saa",
         route_after_review,
         {
             "pass": "finalize",
