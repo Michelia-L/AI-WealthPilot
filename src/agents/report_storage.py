@@ -36,7 +36,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from src.config import DATA_DIR
+from src.config import DATA_DIR, PROJECT_ROOT
 from src.utils import sanitize_filename
 
 
@@ -155,25 +155,56 @@ def save_report(
     filename = f"report_{safe_name}_{report_id}.json"
     filepath = REPORTS_DIR / filename
 
-    report = StoredReport(
+    # Convert absolute paths to relative paths before storing to avoid environment leak
+    rel_filepath = str(filepath)
+    if filepath.is_absolute():
+        try:
+            rel_filepath = str(filepath.relative_to(PROJECT_ROOT))
+        except ValueError:
+            pass
+
+    rel_profile_filepath = profile_filepath or ""
+    if rel_profile_filepath:
+        try:
+            p_path = Path(rel_profile_filepath)
+            if p_path.is_absolute():
+                rel_profile_filepath = str(p_path.relative_to(PROJECT_ROOT))
+        except ValueError:
+            pass
+
+    report_to_save = StoredReport(
         report_id=report_id,
         client_name=client_name,
-        profile_filepath=profile_filepath or "",
+        profile_filepath=rel_profile_filepath,
         content=content,
         model=model,
         generated_at=datetime.now().isoformat(),
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         total_tokens=prompt_tokens + completion_tokens,
-        filepath=str(filepath),
+        filepath=rel_filepath,
         notes=notes,
     )
 
     # 保存到文件 / Save to file
     with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(asdict(report), f, indent=2, ensure_ascii=False)
+        json.dump(asdict(report_to_save), f, indent=2, ensure_ascii=False)
 
-    return report
+    # Return report with absolute paths for in-memory app consumption
+    report_to_return = StoredReport(
+        report_id=report_id,
+        client_name=client_name,
+        profile_filepath=profile_filepath or "",
+        content=content,
+        model=model,
+        generated_at=report_to_save.generated_at,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=prompt_tokens + completion_tokens,
+        filepath=str(filepath),
+        notes=notes,
+    )
+    return report_to_return
 
 
 def load_report(filepath: Path) -> StoredReport:
@@ -197,7 +228,15 @@ def load_report(filepath: Path) -> StoredReport:
     with open(filepath, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    return StoredReport(**data)
+    report = StoredReport(**data)
+    # Convert relative paths back to absolute paths dynamically for runtime compatibility
+    if report.filepath and not Path(report.filepath).is_absolute():
+        report.filepath = str(PROJECT_ROOT / report.filepath)
+    if report.profile_filepath and not Path(report.profile_filepath).is_absolute():
+        if "ClientProfile" not in report.profile_filepath:
+            report.profile_filepath = str(PROJECT_ROOT / report.profile_filepath)
+
+    return report
 
 
 def list_reports(
