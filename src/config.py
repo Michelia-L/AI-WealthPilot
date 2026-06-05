@@ -36,25 +36,25 @@ ASSET_UNIVERSE = {
     "GC=F": {"name": "Gold Futures", "category": "Commodity", "color": "#FFD700", "currency": "USD", "symbol": "$"},
     "SI=F": {"name": "Silver Futures", "category": "Commodity", "color": "#C0C0C0", "currency": "USD", "symbol": "$"},
     # US Equity (美元计价 / USD-denominated)
-    "^GSPC": {"name": "S&P 500", "category": "US Equity", "color": "#1F77B4", "currency": "USD", "symbol": "$"},
-    "^IXIC": {"name": "NASDAQ", "category": "US Equity", "color": "#2CA02C", "currency": "USD", "symbol": "$"},
-    "^DJI": {"name": "Dow Jones", "category": "US Equity", "color": "#9467BD", "currency": "USD", "symbol": "$"},
+    "^GSPC": {"name": "S&P 500", "category": "US Equity", "color": "#1F77B4", "currency": "USD", "symbol": ""},
+    "^IXIC": {"name": "NASDAQ", "category": "US Equity", "color": "#2CA02C", "currency": "USD", "symbol": ""},
+    "^DJI": {"name": "Dow Jones", "category": "US Equity", "color": "#9467BD", "currency": "USD", "symbol": ""},
     # CN Equity (人民币计价 / CNY-denominated)
-    "000300.SS": {"name": "CSI 300", "category": "CN Equity", "color": "#D62728", "currency": "CNY", "symbol": "¥"},
+    "000300.SS": {"name": "CSI 300", "category": "CN Equity", "color": "#D62728", "currency": "CNY", "symbol": ""},
     # HK Equity (港币计价 / HKD-denominated)
-    "^HSI": {"name": "Hang Seng", "category": "HK Equity", "color": "#FF7F0E", "currency": "HKD", "symbol": "$"},
+    "^HSI": {"name": "Hang Seng", "category": "HK Equity", "color": "#FF7F0E", "currency": "HKD", "symbol": ""},
     # JP Equity (日元计价 / JPY-denominated)
-    "^N225": {"name": "Nikkei 225", "category": "JP Equity", "color": "#E377C2", "currency": "JPY", "symbol": "¥"},
+    "^N225": {"name": "Nikkei 225", "category": "JP Equity", "color": "#E377C2", "currency": "JPY", "symbol": ""},
     # UK Equity (英镑计价 / GBP-denominated)
-    "^FTSE": {"name": "FTSE 100", "category": "UK Equity", "color": "#17BECF", "currency": "GBP", "symbol": "£"},
+    "^FTSE": {"name": "FTSE 100", "category": "UK Equity", "color": "#17BECF", "currency": "GBP", "symbol": ""},
     # EU Equity (欧元计价 / EUR-denominated)
-    "^GDAXI": {"name": "DAX", "category": "EU Equity", "color": "#BCBD22", "currency": "EUR", "symbol": "€"},
+    "^GDAXI": {"name": "DAX", "category": "EU Equity", "color": "#BCBD22", "currency": "EUR", "symbol": ""},
     # KR Equity (韩元计价 / KRW-denominated)
-    "^KS11": {"name": "KOSPI", "category": "KR Equity", "color": "#4A90E2", "currency": "KRW", "symbol": "₩"},
+    "^KS11": {"name": "KOSPI", "category": "KR Equity", "color": "#4A90E2", "currency": "KRW", "symbol": ""},
     # TW Equity (新台币计价 / TWD-denominated)
-    "^TWII": {"name": "TAIEX", "category": "TW Equity", "color": "#50E3C2", "currency": "TWD", "symbol": "$"},
+    "^TWII": {"name": "TAIEX", "category": "TW Equity", "color": "#50E3C2", "currency": "TWD", "symbol": ""},
     # IN Equity (印度卢比计价 / INR-denominated)
-    "^NSEI": {"name": "Nifty 50", "category": "IN Equity", "color": "#F5A623", "currency": "INR", "symbol": "₹"},
+    "^NSEI": {"name": "Nifty 50", "category": "IN Equity", "color": "#F5A623", "currency": "INR", "symbol": ""},
     # Currencies (汇率 / Exchange rates)
     "DX-Y.NYB": {"name": "US Dollar Index", "category": "Currency", "color": "#7F7F7F", "currency": "Index", "symbol": ""},
     "CNY=X": {"name": "USD/CNY", "category": "Currency", "color": "#8C564B", "currency": "Rate", "symbol": ""},

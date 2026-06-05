@@ -278,6 +278,17 @@ class TestProfilePersistence:
         assert len(loaded.goals) == len(sample_profile.goals)
         assert loaded.risk_profile.ability_score == sample_profile.risk_profile.ability_score
 
+    def test_save_and_load_with_answers(self, sample_profile):
+        """Should save and load raw questionnaire answers correctly."""
+        sample_profile.ability_answers = {"income_stability": "stable"}
+        sample_profile.willingness_answers = {"loss_reaction": "do_nothing"}
+        filepath = save_profile(sample_profile)
+        assert filepath.exists()
+
+        loaded = load_profile(filepath)
+        assert loaded.ability_answers == {"income_stability": "stable"}
+        assert loaded.willingness_answers == {"loss_reaction": "do_nothing"}
+
     def test_save_creates_directory(self, monkeypatch, tmp_path):
         """save_profile should create the profiles directory if it doesn't exist."""
         new_dir = tmp_path / "nonexistent" / "profiles"

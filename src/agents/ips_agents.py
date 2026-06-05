@@ -28,6 +28,8 @@ from typing import Optional
 
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.settings import ModelSettings
 
 from src.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
 from src.agents.ips_models import IPSDocument, ReviewResult, ReviewDimension
@@ -43,8 +45,8 @@ def _get_model() -> OpenAIModel:
     """
     Create PydanticAI model pointing to DeepSeek V4 Pro.
 
-    Uses the OpenAI-compatible interface since DeepSeek's API
-    follows the OpenAI chat completions protocol.
+    Uses OpenAIProvider with the OpenAI-compatible interface
+    since DeepSeek's API follows the OpenAI chat completions protocol.
 
     Returns:
         Configured OpenAIModel instance.
@@ -57,10 +59,16 @@ def _get_model() -> OpenAIModel:
             "DEEPSEEK_API_KEY is not configured. "
             "Please set it in your .env file."
         )
-    return OpenAIModel(
-        DEEPSEEK_MODEL,
+    provider = OpenAIProvider(
         base_url=DEEPSEEK_BASE_URL,
         api_key=DEEPSEEK_API_KEY,
+    )
+    # DeepSeek V4 Pro thinking mode is incompatible with
+    # PydanticAI's tool_choice="required" for structured output.
+    # Must be disabled via extra_body.
+    return OpenAIModel(
+        DEEPSEEK_MODEL,
+        provider=provider,
     )
 
 
@@ -211,6 +219,20 @@ _REVISER_SYSTEM_PROMPT = """你是一名持有 CFA® 三级证书的资深 IPS �
 
 
 # ============================================================
+# Shared Model Settings
+# ============================================================
+
+# DeepSeek V4 Pro defaults to "thinking mode" which rejects
+# tool_choice="required" (used by PydanticAI for structured output).
+# We explicitly disable thinking mode so function calling works.
+_MODEL_SETTINGS: ModelSettings = {
+    "temperature": 0.3,
+    "max_tokens": 16384,
+    "extra_body": {"thinking": {"type": "disabled"}},
+}
+
+
+# ============================================================
 # Agent Factory Functions
 # ============================================================
 
@@ -229,6 +251,7 @@ def create_ips_generator_agent() -> Agent[None, IPSDocument]:
         model=_get_model(),
         output_type=IPSDocument,
         system_prompt=_GENERATOR_SYSTEM_PROMPT,
+        model_settings=_MODEL_SETTINGS,
     )
 
 
@@ -246,6 +269,7 @@ def create_suitability_reviewer() -> Agent[None, ReviewResult]:
         model=_get_model(),
         output_type=ReviewResult,
         system_prompt=_SUITABILITY_REVIEW_PROMPT,
+        model_settings=_MODEL_SETTINGS,
     )
 
 
@@ -263,6 +287,7 @@ def create_compliance_reviewer() -> Agent[None, ReviewResult]:
         model=_get_model(),
         output_type=ReviewResult,
         system_prompt=_COMPLIANCE_REVIEW_PROMPT,
+        model_settings=_MODEL_SETTINGS,
     )
 
 
@@ -280,6 +305,7 @@ def create_consistency_reviewer() -> Agent[None, ReviewResult]:
         model=_get_model(),
         output_type=ReviewResult,
         system_prompt=_CONSISTENCY_REVIEW_PROMPT,
+        model_settings=_MODEL_SETTINGS,
     )
 
 
@@ -297,6 +323,7 @@ def create_ips_reviser_agent() -> Agent[None, IPSDocument]:
         model=_get_model(),
         output_type=IPSDocument,
         system_prompt=_REVISER_SYSTEM_PROMPT,
+        model_settings=_MODEL_SETTINGS,
     )
 
 

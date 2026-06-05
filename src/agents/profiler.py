@@ -246,6 +246,10 @@ class ClientProfile:
     # === 风险评估 / Risk Assessment ===
     risk_profile: RiskProfile = field(default_factory=RiskProfile)
 
+    # === 问卷原始回答 / Questionnaire Answers ===
+    ability_answers: dict[str, str] = field(default_factory=dict)
+    willingness_answers: dict[str, str] = field(default_factory=dict)
+
     # === 元数据 / Metadata ===
     created_at: str = ""
     updated_at: str = ""

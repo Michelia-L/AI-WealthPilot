@@ -55,8 +55,8 @@ def _render_basic_info() -> dict:
 
     col1, col2 = st.columns(2)
     with col1:
-        name = st.text_input("Name / 姓名", value="", placeholder="e.g., Zhang San")
-        age = st.number_input("Age / 年龄", min_value=18, max_value=100, value=30)
+        name = st.text_input("Name / 姓名", key="profile_name", placeholder="e.g., Zhang San")
+        age = st.number_input("Age / 年龄", min_value=18, max_value=100, key="profile_age")
     with col2:
         marital_status = st.selectbox(
             "Marital Status / 婚姻状况",
@@ -67,10 +67,11 @@ def _render_basic_info() -> dict:
                 "divorced": "Divorced / 离异",
                 "widowed": "Widowed / 丧偶",
             }[x],
+            key="profile_marital_status",
         )
         dependents = st.number_input(
             "Number of dependents / 受抚养人数",
-            min_value=0, max_value=20, value=0,
+            min_value=0, max_value=20, key="profile_dependents",
         )
 
     return {
@@ -102,24 +103,29 @@ def _render_financial_situation() -> dict:
     with col1:
         annual_income = st.number_input(
             "Annual income ($) / 年收入",
-            min_value=0, value=100_000, step=10_000, format="%d",
+            min_value=0, step=10_000, format="%d",
+            key="profile_annual_income",
         )
         investable_assets = st.number_input(
             "Investable assets ($) / 可投资资产",
-            min_value=0, value=200_000, step=10_000, format="%d",
+            min_value=0, step=10_000, format="%d",
+            key="profile_investable_assets",
         )
         emergency_fund_months = st.number_input(
             "Emergency fund (months of expenses) / 应急基金（月数）",
-            min_value=0.0, value=6.0, step=1.0,
+            min_value=0.0, step=1.0,
+            key="profile_emergency_fund_months",
         )
     with col2:
         annual_expenses = st.number_input(
             "Annual expenses ($) / 年支出",
-            min_value=0, value=60_000, step=5_000, format="%d",
+            min_value=0, step=5_000, format="%d",
+            key="profile_annual_expenses",
         )
         total_liabilities = st.number_input(
             "Total liabilities ($) / 负债总额",
-            min_value=0, value=0, step=10_000, format="%d",
+            min_value=0, step=10_000, format="%d",
+            key="profile_total_liabilities",
         )
 
     return {
@@ -411,12 +417,81 @@ def render() -> None:
         6. Additional settings / 附加设置
         7. Generate & save profile / 生成并保存画像
     """
+    # === Initialize session state values for form fields ===
+    if "profile_name" not in st.session_state:
+        st.session_state.profile_name = ""
+    if "profile_age" not in st.session_state:
+        st.session_state.profile_age = 30
+    if "profile_marital_status" not in st.session_state:
+        st.session_state.profile_marital_status = "single"
+    if "profile_dependents" not in st.session_state:
+        st.session_state.profile_dependents = 0
+    if "profile_annual_income" not in st.session_state:
+        st.session_state.profile_annual_income = 100_000
+    if "profile_investable_assets" not in st.session_state:
+        st.session_state.profile_investable_assets = 200_000
+    if "profile_emergency_fund_months" not in st.session_state:
+        st.session_state.profile_emergency_fund_months = 6.0
+    if "profile_annual_expenses" not in st.session_state:
+        st.session_state.profile_annual_expenses = 60_000
+    if "profile_total_liabilities" not in st.session_state:
+        st.session_state.profile_total_liabilities = 0
+    if "profile_esg_preference" not in st.session_state:
+        st.session_state.profile_esg_preference = False
+    if "profile_tax_status" not in st.session_state:
+        st.session_state.profile_tax_status = "taxable"
+    if "profile_sector_restrictions" not in st.session_state:
+        st.session_state.profile_sector_restrictions = ""
+    if "profile_notes" not in st.session_state:
+        st.session_state.profile_notes = ""
+
+    # Initialize questionnaire keys in session state
+    for q_key, q_data in RISK_ABILITY_QUESTIONS.items():
+        key = f"ability_{q_key}"
+        if key not in st.session_state:
+            st.session_state[key] = list(q_data["options"].keys())[0]
+
+    for q_key, q_data in RISK_WILLINGNESS_QUESTIONS.items():
+        key = f"willingness_{q_key}"
+        if key not in st.session_state:
+            st.session_state[key] = list(q_data["options"].keys())[0]
+
     st.title("⌬ Client Profiling / 客户画像")
     st.markdown(
         "Complete the questionnaire below to generate your investment profile "
         "based on the CFA Investment Policy Statement (IPS) framework. / "
         "填写以下问卷，基于 CFA 投资政策声明（IPS）框架生成你的投资画像。"
     )
+
+    # Check if in edit mode and show warning/cancel option
+    is_editing = "editing_profile_path" in st.session_state and st.session_state.editing_profile_path is not None
+    if is_editing:
+        st.warning(f"📝 **Currently Editing Profile / 正在编辑画像:** `{Path(st.session_state.editing_profile_path).name}`")
+        if st.button("❌ Cancel Edit / 取消编辑", key="cancel_edit_top"):
+            # Reset values
+            st.session_state.editing_profile_path = None
+            st.session_state.profile_name = ""
+            st.session_state.profile_age = 30
+            st.session_state.profile_marital_status = "single"
+            st.session_state.profile_dependents = 0
+            st.session_state.profile_annual_income = 100_000
+            st.session_state.profile_investable_assets = 200_000
+            st.session_state.profile_emergency_fund_months = 6.0
+            st.session_state.profile_annual_expenses = 60_000
+            st.session_state.profile_total_liabilities = 0
+            st.session_state.profile_esg_preference = False
+            st.session_state.profile_tax_status = "taxable"
+            st.session_state.profile_sector_restrictions = ""
+            st.session_state.profile_notes = ""
+            st.session_state.goals = [
+                {"name": "Retirement / 退休", "target_amount": 2_000_000, "years": 30, "priority": "high"},
+            ]
+            # Clear dynamic goal keys
+            keys_to_delete = [k for k in st.session_state.keys() if k.startswith(("goal_name_", "goal_amount_", "goal_years_", "goal_priority_"))]
+            for k in keys_to_delete:
+                del st.session_state[k]
+            st.rerun()
+
     st.divider()
 
     # ====================================
@@ -463,7 +538,7 @@ def render() -> None:
     with col1:
         esg_preference = st.checkbox(
             "ESG investing preference / 偏好 ESG 投资",
-            value=False,
+            key="profile_esg_preference",
         )
         tax_status = st.selectbox(
             "Tax status / 税务状况",
@@ -473,15 +548,18 @@ def render() -> None:
                 "tax-exempt": "Tax-exempt / 免税",
                 "tax-deferred": "Tax-deferred / 延税",
             }[x],
+            key="profile_tax_status",
         )
     with col2:
         sector_restrictions = st.text_input(
             "Sector restrictions (comma-separated) / 行业限制（逗号分隔）",
             placeholder="e.g., Tobacco, Gambling",
+            key="profile_sector_restrictions",
         )
         notes = st.text_area(
             "Additional notes / 其他备注",
             placeholder="Any other information relevant to your investment plan...",
+            key="profile_notes",
         )
 
     st.divider()
@@ -491,7 +569,9 @@ def render() -> None:
     # ====================================
     st.markdown("#### ✦ Generate Profile / 生成画像")
 
-    if st.button("🧮 Generate My Profile / 生成我的画像", type="primary"):
+    button_label = "💾 Update Profile / 更新我的画像" if is_editing else "🧮 Generate My Profile / 生成我的画像"
+    
+    if st.button(button_label, type="primary"):
         # 基本校验 / Basic validation
         if not basic["name"].strip():
             st.error("❌ Please enter your name. / 请输入你的姓名。")
@@ -516,11 +596,21 @@ def render() -> None:
             ],
             notes=notes,
             risk_profile=risk_profile,
+            ability_answers=ability_answers,
+            willingness_answers=willingness_answers,
         )
 
-        # 保存画像 / Save profile
-        filepath = save_profile(profile)
-        st.success(f"✅ Profile saved to `{filepath.name}` / 画像已保存")
+        if is_editing:
+            # 更新已存在画像 / Update existing profile
+            from src.agents.profiler import update_profile
+            filepath = update_profile(Path(st.session_state.editing_profile_path), profile)
+            st.success(f"✅ Profile updated in `{filepath.name}` / 画像已更新")
+            # Clear edit state
+            st.session_state.editing_profile_path = None
+        else:
+            # 保存全新画像 / Save new profile
+            filepath = save_profile(profile)
+            st.success(f"✅ Profile saved to `{filepath.name}` / 画像已保存")
 
         # 展示画像摘要 / Display profile summary
         _render_profile_summary(profile)
@@ -534,15 +624,64 @@ def render() -> None:
     profiles = list_profiles()
     if profiles:
         for p in profiles:
-            col1, col2, col3, col4 = st.columns([2, 1, 2, 2])
+            col1, col2, col3, col4, col5 = st.columns([2, 1, 1.5, 1.5, 1.2])
             with col1:
                 st.write(f"**{p['name']}**")
             with col2:
                 st.write(f"Age: {p['age']}")
             with col3:
-                st.write(f"Risk: {p['risk_level']}")
+                st.write(f"Risk: {p['risk_level'].split(' / ')[-1]}")
             with col4:
-                st.caption(p["updated_at"][:19])
+                st.caption(p["updated_at"][:19].replace("T", " "))
+            with col5:
+                c_edit, c_del = st.columns(2)
+                with c_edit:
+                    if st.button("✏️", key=f"edit_prof_{p['filepath']}", help="Edit profile"):
+                        profile_to_edit = load_profile(Path(p['filepath']))
+                        st.session_state.editing_profile_path = p['filepath']
+                        st.session_state.profile_name = profile_to_edit.name
+                        st.session_state.profile_age = profile_to_edit.age
+                        st.session_state.profile_marital_status = profile_to_edit.marital_status
+                        st.session_state.profile_dependents = profile_to_edit.dependents
+                        st.session_state.profile_annual_income = profile_to_edit.financial.annual_income
+                        st.session_state.profile_investable_assets = profile_to_edit.financial.investable_assets
+                        st.session_state.profile_emergency_fund_months = profile_to_edit.financial.emergency_fund_months
+                        st.session_state.profile_annual_expenses = profile_to_edit.financial.annual_expenses
+                        st.session_state.profile_total_liabilities = profile_to_edit.financial.total_liabilities
+                        st.session_state.goals = [
+                            {
+                                "name": g.name,
+                                "target_amount": g.target_amount,
+                                "years": g.years,
+                                "priority": g.priority
+                            }
+                            for g in profile_to_edit.goals
+                        ]
+                        st.session_state.profile_esg_preference = profile_to_edit.esg_preference
+                        st.session_state.profile_tax_status = profile_to_edit.tax_status
+                        st.session_state.profile_sector_restrictions = ", ".join(profile_to_edit.sector_restrictions)
+                        st.session_state.profile_notes = profile_to_edit.notes
+                        
+                        # Load questionnaire answers if they exist
+                        for q_key in RISK_ABILITY_QUESTIONS.keys():
+                            if hasattr(profile_to_edit, "ability_answers") and q_key in profile_to_edit.ability_answers:
+                                st.session_state[f"ability_{q_key}"] = profile_to_edit.ability_answers[q_key]
+                        for q_key in RISK_WILLINGNESS_QUESTIONS.keys():
+                            if hasattr(profile_to_edit, "willingness_answers") and q_key in profile_to_edit.willingness_answers:
+                                st.session_state[f"willingness_{q_key}"] = profile_to_edit.willingness_answers[q_key]
+                        
+                        # Delete any stale dynamic goal keys
+                        keys_to_delete = [k for k in st.session_state.keys() if k.startswith(("goal_name_", "goal_amount_", "goal_years_", "goal_priority_"))]
+                        for k in keys_to_delete:
+                            del st.session_state[k]
+                        st.rerun()
+                with c_del:
+                    if st.button("🗑️", key=f"del_prof_{p['filepath']}", help="Delete profile"):
+                        from src.agents.profiler import delete_profile
+                        if delete_profile(Path(p['filepath'])):
+                            if st.session_state.get("editing_profile_path") == p['filepath']:
+                                st.session_state.editing_profile_path = None
+                            st.rerun()
     else:
         st.info("No profiles saved yet. / 尚无已保存的画像。")
 

@@ -271,6 +271,18 @@ def _render_top_controls() -> Dict[str, Any]:
     }
 
 
+@st.cache_data(ttl=300, show_spinner="Fetching historical prices... / 正在拉取历史价格数据...")
+def _cached_fetch_price_history(tickers: Tuple[str, ...], period: str) -> Optional[pd.DataFrame]:
+    """
+    Cached wrapper for fetch_price_history.
+    获取历史收盘价数据的缓存包装函数，缓存 5 分钟。
+    """
+    try:
+        return fetch_price_history(list(tickers), period=period)
+    except Exception:
+        return None
+
+
 def _fetch_and_prepare_data(
     selected_keys: List[str],
     period: str,
@@ -288,7 +300,7 @@ def _fetch_and_prepare_data(
     tickers = [DEFAULT_ASSET_CLASSES[key]["ticker"] for key in selected_keys]
     names = [DEFAULT_ASSET_CLASSES[key]["name"] for key in selected_keys]
 
-    prices = fetch_price_history(tickers, period=period)
+    prices = _cached_fetch_price_history(tuple(tickers), period)
 
     if prices is None or prices.empty:
         return None
@@ -299,6 +311,7 @@ def _fetch_and_prepare_data(
     returns = compute_returns(prices, method="simple")
 
     return returns
+
 
 
 @st.cache_data
