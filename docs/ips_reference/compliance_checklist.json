@@ -1,0 +1,157 @@
+{
+  "version": "1.0",
+  "description": "IPS 合规检查清单 — 对标 CFA Level III PWM 框架",
+  "dimensions": {
+    "suitability": {
+      "name": "适配性检查",
+      "description": "验证 IPS 内容与客户实际情况的匹配度",
+      "checks": [
+        {
+          "id": "S001",
+          "name": "风险等级匹配",
+          "description": "IPS 中的风险等级是否与客户风险评估结果一致",
+          "severity": "critical",
+          "rule": "IPS 风险等级 == ClientProfile 最终风险等级"
+        },
+        {
+          "id": "S002",
+          "name": "能力-意愿冲突处理",
+          "description": "如果客户的能力和意愿评分存在冲突（差值 >= 1.0），IPS 是否采用了较低值并说明了冲突处理",
+          "severity": "critical",
+          "rule": "当 |ability - willingness| >= 1.0 时，final_score = min(ability, willingness) 且 conflict_resolution 字段非空"
+        },
+        {
+          "id": "S003",
+          "name": "收益目标可实现性",
+          "description": "所需收益率是否在客户风险等级可承受的合理范围内",
+          "severity": "critical",
+          "rule": "保守型 <= 5%, 稳健型 <= 7%, 平衡型 <= 10%, 成长型 <= 13%, 进取型 <= 16%"
+        },
+        {
+          "id": "S004",
+          "name": "投资期限匹配",
+          "description": "资产配置的风险水平是否与投资期限匹配（短期限应低风险）",
+          "severity": "warning",
+          "rule": "投资期限 < 5 年时，权益类配置不应超过 40%"
+        },
+        {
+          "id": "S005",
+          "name": "流动性需求充足性",
+          "description": "IPS 的流动性安排是否满足客户的即时和持续性现金需求",
+          "severity": "critical",
+          "rule": "现金等价物配置 >= 即时流动性需求 / 可投资资产总额"
+        },
+        {
+          "id": "S006",
+          "name": "应急基金覆盖",
+          "description": "是否建议了足够的应急储备（通常 3-6 个月支出）",
+          "severity": "warning",
+          "rule": "建议应急储备 >= 3 个月支出"
+        },
+        {
+          "id": "S007",
+          "name": "投资目标优先级反映",
+          "description": "高优先级的投资目标是否在资产配置中得到了充分反映",
+          "severity": "warning",
+          "rule": "高优先级目标对应的所需收益率应在配置方案的预期收益率范围内"
+        }
+      ]
+    },
+    "compliance": {
+      "name": "合规性检查",
+      "description": "验证 IPS 是否符合监管要求和行业规范",
+      "checks": [
+        {
+          "id": "C001",
+          "name": "风险披露完整性",
+          "description": "IPS 是否包含完整的风险披露声明",
+          "severity": "critical",
+          "rule": "risk_disclosure 字段非空且包含市场风险、模型局限性、历史业绩不代表未来等关键要素"
+        },
+        {
+          "id": "C002",
+          "name": "合规声明存在性",
+          "description": "IPS 是否包含合规声明",
+          "severity": "critical",
+          "rule": "compliance_statement 字段非空"
+        },
+        {
+          "id": "C003",
+          "name": "权重约束合法性",
+          "description": "所有资产类别权重之和是否为 100%，且各权重在合理范围内",
+          "severity": "critical",
+          "rule": "sum(target_weight) == 100% 且 0% <= target_weight <= 100%"
+        },
+        {
+          "id": "C004",
+          "name": "禁止投资工具声明",
+          "description": "如客户有行业限制或 ESG 偏好，是否在禁止投资工具中反映",
+          "severity": "warning",
+          "rule": "当客户有 sector_restrictions 时，prohibited_instruments 应包含对应限制"
+        },
+        {
+          "id": "C005",
+          "name": "适当性原则",
+          "description": "推荐的投资工具是否符合客户的风险等级和投资知识水平",
+          "severity": "critical",
+          "rule": "保守型和稳健型客户不应被推荐高杠杆或高风险另类投资工具"
+        },
+        {
+          "id": "C006",
+          "name": "法律约束完整性",
+          "description": "是否识别并记录了适用的法律法规约束",
+          "severity": "warning",
+          "rule": "legal.applicable_regulations 字段非空"
+        }
+      ]
+    },
+    "consistency": {
+      "name": "一致性检查",
+      "description": "验证 IPS 各章节之间的内部逻辑一致性",
+      "checks": [
+        {
+          "id": "I001",
+          "name": "风险等级与配置一致性",
+          "description": "声明的风险等级是否与实际资产配置的风险水平一致",
+          "severity": "critical",
+          "rule": "保守型权益类 <= 30%, 稳健型 <= 45%, 平衡型 <= 60%, 成长型 <= 75%, 进取型 <= 90%"
+        },
+        {
+          "id": "I002",
+          "name": "收益目标与配置一致性",
+          "description": "声明的收益目标是否与资产配置的预期收益率一致",
+          "severity": "warning",
+          "rule": "配置方案的预期收益率应能合理覆盖所需收益率"
+        },
+        {
+          "id": "I003",
+          "name": "期限与配置一致性",
+          "description": "投资期限章节的分析是否与资产配置章节的配置逻辑一致",
+          "severity": "warning",
+          "rule": "长期限的合理性说明应与较高权益配置相匹配"
+        },
+        {
+          "id": "I004",
+          "name": "执行摘要一致性",
+          "description": "执行摘要中的概括是否与各章节的详细内容一致",
+          "severity": "info",
+          "rule": "摘要中的风险等级、配置概要应与详细章节匹配"
+        },
+        {
+          "id": "I005",
+          "name": "特殊情况与投资指引一致性",
+          "description": "特殊情况（如 ESG 偏好、行业限制）是否在投资指引中得到反映",
+          "severity": "warning",
+          "rule": "unique_circumstances 中的限制应在 investment_guidelines 的 prohibited_instruments 中体现"
+        },
+        {
+          "id": "I006",
+          "name": "再平衡策略一致性",
+          "description": "投资指引中的再平衡政策是否与监控章节的触发条件一致",
+          "severity": "info",
+          "rule": "两个章节中的再平衡频率和触发条件应一致"
+        }
+      ]
+    }
+  }
+}
