@@ -11,6 +11,8 @@
 
   [![Python](https://img.shields.io/badge/Python-3.11+-blue?style=flat-square&logo=python&logoColor=white)](https://www.python.org)
   [![Streamlit](https://img.shields.io/badge/Framework-Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)](https://streamlit.io)
+  [![LangGraph](https://img.shields.io/badge/Agent-LangGraph-9f1239?style=flat-square&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
+  [![PydanticAI](https://img.shields.io/badge/Framework-Pydantic--AI-0284c7?style=flat-square)](https://ai.pydantic.dev/)
   [![CFA](https://img.shields.io/badge/CFA-Level%20III%20PWM-gold?style=flat-square)](https://www.cfainstitute.org)
   [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
   [![Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=flat-square)](https://github.com/Michelia-L/AI-WealthPilot/actions)
@@ -50,12 +52,16 @@
   提供只惩罚下行波动的 **Sortino Ratio (索提诺比率)**，并基于历史模拟法提供高精度的日度 **VaR (在险价值)** 与 **CVaR (条件在险价值/预期亏损)** 评估，特别适用于非对称、肥尾分布资产。
 - 👥 **多客户画像对比分析系统**  
   支持多客户画像的横向对比与全景洞察，自动计算风险偏好、储蓄率、行为偏差等维度的差异，并生成结构化的对比 JSON 报告与分析洞察。
+- 🕸️ **LangGraph 多智能体闭环 IPS 工作流（生成-审查-修订）**  
+  基于 `LangGraph` 与 `PydanticAI` 构建了生产级的多智能体自动化审批链。系统模拟真实的私人银行合规审查流程，由 **IPS 生成 Agent** 编排初稿，再经由三个独立专家 Agent 从**适配性**（客户需求错配）、**合规性**（法律条文准入与权重极值）和**一致性**（前后章节数学逻辑闭环）三个维度进行多轮严苛的辩论与流式自我纠偏，并留存完备的合规审计追踪（Audit Trail）。
+- ⧉ **Black-Litterman 观点集成优化引擎**  
+  支持基于反向 CAPM 原理从资产市值权重中剥离出市场隐含均衡收益率（Prior），并允许用户注入个性化的绝对观点或相对观点（含自定义置信度矩阵）。通过贝叶斯推断将均衡 Baseline 与投资者观点无缝融合，有效解决传统均值-方差优化（MVO）对历史数据估计误差高敏感、容易产生极端资产配比的痛点。
 - 🤖 **AI 顾问 Agent**  
   基于先进大语言模型 (`DeepSeek V4 Pro`) 深度分析客户多维指标，识别其可能存在的行为金融偏差（如损失厌恶、过度自信），生成专业、合规的流式理财建议书。
 - 📄 **多格式高级文档导出**  
   支持将 AI 顾问建议书无缝转换为独立的、带有精美内嵌 CSS 样式的 HTML 文档、Markdown 以及原生 JSON，便于跨平台分发和打印。
-- 📊 **金融终端级视觉交互**  
-  基于 Streamlit 定制的深色调金融终端，搭载多维 Plotly 交互式图表，实现缩放、悬浮提示和多路径拟合曲线的高清渲染。
+- 📊 **黑曜石黄金玻璃微凸金融终端 (Obsidian & Gold Glassmorphic UI)**  
+  基于 Streamlit 深度定制，融合高端黑曜石底色与黄金磨砂玻璃微凸起视觉设计语言，搭载多维 Plotly 交互式图表，实现缩放、悬浮提示和多路径拟合曲线的高清渲染，完美还原顶级金融机构终端的品质感。
 
 ---
 
@@ -71,6 +77,7 @@ graph TB
         P2[Portfolio Optimizer Page]
         P3[Retirement Planner Page]
         P4[Client Profiling Page]
+        P5[AI Advisor Page]
     end
 
     subgraph Quant_Engine ["Quantitative Finance Engine"]
@@ -79,19 +86,26 @@ graph TB
         RM[Risk Metrics Evaluator<br/>VaR / CVaR / Sortino / Drawdown]
     end
 
-    subgraph AI_Layer ["AI Agent & Knowledge Layer"]
-        Agent[AI Advisor Agent<br/>DeepSeek V4 Pro]
-        RAG[RAG Vector Base<br/>ChromaDB + LangChain]
-        CFA_KB[(CFA Curriculum &<br/>PWM Regulation Base)]
+    subgraph Multi_Agent_IPS ["LangGraph Multi-Agent IPS Pipeline"]
+        Gen[Generator Agent<br/>PydanticAI Draft]
+        Rev_S[Suitability Reviewer]
+        Rev_C[Compliance Reviewer]
+        Rev_Co[Consistency Reviewer]
+        Reviser[Reviser Agent<br/>Precision Fix]
+        
+        Gen --> Rev_S --> Rev_C --> Rev_Co
+        Rev_Co -- "Issues Found" --> Reviser --> Gen
+        Rev_Co -- "All Passed / Max Loops" --> Final[Finalize & Audit]
     end
 
     subgraph Data_Layer ["Data Pipeline & Persistence"]
         YF[yfinance API<br/>Real-time Quotes]
         JSON_DB[(Client Profiles<br/>JSON Document Store)]
+        IPS_DB[(IPS & Audit Trail<br/>JSON Store)]
     end
 
     %% UI Routing
-    UI --> P1 & P2 & P3 & P4
+    UI --> P1 & P2 & P3 & P4 & P5
 
     %% Market Data Flow
     P1 --> YF
@@ -109,21 +123,22 @@ graph TB
 
     %% Profiling Flow
     P4 --> JSON_DB
-    JSON_DB --> Agent
-
-    %% AI Agent & RAG Flow
-    Agent --> RAG
-    RAG --> CFA_KB
-    Agent --> P4
+    JSON_DB --> Gen
+    
+    %% Storage Flow
+    Final --> IPS_DB
+    P5 --> IPS_DB
     
     style UI fill:#4f46e5,stroke:#312e81,color:#fff
     style MVO fill:#0284c7,stroke:#075985,color:#fff
     style MC fill:#0284c7,stroke:#075985,color:#fff
     style RM fill:#0ea5e9,stroke:#0369a1,color:#fff
-    style Agent fill:#7c3aed,stroke:#5b21b6,color:#fff
-    style RAG fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style Multi_Agent_IPS fill:#5b21b6,stroke:#4c1d95,color:#fff
+    style Gen fill:#7c3aed,stroke:#5b21b6,color:#fff
+    style Reviser fill:#7c3aed,stroke:#5b21b6,color:#fff
     style YF fill:#059669,stroke:#064e3b,color:#fff
     style JSON_DB fill:#10b981,stroke:#065f46,color:#fff
+    style IPS_DB fill:#10b981,stroke:#065f46,color:#fff
 ```
 
 ---
@@ -142,6 +157,8 @@ graph TB
     $$\min_{c} \le \sum_{i \in \mathcal{C}_c} w_i \le \max_{c} \quad (\text{资产类别群组约束})$$
 
 其中 $w \in \mathbb{R}^N$ 为投资资产权重向量，$\Sigma \in \mathbb{R}^{N \times N}$ 为年化资产协方差矩阵，$\mu \in \mathbb{R}^N$ 为年化资产预期收益率向量，$\mathcal{C}_c$ 为属于资产类别群组 $c$ 的资产索引集合。
+
+*注：在资产配置优化（MVO）中，我们采用传统的**算术收益率**，因为资产组合的预期收益具有横截面可加性（即 $R_p = w^T \mu$）。*
 
 ### 2. 协方差收缩与数值正则化
 为了降低估计误差和噪声，多资产协方差矩阵 $\Sigma$ 可以使用收缩估计量进行估计，或在条件数过大时进行正则化：
@@ -168,8 +185,15 @@ $$\max_{w} \text{Sharpe} = \frac{w^T \mu - R_f}{\sqrt{w^T \Sigma w}}$$
 
 $$S_{t+\Delta t} = S_t \exp \left( \left(\mu - \frac{1}{2}\sigma^2\right)\Delta t + \sigma \sqrt{\Delta t} Z_t \right)$$
 
-- **积累阶段**：$V_{t+1} = V_t e^{(\mu - \frac{1}{2}\sigma^2) + \sigma Z_t} + \text{Annual Savings}$
-- **分配阶段**：$V_{t+1} = V_t e^{(\mu_{new} - \frac{1}{2}\sigma^2_{new}) + \sigma_{new} Z_t} - \text{Annual Outflow}$
+- **积累阶段（Accumulation Phase）**：
+  $$V_{t+1} = V_t \exp \left( \left(\mu_{\text{acc}} - \frac{1}{2}\sigma_{\text{acc}}^2\right) + \sigma_{\text{acc}} Z_t \right) + \text{Annual Savings}$$
+- **分配阶段（Distribution/Retirement Phase）**：
+  $$V_{t+1} = V_t \exp \left( \left(\mu_{\text{dist}} - \frac{1}{2}\sigma_{\text{dist}}^2\right) + \sigma_{\text{dist}} Z_t \right) - \text{Nominal Withdrawal}_t$$
+  其中，名义提取额名义值会随通胀逐年进行动态修正：
+  $$\text{Nominal Withdrawal}_t = \text{Desired Real Income} \times (1 + \gamma)^{T_{\text{accum}} + t}$$
+  其中 $\gamma$ 代表年化通货膨胀率假设，$T_{\text{accum}}$ 为工作积累期年数，以确保模型精确维护退休后的实际购买力支出需求，完全契合 CFA 考纲对长寿风险与通胀侵蚀的定量度量。
+
+*注：在进行长周期、多期的资产路径模拟中，由于单期收益率的复利效应和波动率拖累（Volatility Drag），我们必须采用对数收益率（几何均值收益率），它具有时间可加性。引入的 $-\frac{1}{2}\sigma^2$ 项为 Jensen 不等式修正，能够消除对多期累计财富的系统性高估。*
 
 ### 5. 尾部风险与下行偏差统计
 - **下行偏差 ($\sigma_{\text{downside}}$)**：仅对低于零或无风险收益率的波动进行惩罚。
@@ -187,6 +211,7 @@ AI-WealthPilot/
 ├── src/
 │   ├── app.py                    # Streamlit 主程序入口与导航
 │   ├── config.py                 # 核心配置（13类资产配置）、超参数与系统设置
+│   ├── utils.py                  # 通用工具函数（文件名清洗等）
 │   ├── portfolio/                # 【量化计算引擎】
 │   │   ├── optimizer.py          # MVO 求解器、切点优化、狄利克雷随机散点生成
 │   │   ├── simulator.py          # GBM 模拟器、退休两阶段生命周期生成器
@@ -197,32 +222,46 @@ AI-WealthPilot/
 │   ├── visualization/            # 【图表渲染组件】
 │   │   └── charts.py             # Plotly 交互式专业图表
 │   ├── views/                    # 【Streamlit 视图页面】
+│   │   ├── styles.py             # 黑色黄金微凸起视觉效果 CSS 注入模块
 │   │   ├── market_dashboard.py   # 跨资产行情监控与相关性热力图
 │   │   ├── portfolio_optimizer.py# MVO & Black-Litterman 配置界面
 │   │   ├── retirement_planner.py # 蒙特卡洛财富寿命规划器
 │   │   ├── client_profiling.py   # CFA IPS 问卷与客户档案库
 │   │   └── ai_advisor.py         # AI 顾问流式建议书交互页面
-│   ├── agents/                   # 【AI 顾问 Agent】
-│   │   ├── profiler.py           # 客户档案解析 Agent
-│   │   ├── advisor.py            # DeepSeek V4 Pro 建议书生成 Agent
-│   │   ├── portfolio_recommender.py # 个性化配置匹配 Agent
-│   │   └── report_storage.py     # JSON 格式建议书持久化存储
+│   ├── agents/                   # 【AI 决策与智能体层】
+│   │   ├── profiler.py           # 客户档案解析与行为金融偏差检测 Agent
+│   │   ├── advisor.py            # DeepSeek V4 Pro 建议书生成 Agent（流式）
+│   │   ├── portfolio_recommender.py # 客户画像-资产类别风险匹配 Agent
+│   │   ├── report_storage.py     # 建议书 PDF/JSON 格式持久化存储
+│   │   ├── ips_models.py         # CFA-IPS 核心七要素 Pydantic 强类型数据模型
+│   │   ├── ips_agents.py         # 基于 PydanticAI 的生成/多审查员/修订 Agent 定义
+│   │   ├── ips_workflow.py       # 基于 LangGraph 的多智能体闭环工作流状态机
+│   │   └── ips_storage.py        # 投资政策声明书及审计历史的本地存储与 MD 导出器
 │   └── rag/                      # 【RAG 知识库】(开发规划中)
 ├── tests/                        # 【自动化测试套件】
-│   ├── test_portfolio.py         # 核心量化引擎单元测试
+│   ├── conftest.py               # Pytest 全局共享 Mock 夹具与配置
+│   ├── test_portfolio.py         # MVO/BL 核心量化引擎单元测试
 │   ├── test_profiler.py          # 客户风险评估双轨制逻辑测试 (22个用例)
-│   ├── test_black_litterman.py   # Black-Litterman 模型计算测试
+│   ├── test_black_litterman.py   # Black-Litterman 计算矩阵测试
 │   ├── test_advanced_portfolio.py# 重抽样有效前沿与矩阵正则化测试
 │   ├── test_advisor.py           # DeepSeek 顾问 Agent 集成测试
+│   ├── test_market_data.py       # 异步行情接口及缓存加载测试
+│   ├── test_ips_models.py        # IPS Pydantic 模型的严格约束边界测试
+│   ├── test_ips_workflow.py      # LangGraph 状态机生成-审查-修订循环测试
+│   ├── test_portfolio_recommender.py # 资产配置推荐建议一致性测试
+│   ├── test_comparison_export.py # 画像对比数据导出与格式化测试
+│   ├── test_views.py             # Streamlit 界面路由与风格注入安全性测试
 │   └── test_phase3_features.py   # 阶段3功能端到端集成测试
 ├── examples/                     # 【示例与演示脚本】
 │   ├── demo_quick.py             # 快速入门演示（MVO + BL + 蒙特卡洛）
 │   ├── demo_interview.py         # 对标 CFA 核心演示（MVO + 蒙特卡洛 + 风险指标）
 │   ├── demo_comprehensive.py     # 完整可视化演示（在浏览器中打开交互式 Plotly 图表）
-│   └── demo_advanced_optimization.py # 高级优化特性演示（矩阵正则化与重抽样 MVO）
+│   ├── demo_advanced_optimization.py # 高级优化特性演示（矩阵正则化与重抽样 MVO）
+│   └── demo_ips_generator.py     # LangGraph 驱动的 AI 编排 IPS 多轮迭代生成终端演示
 └── data/
     ├── profiles/                 # 客户画像 JSON 数据库
-    ├── reports/                  # 生成的建议书 JSON 数据库
+    ├── reports/                  # 生成的理财建议书数据库
+    ├── ips/                      # 生成的标准化 IPS 建议书及审计追踪文件
     └── sample/                   # 离线 benchmark 行情缓存
 ```
 
@@ -300,6 +339,9 @@ python examples/demo_advanced_optimization.py
 
 # 运行完整可视化演示（会在浏览器中自动打开交互式 Plotly 图表）
 python examples/demo_comprehensive.py
+
+# 运行多智能体 IPS 生成器演示（包含 PydanticAI + LangGraph 的生成-审查-修订工作流）
+python examples/demo_ips_generator.py
 ```
 
 ---

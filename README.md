@@ -11,6 +11,8 @@
 
   [![Python](https://img.shields.io/badge/Python-3.11+-blue?style=flat-square&logo=python&logoColor=white)](https://www.python.org)
   [![Streamlit](https://img.shields.io/badge/Framework-Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)](https://streamlit.io)
+  [![LangGraph](https://img.shields.io/badge/Agent-LangGraph-9f1239?style=flat-square&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
+  [![PydanticAI](https://img.shields.io/badge/Framework-Pydantic--AI-0284c7?style=flat-square)](https://ai.pydantic.dev/)
   [![CFA](https://img.shields.io/badge/CFA-Level%20III%20PWM-gold?style=flat-square)](https://www.cfainstitute.org)
   [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
   [![Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=flat-square)](https://github.com/Michelia-L/AI-WealthPilot/actions)
@@ -50,12 +52,16 @@ The system couples a **Modern Portfolio Theory (MPT)** optimization solver with 
   Computes downside risk metrics, including **Sortino Ratio** (penalizing only downside volatility), daily **Value at Risk (VaR)**, and **Conditional VaR (CVaR / Expected Shortfall)** via historical simulation.
 - 👥 **Multi-Client Profile Comparison**  
   Allows side-by-side comparison of different client portfolios and profiles, generating structured JSON comparative reports with automated behavioral finance and financial metrics insights.
+- 🕸️ **LangGraph Multi-Agent IPS Pipeline (Generate-Review-Revise)**  
+  Implements an institutional-grade, multi-agent automated workflow powered by `LangGraph` and `PydanticAI`. The system instantiates a fully automated, safety-critical refinement loop where an **IPS Generator Agent** drafts the strategy, followed by three independent expert verification agents cross-examining **Suitability** (client fit), **Compliance** (regulatory boundary), and **Consistency** (internal logic mathematical proofing), producing immutable regulatory audit trails.
+- ⧉ **Bayesian Black-Litterman Optimization Engine**  
+  Combines market-implied equilibrium returns (derived via reverse CAPM based on asset capitalization weights) with subjective investor views (supporting both absolute and relative directional views). This Bayesian combination effectively mitigates traditional MVO's severe sensitivity to historical parameter estimation errors.
 - 🤖 **AI Advisor Agent**  
   Employs LLMs (`DeepSeek V4 Pro`) to analyze client metrics, identify behavioral finance biases (e.g., loss aversion, overconfidence), and generate personalized wealth advisor proposals.
 - 📄 **Enhanced Multi-Format Document Export**  
   Supports seamless export of AI advisor recommendations to standalone HTML (styled with inline premium CSS), Markdown, and raw JSON documents.
-- 📊 **Institutional-Grade UI**  
-  Interactive dark-themed client terminal built with Streamlit and powered by custom multi-dimensional Plotly charts.
+- 📊 **Obsidian & Gold Glassmorphic UI**  
+  Institutional-grade terminal styled with premium Obsidian & Gold Glassmorphic financial aesthetics built with Streamlit and powered by custom multi-dimensional Plotly charts.
 
 ---
 
@@ -71,6 +77,7 @@ graph TB
         P2[Portfolio Optimizer Page]
         P3[Retirement Planner Page]
         P4[Client Profiling Page]
+        P5[AI Advisor Page]
     end
 
     subgraph Quant_Engine ["Quantitative Finance Engine"]
@@ -79,19 +86,26 @@ graph TB
         RM[Risk Metrics Evaluator<br/>VaR / CVaR / Sortino / Drawdown]
     end
 
-    subgraph AI_Layer ["AI Agent & Knowledge Layer"]
-        Agent[AI Advisor Agent<br/>DeepSeek V4 Pro]
-        RAG[RAG Vector Base<br/>ChromaDB + LangChain]
-        CFA_KB[(CFA Curriculum &<br/>PWM Regulation Base)]
+    subgraph Multi_Agent_IPS ["LangGraph Multi-Agent IPS Pipeline"]
+        Gen[Generator Agent<br/>PydanticAI Draft]
+        Rev_S[Suitability Reviewer]
+        Rev_C[Compliance Reviewer]
+        Rev_Co[Consistency Reviewer]
+        Reviser[Reviser Agent<br/>Precision Fix]
+        
+        Gen --> Rev_S --> Rev_C --> Rev_Co
+        Rev_Co -- "Issues Found" --> Reviser --> Gen
+        Rev_Co -- "All Passed / Max Loops" --> Final[Finalize & Audit]
     end
 
     subgraph Data_Layer ["Data Pipeline & Persistence"]
         YF[yfinance API<br/>Real-time Quotes]
         JSON_DB[(Client Profiles<br/>JSON Document Store)]
+        IPS_DB[(IPS & Audit Trail<br/>JSON Store)]
     end
 
     %% UI Routing
-    UI --> P1 & P2 & P3 & P4
+    UI --> P1 & P2 & P3 & P4 & P5
 
     %% Market Data Flow
     P1 --> YF
@@ -109,21 +123,22 @@ graph TB
 
     %% Profiling Flow
     P4 --> JSON_DB
-    JSON_DB --> Agent
-
-    %% AI Agent & RAG Flow
-    Agent --> RAG
-    RAG --> CFA_KB
-    Agent --> P4
+    JSON_DB --> Gen
+    
+    %% Storage Flow
+    Final --> IPS_DB
+    P5 --> IPS_DB
     
     style UI fill:#4f46e5,stroke:#312e81,color:#fff
     style MVO fill:#0284c7,stroke:#075985,color:#fff
     style MC fill:#0284c7,stroke:#075985,color:#fff
     style RM fill:#0ea5e9,stroke:#0369a1,color:#fff
-    style Agent fill:#7c3aed,stroke:#5b21b6,color:#fff
-    style RAG fill:#8b5cf6,stroke:#6d28d9,color:#fff
+    style Multi_Agent_IPS fill:#5b21b6,stroke:#4c1d95,color:#fff
+    style Gen fill:#7c3aed,stroke:#5b21b6,color:#fff
+    style Reviser fill:#7c3aed,stroke:#5b21b6,color:#fff
     style YF fill:#059669,stroke:#064e3b,color:#fff
     style JSON_DB fill:#10b981,stroke:#065f46,color:#fff
+    style IPS_DB fill:#10b981,stroke:#065f46,color:#fff
 ```
 
 ---
@@ -144,6 +159,8 @@ Given a covariance matrix and the expected returns of $N$ assets, the system sol
     $$\min_{c} \le \sum_{i \in \mathcal{C}_c} w_i \le \max_{c} \quad (\text{Asset Class Constraints})$$
 
 Where $w \in \mathbb{R}^N$ represents asset allocation weights, $\Sigma \in \mathbb{R}^{N \times N}$ is the annualized asset covariance matrix, $\mu \in \mathbb{R}^N$ is the annualized expected return vector, and $\mathcal{C}_c$ is the set of asset indices belonging to asset class group $c$.
+
+*Note: In the portfolio optimization stage (MVO), we use standard **arithmetic returns** since portfolio expected returns are cross-sectionally additive ($R_p = w^T \mu$).*
 
 ### 2. Covariance Shrinkage & Regularization
 To address estimation error and noise, the covariance matrix $\Sigma$ can be estimated using shrinkage estimators or regularized when the condition number is too large:
@@ -170,8 +187,15 @@ To compound returns realistically over long horizons, we simulate wealth paths u
 
 $$S_{t+\Delta t} = S_t \exp \left( \left(\mu - \frac{1}{2}\sigma^2\right)\Delta t + \sigma \sqrt{\Delta t} Z_t \right)$$
 
-- **Accumulation Phase**: $V_{t+1} = V_t e^{(\mu - \frac{1}{2}\sigma^2) + \sigma Z_t} + \text{Annual Savings}$
-- **Distribution Phase**: $V_{t+1} = V_t e^{(\mu_{new} - \frac{1}{2}\sigma^2_{new}) + \sigma_{new} Z_t} - \text{Annual Outflow}$
+- **Accumulation Phase**:
+  $$V_{t+1} = V_t \exp \left( \left(\mu_{\text{acc}} - \frac{1}{2}\sigma_{\text{acc}}^2\right) + \sigma_{\text{acc}} Z_t \right) + \text{Annual Savings}$$
+- **Distribution (Retirement) Phase**:
+  $$V_{t+1} = V_t \exp \left( \left(\mu_{\text{dist}} - \frac{1}{2}\sigma_{\text{dist}}^2\right) + \sigma_{\text{dist}} Z_t \right) - \text{Nominal Withdrawal}_t$$
+  Where the nominal retirement income adjusts dynamically for inflation over time:
+  $$\text{Nominal Withdrawal}_t = \text{Desired Real Income} \times (1 + \gamma)^{T_{\text{accum}} + t}$$
+  Here, $\gamma$ represents the assumed annualized inflation rate and $T_{\text{accum}}$ is the number of accumulation years. This ensures the model accurately preserves purchasing power, aligning with the CFA syllabus framework on longevity risk and inflation drag.
+
+*Note: For long-horizon, multi-period simulations, log-normal modeling (geometric/compound returns) is required because returns are time-additive. The $-\frac{1}{2}\sigma^2$ drift adjustment is the Jensen's Inequality correction, preventing systematic overestimation of long-term accumulated wealth.*
 
 ### 5. Downside Risk & Tail Risk Metrics
 - **Downside Deviation ($\sigma_{\text{downside}}$)**: penalizes only returns falling below zero or the risk-free rate:
@@ -189,6 +213,7 @@ AI-WealthPilot/
 ├── src/
 │   ├── app.py                    # Streamlit main entrypoint & navigation
 │   ├── config.py                 # Core assets (13 classes), hyperparameters & configs
+│   ├── utils.py                  # Utility functions (filename sanitization, etc.)
 │   ├── portfolio/                # [Quantitative Engine]
 │   │   ├── optimizer.py          # MVO solver, Tangency finder, Dirichlet weight simulator
 │   │   ├── simulator.py          # GBM simulator & retirement life-cycle generator
@@ -199,32 +224,46 @@ AI-WealthPilot/
 │   ├── visualization/            # [Chart Renderer]
 │   │   └── charts.py             # Plotly interactive chart components
 │   ├── views/                    # [Streamlit Pages]
+│   │   ├── styles.py             # Obsidian & Gold visual styling and premium CSS injections
 │   │   ├── market_dashboard.py   # Cross-asset quotes & correlation visualizers
 │   │   ├── portfolio_optimizer.py# MVO & Black-Litterman allocations
 │   │   ├── retirement_planner.py # Monte Carlo simulation planner
 │   │   ├── client_profiling.py   # CFA IPS questionnaire & profiles registry
 │   │   └── ai_advisor.py         # AI advisor proposal interface (streaming)
 │   ├── agents/                   # [AI Agent Core]
-│   │   ├── profiler.py           # Client profile parser agent
-│   │   ├── advisor.py            # DeepSeek V4 Pro report generator agent
+│   │   ├── profiler.py           # Client profile parser agent & behavioral bias identification
+│   │   ├── advisor.py            # DeepSeek V4 Pro report generator agent (streaming)
 │   │   ├── portfolio_recommender.py # Personalized asset allocator agent
-│   │   └── report_storage.py     # JSON proposal serializer
+│   │   ├── report_storage.py     # JSON proposal serializer & storage
+│   │   ├── ips_models.py         # CFA-aligned Investment Policy Statement Pydantic schemas
+│   │   ├── ips_agents.py         # PydanticAI agent definitions for generator, reviewer, reviser
+│   │   ├── ips_workflow.py       # LangGraph state machine orchestrating Generate-Review-Revise
+│   │   └── ips_storage.py        # Persistence and exports for IPS and audit trail reports
 │   └── rag/                      # [RAG Knowledge Base] (Planned)
 ├── tests/                        # [Automated Test Suite]
+│   ├── conftest.py               # Pytest fixtures and mock API configurations
 │   ├── test_portfolio.py         # Core quant engine validations
 │   ├── test_profiler.py          # Client profiling scoring models (22 cases)
 │   ├── test_black_litterman.py   # Black-Litterman model validations
 │   ├── test_advanced_portfolio.py# Resampled frontier & regularization tests
 │   ├── test_advisor.py           # DeepSeek advisor integration tests
+│   ├── test_market_data.py       # Async data fetching and cache testing
+│   ├── test_ips_models.py        # IPS data structures schemas tests
+│   ├── test_ips_workflow.py      # LangGraph Generate-Review-Revise loop execution tests
+│   ├── test_portfolio_recommender.py # Portfolio recommendation logic consistency tests
+│   ├── test_comparison_export.py # Profile comparison data exports tests
+│   ├── test_views.py             # Streamlit views routing and injection security tests
 │   └── test_phase3_features.py   # End-to-end features integration tests
 ├── examples/                     # [Demo & Showcase Scripts]
 │   ├── demo_quick.py             # Simple quick demo (MVO + BL + Monte Carlo)
 │   ├── demo_interview.py         # CFA-aligned core interview demo (MVO + MC + Risk)
 │   ├── demo_comprehensive.py     # Complete visual demo with Plotly charts opening in browser
-│   └── demo_advanced_optimization.py # Advanced regularization & Resampled MVO demo
+│   ├── demo_advanced_optimization.py # Advanced regularization & Resampled MVO demo
+│   └── demo_ips_generator.py     # Multi-Agent LangGraph workflow execution terminal demo
 └── data/
     ├── profiles/                 # Client profiles (JSON document store)
     ├── reports/                  # Generated AI proposals (JSON)
+    ├── ips/                      # Standardized IPS and audit trail storage folder
     └── sample/                   # Offline benchmark caches
 ```
 
@@ -302,6 +341,9 @@ python examples/demo_advanced_optimization.py
 
 # Run the comprehensive demo with interactive Plotly browser charts
 python examples/demo_comprehensive.py
+
+# Run the multi-agent LangGraph workflow demo (Generate-Review-Revise pipeline for IPS)
+python examples/demo_ips_generator.py
 ```
 
 ---
