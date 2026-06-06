@@ -605,15 +605,21 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
             cme_by_name[ac.name] = {
                 "expected_return": ac.expected_return,
                 "volatility": ac.volatility,
+                "var_95": ac.var_95,
+                "cvar_95": ac.cvar_95,
             }
 
         # Extract SAA weights and match to CME
         saa_issues: list[dict] = []
         total_weight = 0.0
-        matched_weights = []
-        matched_returns = []
-        matched_vols = []
-        matched_names = []
+        matched_weights: list[float] = []
+        matched_returns: list[float] = []
+        matched_vols: list[float] = []
+        matched_names: list[str] = []
+        matched_cme_names: list[str] = []   # CME-side names for correlation lookup
+        matched_vars: list[float] = []      # Per-asset 95% VaR
+        matched_cvars: list[float] = []     # Per-asset 95% CVaR
+        unmatched_assets: list[tuple[str, float]] = []  # (name, weight)
 
         for alloc in saa:
             asset_name = alloc.get("asset_class", "")
@@ -622,11 +628,13 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
 
             # Try to match SAA asset class to CME asset class
             cme_match = None
+            matched_cme_name = None
             for cme_name, cme_data in cme_by_name.items():
                 # Fuzzy match: check if CME name is contained in SAA name or vice versa
                 if (cme_name in asset_name or asset_name in cme_name
                         or _fuzzy_asset_match(asset_name, cme_name)):
                     cme_match = cme_data
+                    matched_cme_name = cme_name
                     break
 
             if cme_match and weight > 0:
@@ -634,6 +642,44 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                 matched_returns.append(cme_match["expected_return"])
                 matched_vols.append(cme_match["volatility"])
                 matched_names.append(asset_name)
+                matched_cme_names.append(matched_cme_name)
+                matched_vars.append(cme_match["var_95"])
+                matched_cvars.append(cme_match["cvar_95"])
+            elif weight > 0:
+                unmatched_assets.append((asset_name, weight))
+
+        # Validation 0: Unmatched asset check
+        if unmatched_assets:
+            unmatched_desc = ", ".join(
+                f"{name}({w:.1%})" for name, w in unmatched_assets
+            )
+            unmatched_total = sum(w for _, w in unmatched_assets)
+            saa_issues.append(ReviewIssue(
+                section="investment_guidelines",
+                dimension=ReviewDimension.CONSISTENCY,
+                severity=(
+                    IssueSeverity.CRITICAL if unmatched_total >= 0.15
+                    else IssueSeverity.WARNING
+                ),
+                description=(
+                    f"以下 SAA 资产类别无法与 CME 数据匹配："
+                    f"{unmatched_desc}。"
+                    f"未匹配权重合计 {unmatched_total:.1%}，"
+                    f"组合层面的收益率和波动率验证不包含这些资产。"
+                ),
+                regulation_reference=(
+                    "CFA L3: All SAA asset classes must have "
+                    "defensible CME assumptions."
+                ),
+                suggestion=(
+                    "确保 SAA 资产类别名称与 CME 提供的名称保持一致，"
+                    "或在 IPS 中说明未覆盖资产类别的预期假设来源。"
+                ),
+            ).model_dump())
+            logger.warning(
+                "Unmatched SAA assets: %s (total weight: %.1f%%)",
+                unmatched_desc, unmatched_total * 100,
+            )
 
         # Validation 1: Weight sum check
         if abs(total_weight - 1.0) > 0.01:
@@ -695,17 +741,116 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                     suggestion="在 return_objective 和 risk_disclosure 中明确说明收益目标处于 SAA 预期区间上端。",
                 ).model_dump())
 
+            # === Validation 3: Portfolio Volatility σ_p = √(w^T Σ w) ===
+            n = len(matched_weights)
+            w_norm = w / w.sum()  # Normalize weights
+            v = np.array(matched_vols)
+
+            # Build covariance matrix: Σ = diag(σ) × C × diag(σ)
+            corr_mat = np.eye(n)
+            for i, cme_i in enumerate(matched_cme_names):
+                for j, cme_j in enumerate(matched_cme_names):
+                    if i != j:
+                        corr_val = cme.correlation_matrix.get(
+                            cme_i, {}
+                        ).get(cme_j, 0.0)
+                        corr_mat[i, j] = corr_val
+
+            cov_matrix = np.outer(v, v) * corr_mat
+            portfolio_vol = float(np.sqrt(
+                w_norm.T @ cov_matrix @ w_norm
+            ))
+
+            # Portfolio Sharpe Ratio
+            portfolio_sharpe = (
+                (portfolio_return - cme.risk_free_rate) / portfolio_vol
+                if portfolio_vol > 0 else 0.0
+            )
+
+            # Check volatility against client risk tolerance band
+            # Bands derived from RISK_VOLATILITY_MAP in portfolio_recommender
+            risk_level = ips.get(
+                "risk_tolerance", {}
+            ).get("overall_risk_level", "")
+            vol_bands = {
+                "conservative": (0.04, 0.08),
+                "moderately_conservative": (0.08, 0.12),
+                "moderate": (0.10, 0.15),
+                "moderately_aggressive": (0.13, 0.18),
+                "aggressive": (0.16, 0.25),
+            }
+            band = vol_bands.get(risk_level)
+            is_vol_acceptable = True
+            if band:
+                if portfolio_vol > band[1] * 1.2:
+                    is_vol_acceptable = False
+                    saa_issues.append(ReviewIssue(
+                        section="investment_guidelines",
+                        dimension=ReviewDimension.CONSISTENCY,
+                        severity=IssueSeverity.CRITICAL,
+                        description=(
+                            f"基于 CME 协方差矩阵计算的组合年化波动率"
+                            f"为 {portfolio_vol:.2%}，超出 {risk_level} "
+                            f"风险等级目标区间上限 {band[1]:.0%}"
+                            f"（含 20% 容差）。"
+                            f"当前配置的风险水平超出客户承受范围。"
+                        ),
+                        regulation_reference=(
+                            "CFA L3: Portfolio risk must be consistent "
+                            "with stated risk tolerance level."
+                        ),
+                        suggestion=(
+                            "降低权益类或高波动资产配置比例，"
+                            "或增加固定收益/现金配置以降低组合波动率。"
+                        ),
+                    ).model_dump())
+                elif portfolio_vol < band[0] * 0.8:
+                    saa_issues.append(ReviewIssue(
+                        section="investment_guidelines",
+                        dimension=ReviewDimension.CONSISTENCY,
+                        severity=IssueSeverity.WARNING,
+                        description=(
+                            f"基于 CME 协方差矩阵计算的组合年化波动率"
+                            f"为 {portfolio_vol:.2%}，低于 {risk_level} "
+                            f"风险等级目标区间下限 {band[0]:.0%}"
+                            f"（含 20% 容差）。"
+                            f"配置可能过于保守，难以达成收益目标。"
+                        ),
+                        regulation_reference=(
+                            "CFA L3: Efficient use of risk budget"
+                        ),
+                        suggestion=(
+                            "可适度提高权益类配置以更充分利用风险预算。"
+                        ),
+                    ).model_dump())
+
+            # === Validation 4: Weighted Portfolio VaR / CVaR ===
+            w_var = np.array(matched_vars)
+            w_cvar = np.array(matched_cvars)
+            # Linear weighted approximation (conservative upper bound)
+            portfolio_var_95 = float(np.dot(w_norm, w_var))
+            portfolio_cvar_95 = float(np.dot(w_norm, w_cvar))
+
+            logger.info(
+                "SAA quantitative validation: "
+                "E[r]=%.4f, σ=%.4f, Sharpe=%.4f, "
+                "VaR95=%.4f, CVaR95=%.4f, vol_ok=%s",
+                portfolio_return, portfolio_vol, portfolio_sharpe,
+                portfolio_var_95, portfolio_cvar_95,
+                is_vol_acceptable,
+            )
+
             # Store validation result
             validation_result = SAAValidationResult(
                 portfolio_expected_return=portfolio_return,
-                portfolio_volatility=0.0,  # Simplified; full calc needs cov matrix
-                portfolio_sharpe=0.0,
+                portfolio_volatility=portfolio_vol,
+                portfolio_sharpe=portfolio_sharpe,
                 max_sharpe_return=max(matched_returns) if matched_returns else 0.0,
-                max_sharpe_volatility=0.0,
+                max_sharpe_volatility=0.0,  # Full optimization needed (P2)
                 gmv_return=min(matched_returns) if matched_returns else 0.0,
-                gmv_volatility=0.0,
+                gmv_volatility=0.0,  # Full optimization needed (P2)
                 is_return_feasible=(portfolio_return >= required_return * 0.9),
-                is_volatility_acceptable=True,
+                is_volatility_acceptable=is_vol_acceptable,
                 issues=[issue.get("description", "") for issue in saa_issues],
             )
         else:
