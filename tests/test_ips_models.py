@@ -31,6 +31,7 @@ from src.agents.ips_models import (
     InvestmentGuideline,
     BenchmarkSpec,
     MonitoringPolicy,
+    CurrencyPolicy,
     # Review models
     ReviewResult,
     ReviewIssue,
@@ -332,6 +333,32 @@ class TestTimeHorizonAnalysis:
         assert obj.overall_horizon_years == 45
 
 
+class TestCurrencyPolicy:
+    """Tests for the CurrencyPolicy model."""
+
+    def test_default_creation(self):
+        """Test default values of CurrencyPolicy."""
+        policy = CurrencyPolicy()
+        assert policy.base_currency == "CNY"
+        assert policy.foreign_exposure_pct == 0.0
+        assert policy.hedging_strategy == ""
+        assert policy.hedging_ratio == 0.0
+
+    def test_custom_creation(self):
+        """Test customized values of CurrencyPolicy."""
+        policy = CurrencyPolicy(
+            base_currency="CNY",
+            foreign_exposure_pct=0.35,
+            hedging_strategy="Partial hedge via forward contracts",
+            hedging_ratio=0.50,
+            currency_narrative="Hedging 50% of USD exposure to mitigate RMB appreciation risk.",
+        )
+        assert policy.base_currency == "CNY"
+        assert policy.foreign_exposure_pct == 0.35
+        assert policy.hedging_strategy == "Partial hedge via forward contracts"
+        assert policy.hedging_ratio == 0.50
+
+
 # ============================================================
 # Test: Complete IPSDocument
 # ============================================================
@@ -345,6 +372,22 @@ class TestIPSDocument:
         assert doc.client_name == "Test Client"
         assert doc.version == "1.0"  # default
         assert doc.prepared_by == "AI WealthPilot IPS Generator"  # default
+        assert doc.currency_policy is None
+
+    def test_with_currency_policy(self, minimal_ips_data):
+        """Test IPSDocument with currency policy."""
+        data = minimal_ips_data.copy()
+        data["currency_policy"] = {
+            "base_currency": "CNY",
+            "foreign_exposure_pct": 0.25,
+            "hedging_strategy": "Unhedged",
+            "hedging_ratio": 0.0,
+            "currency_narrative": "Foreign exposure consists of global equities, unhedged.",
+        }
+        doc = IPSDocument(**data)
+        assert doc.currency_policy is not None
+        assert doc.currency_policy.base_currency == "CNY"
+        assert doc.currency_policy.foreign_exposure_pct == 0.25
 
     def test_serialization_roundtrip(self, minimal_ips_data):
         """Test JSON serialization and deserialization roundtrip."""

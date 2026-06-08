@@ -314,6 +314,21 @@ class MonitoringPolicy(BaseModel):
     )
 
 
+class CurrencyPolicy(BaseModel):
+    """
+    Currency management policy for multi-currency portfolios.
+
+    CFA Reference:
+        CFA L3: Currency management policy, base currency definition,
+        and currency hedging strategy for foreign exposure.
+    """
+    base_currency: str = Field(default="CNY", description="Client's base/reporting currency")
+    foreign_exposure_pct: float = Field(default=0.0, description="Estimated foreign currency exposure as pct of portfolio")
+    hedging_strategy: str = Field(default="", description="Currency hedging approach, e.g. 'Unhedged', 'Partial hedge via forward contracts'")
+    hedging_ratio: float = Field(default=0.0, description="Target hedge ratio for foreign exposure")
+    currency_narrative: str = Field(default="", description="Narrative on currency risk and management")
+
+
 # ============================================================
 # Top-Level IPS Document Model
 # ============================================================
@@ -375,6 +390,10 @@ class IPSDocument(BaseModel):
     )
     monitoring: MonitoringPolicy = Field(
         description="Monitoring and evaluation section"
+    )
+    currency_policy: Optional[CurrencyPolicy] = Field(
+        default=None,
+        description="Currency management policy (required when foreign exposure > 10%)"
     )
 
     # Compliance

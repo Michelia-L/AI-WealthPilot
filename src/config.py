@@ -27,7 +27,8 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 # Asset Universe
 # Assets we track and analyze — aligned with user's interests
 # ============================================================
-BASE_CURRENCY = "USD"  # Base currency for reporting and portfolio optimization
+BASE_CURRENCY = "CNY"  # Base currency aligned with client-facing IPS (Chinese clients)
+REPORTING_CURRENCY = "USD"  # For international asset pricing and portfolio optimization
 
 ASSET_UNIVERSE = {
     # Crypto (美元计价 / USD-denominated)
