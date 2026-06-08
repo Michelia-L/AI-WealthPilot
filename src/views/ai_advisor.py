@@ -28,6 +28,7 @@ CFA Reference / CFA 参考:
 import streamlit as st
 from pathlib import Path
 
+from src.views.compliance import render_suitability_disclaimer
 from src.agents.profiler import (
     ClientProfile,
     load_profile,
@@ -475,6 +476,9 @@ def render() -> None:
     # === Step 4: 生成建议书 / Generate Advisory Report ===
     st.markdown("#### ✦ Generate Advisory Report / 生成建议书")
 
+    # === 前置合规声明 / Pre-Generation Compliance Disclaimer ===
+    acknowledged = render_suitability_disclaimer("advisor")
+
     if not api_ready:
         st.button(
             "🚀 Generate AI Advice / 生成 AI 建议",
@@ -498,12 +502,16 @@ def render() -> None:
             "🚀 Generate AI Advice / 生成 AI 建议",
             type="primary",
             key="generate_advice_btn",
+            disabled=not acknowledged,
+            help="Please acknowledge the disclaimer above first / "
+                 "请先确认上方的免责声明" if not acknowledged else None,
         )
     with col2:
         if st.session_state.advisor_report is not None:
             if st.button(
                 "🔄 Regenerate / 重新生成",
                 key="regenerate_advice_btn",
+                disabled=not acknowledged,
             ):
                 generate_clicked = True
                 st.session_state.advisor_report = None
@@ -555,14 +563,3 @@ def render() -> None:
     # === 历史报告 / Historical Reports ===
     st.divider()
     _render_historical_reports(profile)
-
-    # === 合规声明 / Compliance Disclaimer ===
-    st.divider()
-    st.caption(
-        "⚠️ **Disclaimer / 免责声明**: This AI-generated report is for "
-        "educational and demonstration purposes only. It does not constitute "
-        "professional financial advice. Always consult a licensed financial "
-        "advisor before making investment decisions. / "
-        "本 AI 生成的报告仅用于教育和演示目的，不构成专业的财务建议。"
-        "在做出投资决策之前，请务必咨询持牌财务顾问。"
-    )

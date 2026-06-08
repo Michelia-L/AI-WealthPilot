@@ -105,10 +105,22 @@ def plot_efficient_frontier(
     random_portfolios: Optional[pd.DataFrame] = None,
     max_sharpe: Optional[dict] = None,
     min_vol: Optional[dict] = None,
+    risk_free_rate: Optional[float] = None,
 ) -> go.Figure:
     """
-    Plot the efficient frontier with optional random portfolio cloud
-    and highlighted optimal portfolios.
+    Plot the efficient frontier with optional random portfolio cloud,
+    highlighted optimal portfolios, and Capital Allocation Line (CAL).
+
+    CFA Reference: CFA Level I, Portfolio Management — CAL represents the
+    risk-return tradeoff for portfolios combining the risk-free asset with
+    the tangency portfolio. The CAL slope equals the maximum Sharpe ratio.
+
+    Args:
+        frontier: DataFrame with 'return', 'volatility' columns for the efficient frontier.
+        random_portfolios: Optional DataFrame with random portfolio points.
+        max_sharpe: Optional dict with tangency portfolio metrics (return, volatility, sharpe).
+        min_vol: Optional dict with minimum volatility portfolio metrics.
+        risk_free_rate: Optional risk-free rate for CAL computation (decimal, e.g., 0.045).
     """
     fig = go.Figure()
 
@@ -157,6 +169,38 @@ def plot_efficient_frontier(
             mode="markers",
             marker=dict(size=14, color=COLORS["success"], symbol="diamond"),
             name=f"Min Volatility ({min_vol['volatility']:.1%})",
+        ))
+
+    # Capital Allocation Line (CAL): E(R) = Rf + Sharpe_max * σ
+    # The CAL connects the risk-free asset (0, Rf) with the tangency portfolio
+    # and extends beyond it (representing leveraged positions).
+    if risk_free_rate is not None and max_sharpe is not None and max_sharpe.get("success", True):
+        rf_pct = risk_free_rate * 100
+        tangency_vol = max_sharpe["volatility"] * 100
+        tangency_ret = max_sharpe["return"] * 100
+        sharpe_ratio = max_sharpe["sharpe"]
+
+        # Extend CAL to ~2.5x the tangency volatility (or frontier max, whichever is larger)
+        frontier_max_vol = frontier["volatility"].max() * 100
+        cal_max_vol = max(2.5 * tangency_vol, 1.2 * frontier_max_vol)
+
+        # Two points: (0, Rf) and (cal_max_vol, Rf + Sharpe * cal_max_vol)
+        cal_vols = [0, cal_max_vol]
+        cal_rets = [rf_pct, rf_pct + sharpe_ratio * cal_max_vol]
+
+        fig.add_trace(go.Scatter(
+            x=cal_vols,
+            y=cal_rets,
+            mode="lines",
+            line=dict(color=COLORS["primary"], width=2, dash="dash"),
+            name=f"Capital Allocation Line (Sharpe={sharpe_ratio:.2f})",
+            hovertemplate=(
+                "CAL<br>"
+                "Volatility: %{x:.1f}%<br>"
+                "Expected Return: %{y:.1f}%<br>"
+                "<i>E(R) = Rf + Sharpe × σ</i>"
+                "<extra></extra>"
+            ),
         ))
 
     fig.update_layout(

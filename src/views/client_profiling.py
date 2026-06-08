@@ -36,6 +36,8 @@ from src.agents.profiler import (
     RISK_WILLINGNESS_QUESTIONS,
 )
 
+from src.views.compliance import render_client_profiling_notice
+
 
 def _render_basic_info() -> dict:
     """
@@ -462,6 +464,9 @@ def render() -> None:
         "based on the CFA Investment Policy Statement (IPS) framework. / "
         "填写以下问卷，基于 CFA 投资政策声明（IPS）框架生成你的投资画像。"
     )
+
+    # === 轻量级数据提示 / Lightweight Data Notice ===
+    render_client_profiling_notice()
 
     # Check if in edit mode and show warning/cancel option
     is_editing = "editing_profile_path" in st.session_state and st.session_state.editing_profile_path is not None

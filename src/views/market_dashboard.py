@@ -44,6 +44,7 @@ from src.portfolio.risk_metrics import (
 
 # Import configuration
 from src.config import ASSET_UNIVERSE, TRADING_DAYS_PER_YEAR
+from src.views.compliance import render_compliance_banner
 
 # ============================================================
 # Time period mapping table: UI label -> yfinance period parameter
@@ -514,6 +515,9 @@ def render() -> None:
     """
     # 1. Top control bar (replacing the sidebar)
     selected_tickers, period = _render_top_controls()
+
+    # === 前置合规横幅 / Pre-Content Compliance Banner ===
+    render_compliance_banner()
 
     if not selected_tickers:
         st.warning("⚠️ No assets selected. Please adjust your filters.")

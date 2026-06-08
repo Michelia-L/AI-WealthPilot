@@ -441,6 +441,38 @@ def inject_premium_styles() -> None:
             padding: 20px;
             margin-bottom: 25px;
         }
+
+        /* ============================================================
+           Compliance Disclaimer & Banner / 合规免责声明与横幅
+           ============================================================ */
+        .compliance-disclaimer {
+            background: linear-gradient(135deg, rgba(234, 179, 8, 0.06), rgba(234, 179, 8, 0.02));
+            border-left: 3px solid rgba(234, 179, 8, 0.5);
+            border-radius: 8px;
+            padding: 16px 20px 12px 20px;
+            margin-bottom: 20px;
+        }
+        .compliance-disclaimer .compliance-body {
+            color: #94a3b8 !important;
+            font-size: 0.88rem !important;
+            line-height: 1.55 !important;
+            margin-bottom: 8px;
+            padding-left: 8px;
+        }
+        .compliance-disclaimer hr {
+            border-color: rgba(234, 179, 8, 0.12) !important;
+            margin: 12px 0 !important;
+        }
+        .compliance-banner {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.02));
+            border-left: 3px solid rgba(59, 130, 246, 0.4);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            color: #cbd5e1 !important;
+            font-size: 0.88rem !important;
+            line-height: 1.5 !important;
+        }
         </style>
         <div class="noise-overlay"></div>
         """,

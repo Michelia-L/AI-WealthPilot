@@ -237,7 +237,6 @@ AI-WealthPilot/
 │   │   ├── ips_agents.py         # 基于 PydanticAI 的生成/多审查员/修订 Agent 定义
 │   │   ├── ips_workflow.py       # 基于 LangGraph 的多智能体闭环工作流状态机
 │   │   └── ips_storage.py        # 投资政策声明书及审计历史的本地存储与 MD 导出器
-│   └── rag/                      # 【RAG 知识库】(开发规划中)
 ├── tests/                        # 【自动化测试套件】
 │   ├── conftest.py               # Pytest 全局共享 Mock 夹具与配置
 │   ├── test_portfolio.py         # MVO/BL 核心量化引擎单元测试

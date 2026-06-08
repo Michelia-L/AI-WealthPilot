@@ -29,6 +29,7 @@ from src.visualization.charts import plot_monte_carlo_paths
 
 # Import configuration
 from src.config import MONTE_CARLO_SIMULATIONS
+from src.views.compliance import render_suitability_disclaimer
 
 
 def _render_top_controls() -> Dict[str, Any]:
@@ -461,6 +462,17 @@ def render() -> None:
         "了解你的储蓄是否足以支撑舒适的退休生活。"
     )
     st.divider()
+
+    # === 前置合规声明 / Pre-Simulation Compliance Disclaimer ===
+    acknowledged = render_suitability_disclaimer("retirement")
+
+    if not acknowledged:
+        st.info(
+            "👆 **Please acknowledge the Suitability Disclaimer above to access "
+            "the retirement simulation tools.** / "
+            "**请先确认上方的适配性免责声明以使用退休模拟工具。**"
+        )
+        return
 
     # 1. Controls Console in Main Page Body
     config = _render_top_controls()

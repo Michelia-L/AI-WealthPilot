@@ -46,6 +46,8 @@ from src.config import (
     FRED_API_KEY,
 )
 
+from src.views.compliance import render_suitability_disclaimer
+
 # ============================================================
 # Default asset class mapping for UI multi-select
 # ============================================================
@@ -414,11 +416,16 @@ def _render_efficient_frontier(results: Dict[str, Any]) -> None:
     """
     st.markdown("### ↗ Efficient Frontier / 有效前沿")
 
+    # Extract risk-free rate from optimizer for CAL computation
+    optimizer = results.get("optimizer")
+    risk_free_rate = optimizer.risk_free_rate if optimizer else None
+
     fig = plot_efficient_frontier(
         frontier=results["frontier"],
         random_portfolios=results["random_portfolios"],
         max_sharpe=results["max_sharpe"],
         min_vol=results["min_vol"],
+        risk_free_rate=risk_free_rate,
     )
 
     st.plotly_chart(fig, use_container_width=True, theme=None)
@@ -426,9 +433,15 @@ def _render_efficient_frontier(results: Dict[str, Any]) -> None:
     st.caption(
         "💡 Each dot is a random portfolio. The blue curve is the efficient frontier — "
         "portfolios on this curve offer the highest return for each risk level. "
-        "The star (Max Sharpe) and diamond (Min Vol) mark the two key optimal portfolios. / "
+        "The star (Max Sharpe) and diamond (Min Vol) mark the two key optimal portfolios. "
+        "The dashed gold line is the **Capital Allocation Line (CAL)** — it shows the best "
+        "possible combinations of the risk-free asset and the tangency portfolio. "
+        "Points below the star represent lending (partial risk-free allocation); "
+        "points above represent borrowing (leveraged positions). / "
         "每个散点代表一个随机组合。蓝色曲线是有效前沿——该曲线上的组合在每个风险水平下提供最高收益。"
-        "星形（最大夏普）和功能（最小波动率）标记了两个关键最优组合。"
+        "星形（最大夏普）和菱形（最小波动率）标记了两个关键最优组合。"
+        "金色虚线是**资本配置线（CAL）**——它展示了无风险资产与切点组合的最优混合。"
+        "星形下方代表放贷（部分配置无风险资产）；上方代表借贷（杠杆头寸）。"
     )
 
     st.divider()
@@ -911,6 +924,7 @@ def _render_bl_efficient_frontier_comparison(
     mvo_max_sharpe: Dict[str, Any],
     bl_max_sharpe: Dict[str, Any],
     mvo_random: pd.DataFrame,
+    risk_free_rate: float = None,
 ) -> None:
     """
     Render side-by-side MVO vs BL efficient frontiers comparison chart.
@@ -921,6 +935,7 @@ def _render_bl_efficient_frontier_comparison(
         mvo_max_sharpe: MVO max Sharpe portfolio.
         bl_max_sharpe: BL max Sharpe portfolio.
         mvo_random: Random portfolios.
+        risk_free_rate: Annual risk-free rate for CAL computation (decimal).
     """
     st.markdown("### ↗ Efficient Frontier Comparison / 有效前沿对比")
 
@@ -973,6 +988,43 @@ def _render_bl_efficient_frontier_comparison(
         name=f"BL Max Sharpe ({bl_max_sharpe['sharpe']:.2f})",
     ))
 
+    # Capital Allocation Lines for both MVO and BL tangency portfolios
+    if risk_free_rate is not None:
+        rf_pct = risk_free_rate * 100.0
+
+        # Determine a common x-max for CAL extension
+        all_vols = [
+            mvo_frontier["volatility"].max() * 100.0,
+            bl_frontier["volatility"].max() * 100.0,
+            mvo_max_sharpe["volatility"] * 100.0,
+            bl_max_sharpe["volatility"] * 100.0,
+        ]
+        cal_max_vol = max(all_vols) * 1.5
+
+        # MVO CAL
+        if mvo_max_sharpe.get("success", True):
+            cal_rets_mvo = [rf_pct, rf_pct + mvo_max_sharpe["sharpe"] * cal_max_vol]
+            fig.add_trace(go.Scatter(
+                x=[0, cal_max_vol],
+                y=cal_rets_mvo,
+                mode="lines",
+                line=dict(color="#3B82F6", width=1.5, dash="dot"),
+                name=f"MVO CAL (Sharpe={mvo_max_sharpe['sharpe']:.2f})",
+                hovertemplate="MVO CAL<br>Vol: %{x:.1f}%<br>Ret: %{y:.1f}%<extra></extra>",
+            ))
+
+        # BL CAL
+        if bl_max_sharpe.get("success", True):
+            cal_rets_bl = [rf_pct, rf_pct + bl_max_sharpe["sharpe"] * cal_max_vol]
+            fig.add_trace(go.Scatter(
+                x=[0, cal_max_vol],
+                y=cal_rets_bl,
+                mode="lines",
+                line=dict(color="#F59E0B", width=1.5, dash="dot"),
+                name=f"BL CAL (Sharpe={bl_max_sharpe['sharpe']:.2f})",
+                hovertemplate="BL CAL<br>Vol: %{x:.1f}%<br>Ret: %{y:.1f}%<extra></extra>",
+            ))
+
     fig.update_layout(
         title="MVO vs Black-Litterman Efficient Frontiers",
         xaxis_title="Annualized Volatility / 年化波动率 (%)",
@@ -990,8 +1042,10 @@ def _render_bl_efficient_frontier_comparison(
 
     st.caption(
         "💡 The BL frontier shifts based on your views. If views are bullish, the frontier moves upward. "
-        "The blue curve is MVO, the yellow dashed curve is BL. / "
+        "The blue curve is MVO, the yellow dashed curve is BL. "
+        "The dotted lines are **CALs** — the best possible risk-return tradeoffs using each tangency portfolio. / "
         "BL前沿根据您的观点移动。如果观点是看多的，前沿向上移动。蓝色曲线是 MVO，黄色虚线是 BL。"
+        "点虚线是**资本配置线（CAL）**——使用各自切点组合的最优风险收益权衡。"
     )
 
 
@@ -1061,6 +1115,17 @@ def render() -> None:
     Orchestrates the top-bar control console, optimization, and all visualizations.
     """
     st.title("⧉ Portfolio Optimizer")
+
+    # === 前置合规声明 / Pre-Optimization Compliance Disclaimer ===
+    acknowledged = render_suitability_disclaimer("optimizer")
+
+    if not acknowledged:
+        st.info(
+            "👆 **Please acknowledge the Suitability Disclaimer above to access "
+            "the portfolio optimization tools.** / "
+            "**请先确认上方的适配性免责声明以使用投资组合优化工具。**"
+        )
+        return
 
     # Render main-body controls console
     config = _render_top_controls()
@@ -1139,6 +1204,7 @@ def render() -> None:
             results["mvo_max_sharpe"],
             results["bl_max_sharpe"],
             results["mvo_random"],
+            config["risk_free_rate"],
         )
         _render_bl_impact_analysis(results["bl_optimizer"])
 
@@ -1197,7 +1263,7 @@ def render() -> None:
         _render_asset_universe(results["optimizer"])
 
     st.caption(
-        "💡 Data sourced from Yahoo Finance via yfinance. Optimization uses SciPy's SLSQP solver. "
-        "Results are based on historical data and do not guarantee future performance. / "
-        "数据来自 Yahoo Finance（通过 yfinance）。优化使用 SciPy 的 SLSQP 求解器。结果基于历史数据，不保证未来表现。"
+        "💡 Data sourced from Yahoo Finance via yfinance. "
+        "Optimization uses SciPy's SLSQP solver. / "
+        "数据来自 Yahoo Finance（通过 yfinance）。优化使用 SciPy 的 SLSQP 求解器。"
     )

@@ -239,7 +239,6 @@ AI-WealthPilot/
 │   │   ├── ips_agents.py         # PydanticAI agent definitions for generator, reviewer, reviser
 │   │   ├── ips_workflow.py       # LangGraph state machine orchestrating Generate-Review-Revise
 │   │   └── ips_storage.py        # Persistence and exports for IPS and audit trail reports
-│   └── rag/                      # [RAG Knowledge Base] (Planned)
 ├── tests/                        # [Automated Test Suite]
 │   ├── conftest.py               # Pytest fixtures and mock API configurations
 │   ├── test_portfolio.py         # Core quant engine validations
