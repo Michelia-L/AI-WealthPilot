@@ -49,6 +49,41 @@ class ReviewDimension(str, Enum):
 # IPS Section Models — CFA Framework
 # ============================================================
 
+class GoalReturnRequirement(BaseModel):
+    """
+    Per-goal return requirement for multi-objective portfolios.
+
+    CFA Reference:
+        CFA L3 PWM: Each client goal may have distinct required return,
+        time horizon, and priority. The IPS should decompose the aggregate
+        required return into per-goal requirements when multiple goals exist.
+    """
+    goal_name: str = Field(
+        description="Goal name, e.g. 'Retirement', 'Child Education', 'House Purchase'"
+    )
+    target_amount: float = Field(
+        description="Target amount needed for this goal in base currency"
+    )
+    current_allocation: float = Field(
+        default=0.0,
+        description="Capital currently allocated toward this goal"
+    )
+    time_horizon_years: int = Field(
+        description="Years until this goal needs to be funded"
+    )
+    priority: str = Field(
+        description="Goal priority: 'high', 'medium', or 'low'"
+    )
+    required_return: float = Field(
+        description="Required annual return for this specific goal, "
+                    "e.g. 0.08 for 8%. Derived via TVM: r = (FV/PV)^(1/n) - 1"
+    )
+    calculation_basis: str = Field(
+        default="",
+        description="Derivation formula for this goal's required return"
+    )
+
+
 class ReturnObjective(BaseModel):
     """
     IPS Section: Return Objectives.
@@ -56,9 +91,11 @@ class ReturnObjective(BaseModel):
     CFA Reference:
         Quantify required return to meet client goals.
         Distinguish nominal vs real returns.
+        When multiple goals exist, decompose into per-goal requirements.
     """
     required_nominal_return: float = Field(
-        description="Required nominal annual return rate, e.g. 0.08 for 8%"
+        description="Required nominal annual return rate, e.g. 0.08 for 8%. "
+                    "When multiple goals exist, this is the capital-weighted composite rate."
     )
     required_real_return: float = Field(
         description="Required real annual return rate after inflation"
@@ -68,6 +105,16 @@ class ReturnObjective(BaseModel):
     )
     return_objective_narrative: str = Field(
         description="Narrative explanation of return objectives"
+    )
+    goal_level_requirements: list[GoalReturnRequirement] = Field(
+        default_factory=list,
+        description="Per-goal return requirements for multi-objective portfolios. "
+                    "Each goal specifies its own target amount, time horizon, and required return."
+    )
+    return_methodology: str = Field(
+        default="",
+        description="Calculation methodology used to derive return requirements, "
+                    "e.g. 'TVM: r = (FV/PV)^(1/n) - 1' or 'Annuity: PMT-based'"
     )
 
 

@@ -17,6 +17,7 @@ from pydantic import ValidationError
 from src.agents.ips_models import (
     # IPS Document models
     IPSDocument,
+    GoalReturnRequirement,
     ReturnObjective,
     RiskToleranceAssessment,
     RiskToleranceLevel,
@@ -174,6 +175,95 @@ class TestReturnObjective:
                 required_nominal_return=0.08,
                 # missing required_real_return and others
             )
+
+    def test_backward_compatible_without_goals(self, minimal_return_objective):
+        """Test that existing code without goal_level_requirements still works."""
+        obj = ReturnObjective(**minimal_return_objective)
+        assert obj.goal_level_requirements == []
+        assert obj.return_methodology == ""
+
+    def test_with_single_goal(self):
+        """Test ReturnObjective with a single goal requirement."""
+        goal = GoalReturnRequirement(
+            goal_name="Retirement",
+            target_amount=5_000_000.0,
+            current_allocation=2_000_000.0,
+            time_horizon_years=20,
+            priority="high",
+            required_return=0.0469,  # (5M/2M)^(1/20) - 1
+            calculation_basis="TVM: r = (5000000/2000000)^(1/20) - 1 = 4.69%",
+        )
+        obj = ReturnObjective(
+            required_nominal_return=0.0469,
+            required_real_return=0.0219,
+            return_calculation_basis="Single-goal TVM derivation",
+            return_objective_narrative="Retirement-focused return target",
+            goal_level_requirements=[goal],
+            return_methodology="TVM: r = (FV/PV)^(1/n) - 1",
+        )
+        assert len(obj.goal_level_requirements) == 1
+        assert obj.goal_level_requirements[0].goal_name == "Retirement"
+        assert obj.return_methodology == "TVM: r = (FV/PV)^(1/n) - 1"
+
+    def test_with_multiple_goals_composite_return(self):
+        """Test multi-goal return with capital-weighted composite rate."""
+        goals = [
+            GoalReturnRequirement(
+                goal_name="Retirement",
+                target_amount=5_000_000.0,
+                current_allocation=1_500_000.0,
+                time_horizon_years=20,
+                priority="high",
+                required_return=0.0627,
+                calculation_basis="TVM: (5M/1.5M)^(1/20)-1",
+            ),
+            GoalReturnRequirement(
+                goal_name="Child Education",
+                target_amount=1_000_000.0,
+                current_allocation=500_000.0,
+                time_horizon_years=10,
+                priority="high",
+                required_return=0.0718,
+                calculation_basis="TVM: (1M/0.5M)^(1/10)-1",
+            ),
+        ]
+        # Capital-weighted composite: (1.5M*6.27% + 0.5M*7.18%) / 2M = 6.50%
+        composite = (1_500_000 * 0.0627 + 500_000 * 0.0718) / 2_000_000
+        obj = ReturnObjective(
+            required_nominal_return=round(composite, 4),
+            required_real_return=round(composite - 0.025, 4),
+            return_calculation_basis="Capital-weighted composite of 2 goals",
+            return_objective_narrative="Multi-goal return decomposition",
+            goal_level_requirements=goals,
+            return_methodology="TVM: r = (FV/PV)^(1/n) - 1",
+        )
+        assert len(obj.goal_level_requirements) == 2
+        assert abs(obj.required_nominal_return - composite) < 1e-4
+
+    def test_goal_serialization_roundtrip(self):
+        """Test that goals survive JSON serialization roundtrip."""
+        goal = GoalReturnRequirement(
+            goal_name="House",
+            target_amount=3_000_000.0,
+            current_allocation=1_000_000.0,
+            time_horizon_years=5,
+            priority="medium",
+            required_return=0.2457,
+            calculation_basis="TVM: (3M/1M)^(1/5)-1",
+        )
+        obj = ReturnObjective(
+            required_nominal_return=0.2457,
+            required_real_return=0.2207,
+            return_calculation_basis="Single goal",
+            return_objective_narrative="House purchase",
+            goal_level_requirements=[goal],
+            return_methodology="TVM",
+        )
+        json_str = obj.model_dump_json()
+        obj2 = ReturnObjective.model_validate_json(json_str)
+        assert len(obj2.goal_level_requirements) == 1
+        assert obj2.goal_level_requirements[0].target_amount == 3_000_000.0
+        assert obj2.return_methodology == "TVM"
 
 
 class TestRiskToleranceAssessment:
