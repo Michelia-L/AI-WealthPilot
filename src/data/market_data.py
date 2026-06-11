@@ -128,11 +128,25 @@ def fetch_price_history(
 
     # 提取收盘价，统一转换为以 Ticker 为列名的 DataFrame
     # Extract Close prices, unify to a DataFrame with tickers as columns
-    if isinstance(data.columns, pd.MultiIndex):
-        prices = data["Close"].copy()
+    if data.empty:
+        prices = pd.DataFrame(columns=all_download_tickers)
+    elif isinstance(data.columns, pd.MultiIndex):
+        if "Close" in data.columns.levels[0]:
+            prices = data["Close"].copy()
+        else:
+            prices = pd.DataFrame(np.nan, index=data.index, columns=all_download_tickers)
     else:
-        prices = data[["Close"]].copy()
-        prices.columns = all_download_tickers
+        if "Close" in data.columns:
+            prices = data[["Close"]].copy()
+            prices.columns = all_download_tickers
+        else:
+            prices = pd.DataFrame(np.nan, index=data.index, columns=all_download_tickers)
+
+    # 确保下载的全部 Ticker 在 DataFrame 中都存在，防止后续计算产生 KeyError
+    # Ensure all download tickers exist in the DataFrame to prevent downstream KeyErrors
+    for col in all_download_tickers:
+        if col not in prices.columns:
+            prices[col] = np.nan
 
     # 填充因为跨市场节假日不一致导致的缺失值（仅针对下载的汇率列，保留资产原有的 NaN 特征）
     # Forward/backward fill only the exchange rate columns to handle trading days mismatch
@@ -222,9 +236,9 @@ def compute_returns(prices: pd.DataFrame, method: str = "log") -> pd.DataFrame:
         # pct_change() is equivalent to (P_t / P_{t-1}) - 1
         returns = prices.pct_change()
 
-    # 删除第一行的 NaN（因为 t=0 时没有前一天的价格来计算收益率）
-    # Drop the first row NaN (no previous price at t=0 to compute return)
-    return returns.dropna()
+    # 仅删除所有资产收益率都为 NaN 的行（例如第一行，或者完全停牌的非交易日）
+    # Only drop rows where ALL returns are NaN (e.g., the first row, or non-trading days where all assets are inactive)
+    return returns.dropna(how="all")
 
 
 def compute_correlation_matrix(prices: pd.DataFrame) -> pd.DataFrame:
