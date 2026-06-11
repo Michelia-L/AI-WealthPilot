@@ -250,7 +250,7 @@ def _render_top_controls() -> Dict[str, Any]:
                         total_weight += market_weights[key]
                         
                     if abs(total_weight - 1.0) > 0.01:
-                        st.warning(f"⚠️ Weights sum to {total_weight:.2f}, should be 1.0 / 权重和为 {total_weight:.2f}，应为 1.0")
+                        st.warning(f"Weights sum to {total_weight:.2f}, should be 1.0 / 权重和为 {total_weight:.2f}，应为 1.0")
                     bl_config["market_weights"] = market_weights
 
         st.markdown(
@@ -1147,7 +1147,7 @@ def render() -> None:
 
     if len(config["selected_keys"]) < 2:
         st.warning(
-            "⚠️ Please select at least 2 asset classes for optimization. / 请至少选择 2 个资产类别进行优化。"
+            "Please select at least 2 asset classes for optimization. / 请至少选择 2 个资产类别进行优化。"
         )
         return
 
@@ -1167,7 +1167,7 @@ def render() -> None:
 
     if len(returns) < 60:
         st.warning(
-            f"⚠️ Only {len(returns)} trading days of data available. "
+            f"Only {len(returns)} trading days of data available. "
             f"Results may be unreliable with insufficient data. / "
             f"仅有 {len(returns)} 个交易日的数据，数据不足可能导致结果不可靠。"
         )
@@ -1178,7 +1178,7 @@ def render() -> None:
 
         if not views:
             st.warning(
-                "⚠️ Please add at least one view for Black-Litterman optimization. / 请添加至少一个观点以运行 Black-Litterman 优化。"
+                "Please add at least one view for Black-Litterman optimization. / 请添加至少一个观点以运行 Black-Litterman 优化。"
             )
             return
 

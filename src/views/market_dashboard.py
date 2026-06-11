@@ -64,7 +64,7 @@ ALL_CATEGORIES: List[str] = sorted(set(info["category"] for info in ASSET_UNIVER
 # Data Caching Functions (TTL = 300s to balance speed & rate limits)
 # ============================================================
 @st.cache_data(ttl=300, show_spinner=False)
-def _cached_fetch_prices(tickers: Tuple[str, ...], period: str) -> Optional[pd.DataFrame]:
+def _cached_fetch_prices_v2(tickers: Tuple[str, ...], period: str) -> Optional[pd.DataFrame]:
     """
     Cached wrapper for fetch_price_history.
     
@@ -77,11 +77,14 @@ def _cached_fetch_prices(tickers: Tuple[str, ...], period: str) -> Optional[pd.D
     """
     try:
         return fetch_price_history(list(tickers), period=period)
-    except Exception:
+    except Exception as e:
+        st.error(f"⚠️ Error fetching historical price data: {str(e)}")
+        with st.expander("Details / 详细错误信息"):
+            st.exception(e)
         return None
 
 @st.cache_data(ttl=300, show_spinner=False)
-def _cached_get_quotes(tickers: Tuple[str, ...]) -> Optional[pd.DataFrame]:
+def _cached_get_quotes_v2(tickers: Tuple[str, ...]) -> Optional[pd.DataFrame]:
     """
     Cached wrapper for get_latest_quotes.
     
@@ -93,7 +96,10 @@ def _cached_get_quotes(tickers: Tuple[str, ...]) -> Optional[pd.DataFrame]:
     """
     try:
         return get_latest_quotes(list(tickers))
-    except Exception:
+    except Exception as e:
+        st.error(f"⚠️ Error fetching real-time market quotes: {str(e)}")
+        with st.expander("Details / 详细错误信息"):
+            st.exception(e)
         return None
 
 # ============================================================
@@ -170,7 +176,7 @@ def _render_market_overview(quotes_df: Optional[pd.DataFrame]) -> None:
         quotes_df: DataFrame containing columns: ticker, name, category, price, change, change_pct.
     """
     if quotes_df is None or quotes_df.empty:
-        st.warning("⚠️ Market telemetry disconnected. Please verify connection. / 行情连接中断。")
+        st.warning("Market telemetry disconnected. Please verify connection. / 行情连接中断。")
         return
 
     # Premium grid and glassmorphic card styles (without inner indentation to prevent markdown compiling to code blocks)
@@ -373,7 +379,7 @@ def _render_price_chart(prices_df: Optional[pd.DataFrame], period_label: str) ->
         period_label: Selected analysis horizon label.
     """
     if prices_df is None or prices_df.empty:
-        st.warning("⚠️ Unavailable historical data.")
+        st.warning("Unavailable historical data.")
         return
 
     # Elegant toggle for normalization
@@ -405,7 +411,7 @@ def _render_correlation_heatmap(prices_df: Optional[pd.DataFrame]) -> None:
         prices_df: DataFrame of historical adjusted close prices.
     """
     if prices_df is None or prices_df.empty or prices_df.shape[1] < 2:
-        st.info("ℹ️ Requires at least 2 assets to compute correlation matrix.")
+        st.info("Requires at least 2 assets to compute correlation matrix.")
         return
 
     col_chart, col_desc = st.columns([3, 1])
@@ -502,7 +508,7 @@ def _render_risk_statistics(prices_df: Optional[pd.DataFrame]) -> None:
             }
         )
     else:
-        st.info("ℹ️ Insufficient data points for statistical significance.")
+        st.info("Insufficient data points for statistical significance.")
 
 # ============================================================
 # Main Render Function
@@ -520,17 +526,17 @@ def render() -> None:
     render_compliance_banner()
 
     if not selected_tickers:
-        st.warning("⚠️ No assets selected. Please adjust your filters.")
+        st.warning("No assets selected. Please adjust your filters.")
         return
 
     # 2. Real-time market overview cards (CSS Grid layout)
     with st.spinner("Synchronizing with market telemetry... / 同步市场数据..."):
-        quotes_df = _cached_get_quotes(tuple(selected_tickers))
+        quotes_df = _cached_get_quotes_v2(tuple(selected_tickers))
     _render_market_overview(quotes_df)
 
     # Prefetch historical data for downstream tabs
     with st.spinner("Downloading historical price vectors... / 获取历史序列..."):
-        prices_df = _cached_fetch_prices(tuple(selected_tickers), period)
+        prices_df = _cached_fetch_prices_v2(tuple(selected_tickers), period)
 
     # 3. Tabbed layout (refactoring the long scrollable page to provide focused views)
     st.markdown("<br>", unsafe_allow_html=True)

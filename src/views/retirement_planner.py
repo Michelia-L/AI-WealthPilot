@@ -480,14 +480,14 @@ def render() -> None:
     # Basic input validation
     if config["current_savings"] == 0 and config["annual_savings"] == 0:
         st.warning(
-            "⚠️ Please enter your current savings or annual savings amount. / "
+            "Please enter your current savings or annual savings amount. / "
             "请输入当前储蓄或年度储蓄金额。"
         )
         return
 
     if config["desired_income"] == 0:
         st.warning(
-            "⚠️ Please enter your desired retirement income. / "
+            "Please enter your desired retirement income. / "
             "请输入期望的退休收入。"
         )
         return

@@ -113,7 +113,7 @@ _BANNER_TEXT = (
 )
 
 _INFO_TEXT = (
-    "ℹ️ **Notice / 提示**: Data entered on this page is stored locally "
+    "**Notice / 提示**: Data entered on this page is stored locally "
     "for demonstration purposes only. No real personal financial data "
     "is collected or transmitted. / "
     "本页面输入的数据仅在本地存储，用于演示目的。不收集或传输真实的个人财务数据。"
