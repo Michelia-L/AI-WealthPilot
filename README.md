@@ -19,7 +19,7 @@
 
   ⭐ If you like this project, star it on GitHub — it helps a lot!
 
-  [Overview](#overview) • [Key Features](#key-features) • [System Architecture](#system-architecture) • [Financial Mathematics](#financial-mathematics) • [Directory Structure](#directory-structure) • [Getting Started](#getting-started) • [Running Tests](#running-tests) • [Disclaimer](#disclaimer)
+  [Overview](#overview) • [Key Features](#key-features) • [System Architecture](#system-architecture) • [Financial Mathematics](#financial-mathematics) • [Directory Structure](#directory-structure) • [Getting Started](#getting-started) • [Running Tests](#running-tests) • [Running Demos](#running-demos) • [Disclaimer](#disclaimer)
 
 </div>
 
@@ -44,6 +44,10 @@ The system couples a **Modern Portfolio Theory (MPT)** optimization solver with 
   Uses the `SciPy` SLSQP solver for Mean-Variance Optimization (MVO) to compute the Efficient Frontier, find the Tangency Portfolio (maximizing Sharpe ratio), and plot the Capital Allocation Line (CAL). Integrates condition number checking and automatic diagonal loading or eigenvalue clipping to maintain production-grade numerical stability.
 - 💎 **Covariance Shrinkage Estimators**  
   Supports Ledoit-Wolf and Oracle Approximating Shrinkage (OAS) estimators (utilizing `scikit-learn`) alongside traditional sample covariance. This mitigates MVO's high sensitivity to input estimation errors and noise expansion.
+- 📈 **Capital Market Expectations (CME) Engine**  
+  Computes per-asset-class expected returns, annualized volatility, Sharpe ratio, maximum drawdown, VaR/CVaR, and cross-asset correlation matrices from real-time market data via `yfinance`. Features a three-tier risk-free rate cascade — FRED API (3-month Treasury DGS3MO) → yfinance (`^IRX` 13-week T-Bill) → static fallback at $4.5\%$ — with automatic static JSON fallback when all dynamic sources fail. CME data is formatted and injected directly into LLM prompts to ground AI-generated investment strategies in real market conditions.
+- 🔄 **Resampled Efficient Frontier (Michaud Method)**  
+  Addresses MVO's "garbage in, garbage out" sensitivity by simulating $N$ sets of expected returns from a multivariate normal distribution $\mu_i \sim \mathcal{N}(\hat{\mu}, \Sigma/T)$, computing the efficient frontier for each simulation, then interpolating onto a unified return axis and averaging across all frontiers. Produces more diversified, stable portfolio weights than traditional single-sample MVO.
 - 📐 **Asset Class Constraints**  
   Supports injection of minimum/maximum weight constraints at the group level (e.g., equities, bonds, alternatives) rather than just single-asset level, allowing institutional tactical asset allocation guidelines.
 - 🎲 **Life-Cycle Monte Carlo Simulation**  
@@ -53,11 +57,11 @@ The system couples a **Modern Portfolio Theory (MPT)** optimization solver with 
 - 👥 **Multi-Client Profile Comparison**  
   Allows side-by-side comparison of different client portfolios and profiles, generating structured JSON comparative reports with automated behavioral finance and financial metrics insights.
 - 🕸️ **LangGraph Multi-Agent IPS Pipeline (Generate-Review-Revise)**  
-  Implements an institutional-grade, multi-agent automated workflow powered by `LangGraph` and `PydanticAI`. The system instantiates a fully automated, safety-critical refinement loop where an **IPS Generator Agent** drafts the strategy, followed by three independent expert verification agents cross-examining **Suitability** (client fit), **Compliance** (regulatory boundary), and **Consistency** (internal logic mathematical proofing), producing immutable regulatory audit trails.
+  Implements an institutional-grade, multi-agent automated workflow powered by `LangGraph` and `PydanticAI`. The system instantiates a fully automated, safety-critical refinement loop where a **CME Engine** first computes real-time capital market expectations, then an **IPS Generator Agent** drafts the strategy (including **CurrencyPolicy** for multi-currency hedging and **FeeSchedule** with TER calculation), followed by three independent expert verification agents cross-examining **Suitability** (client fit), **Compliance** (regulatory boundary), and **Consistency** (internal logic mathematical proofing). A quantitative **SAA Validation** node then verifies portfolio volatility ($\sigma_p = \sqrt{w^T \Sigma w}$) against risk-tolerance bands before finalization, producing immutable regulatory audit trails.
 - ⧉ **Bayesian Black-Litterman Optimization Engine**  
   Combines market-implied equilibrium returns (derived via reverse CAPM based on asset capitalization weights) with subjective investor views (supporting both absolute and relative directional views). This Bayesian combination effectively mitigates traditional MVO's severe sensitivity to historical parameter estimation errors.
 - 🤖 **AI Advisor Agent**  
-  Employs LLMs (`DeepSeek V4 Pro`) to analyze client metrics, identify behavioral finance biases (e.g., loss aversion, overconfidence), and generate personalized wealth advisor proposals.
+  Employs LLMs (`DeepSeek V4 Pro`) to analyze client metrics, identify behavioral finance biases — including **loss aversion**, **overconfidence**, **ability-willingness mismatch**, **leverage risk**, and **inadequate safety net** — and generate personalized wealth advisor proposals.
 - 📄 **Enhanced Multi-Format Document Export**  
   Supports seamless export of AI advisor recommendations to standalone HTML (styled with inline premium CSS), Markdown, and raw JSON documents.
 - 📊 **Obsidian & Gold Glassmorphic UI**  
@@ -84,22 +88,25 @@ graph TB
         MVO[MVO Optimizer<br/>SciPy SLSQP Constraint Solver]
         MC[Monte Carlo Simulator<br/>GBM Path Generator]
         RM[Risk Metrics Evaluator<br/>VaR / CVaR / Sortino / Drawdown]
+        CME[CME Engine<br/>Capital Market Expectations]
     end
 
     subgraph Multi_Agent_IPS ["LangGraph Multi-Agent IPS Pipeline"]
+        CME_Node[Generate CME Node<br/>Market Data → LLM Prompt]
         Gen[Generator Agent<br/>PydanticAI Draft]
         Rev_S[Suitability Reviewer]
         Rev_C[Compliance Reviewer]
         Rev_Co[Consistency Reviewer]
+        SAA[SAA Validator<br/>σ_p = √wᵀΣw]
         Reviser[Reviser Agent<br/>Precision Fix]
         
-        Gen --> Rev_S --> Rev_C --> Rev_Co
-        Rev_Co -- "Issues Found" --> Reviser --> Gen
-        Rev_Co -- "All Passed / Max Loops" --> Final[Finalize & Audit]
+        CME_Node --> Gen --> Rev_S --> Rev_C --> Rev_Co --> SAA
+        SAA -- "Issues Found" --> Reviser --> Gen
+        SAA -- "All Passed / Max Loops" --> Final[Finalize & Audit]
     end
 
     subgraph Data_Layer ["Data Pipeline & Persistence"]
-        YF[yfinance API<br/>Real-time Quotes]
+        YF[yfinance API<br/>Real-time Quotes & FX Rates]
         JSON_DB[(Client Profiles<br/>JSON Document Store)]
         IPS_DB[(IPS & Audit Trail<br/>JSON Store)]
     end
@@ -110,7 +117,9 @@ graph TB
     %% Market Data Flow
     P1 --> YF
     YF --> RM
+    YF --> CME
     RM --> P1
+    CME --> CME_Node
 
     %% Optimizer Flow
     P2 --> MVO
@@ -133,9 +142,12 @@ graph TB
     style MVO fill:#0284c7,stroke:#075985,color:#fff
     style MC fill:#0284c7,stroke:#075985,color:#fff
     style RM fill:#0ea5e9,stroke:#0369a1,color:#fff
+    style CME fill:#0ea5e9,stroke:#0369a1,color:#fff
     style Multi_Agent_IPS fill:#5b21b6,stroke:#4c1d95,color:#fff
     style Gen fill:#7c3aed,stroke:#5b21b6,color:#fff
     style Reviser fill:#7c3aed,stroke:#5b21b6,color:#fff
+    style CME_Node fill:#7c3aed,stroke:#5b21b6,color:#fff
+    style SAA fill:#7c3aed,stroke:#5b21b6,color:#fff
     style YF fill:#059669,stroke:#064e3b,color:#fff
     style JSON_DB fill:#10b981,stroke:#065f46,color:#fff
     style IPS_DB fill:#10b981,stroke:#065f46,color:#fff
@@ -180,7 +192,7 @@ The Tangency Portfolio represents the combination of risky assets that maximizes
 
 $$\max_{w} \text{Sharpe} = \frac{w^T \mu - R_f}{\sqrt{w^T \Sigma w}}$$
 
-Where $R_f$ is the annualized risk-free rate (defaults to U.S. Treasury benchmark at $4.5\%$).
+Where $R_f$ is the annualized risk-free rate, obtained via a three-tier cascade: FRED API (3-month Treasury DGS3MO) → yfinance (`^IRX` 13-week T-Bill) → static fallback at $4.5\%$.
 
 ### 4. Geometric Brownian Motion (GBM) & Volatility Drag
 To compound returns realistically over long horizons, we simulate wealth paths using discrete-time Geometric Brownian Motion with a Jensen's Inequality correction (Volatility Drag Adjustment):
@@ -213,14 +225,16 @@ AI-WealthPilot/
 ├── src/
 │   ├── app.py                    # Streamlit main entrypoint & navigation
 │   ├── config.py                 # Core assets (13 classes), hyperparameters & configs
-│   ├── utils.py                  # Utility functions (filename sanitization, etc.)
+│   ├── utils.py                  # Filename sanitization utility
 │   ├── portfolio/                # [Quantitative Engine]
 │   │   ├── optimizer.py          # MVO solver, Tangency finder, Dirichlet weight simulator
 │   │   ├── simulator.py          # GBM simulator & retirement life-cycle generator
 │   │   ├── risk_metrics.py       # Risk calculators (Sharpe, Sortino, VaR, CVaR)
-│   │   └── views.py              # Black-Litterman model view processors
+│   │   ├── views.py              # Black-Litterman view encoding (P/Q/Omega, Idzorek confidence)
+│   │   ├── cme_engine.py         # Capital Market Expectations engine & risk-free rate cascade
+│   │   └── cme_models.py         # CME Pydantic data models (CMEReport, SAAValidationResult)
 │   ├── data/                     # [Data Pipeline]
-│   │   └── market_data.py        # yfinance pipeline & correlation calculations
+│   │   └── market_data.py        # yfinance pipeline, multi-currency FX conversion & correlation calculations
 │   ├── visualization/            # [Chart Renderer]
 │   │   └── charts.py             # Plotly interactive chart components
 │   ├── views/                    # [Streamlit Pages]
@@ -229,29 +243,31 @@ AI-WealthPilot/
 │   │   ├── portfolio_optimizer.py# MVO & Black-Litterman allocations
 │   │   ├── retirement_planner.py # Monte Carlo simulation planner
 │   │   ├── client_profiling.py   # CFA IPS questionnaire & profiles registry
-│   │   └── ai_advisor.py         # AI advisor proposal interface (streaming)
+│   │   ├── ai_advisor.py         # AI advisor proposal interface (streaming)
+│   │   └── compliance.py         # Compliance & suitability disclaimer UI components
 │   ├── agents/                   # [AI Agent Core]
 │   │   ├── profiler.py           # Client profile parser agent & behavioral bias identification
 │   │   ├── advisor.py            # DeepSeek V4 Pro report generator agent (streaming)
 │   │   ├── portfolio_recommender.py # Personalized asset allocator agent
-│   │   ├── report_storage.py     # JSON proposal serializer & storage
-│   │   ├── ips_models.py         # CFA-aligned Investment Policy Statement Pydantic schemas
+│   │   ├── report_storage.py     # Multi-format (HTML/Markdown/JSON) report serializer & storage
+│   │   ├── ips_models.py         # CFA-aligned IPS Pydantic schemas (18 models incl. CurrencyPolicy, FeeSchedule)
 │   │   ├── ips_agents.py         # PydanticAI agent definitions for generator, reviewer, reviser
 │   │   ├── ips_workflow.py       # LangGraph state machine orchestrating Generate-Review-Revise
 │   │   └── ips_storage.py        # Persistence and exports for IPS and audit trail reports
 ├── tests/                        # [Automated Test Suite]
 │   ├── conftest.py               # Pytest fixtures and mock API configurations
 │   ├── test_portfolio.py         # Core quant engine validations
-│   ├── test_profiler.py          # Client profiling scoring models (22 cases)
+│   ├── test_profiler.py          # Client profiling scoring models (31 cases)
 │   ├── test_black_litterman.py   # Black-Litterman model validations
 │   ├── test_advanced_portfolio.py# Resampled frontier & regularization tests
 │   ├── test_advisor.py           # DeepSeek advisor integration tests
-│   ├── test_market_data.py       # Async data fetching and cache testing
+│   ├── test_market_data.py       # Async data fetching, currency conversion & cache testing
+│   ├── test_cme_engine.py        # CME computation, fallback & risk-free rate cascade tests
 │   ├── test_ips_models.py        # IPS data structures schemas tests
 │   ├── test_ips_workflow.py      # LangGraph Generate-Review-Revise loop execution tests
 │   ├── test_portfolio_recommender.py # Portfolio recommendation logic consistency tests
 │   ├── test_comparison_export.py # Profile comparison data exports tests
-│   ├── test_views.py             # Streamlit views routing and injection security tests
+│   ├── test_views.py             # Streamlit page rendering smoke tests
 │   └── test_phase3_features.py   # End-to-end features integration tests
 ├── examples/                     # [Demo & Showcase Scripts]
 │   ├── demo_quick.py             # Simple quick demo (MVO + BL + Monte Carlo)

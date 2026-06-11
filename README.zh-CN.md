@@ -19,7 +19,7 @@
 
   ⭐ 如果你喜欢这个项目，请在 GitHub 上点个 Star！这对我很有帮助！
 
-  [项目概述](#项目概述) • [核心功能](#核心功能) • [系统架构](#系统架构) • [量化数学模型](#量化数学模型) • [目录结构](#目录结构) • [快速开始](#快速开始) • [运行测试](#运行测试) • [免责声明](#免责声明)
+  [项目概述](#项目概述) • [核心功能](#核心功能) • [系统架构](#系统架构) • [量化数学模型](#量化数学模型) • [目录结构](#目录结构) • [快速开始](#快速开始) • [运行测试](#运行测试) • [运行演示脚本](#运行演示脚本) • [免责声明](#免责声明)
 
 </div>
 
@@ -44,6 +44,10 @@
   利用 `SciPy` 的 SLSQP 算法求解约束优化问题，绘制有效前沿 (Efficient Frontier)，求解切点组合 (Tangency Portfolio，即最大夏普比率组合) 以及资本配置线 (CAL)。实现自动条件数检测与对角加载（Diagonal Loading）或特征值裁剪（Eigenvalue Clipping）的数值正则化，确保生产级数值稳定性。
 - 💎 **协方差矩阵收缩估计量**  
   支持 Ledoit-Wolf 和 OAS (Oracle Approximating Shrinkage) 估计量（依赖 `scikit-learn`），与传统样本协方差相比，能够显著降低 MVO 对输入参数估计误差的敏感度，解决噪声扩展问题。
+- 📈 **资本市场预期 (CME) 引擎**  
+  基于 `yfinance` 实时行情数据，按资产类别计算年化收益率、波动率、夏普比率、最大回撤、VaR/CVaR 以及跨资产相关性矩阵。实现三级无风险利率获取链——FRED API（3个月期国债 DGS3MO）→ yfinance（`^IRX` 13周国库券）→ 静态回退值 $4.5\%$，并在所有动态数据源失效时自动加载静态 JSON 回退文件。CME 数据可被格式化并直接注入 LLM 提示词，确保 AI 生成的投资策略基于真实市场条件。
+- 🔄 **重抽样有效前沿 (Michaud 方法)**  
+  针对传统 MVO 的"垃圾进，垃圾出"参数敏感性问题，从多元正态分布 $\mu_i \sim \mathcal{N}(\hat{\mu}, \Sigma/T)$ 中模拟 $N$ 组预期收益率，对每次模拟分别计算有效前沿，再在统一的收益率轴上插值对齐后逐点取平均。相比传统单次抽样的 MVO，能产生更加多元化和稳定的投资组合权重。
 - 📐 **资产类别层级的权重约束**  
   支持在群组层级（如股票类、债券类、另类资产类）注入最小/最大权重约束，而不仅限于单资产约束，契合机构级战略资产配置（SAA）指引。
 - 🎲 **生命周期蒙特卡洛模拟**  
@@ -53,11 +57,11 @@
 - 👥 **多客户画像对比分析系统**  
   支持多客户画像的横向对比与全景洞察，自动计算风险偏好、储蓄率、行为偏差等维度的差异，并生成结构化的对比 JSON 报告与分析洞察。
 - 🕸️ **LangGraph 多智能体闭环 IPS 工作流（生成-审查-修订）**  
-  基于 `LangGraph` 与 `PydanticAI` 构建了生产级的多智能体自动化审批链。系统模拟真实的私人银行合规审查流程，由 **IPS 生成 Agent** 编排初稿，再经由三个独立专家 Agent 从**适配性**（客户需求错配）、**合规性**（法律条文准入与权重极值）和**一致性**（前后章节数学逻辑闭环）三个维度进行多轮严苛的辩论与流式自我纠偏，并留存完备的合规审计追踪（Audit Trail）。
+  基于 `LangGraph` 与 `PydanticAI` 构建了生产级的多智能体自动化审批链。系统首先由 **CME 引擎**计算实时资本市场预期数据，再由 **IPS 生成 Agent** 编排初稿（包含多币种对冲策略的 **CurrencyPolicy** 和含 TER 计算的 **FeeSchedule**），随后经由三个独立专家 Agent 从**适配性**（客户需求匹配）、**合规性**（法律条文准入与权重极值）和**一致性**（前后章节数学逻辑闭环）三个维度进行多轮严苛的审查与流式自我纠偏。定量 **SAA 验证**节点在终审前通过 $\sigma_p = \sqrt{w^T \Sigma w}$ 计算组合波动率并与风险容忍区间交叉校验，最终留存完备的合规审计追踪（Audit Trail）。
 - ⧉ **Black-Litterman 观点集成优化引擎**  
   支持基于反向 CAPM 原理从资产市值权重中剥离出市场隐含均衡收益率（Prior），并允许用户注入个性化的绝对观点或相对观点（含自定义置信度矩阵）。通过贝叶斯推断将均衡 Baseline 与投资者观点无缝融合，有效解决传统均值-方差优化（MVO）对历史数据估计误差高敏感、容易产生极端资产配比的痛点。
 - 🤖 **AI 顾问 Agent**  
-  基于先进大语言模型 (`DeepSeek V4 Pro`) 深度分析客户多维指标，识别其可能存在的行为金融偏差（如损失厌恶、过度自信），生成专业、合规的流式理财建议书。
+  基于先进大语言模型 (`DeepSeek V4 Pro`) 深度分析客户多维指标，识别其可能存在的行为金融偏差——包括**损失厌恶**、**过度自信**、**能力-意愿错配**、**杠杆风险**和**安全网不足**——生成专业、合规的流式理财建议书。
 - 📄 **多格式高级文档导出**  
   支持将 AI 顾问建议书无缝转换为独立的、带有精美内嵌 CSS 样式的 HTML 文档、Markdown 以及原生 JSON，便于跨平台分发和打印。
 - 📊 **黑曜石黄金玻璃微凸金融终端 (Obsidian & Gold Glassmorphic UI)**  
@@ -84,22 +88,25 @@ graph TB
         MVO[MVO Optimizer<br/>SciPy SLSQP Constraint Solver]
         MC[Monte Carlo Simulator<br/>GBM Path Generator]
         RM[Risk Metrics Evaluator<br/>VaR / CVaR / Sortino / Drawdown]
+        CME[CME Engine<br/>Capital Market Expectations]
     end
 
     subgraph Multi_Agent_IPS ["LangGraph Multi-Agent IPS Pipeline"]
+        CME_Node[Generate CME Node<br/>Market Data → LLM Prompt]
         Gen[Generator Agent<br/>PydanticAI Draft]
         Rev_S[Suitability Reviewer]
         Rev_C[Compliance Reviewer]
         Rev_Co[Consistency Reviewer]
+        SAA[SAA Validator<br/>σ_p = √wᵀΣw]
         Reviser[Reviser Agent<br/>Precision Fix]
         
-        Gen --> Rev_S --> Rev_C --> Rev_Co
-        Rev_Co -- "Issues Found" --> Reviser --> Gen
-        Rev_Co -- "All Passed / Max Loops" --> Final[Finalize & Audit]
+        CME_Node --> Gen --> Rev_S --> Rev_C --> Rev_Co --> SAA
+        SAA -- "Issues Found" --> Reviser --> Gen
+        SAA -- "All Passed / Max Loops" --> Final[Finalize & Audit]
     end
 
     subgraph Data_Layer ["Data Pipeline & Persistence"]
-        YF[yfinance API<br/>Real-time Quotes]
+        YF[yfinance API<br/>Real-time Quotes & FX Rates]
         JSON_DB[(Client Profiles<br/>JSON Document Store)]
         IPS_DB[(IPS & Audit Trail<br/>JSON Store)]
     end
@@ -110,7 +117,9 @@ graph TB
     %% Market Data Flow
     P1 --> YF
     YF --> RM
+    YF --> CME
     RM --> P1
+    CME --> CME_Node
 
     %% Optimizer Flow
     P2 --> MVO
@@ -133,9 +142,12 @@ graph TB
     style MVO fill:#0284c7,stroke:#075985,color:#fff
     style MC fill:#0284c7,stroke:#075985,color:#fff
     style RM fill:#0ea5e9,stroke:#0369a1,color:#fff
+    style CME fill:#0ea5e9,stroke:#0369a1,color:#fff
     style Multi_Agent_IPS fill:#5b21b6,stroke:#4c1d95,color:#fff
     style Gen fill:#7c3aed,stroke:#5b21b6,color:#fff
     style Reviser fill:#7c3aed,stroke:#5b21b6,color:#fff
+    style CME_Node fill:#7c3aed,stroke:#5b21b6,color:#fff
+    style SAA fill:#7c3aed,stroke:#5b21b6,color:#fff
     style YF fill:#059669,stroke:#064e3b,color:#fff
     style JSON_DB fill:#10b981,stroke:#065f46,color:#fff
     style IPS_DB fill:#10b981,stroke:#065f46,color:#fff
@@ -178,7 +190,7 @@ graph TB
 
 $$\max_{w} \text{Sharpe} = \frac{w^T \mu - R_f}{\sqrt{w^T \Sigma w}}$$
 
-其中 $R_f$ 为年化无风险利率（系统默认取美债基准 $4.5\%$）。
+其中 $R_f$ 为年化无风险利率，通过三级级联机制获取：FRED API（3个月期国债 DGS3MO）→ yfinance（`^IRX` 13周国库券）→ 静态回退值 $4.5\%$。
 
 ### 4. 几何布朗运动 (GBM) 与波动率拖累修正 (Volatility Drag)
 为对长期财富变化做合理模拟，系统采用离散时间步长的几何布朗运动，引入了 Jensen 不等式对数正态修正（即波动率拖累修正），以防止多期累计产生的系统性高估：
@@ -211,14 +223,16 @@ AI-WealthPilot/
 ├── src/
 │   ├── app.py                    # Streamlit 主程序入口与导航
 │   ├── config.py                 # 核心配置（13类资产配置）、超参数与系统设置
-│   ├── utils.py                  # 通用工具函数（文件名清洗等）
+│   ├── utils.py                  # 文件名清洗工具函数
 │   ├── portfolio/                # 【量化计算引擎】
 │   │   ├── optimizer.py          # MVO 求解器、切点优化、狄利克雷随机散点生成
 │   │   ├── simulator.py          # GBM 模拟器、退休两阶段生命周期生成器
 │   │   ├── risk_metrics.py       # 风险指标计算（Sharpe, Sortino, VaR, CVaR）
-│   │   └── views.py              # Black-Litterman 观点矩阵处理器
+│   │   ├── views.py              # Black-Litterman 观点编码（P/Q/Omega 矩阵，Idzorek 置信度法）
+│   │   ├── cme_engine.py         # 资本市场预期 (CME) 引擎与无风险利率三级级联
+│   │   └── cme_models.py         # CME Pydantic 数据模型（CMEReport, SAAValidationResult）
 │   ├── data/                     # 【数据拉取模块】
-│   │   └── market_data.py        # yfinance 异步行情拉取与相关性矩阵计算
+│   │   └── market_data.py        # yfinance 异步行情拉取、多币种汇率转换与相关性矩阵计算
 │   ├── visualization/            # 【图表渲染组件】
 │   │   └── charts.py             # Plotly 交互式专业图表
 │   ├── views/                    # 【Streamlit 视图页面】
@@ -227,29 +241,31 @@ AI-WealthPilot/
 │   │   ├── portfolio_optimizer.py# MVO & Black-Litterman 配置界面
 │   │   ├── retirement_planner.py # 蒙特卡洛财富寿命规划器
 │   │   ├── client_profiling.py   # CFA IPS 问卷与客户档案库
-│   │   └── ai_advisor.py         # AI 顾问流式建议书交互页面
+│   │   ├── ai_advisor.py         # AI 顾问流式建议书交互页面
+│   │   └── compliance.py         # 合规与免责声明 UI 组件
 │   ├── agents/                   # 【AI 决策与智能体层】
 │   │   ├── profiler.py           # 客户档案解析与行为金融偏差检测 Agent
 │   │   ├── advisor.py            # DeepSeek V4 Pro 建议书生成 Agent（流式）
 │   │   ├── portfolio_recommender.py # 客户画像-资产类别风险匹配 Agent
-│   │   ├── report_storage.py     # 建议书 PDF/JSON 格式持久化存储
-│   │   ├── ips_models.py         # CFA-IPS 核心七要素 Pydantic 强类型数据模型
+│   │   ├── report_storage.py     # 多格式（HTML/Markdown/JSON）建议书序列化存储与导出
+│   │   ├── ips_models.py         # CFA-IPS 核心 Pydantic 强类型数据模型（18个模型，含 CurrencyPolicy、FeeSchedule）
 │   │   ├── ips_agents.py         # 基于 PydanticAI 的生成/多审查员/修订 Agent 定义
 │   │   ├── ips_workflow.py       # 基于 LangGraph 的多智能体闭环工作流状态机
 │   │   └── ips_storage.py        # 投资政策声明书及审计历史的本地存储与 MD 导出器
 ├── tests/                        # 【自动化测试套件】
 │   ├── conftest.py               # Pytest 全局共享 Mock 夹具与配置
 │   ├── test_portfolio.py         # MVO/BL 核心量化引擎单元测试
-│   ├── test_profiler.py          # 客户风险评估双轨制逻辑测试 (22个用例)
+│   ├── test_profiler.py          # 客户风险评估双轨制逻辑测试 (31个用例)
 │   ├── test_black_litterman.py   # Black-Litterman 计算矩阵测试
 │   ├── test_advanced_portfolio.py# 重抽样有效前沿与矩阵正则化测试
 │   ├── test_advisor.py           # DeepSeek 顾问 Agent 集成测试
-│   ├── test_market_data.py       # 异步行情接口及缓存加载测试
+│   ├── test_market_data.py       # 异步行情接口、多币种汇率转换及缓存加载测试
+│   ├── test_cme_engine.py        # CME 计算、静态回退与无风险利率级联测试
 │   ├── test_ips_models.py        # IPS Pydantic 模型的严格约束边界测试
 │   ├── test_ips_workflow.py      # LangGraph 状态机生成-审查-修订循环测试
 │   ├── test_portfolio_recommender.py # 资产配置推荐建议一致性测试
 │   ├── test_comparison_export.py # 画像对比数据导出与格式化测试
-│   ├── test_views.py             # Streamlit 界面路由与风格注入安全性测试
+│   ├── test_views.py             # Streamlit 页面渲染冒烟测试
 │   └── test_phase3_features.py   # 阶段3功能端到端集成测试
 ├── examples/                     # 【示例与演示脚本】
 │   ├── demo_quick.py             # 快速入门演示（MVO + BL + 蒙特卡洛）
