@@ -314,6 +314,43 @@ class MonitoringPolicy(BaseModel):
     )
 
 
+class FeeSchedule(BaseModel):
+    """
+    IPS Section: Fee and Cost Disclosure.
+
+    CFA Reference:
+        CFA L3 PWM: The IPS should disclose all investment-related costs
+        including management fees, custody fees, and transaction costs.
+        Net-of-fee return expectations are essential for realistic
+        goal-based planning.
+    """
+    management_fee_rate: float = Field(
+        default=0.0,
+        description="Annual investment management fee rate, e.g. 0.01 for 1%"
+    )
+    custody_fee_rate: float = Field(
+        default=0.0,
+        description="Annual custody/safekeeping fee rate"
+    )
+    transaction_cost_estimate: float = Field(
+        default=0.0,
+        description="Estimated annual transaction costs as % of AUM"
+    )
+    total_expense_ratio: float = Field(
+        default=0.0,
+        description="Total Expense Ratio (TER) = management + custody + transaction costs"
+    )
+    net_return_impact: str = Field(
+        default="",
+        description="Description of fee impact on net returns, "
+                    "e.g. 'Gross return 8.0% minus TER 1.5% = net return 6.5%'"
+    )
+    fee_narrative: str = Field(
+        default="",
+        description="Complete fee disclosure narrative covering all cost components"
+    )
+
+
 class CurrencyPolicy(BaseModel):
     """
     Currency management policy for multi-currency portfolios.
@@ -394,6 +431,10 @@ class IPSDocument(BaseModel):
     currency_policy: Optional[CurrencyPolicy] = Field(
         default=None,
         description="Currency management policy (required when foreign exposure > 10%)"
+    )
+    fee_schedule: Optional[FeeSchedule] = Field(
+        default=None,
+        description="Fee and cost disclosure section (CFA L3 PWM requirement)"
     )
 
     # Compliance

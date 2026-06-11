@@ -221,10 +221,14 @@ def export_ips_markdown(ips_dict: dict, audit_trail_dict: Optional[dict] = None)
 
     # Liquidity
     liq = ips.get("liquidity", {})
+    # Derive currency symbol from currency_policy or default to ¥ (CNY)
+    _currency_symbols = {"CNY": "¥", "USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "HKD": "HK$"}
+    _base_curr = (ips.get("currency_policy") or {}).get("base_currency", "CNY")
+    _curr_sym = _currency_symbols.get(_base_curr, _base_curr + " ")
     lines.append("## 六、流动性约束")
     lines.append("")
-    lines.append(f"- **即时流动性需求**: ¥{liq.get('immediate_needs', 0):,.0f}")
-    lines.append(f"- **持续性需求（年）**: ¥{liq.get('ongoing_needs', 0):,.0f}")
+    lines.append(f"- **即时流动性需求**: {_curr_sym}{liq.get('immediate_needs', 0):,.0f}")
+    lines.append(f"- **持续性需求（年）**: {_curr_sym}{liq.get('ongoing_needs', 0):,.0f}")
     lines.append(f"- **应急储备**: {liq.get('emergency_reserve_months', 0)} 个月")
     lines.append("")
     lines.append(liq.get("liquidity_narrative", ""))
@@ -287,9 +291,34 @@ def export_ips_markdown(ips_dict: dict, audit_trail_dict: Optional[dict] = None)
     lines.append(guide.get("guideline_narrative", ""))
     lines.append("")
 
+    # Fee Schedule (if provided)
+    fee = ips.get("fee_schedule")
+    if fee:
+        lines.append("## 十一、费用与成本披露")
+        lines.append("")
+        lines.append("| 费用项目 | 费率 |")
+        lines.append("|----------|------|")
+        lines.append(f"| 投资管理费 | {fee.get('management_fee_rate', 0):.2%} |")
+        lines.append(f"| 托管费 | {fee.get('custody_fee_rate', 0):.2%} |")
+        lines.append(f"| 预估交易成本 | {fee.get('transaction_cost_estimate', 0):.2%} |")
+        lines.append(f"| **总费用率 (TER)** | **{fee.get('total_expense_ratio', 0):.2%}** |")
+        lines.append("")
+        if fee.get("net_return_impact"):
+            lines.append(f"**净收益影响**: {fee['net_return_impact']}")
+            lines.append("")
+        lines.append(fee.get("fee_narrative", ""))
+        lines.append("")
+
+        # Adjust section numbering for subsequent sections
+        mon_section = "十二"
+        disclosure_section = "十三"
+    else:
+        mon_section = "十一"
+        disclosure_section = "十二"
+
     # Monitoring
     mon = ips.get("monitoring", {})
-    lines.append("## 十一、监控与评估")
+    lines.append(f"## {mon_section}、监控与评估")
     lines.append("")
     lines.append(f"**审查频率**: {mon.get('review_frequency', '')}")
     lines.append("")
@@ -302,7 +331,7 @@ def export_ips_markdown(ips_dict: dict, audit_trail_dict: Optional[dict] = None)
     lines.append("")
 
     # Risk Disclosure
-    lines.append("## 十二、风险披露与合规声明")
+    lines.append(f"## {disclosure_section}、风险披露与合规声明")
     lines.append("")
     lines.append("### 风险披露")
     lines.append(ips.get("risk_disclosure", ""))

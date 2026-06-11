@@ -32,6 +32,7 @@ from src.agents.ips_models import (
     BenchmarkSpec,
     MonitoringPolicy,
     CurrencyPolicy,
+    FeeSchedule,
     # Review models
     ReviewResult,
     ReviewIssue,
@@ -359,6 +360,58 @@ class TestCurrencyPolicy:
         assert policy.hedging_ratio == 0.50
 
 
+class TestFeeSchedule:
+    """Tests for the FeeSchedule model."""
+
+    def test_default_creation(self):
+        """Test default values of FeeSchedule."""
+        fee = FeeSchedule()
+        assert fee.management_fee_rate == 0.0
+        assert fee.custody_fee_rate == 0.0
+        assert fee.transaction_cost_estimate == 0.0
+        assert fee.total_expense_ratio == 0.0
+        assert fee.net_return_impact == ""
+        assert fee.fee_narrative == ""
+
+    def test_custom_creation(self):
+        """Test FeeSchedule with realistic wealth management fees."""
+        fee = FeeSchedule(
+            management_fee_rate=0.01,
+            custody_fee_rate=0.002,
+            transaction_cost_estimate=0.003,
+            total_expense_ratio=0.015,
+            net_return_impact="Gross return 8.00% - TER 1.50% = Net return 6.50%",
+            fee_narrative=(
+                "Management fee covers portfolio construction and ongoing monitoring. "
+                "Custody fee covers safekeeping of assets. Transaction costs estimated "
+                "based on quarterly rebalancing."
+            ),
+        )
+        assert fee.management_fee_rate == 0.01
+        assert fee.custody_fee_rate == 0.002
+        assert fee.transaction_cost_estimate == 0.003
+        assert fee.total_expense_ratio == 0.015
+        # Verify TER = sum of component fees
+        computed_ter = fee.management_fee_rate + fee.custody_fee_rate + fee.transaction_cost_estimate
+        assert abs(fee.total_expense_ratio - computed_ter) < 0.0001
+
+    def test_serialization_roundtrip(self):
+        """Test JSON roundtrip for FeeSchedule."""
+        fee = FeeSchedule(
+            management_fee_rate=0.012,
+            custody_fee_rate=0.001,
+            transaction_cost_estimate=0.002,
+            total_expense_ratio=0.015,
+            net_return_impact="Net impact: -1.5% per annum",
+            fee_narrative="Standard fee structure.",
+        )
+        json_str = fee.model_dump_json()
+        fee2 = FeeSchedule.model_validate_json(json_str)
+        assert fee2.management_fee_rate == fee.management_fee_rate
+        assert fee2.total_expense_ratio == fee.total_expense_ratio
+        assert fee2.fee_narrative == fee.fee_narrative
+
+
 # ============================================================
 # Test: Complete IPSDocument
 # ============================================================
@@ -373,6 +426,24 @@ class TestIPSDocument:
         assert doc.version == "1.0"  # default
         assert doc.prepared_by == "AI WealthPilot IPS Generator"  # default
         assert doc.currency_policy is None
+        assert doc.fee_schedule is None
+
+    def test_with_fee_schedule(self, minimal_ips_data):
+        """Test IPSDocument with fee schedule."""
+        data = minimal_ips_data.copy()
+        data["fee_schedule"] = {
+            "management_fee_rate": 0.01,
+            "custody_fee_rate": 0.002,
+            "transaction_cost_estimate": 0.003,
+            "total_expense_ratio": 0.015,
+            "net_return_impact": "Gross return 8.00% - TER 1.50% = Net return 6.50%",
+            "fee_narrative": "Full fee disclosure for transparency.",
+        }
+        doc = IPSDocument(**data)
+        assert doc.fee_schedule is not None
+        assert doc.fee_schedule.management_fee_rate == 0.01
+        assert doc.fee_schedule.total_expense_ratio == 0.015
+        assert "TER" in doc.fee_schedule.net_return_impact
 
     def test_with_currency_policy(self, minimal_ips_data):
         """Test IPSDocument with currency policy."""
