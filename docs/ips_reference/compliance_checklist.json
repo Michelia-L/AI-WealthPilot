@@ -1,5 +1,5 @@
 {
-  "version": "1.0",
+  "version": "1.1",
   "description": "IPS 合规检查清单 — 对标 CFA Level III PWM 框架",
   "dimensions": {
     "suitability": {
@@ -102,6 +102,27 @@
           "description": "是否识别并记录了适用的法律法规约束",
           "severity": "warning",
           "rule": "legal.applicable_regulations 字段非空"
+        },
+        {
+          "id": "C007",
+          "name": "费用披露完整性",
+          "description": "IPS 是否完整披露了管理费、托管费、交易成本等全部费用",
+          "severity": "critical",
+          "rule": "fee_schedule 字段非空且包含管理费率、托管费率、交易成本预估和对净收益率的影响说明"
+        },
+        {
+          "id": "C008",
+          "name": "投资者冷静期提示",
+          "description": "是否包含中国证券基金适当性管理办法要求的 24 小时冷静期声明",
+          "severity": "critical",
+          "rule": "compliance_statement 中应包含关于签署后 24 小时冷静期的提示（适用于私募基金等产品）"
+        },
+        {
+          "id": "C009",
+          "name": "KYC 完整性确认",
+          "description": "IPS 是否确认已完成客户身份验证和投资适当性评估",
+          "severity": "critical",
+          "rule": "compliance_statement 应包含 KYC（了解你的客户）完成确认声明"
         }
       ]
     },
