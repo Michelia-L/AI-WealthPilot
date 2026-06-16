@@ -310,6 +310,55 @@ class TestRiskToleranceAssessment:
         )
         assert obj.conflict_resolution is not None
 
+    def test_quantitative_anchors_default_none(self, minimal_risk_tolerance):
+        """Test that quantitative risk anchors default to None."""
+        obj = RiskToleranceAssessment(**minimal_risk_tolerance)
+        assert obj.max_acceptable_annual_loss is None
+        assert obj.target_volatility_min is None
+        assert obj.target_volatility_max is None
+        assert obj.var_tolerance_95 is None
+        assert obj.max_drawdown_tolerance is None
+
+    def test_with_quantitative_anchors(self):
+        """Test creating assessment with quantitative risk anchors."""
+        obj = RiskToleranceAssessment(
+            ability_assessment="Moderate ability",
+            willingness_assessment="Moderate willingness",
+            overall_risk_level="moderate",
+            risk_narrative="Balanced risk profile",
+            max_acceptable_annual_loss=-0.15,
+            target_volatility_min=0.10,
+            target_volatility_max=0.15,
+            var_tolerance_95=-0.20,
+            max_drawdown_tolerance=-0.25,
+        )
+        assert obj.max_acceptable_annual_loss == -0.15
+        assert obj.target_volatility_min == 0.10
+        assert obj.target_volatility_max == 0.15
+        assert obj.var_tolerance_95 == -0.20
+        assert obj.max_drawdown_tolerance == -0.25
+        # Verify volatility range is coherent
+        assert obj.target_volatility_min < obj.target_volatility_max
+
+    def test_quantitative_anchors_serialization(self):
+        """Test JSON roundtrip for quantitative risk anchors."""
+        obj = RiskToleranceAssessment(
+            ability_assessment="test",
+            willingness_assessment="test",
+            overall_risk_level="aggressive",
+            risk_narrative="test",
+            max_acceptable_annual_loss=-0.30,
+            target_volatility_min=0.16,
+            target_volatility_max=0.25,
+            var_tolerance_95=-0.35,
+            max_drawdown_tolerance=-0.40,
+        )
+        json_str = obj.model_dump_json()
+        obj2 = RiskToleranceAssessment.model_validate_json(json_str)
+        assert obj2.max_acceptable_annual_loss == obj.max_acceptable_annual_loss
+        assert obj2.target_volatility_min == obj.target_volatility_min
+        assert obj2.max_drawdown_tolerance == obj.max_drawdown_tolerance
+
 
 class TestTimeHorizonAnalysis:
     """Tests for the TimeHorizonAnalysis model."""

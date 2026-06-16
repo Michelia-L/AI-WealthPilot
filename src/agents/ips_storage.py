@@ -207,6 +207,26 @@ def export_ips_markdown(ips_dict: dict, audit_trail_dict: Optional[dict] = None)
     lines.append(risk.get("risk_narrative", ""))
     lines.append("")
 
+    # Quantitative risk anchors (if any are provided)
+    _has_quant = any(risk.get(k) is not None for k in [
+        "max_acceptable_annual_loss", "target_volatility_min",
+        "target_volatility_max", "var_tolerance_95", "max_drawdown_tolerance"
+    ])
+    if _has_quant:
+        lines.append("### 量化风险指标")
+        lines.append("")
+        lines.append("| 指标 | 阈值 |")
+        lines.append("|------|------|")
+        if risk.get("max_acceptable_annual_loss") is not None:
+            lines.append(f"| 最大可接受年度亏损 | {risk['max_acceptable_annual_loss']:.2%} |")
+        if risk.get("target_volatility_min") is not None and risk.get("target_volatility_max") is not None:
+            lines.append(f"| 目标波动率区间 | {risk['target_volatility_min']:.2%} – {risk['target_volatility_max']:.2%} |")
+        if risk.get("var_tolerance_95") is not None:
+            lines.append(f"| 95% VaR 容忍度（年化） | {risk['var_tolerance_95']:.2%} |")
+        if risk.get("max_drawdown_tolerance") is not None:
+            lines.append(f"| 最大回撤容忍度 | {risk['max_drawdown_tolerance']:.2%} |")
+        lines.append("")
+
     # Time Horizon
     th = ips.get("time_horizon", {})
     lines.append("## 五、投资期限")

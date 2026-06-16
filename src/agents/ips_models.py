@@ -126,6 +126,10 @@ class RiskToleranceAssessment(BaseModel):
         - Ability: objective, based on financial facts
         - Willingness: subjective, based on psychological comfort
         - Final = min(Ability, Willingness)
+
+    Quantitative Risk Anchors:
+        Concrete numeric thresholds derived from the client's risk
+        profile, enabling automated validation against SAA results.
     """
     ability_assessment: str = Field(
         description="Objective risk ability assessment narrative"
@@ -142,6 +146,28 @@ class RiskToleranceAssessment(BaseModel):
     )
     risk_narrative: str = Field(
         description="Comprehensive risk tolerance narrative"
+    )
+
+    # Quantitative risk anchors (all Optional for backward compatibility)
+    max_acceptable_annual_loss: Optional[float] = Field(
+        default=None,
+        description="Maximum acceptable annual loss, e.g. -0.15 for -15%"
+    )
+    target_volatility_min: Optional[float] = Field(
+        default=None,
+        description="Lower bound of target portfolio volatility range, e.g. 0.08 for 8%"
+    )
+    target_volatility_max: Optional[float] = Field(
+        default=None,
+        description="Upper bound of target portfolio volatility range, e.g. 0.12 for 12%"
+    )
+    var_tolerance_95: Optional[float] = Field(
+        default=None,
+        description="95% VaR tolerance (annual), e.g. -0.20 for -20%"
+    )
+    max_drawdown_tolerance: Optional[float] = Field(
+        default=None,
+        description="Maximum drawdown tolerance, e.g. -0.25 for -25%"
     )
 
 
