@@ -198,18 +198,22 @@ async def generate_cme_node(state: IPSWorkflowState) -> dict[str, Any]:
     logger.info("=== CME Generation Node ===")
 
     try:
-        cme_report = compute_cme()
+        cme_report, cache_status = compute_cme()
         cme_text = format_cme_for_prompt(cme_report)
 
         logger.info(
-            "CME generated: %d asset classes, rf=%.4f, as_of=%s",
+            "CME ready: %d asset classes, rf=%.4f, as_of=%s, source=%s",
             len(cme_report.asset_classes),
             cme_report.risk_free_rate,
             cme_report.as_of_date,
+            cache_status,
         )
 
+        cme_dict = cme_report.model_dump()
+        cme_dict["_cache_status"] = cache_status
+
         return {
-            "cme_report": cme_report.model_dump(),
+            "cme_report": cme_dict,
             "cme_text": cme_text,
             "status": "cme_generated",
         }
@@ -936,6 +940,7 @@ async def finalize_node(state: IPSWorkflowState) -> dict[str, Any]:
             "cme_risk_free_rate": state.cme_report.get("risk_free_rate"),
             "cme_rf_source": state.cme_report.get("risk_free_rate_source"),
             "cme_asset_count": len(state.cme_report.get("asset_classes", [])),
+            "cme_cache_status": state.cme_report.get("_cache_status", "unknown"),
         }
 
     # Build audit trail

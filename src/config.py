@@ -118,6 +118,8 @@ DEEPSEEK_TEMPERATURE = 0.3
 CME_LOOKBACK_YEARS = 5           # Historical data lookback / 历史数据回溯年数
 CME_INFLATION_ASSUMPTION = 0.025  # Long-term inflation assumption / 长期通胀率假设
 CME_DATA_INTERVAL = "1d"          # Data frequency / 数据频率
+CME_CACHE_TTL_DAYS = 90            # Cache validity period (days) / 缓存有效期（天）
+CME_CACHE_DIR = DATA_DIR / "cache" / "cme"  # Cache storage path / 缓存存储路径
 
 # IPS asset class → proxy ticker mapping
 # IPS 资产类别 → 代理 Ticker 映射
@@ -153,6 +155,19 @@ IPS_ASSET_CLASS_TICKERS = {
         "name": "现金等价物",
     },
 }
+
+# ============================================================
+# Implied Volatility Configuration
+# 隐含波动率配置
+# ============================================================
+# Bayesian blending weight for implied vs historical volatility.
+# τ (tau) controls the weight placed on forward-looking implied volatility:
+#   blended_vol = τ × σ_implied + (1-τ) × σ_historical
+#   τ = 0.0 → pure historical volatility (backward-looking only)
+#   τ = 0.5 → equal weight (default; CFA-recommended balanced approach)
+#   τ = 1.0 → pure implied volatility (forward-looking only)
+# CFA Reference: CFA L3 — multi-method CME blending.
+CME_IV_BLENDING_TAU = 0.5
 
 # SAA Validation thresholds
 # SAA 验证阈值

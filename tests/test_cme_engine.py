@@ -30,7 +30,9 @@ from src.portfolio.cme_engine import (
     format_cme_for_prompt,
     _load_fallback_cme,
     _fetch_risk_free_rate_with_source,
+    _classify_vol_regime,
 )
+from src.data.implied_volatility import ImpliedVolData
 
 
 # ============================================================
@@ -233,6 +235,7 @@ class TestFallbackCME:
 class TestCMEComputation:
     """Test compute_cme with mocked market data."""
 
+    @patch("src.portfolio.cme_engine.fetch_implied_volatility")
     @patch("src.portfolio.cme_engine.fetch_price_history")
     @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
     @patch("src.portfolio.cme_engine.compute_correlation_matrix")
@@ -241,11 +244,17 @@ class TestCMEComputation:
         mock_corr,
         mock_rf,
         mock_prices,
+        mock_iv,
         mock_price_data,
     ):
         """compute_cme should return a valid CMEReport with mock data."""
         mock_prices.return_value = mock_price_data
         mock_rf.return_value = (0.043, "mock")
+        # Return empty IV data (no IV available for test tickers)
+        mock_iv.return_value = {
+            "000300.SS": None,
+            "AGG": None,
+        }
 
         # Create a correlation matrix from the mock data
         returns = mock_price_data.pct_change().dropna()
@@ -258,32 +267,43 @@ class TestCMEComputation:
             "fixed_income": {"ticker": "AGG", "name": "固定收益"},
         }
 
-        report = compute_cme(asset_tickers=test_tickers)
+        report, cache_status = compute_cme(
+            asset_tickers=test_tickers, force_refresh=True,
+        )
 
         assert isinstance(report, CMEReport)
+        assert cache_status == "fresh"
         assert len(report.asset_classes) == 2
         assert report.risk_free_rate == 0.043
         assert report.risk_free_rate_source == "mock"
+        # IV should not be available for these tickers
+        assert report.iv_data_available is False
+        for ac in report.asset_classes:
+            assert ac.implied_volatility is None
+            assert ac.blended_volatility == ac.volatility  # fallback to historical
 
     @patch("src.portfolio.cme_engine.fetch_price_history")
     def test_compute_cme_fallback_on_empty_data(self, mock_prices):
         """compute_cme should fall back to static when data is empty."""
         mock_prices.return_value = pd.DataFrame()
 
-        report = compute_cme()
+        report, cache_status = compute_cme(force_refresh=True)
 
         assert isinstance(report, CMEReport)
-        assert report.risk_free_rate_source == "static_fallback"
+        assert cache_status in ("stale", "fallback")
+        # When no data is available and no stale cache, falls back to static
+        assert report.risk_free_rate > 0
 
     @patch("src.portfolio.cme_engine.fetch_price_history")
     def test_compute_cme_fallback_on_exception(self, mock_prices):
         """compute_cme should fall back to static on exception."""
         mock_prices.side_effect = Exception("Network error")
 
-        report = compute_cme()
+        report, cache_status = compute_cme(force_refresh=True)
 
         assert isinstance(report, CMEReport)
-        assert report.risk_free_rate_source == "static_fallback"
+        assert cache_status in ("stale", "fallback")
+        assert report.risk_free_rate > 0
 
 
 # ============================================================
@@ -301,3 +321,304 @@ class TestRiskFreeRate:
         assert rate > 0
         assert isinstance(source, str)
         assert source in ("fred_api", "yfinance_irx", "static_fallback")
+
+
+# ============================================================
+# Test Volatility Regime Classification
+# ============================================================
+
+class TestVolRegimeClassification:
+    """Test _classify_vol_regime threshold logic."""
+
+    def test_regime_low(self):
+        """IV/HV < 0.8 should return 'low'."""
+        assert _classify_vol_regime(0.10, 0.20) == "low"   # ratio = 0.5
+        assert _classify_vol_regime(0.15, 0.20) == "low"   # ratio = 0.75
+
+    def test_regime_normal(self):
+        """0.8 ≤ IV/HV < 1.2 should return 'normal'."""
+        # Use values clearly inside the range to avoid floating-point boundary issues
+        assert _classify_vol_regime(0.18, 0.20) == "normal"  # ratio = 0.9
+        assert _classify_vol_regime(0.20, 0.20) == "normal"  # ratio = 1.0
+        assert _classify_vol_regime(0.22, 0.20) == "normal"  # ratio = 1.1
+
+    def test_regime_elevated(self):
+        """1.2 ≤ IV/HV < 1.6 should return 'elevated'."""
+        assert _classify_vol_regime(0.24, 0.20) == "elevated"  # ratio = 1.2
+        assert _classify_vol_regime(0.30, 0.20) == "elevated"  # ratio = 1.5
+
+    def test_regime_high(self):
+        """IV/HV ≥ 1.6 should return 'high'."""
+        assert _classify_vol_regime(0.34, 0.20) == "high"    # ratio = 1.7
+        assert _classify_vol_regime(0.50, 0.20) == "high"    # ratio = 2.5
+
+    def test_regime_zero_historical_vol(self):
+        """Should return 'normal' when historical vol is zero."""
+        assert _classify_vol_regime(0.20, 0.0) == "normal"
+
+    def test_regime_negative_historical_vol(self):
+        """Should return 'normal' when historical vol is negative."""
+        assert _classify_vol_regime(0.20, -0.05) == "normal"
+
+
+# ============================================================
+# Test CME Computation with IV Blending
+# ============================================================
+
+class TestCMEWithIVBlending:
+    """Test compute_cme with implied volatility data available."""
+
+    @patch("src.portfolio.cme_engine.fetch_implied_volatility")
+    @patch("src.portfolio.cme_engine.fetch_price_history")
+    @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
+    @patch("src.portfolio.cme_engine.compute_correlation_matrix")
+    def test_iv_blending_applied_when_available(
+        self, mock_corr, mock_rf, mock_prices, mock_iv, mock_price_data,
+    ):
+        """When IV data is available, blended_vol should differ from historical vol."""
+        mock_prices.return_value = mock_price_data
+        mock_rf.return_value = (0.043, "mock")
+
+        returns = mock_price_data.pct_change().dropna()
+        mock_corr.return_value = returns.corr()
+
+        # Provide IV data for AGG (but not 000300.SS)
+        mock_iv.return_value = {
+            "000300.SS": None,
+            "AGG": ImpliedVolData(
+                ticker="AGG",
+                iv_index_ticker="^MOVE",
+                iv_index_name="ICE BofAML MOVE",
+                implied_volatility=0.12,  # 12% implied vs ~7% historical
+                fetch_date="2026-06-11",
+            ),
+        }
+
+        test_tickers = {
+            "domestic_equity": {"ticker": "000300.SS", "name": "国内权益"},
+            "fixed_income": {"ticker": "AGG", "name": "固定收益"},
+        }
+
+        report, cache_status = compute_cme(
+            asset_tickers=test_tickers, iv_blending_tau=0.5,
+            force_refresh=True,
+        )
+
+        assert report.iv_data_available is True
+        assert report.iv_blending_tau == 0.5
+
+        # Find the AGG entry
+        agg_cme = next(ac for ac in report.asset_classes if ac.ticker == "AGG")
+        csi_cme = next(ac for ac in report.asset_classes if ac.ticker == "000300.SS")
+
+        # AGG should have IV fields populated
+        assert agg_cme.implied_volatility == 0.12
+        assert agg_cme.iv_source is not None
+        assert "MOVE" in agg_cme.iv_source
+        assert agg_cme.volatility_regime is not None
+        # blended = 0.5 * 0.12 + 0.5 * hist_vol
+        hist_vol = agg_cme.volatility
+        expected_blended = 0.5 * 0.12 + 0.5 * hist_vol
+        assert agg_cme.blended_volatility == pytest.approx(expected_blended, rel=1e-5)
+
+        # CSI 300 should have no IV data (graceful degradation)
+        assert csi_cme.implied_volatility is None
+        assert csi_cme.iv_source is None
+        assert csi_cme.volatility_regime is None
+        assert csi_cme.blended_volatility == csi_cme.volatility
+
+    @patch("src.portfolio.cme_engine.fetch_implied_volatility")
+    @patch("src.portfolio.cme_engine.fetch_price_history")
+    @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
+    @patch("src.portfolio.cme_engine.compute_correlation_matrix")
+    def test_pure_historical_when_tau_zero(
+        self, mock_corr, mock_rf, mock_prices, mock_iv, mock_price_data,
+    ):
+        """τ=0 should give pure historical volatility (blended = hist)."""
+        mock_prices.return_value = mock_price_data
+        mock_rf.return_value = (0.043, "mock")
+
+        returns = mock_price_data.pct_change().dropna()
+        mock_corr.return_value = returns.corr()
+
+        mock_iv.return_value = {
+            "000300.SS": None,
+            "AGG": ImpliedVolData(
+                ticker="AGG",
+                iv_index_ticker="^MOVE",
+                iv_index_name="ICE BofAML MOVE",
+                implied_volatility=0.20,
+                fetch_date="2026-06-11",
+            ),
+        }
+
+        test_tickers = {
+            "fixed_income": {"ticker": "AGG", "name": "固定收益"},
+        }
+
+        report, cache_status = compute_cme(
+            asset_tickers=test_tickers, iv_blending_tau=0.0,
+            force_refresh=True,
+        )
+        agg_cme = report.asset_classes[0]
+
+        # With τ=0, blended = 0*IV + 1*historical = historical
+        assert agg_cme.blended_volatility == agg_cme.volatility
+
+    @patch("src.portfolio.cme_engine.fetch_implied_volatility")
+    @patch("src.portfolio.cme_engine.fetch_price_history")
+    @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
+    @patch("src.portfolio.cme_engine.compute_correlation_matrix")
+    def test_pure_implied_when_tau_one(
+        self, mock_corr, mock_rf, mock_prices, mock_iv, mock_price_data,
+    ):
+        """τ=1.0 should give pure implied volatility (blended = IV)."""
+        mock_prices.return_value = mock_price_data
+        mock_rf.return_value = (0.043, "mock")
+
+        returns = mock_price_data.pct_change().dropna()
+        mock_corr.return_value = returns.corr()
+
+        mock_iv.return_value = {
+            "AGG": ImpliedVolData(
+                ticker="AGG",
+                iv_index_ticker="^MOVE",
+                iv_index_name="ICE BofAML MOVE",
+                implied_volatility=0.20,
+                fetch_date="2026-06-11",
+            ),
+        }
+
+        test_tickers = {
+            "fixed_income": {"ticker": "AGG", "name": "固定收益"},
+        }
+
+        report, cache_status = compute_cme(
+            asset_tickers=test_tickers, iv_blending_tau=1.0,
+            force_refresh=True,
+        )
+        agg_cme = report.asset_classes[0]
+
+        assert agg_cme.blended_volatility == 0.20  # pure IV
+
+    @patch("src.portfolio.cme_engine.fetch_implied_volatility")
+    @patch("src.portfolio.cme_engine.fetch_price_history")
+    @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
+    @patch("src.portfolio.cme_engine.compute_correlation_matrix")
+    def test_format_cme_with_iv_data(
+        self, mock_corr, mock_rf, mock_prices, mock_iv, mock_price_data,
+    ):
+        """format_cme_for_prompt should include IV columns when IV data is available."""
+        mock_prices.return_value = mock_price_data
+        mock_rf.return_value = (0.043, "mock")
+
+        returns = mock_price_data.pct_change().dropna()
+        mock_corr.return_value = returns.corr()
+
+        mock_iv.return_value = {
+            "000300.SS": None,
+            "AGG": ImpliedVolData(
+                ticker="AGG",
+                iv_index_ticker="^MOVE",
+                iv_index_name="ICE BofAML MOVE",
+                implied_volatility=0.10,
+                fetch_date="2026-06-11",
+            ),
+        }
+
+        test_tickers = {
+            "domestic_equity": {"ticker": "000300.SS", "name": "国内权益"},
+            "fixed_income": {"ticker": "AGG", "name": "固定收益"},
+        }
+
+        report, cache_status = compute_cme(
+            asset_tickers=test_tickers, force_refresh=True,
+        )
+        text = format_cme_for_prompt(report)
+
+        # Should include IV-related headers
+        assert "隐含σ" in text
+        assert "混合σ" in text
+        assert "波动率方法论" in text
+        assert "贝叶斯" in text
+        # Should include regime info
+        assert "volatility_regime" in text or "波动率环境" in text
+
+    @patch("src.portfolio.cme_engine.fetch_implied_volatility")
+    @patch("src.portfolio.cme_engine.fetch_price_history")
+    @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
+    @patch("src.portfolio.cme_engine.compute_correlation_matrix")
+    def test_format_cme_without_iv_data(
+        self, mock_corr, mock_rf, mock_prices, mock_iv, mock_price_data,
+    ):
+        """format_cme_for_prompt should not show IV columns when no IV data."""
+        mock_prices.return_value = mock_price_data
+        mock_rf.return_value = (0.043, "mock")
+
+        returns = mock_price_data.pct_change().dropna()
+        mock_corr.return_value = returns.corr()
+
+        # All IV data is None
+        mock_iv.return_value = {
+            "000300.SS": None,
+            "AGG": None,
+        }
+
+        test_tickers = {
+            "domestic_equity": {"ticker": "000300.SS", "name": "国内权益"},
+            "fixed_income": {"ticker": "AGG", "name": "固定收益"},
+        }
+
+        report, cache_status = compute_cme(
+            asset_tickers=test_tickers, force_refresh=True,
+        )
+        text = format_cme_for_prompt(report)
+
+        # Should NOT include IV column headers in the asset table.
+        # "混合σ" (column header, no brackets) only appears when IV is available.
+        # Usage instructions use 「混合波动率」 with brackets — different text.
+        assert "未获取到隐含波动率数据" in text
+        assert "混合σ" not in text
+
+    @patch("src.portfolio.cme_engine.fetch_implied_volatility")
+    @patch("src.portfolio.cme_engine.fetch_price_history")
+    @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
+    @patch("src.portfolio.cme_engine.compute_correlation_matrix")
+    def test_blended_vol_between_iv_and_hist(
+        self, mock_corr, mock_rf, mock_prices, mock_iv, mock_price_data,
+    ):
+        """Blended vol should be between IV and historical when 0 < τ < 1."""
+        mock_prices.return_value = mock_price_data
+        mock_rf.return_value = (0.043, "mock")
+
+        returns = mock_price_data.pct_change().dropna()
+        mock_corr.return_value = returns.corr()
+
+        mock_iv.return_value = {
+            "AGG": ImpliedVolData(
+                ticker="AGG",
+                iv_index_ticker="^MOVE",
+                iv_index_name="ICE BofAML MOVE",
+                implied_volatility=0.15,  # IV higher than hist
+                fetch_date="2026-06-11",
+            ),
+        }
+
+        test_tickers = {
+            "fixed_income": {"ticker": "AGG", "name": "固定收益"},
+        }
+
+        report, cache_status = compute_cme(
+            asset_tickers=test_tickers, iv_blending_tau=0.5,
+            force_refresh=True,
+        )
+        agg_cme = report.asset_classes[0]
+
+        hist = agg_cme.volatility
+        blended = agg_cme.blended_volatility
+        iv = agg_cme.implied_volatility
+
+        # blended should be between hist and IV (or equal to one)
+        assert min(hist, iv) <= blended <= max(hist, iv), (
+            f"Expected {min(hist, iv):.6f} ≤ {blended:.6f} ≤ {max(hist, iv):.6f}"
+        )
