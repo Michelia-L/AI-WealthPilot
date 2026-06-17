@@ -45,7 +45,7 @@ The system couples a **Modern Portfolio Theory (MPT)** optimization solver with 
 - 💎 **Covariance Shrinkage Estimators**  
   Supports Ledoit-Wolf and Oracle Approximating Shrinkage (OAS) estimators (utilizing `scikit-learn`) alongside traditional sample covariance. This mitigates MVO's high sensitivity to input estimation errors and noise expansion.
 - 📈 **Capital Market Expectations (CME) Engine**  
-  Computes per-asset-class expected returns, annualized volatility, Sharpe ratio, maximum drawdown, VaR/CVaR, and cross-asset correlation matrices from real-time market data via `yfinance`. Features a three-tier risk-free rate cascade — FRED API (3-month Treasury DGS3MO) → yfinance (`^IRX` 13-week T-Bill) → static fallback at $4.5\%$ — with automatic static JSON fallback when all dynamic sources fail. CME data is formatted and injected directly into LLM prompts to ground AI-generated investment strategies in real market conditions.
+  Computes per-asset-class expected returns, annualized volatility, Sharpe ratio, maximum drawdown, VaR/CVaR, and cross-asset correlation matrices from real-time market data via `yfinance`. Features a three-tier risk-free rate cascade — FRED API (3-month Treasury DGS3MO) → yfinance (`^IRX` 13-week T-Bill) → static fallback at $4.5\%$ — with automatic static JSON fallback when all dynamic sources fail. **New: Forward-looking implied volatility** is fetched from VIX (`^VIX`) and MOVE (`^MOVE`) indices and fused with historical volatility via **Bayesian blending** ($\sigma_{\text{blended}} = \tau \cdot \sigma_{\text{IV}} + (1-\tau) \cdot \sigma_{\text{hist}}$), with graceful degradation for asset classes lacking reliable IV proxies. CME data is formatted and injected directly into LLM prompts to ground AI-generated investment strategies in real market conditions.
 - 🔄 **Resampled Efficient Frontier (Michaud Method)**  
   Addresses MVO's "garbage in, garbage out" sensitivity by simulating $N$ sets of expected returns from a multivariate normal distribution $\mu_i \sim \mathcal{N}(\hat{\mu}, \Sigma/T)$, computing the efficient frontier for each simulation, then interpolating onto a unified return axis and averaging across all frontiers. Produces more diversified, stable portfolio weights than traditional single-sample MVO.
 - 📐 **Asset Class Constraints**  
@@ -234,7 +234,8 @@ AI-WealthPilot/
 │   │   ├── cme_engine.py         # Capital Market Expectations engine & risk-free rate cascade
 │   │   └── cme_models.py         # CME Pydantic data models (CMEReport, SAAValidationResult)
 │   ├── data/                     # [Data Pipeline]
-│   │   └── market_data.py        # yfinance pipeline, multi-currency FX conversion & correlation calculations
+│   │   ├── market_data.py        # yfinance pipeline, multi-currency FX conversion & correlation calculations
+│   │   └── implied_volatility.py # VIX/MOVE implied volatility fetcher & Bayesian blending proxy mapper
 │   ├── visualization/            # [Chart Renderer]
 │   │   └── charts.py             # Plotly interactive chart components
 │   ├── views/                    # [Streamlit Pages]
@@ -262,7 +263,8 @@ AI-WealthPilot/
 │   ├── test_advanced_portfolio.py# Resampled frontier & regularization tests
 │   ├── test_advisor.py           # DeepSeek advisor integration tests
 │   ├── test_market_data.py       # Async data fetching, currency conversion & cache testing
-│   ├── test_cme_engine.py        # CME computation, fallback & risk-free rate cascade tests
+│   ├── test_cme_engine.py        # CME computation, IV blending, fallback & risk-free rate cascade tests
+│   ├── test_implied_volatility.py # Implied volatility fetching, proxy mapping & degradation tests
 │   ├── test_ips_models.py        # IPS data structures schemas tests
 │   ├── test_ips_workflow.py      # LangGraph Generate-Review-Revise loop execution tests
 │   ├── test_portfolio_recommender.py # Portfolio recommendation logic consistency tests

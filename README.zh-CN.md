@@ -45,7 +45,7 @@
 - 💎 **协方差矩阵收缩估计量**  
   支持 Ledoit-Wolf 和 OAS (Oracle Approximating Shrinkage) 估计量（依赖 `scikit-learn`），与传统样本协方差相比，能够显著降低 MVO 对输入参数估计误差的敏感度，解决噪声扩展问题。
 - 📈 **资本市场预期 (CME) 引擎**  
-  基于 `yfinance` 实时行情数据，按资产类别计算年化收益率、波动率、夏普比率、最大回撤、VaR/CVaR 以及跨资产相关性矩阵。实现三级无风险利率获取链——FRED API（3个月期国债 DGS3MO）→ yfinance（`^IRX` 13周国库券）→ 静态回退值 $4.5\%$，并在所有动态数据源失效时自动加载静态 JSON 回退文件。CME 数据可被格式化并直接注入 LLM 提示词，确保 AI 生成的投资策略基于真实市场条件。
+  基于 `yfinance` 实时行情数据，按资产类别计算年化收益率、波动率、夏普比率、最大回撤、VaR/CVaR 以及跨资产相关性矩阵。实现三级无风险利率获取链——FRED API（3个月期国债 DGS3MO）→ yfinance（`^IRX` 13周国库券）→ 静态回退值 $4.5\%$，并在所有动态数据源失效时自动加载静态 JSON 回退文件。**新特性：前瞻性隐含波动率**通过 VIX（`^VIX`）和 MOVE（`^MOVE`）指数获取，并采用**贝叶斯混合**（$\sigma_{\text{blended}} = \tau \cdot \sigma_{\text{IV}} + (1-\tau) \cdot \sigma_{\text{hist}}$）与历史波动率融合，对缺乏可靠 IV 代理的资产类别优雅降级。CME 数据可被格式化并直接注入 LLM 提示词，确保 AI 生成的投资策略基于真实市场条件。
 - 🔄 **重抽样有效前沿 (Michaud 方法)**  
   针对传统 MVO 的"垃圾进，垃圾出"参数敏感性问题，从多元正态分布 $\mu_i \sim \mathcal{N}(\hat{\mu}, \Sigma/T)$ 中模拟 $N$ 组预期收益率，对每次模拟分别计算有效前沿，再在统一的收益率轴上插值对齐后逐点取平均。相比传统单次抽样的 MVO，能产生更加多元化和稳定的投资组合权重。
 - 📐 **资产类别层级的权重约束**  
@@ -232,7 +232,8 @@ AI-WealthPilot/
 │   │   ├── cme_engine.py         # 资本市场预期 (CME) 引擎与无风险利率三级级联
 │   │   └── cme_models.py         # CME Pydantic 数据模型（CMEReport, SAAValidationResult）
 │   ├── data/                     # 【数据拉取模块】
-│   │   └── market_data.py        # yfinance 异步行情拉取、多币种汇率转换与相关性矩阵计算
+│   │   ├── market_data.py        # yfinance 异步行情拉取、多币种汇率转换与相关性矩阵计算
+│   │   └── implied_volatility.py # VIX/MOVE 隐含波动率拉取与贝叶斯混合代理映射器
 │   ├── visualization/            # 【图表渲染组件】
 │   │   └── charts.py             # Plotly 交互式专业图表
 │   ├── views/                    # 【Streamlit 视图页面】
@@ -260,7 +261,8 @@ AI-WealthPilot/
 │   ├── test_advanced_portfolio.py# 重抽样有效前沿与矩阵正则化测试
 │   ├── test_advisor.py           # DeepSeek 顾问 Agent 集成测试
 │   ├── test_market_data.py       # 异步行情接口、多币种汇率转换及缓存加载测试
-│   ├── test_cme_engine.py        # CME 计算、静态回退与无风险利率级联测试
+│   ├── test_cme_engine.py        # CME 计算、IV 混合、静态回退与无风险利率级联测试
+│   ├── test_implied_volatility.py # 隐含波动率拉取、代理映射与降级处理测试
 │   ├── test_ips_models.py        # IPS Pydantic 模型的严格约束边界测试
 │   ├── test_ips_workflow.py      # LangGraph 状态机生成-审查-修订循环测试
 │   ├── test_portfolio_recommender.py # 资产配置推荐建议一致性测试
