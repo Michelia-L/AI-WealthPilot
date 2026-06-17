@@ -56,6 +56,30 @@ class AssetClassCME(BaseModel):
         description="Number of trading days used in calculation"
     )
 
+    # --- Forward-looking volatility fields
+    # 前瞻性波动率字段
+    implied_volatility: Optional[float] = Field(
+        default=None,
+        description="Market-implied annualized volatility from options/IV index "
+                    "(e.g. VIX). None if no reliable IV proxy exists for this "
+                    "asset class."
+    )
+    iv_source: Optional[str] = Field(
+        default=None,
+        description="Source of implied volatility, e.g. 'CBOE VIX (^VIX)' "
+                    "or 'ICE BofAML MOVE (^MOVE)'"
+    )
+    blended_volatility: Optional[float] = Field(
+        default=None,
+        description="Bayesian-blended volatility: τ × σ_implied + (1-τ) × σ_hist. "
+                    "Falls back to historical vol when IV is unavailable."
+    )
+    volatility_regime: Optional[str] = Field(
+        default=None,
+        description="Qualitative regime label: 'low', 'normal', 'elevated', 'high'. "
+                    "Derived from IV/HV ratio."
+    )
+
 
 class CMEReport(BaseModel):
     """
@@ -95,6 +119,18 @@ class CMEReport(BaseModel):
     methodology_notes: str = Field(
         default="",
         description="Notes on data sources, limitations, and methodology"
+    )
+
+    # --- Implied Volatility metadata
+    # 隐含波动率元数据
+    iv_blending_tau: float = Field(
+        default=0.5,
+        description="Bayesian blending parameter τ: weight on implied volatility. "
+                    "0.0 = pure historical, 1.0 = pure implied."
+    )
+    iv_data_available: bool = Field(
+        default=False,
+        description="Whether any implied volatility data was successfully fetched."
     )
 
 
