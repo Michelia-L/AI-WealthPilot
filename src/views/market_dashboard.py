@@ -5,7 +5,7 @@ AI WealthPilot - 市场仪表板页面 (高端重构版)
 This module implements the premium interactive Market Dashboard for the Streamlit app.
 It displays real-time market quotes, historical price charts, correlation
 heatmaps, and risk/return statistics for the user's asset universe using a
-modern, institutional-grade financial terminal experience with glassmorphism,
+modern financial terminal experience with glassmorphism,
 CSS grids, and top-bar control layouts.
 
 CFA References:

@@ -7,7 +7,7 @@
 
   # AI WealthPilot
 
-  *CFA®-Aligned Intelligent Wealth Management & Portfolio Quant Engine*
+  *A CFA® L3-Inspired Wealth Management Prototype & Quantitative Portfolio Engine*
 
   [![Python](https://img.shields.io/badge/Python-3.11+-blue?style=flat-square&logo=python&logoColor=white)](https://www.python.org)
   [![Streamlit](https://img.shields.io/badge/Framework-Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)](https://streamlit.io)
@@ -27,7 +27,7 @@
 
 ## Overview
 
-**AI WealthPilot** is a professional-grade asset allocation and decision-support system designed for private wealth management. It bridges rigorous financial academic theories and modern software engineering by instantiating the core syllabus of **CFA® Level III (Private Wealth Management)** into a highly reliable, production-ready quantitative engine. 
+**AI WealthPilot** is a research-oriented asset allocation and decision-support prototype designed for private wealth management. It bridges financial academic theories and modern software engineering by instantiating the core syllabus of **CFA® Level III (Private Wealth Management)** into a functional quantitative engine. 
 
 The system couples a **Modern Portfolio Theory (MPT)** optimization solver with a **Geometric Brownian Motion (GBM)** life-cycle Monte Carlo simulator, and overlays an **AI Advisor Agent** to generate behavioral-finance-aware client recommendations.
 
@@ -41,7 +41,7 @@ The system couples a **Modern Portfolio Theory (MPT)** optimization solver with 
 - 🎓 **CFA® Level III Framework Alignment**  
   Implements the dual-track client profiling methodology, evaluating objective financial **Ability** and subjective psychological **Willingness** to take risk, defaulting to the conservative lower-of-the-two score to protect the client.
 - 🧮 **Rigorous Portfolio Optimization & Regularization**  
-  Uses the `SciPy` SLSQP solver for Mean-Variance Optimization (MVO) to compute the Efficient Frontier, find the Tangency Portfolio (maximizing Sharpe ratio), and plot the Capital Allocation Line (CAL). Integrates condition number checking and automatic diagonal loading or eigenvalue clipping to maintain production-grade numerical stability.
+  Uses the `SciPy` SLSQP solver for Mean-Variance Optimization (MVO) to compute the Efficient Frontier, find the Tangency Portfolio (maximizing Sharpe ratio), and plot the Capital Allocation Line (CAL). Integrates condition number checking and automatic diagonal loading or eigenvalue clipping to maintain robust numerical stability.
 - 💎 **Covariance Shrinkage Estimators**  
   Supports Ledoit-Wolf and Oracle Approximating Shrinkage (OAS) estimators (utilizing `scikit-learn`) alongside traditional sample covariance. This mitigates MVO's high sensitivity to input estimation errors and noise expansion.
 - 📈 **Capital Market Expectations (CME) Engine**  
@@ -49,7 +49,7 @@ The system couples a **Modern Portfolio Theory (MPT)** optimization solver with 
 - 🔄 **Resampled Efficient Frontier (Michaud Method)**  
   Addresses MVO's "garbage in, garbage out" sensitivity by simulating $N$ sets of expected returns from a multivariate normal distribution $\mu_i \sim \mathcal{N}(\hat{\mu}, \Sigma/T)$, computing the efficient frontier for each simulation, then interpolating onto a unified return axis and averaging across all frontiers. Produces more diversified, stable portfolio weights than traditional single-sample MVO.
 - 📐 **Asset Class Constraints**  
-  Supports injection of minimum/maximum weight constraints at the group level (e.g., equities, bonds, alternatives) rather than just single-asset level, allowing institutional tactical asset allocation guidelines.
+  Supports injection of minimum/maximum weight constraints at the group level (e.g., equities, bonds, alternatives) rather than just single-asset level, supporting group-level tactical asset allocation guidelines.
 - 🎲 **Life-Cycle Monte Carlo Simulation**  
   Simulates 10,000 asset paths using discrete-time **Geometric Brownian Motion (GBM)** with a **Jensen's Inequality Volatility Drag Adjustment** across two phases: Accumulation (savings injection) and Distribution (retirement withdrawals).
 - 🛡️ **Tail Risk Assessment**  
@@ -57,15 +57,15 @@ The system couples a **Modern Portfolio Theory (MPT)** optimization solver with 
 - 👥 **Multi-Client Profile Comparison**  
   Allows side-by-side comparison of different client portfolios and profiles, generating structured JSON comparative reports with automated behavioral finance and financial metrics insights.
 - 🕸️ **LangGraph Multi-Agent IPS Pipeline (Generate-Review-Revise)**  
-  Implements an institutional-grade, multi-agent automated workflow powered by `LangGraph` and `PydanticAI`. The system instantiates a fully automated, safety-critical refinement loop where a **CME Engine** first computes real-time capital market expectations, then an **IPS Generator Agent** drafts the strategy (including **CurrencyPolicy** for multi-currency hedging and **FeeSchedule** with TER calculation), followed by three independent expert verification agents cross-examining **Suitability** (client fit), **Compliance** (regulatory boundary), and **Consistency** (internal logic mathematical proofing). A quantitative **SAA Validation** node then verifies portfolio volatility ($\sigma_p = \sqrt{w^T \Sigma w}$) against risk-tolerance bands before finalization, producing immutable regulatory audit trails.
+  Implements a multi-agent automated workflow powered by `LangGraph` and `PydanticAI`. The system instantiates an automated refinement loop where a **CME Engine** first computes capital market expectations, then an **IPS Generator Agent** drafts the strategy (including **CurrencyPolicy** for multi-currency hedging and **FeeSchedule** with TER calculation), followed by three independent expert verification agents cross-examining **Suitability** (client fit), **Compliance** (regulatory boundary), and **Consistency** (internal logic mathematical proofing). A quantitative **SAA Validation** node then verifies portfolio volatility ($\sigma_p = \sqrt{w^T \Sigma w}$) against risk-tolerance bands before finalization, producing structured audit trails.
 - ⧉ **Bayesian Black-Litterman Optimization Engine**  
   Combines market-implied equilibrium returns (derived via reverse CAPM based on asset capitalization weights) with subjective investor views (supporting both absolute and relative directional views). This Bayesian combination effectively mitigates traditional MVO's severe sensitivity to historical parameter estimation errors.
 - 🤖 **AI Advisor Agent**  
   Employs LLMs (`DeepSeek V4 Pro`) to analyze client metrics, identify behavioral finance biases — including **loss aversion**, **overconfidence**, **ability-willingness mismatch**, **leverage risk**, and **inadequate safety net** — and generate personalized wealth advisor proposals.
 - 📄 **Enhanced Multi-Format Document Export**  
-  Supports seamless export of AI advisor recommendations to standalone HTML (styled with inline premium CSS), Markdown, and raw JSON documents.
+  Supports seamless export of AI advisor recommendations to standalone HTML (styled with inline CSS), Markdown, and raw JSON documents.
 - 📊 **Obsidian & Gold Glassmorphic UI**  
-  Institutional-grade terminal styled with premium Obsidian & Gold Glassmorphic financial aesthetics built with Streamlit and powered by custom multi-dimensional Plotly charts.
+  Custom-styled terminal with Obsidian & Gold Glassmorphic financial aesthetics built with Streamlit and powered by custom multi-dimensional Plotly charts.
 
 ---
 
@@ -370,6 +370,6 @@ python examples/demo_ips_generator.py
 > [!WARNING]
 > **Compliance & Professional Disclaimer**:
 > 
-> 1. **AI WealthPilot** is developed as a professional portfolio project demonstrating quantitative programming, CFA® syllabus implementation, and AI Agent architecture.
+> 1. **AI WealthPilot** is developed as an educational portfolio project demonstrating quantitative programming, CFA® syllabus implementation, and AI Agent architecture.
 > 2. All generated weights, optimized frontiers, wealth survival rates, and AI recommendations are **simulations based on historical values and mathematical assumptions. They do not constitute formal investment advice or a professional financial plan**.
 > 3. Financial markets carry extreme risk. Quantitative models are subject to structural model drift and systemic tail events. The author and project hold no liability for any financial losses incurred.
