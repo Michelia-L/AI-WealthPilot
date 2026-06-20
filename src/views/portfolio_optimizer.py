@@ -1,18 +1,14 @@
 """
 AI WealthPilot - Portfolio Optimizer Page
-AI WealthPilot - 投资组合优化器页面
 
 Interactive Streamlit page for Mean-Variance Portfolio Optimization.
 Users can select asset classes, configure parameters, and visualize
 the efficient frontier, optimal portfolios, and risk-return metrics.
 
 CFA References:
-    - CFA L1: Modern Portfolio Theory (MPT), Efficient Frontier, Capital Allocation Line
-      (Mathematical framework of risk-return tradeoff and optimization).
-    - CFA L3: Asset Allocation — Strategic asset allocation using mean-variance framework
-      (Strategic asset allocation using expected returns and covariances).
-    - CFA L3: Black-Litterman Model — Bayesian combination of equilibrium and views
-      (Combining market capitalization weights with subjective investor views).
+- CFA L1: Modern Portfolio Theory (MPT), Efficient Frontier, Capital Allocation Line.
+- CFA L3: Asset Allocation — Strategic asset allocation using mean-variance framework.
+- CFA L3: Black-Litterman Model — Bayesian combination of equilibrium and views.
 """
 
 import streamlit as st
@@ -48,9 +44,7 @@ from src.config import (
 
 from src.views.compliance import render_suitability_disclaimer
 
-# ============================================================
 # Default asset class mapping for UI multi-select
-# ============================================================
 ASSET_OPTIONS: Dict[str, str] = {
     key: f"{val['name']} ({val['ticker']})"
     for key, val in DEFAULT_ASSET_CLASSES.items()
@@ -1116,7 +1110,6 @@ def render() -> None:
     """
     st.title("⧉ Portfolio Optimizer")
 
-    # === 前置合规声明 / Pre-Optimization Compliance Disclaimer ===
     acknowledged = render_suitability_disclaimer("optimizer")
 
     if not acknowledged:

@@ -1,6 +1,5 @@
 """
 AI WealthPilot - Premium Style Injection Module
-AI WealthPilot - 高级样式注入模块
 
 This module defines the global CSS styling and typography overrides 
 to achieve a premium "Obsidian & Gold Glassmorphism" financial terminal aesthetic.

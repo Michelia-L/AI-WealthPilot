@@ -1,4 +1,4 @@
-"""
+﻿"""
 AI WealthPilot - Visualization Module
 
 Plotly-based chart components for portfolio analysis dashboards.
@@ -10,9 +10,7 @@ import numpy as np
 from typing import Optional
 
 
-# ============================================================
 # Color Palette — Premium dark theme (Vantablack-Gold-Emerald)
-# ============================================================
 COLORS = {
     "primary": "#D4AF37",      # Luxury Gold
     "secondary": "#10B981",    # Emerald

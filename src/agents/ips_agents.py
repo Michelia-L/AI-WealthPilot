@@ -1,4 +1,4 @@
-"""
+﻿"""
 AI WealthPilot - IPS PydanticAI Agent Definitions
 
 Defines the PydanticAI agents used in the IPS generation workflow.
@@ -37,9 +37,7 @@ from src.agents.ips_models import IPSDocument, ReviewResult, ReviewDimension
 logger = logging.getLogger(__name__)
 
 
-# ============================================================
 # Model Configuration
-# ============================================================
 
 def _get_model() -> OpenAIModel:
     """
@@ -72,9 +70,7 @@ def _get_model() -> OpenAIModel:
     )
 
 
-# ============================================================
 # Reference Document Loading
-# ============================================================
 
 _IPS_REFERENCE_DIR = Path(__file__).parent.parent.parent / "docs" / "ips_reference"
 
@@ -108,9 +104,7 @@ def load_compliance_checklist() -> dict:
     return {}
 
 
-# ============================================================
 # System Prompts
-# ============================================================
 
 _GENERATOR_SYSTEM_PROMPT = """你是一名持有 CFA® 三级证书的资深私人财富管理顾问，专精于为高净值个人客户编写投资政策声明书（IPS）。
 
@@ -264,9 +258,7 @@ _REVISER_SYSTEM_PROMPT = """你是一名持有 CFA® 三级证书的资深 IPS �
 - 使用中文撰写"""
 
 
-# ============================================================
 # Shared Model Settings
-# ============================================================
 
 # DeepSeek V4 Pro defaults to "thinking mode" which rejects
 # tool_choice="required" (used by PydanticAI for structured output).
@@ -279,9 +271,7 @@ _MODEL_SETTINGS: ModelSettings = {
 }
 
 
-# ============================================================
 # Agent Factory Functions
-# ============================================================
 
 def create_ips_generator_agent() -> Agent[None, IPSDocument]:
     """
@@ -379,9 +369,7 @@ def create_ips_reviser_agent() -> Agent[None, IPSDocument]:
     )
 
 
-# ============================================================
 # Prompt Construction Helpers
-# ============================================================
 
 def build_generation_prompt(
     client_profile_json: str,

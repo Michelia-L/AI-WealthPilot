@@ -1,4 +1,4 @@
-"""AI WealthPilot - Visualization Module"""
+﻿"""AI WealthPilot - Visualization Module"""
 from src.visualization.charts import (
     plot_efficient_frontier,
     plot_allocation_pie,

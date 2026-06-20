@@ -1,6 +1,5 @@
 """
 AI WealthPilot - Implied Volatility Data Module
-AI WealthPilot - 隐含波动率数据模块
 
 Fetches market-implied volatility indices (VIX, MOVE) via yfinance
 as forward-looking volatility inputs for the CME engine's
@@ -30,9 +29,7 @@ from src.config import TRADING_DAYS_PER_YEAR
 logger = logging.getLogger(__name__)
 
 
-# ============================================================
 # Data Structures
-# ============================================================
 
 @dataclass
 class IVProxyConfig:
@@ -70,14 +67,11 @@ class ImpliedVolData:
     fetch_date: str
 
 
-# ============================================================
 # Asset Class → IV Proxy Mapping
-# ============================================================
 
 # Mapping from asset ticker to its IV proxy configuration.
 # None means no reliable IV index is available for that asset class.
 IV_PROXY_MAP: dict[str, Optional[IVProxyConfig]] = {
-    # === US & DM Equity-correlated → VIX ===
     "SPY": IVProxyConfig(
         iv_ticker="^VIX",
         scale=0.01,
@@ -104,7 +98,6 @@ IV_PROXY_MAP: dict[str, Optional[IVProxyConfig]] = {
         description="Hong Kong equity proxied by VIX"
     ),
 
-    # === Fixed Income → MOVE ===
     "AGG": IVProxyConfig(
         iv_ticker="^MOVE",
         scale=0.01,
@@ -131,7 +124,6 @@ IV_PROXY_MAP: dict[str, Optional[IVProxyConfig]] = {
         description="TIPS proxied by MOVE"
     ),
 
-    # === No reliable IV proxy ===
     # "000300.SS": None,   # CSI 300: no yfinance-accessible IV index
     # "GLD":      None,    # Gold: OVX exists but unreliable on yfinance
     # "VNQ":      None,    # REITs: no standard IV index
@@ -147,9 +139,7 @@ IV_INDEX_NAMES: dict[str, str] = {
 }
 
 
-# ============================================================
 # Core Fetching Logic
-# ============================================================
 
 def _fetch_single_iv_index(iv_ticker: str) -> Optional[float]:
     """

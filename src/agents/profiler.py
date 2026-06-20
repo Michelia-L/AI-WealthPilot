@@ -1,31 +1,13 @@
-"""
-AI WealthPilot - Client Profiling Agent
-AI WealthPilot - 客户画像模块
+﻿"""
+Client profiling agent using the CFA IPS framework.
 
-Implements the CFA Investment Policy Statement (IPS) framework for
-client profiling. Collects client information through structured
-questionnaires and computes risk tolerance scores.
+Collects client information through structured questionnaires and
+computes risk tolerance scores following the CFA dual-track model:
+Risk Tolerance = min(Ability, Willingness).
 
-实现基于 CFA 投资政策声明（IPS）框架的客户画像。
-通过结构化问卷收集客户信息，并计算风险承受能力评分。
-
-CFA Reference / CFA 参考:
-    - CFA L3 Private Wealth Management: Investment Policy Statement
-      CFA 三级私人财富管理：投资政策声明
-    - CFA L3: Risk Tolerance = f(Ability, Willingness)
-      CFA 三级：风险承受能力 = f(承受能力, 承担意愿)
-    - CFA L3: When ability and willingness conflict, use the LOWER score
-      CFA 三级：当承受能力和承担意愿冲突时，取较低值
-
-Key IPS Elements Covered / 涵盖的 IPS 关键要素:
-    1. Client Identification (客户识别)
-    2. Financial Situation (财务状况)
-    3. Investment Objectives (投资目标)
-    4. Risk Tolerance — Ability & Willingness (风险承受能力)
-    5. Time Horizon (投资期限)
-    6. Liquidity Needs (流动性需求)
-    7. Tax Considerations (税务考量)
-    8. Unique Circumstances (特殊情况)
+References:
+    - CFA L3 PWM: Investment Policy Statement framework
+    - CFA L3: Risk Tolerance = min(Ability, Willingness)
 """
 
 import json
@@ -38,19 +20,10 @@ from src.config import DATA_DIR
 from src.utils import sanitize_filename
 
 
-# ============================================================
-# Risk Score Classification Constants
-# 风险评分分类常量
-# ============================================================
-
-# Breakpoints for mapping a 1-5 risk score to risk tolerance levels.
-# Used by profiler, portfolio recommender, and other downstream modules.
-# 将 1-5 风险评分映射到风险承受能力等级的断点值。
+# Breakpoints for mapping 1-5 risk score to risk tolerance levels.
 RISK_SCORE_BREAKPOINTS: list[float] = [1.5, 2.5, 3.5, 4.5]
 
-# Bilingual risk level labels, ordered to match RISK_SCORE_BREAKPOINTS.
-# Index 0 = score <= 1.5, index 4 = score > 4.5.
-# 双语风险等级标签，与 RISK_SCORE_BREAKPOINTS 顺序对应。
+
 RISK_LEVEL_LABELS: list[str] = [
     "Conservative / 保守型",
     "Moderately Conservative / 稳健型",
@@ -61,65 +34,37 @@ RISK_LEVEL_LABELS: list[str] = [
 
 
 def classify_risk_score(score: float) -> str:
-    """
-    Classify a risk score (1-5) into a bilingual risk tolerance label.
-    将风险评分 (1-5) 分类为双语风险承受能力标签。
-
-    This is the single source of truth for risk level classification.
-    这是风险等级分类的唯一真实来源。
-
-    Args:
-        score: Risk score in range [1.0, 5.0].
-
-    Returns:
-        Bilingual risk level string, e.g. "Conservative / 保守型".
-    """
+    """Classify a 1-5 risk score into a bilingual risk tolerance label."""
     for i, breakpoint in enumerate(RISK_SCORE_BREAKPOINTS):
         if score <= breakpoint:
             return RISK_LEVEL_LABELS[i]
     return RISK_LEVEL_LABELS[-1]
 
 
-# ============================================================
-# Data Model — Client Profile
-# 数据模型 —— 客户画像
-# ============================================================
-
 @dataclass
 class FinancialSituation:
-    """
-    Client's financial position.
-    客户的财务状况。
-
-    CFA IPS Element: Financial Situation
-    CFA IPS 要素：财务状况
-    """
-    # 年收入 / Annual income
+    """Client's financial position."""
     annual_income: float = 0.0
-    # 年支出 / Annual expenses
     annual_expenses: float = 0.0
-    # 当前投资资产 / Current investment assets
     investable_assets: float = 0.0
-    # 负债总额 / Total liabilities
     total_liabilities: float = 0.0
-    # 应急基金（月数）/ Emergency fund (months of expenses)
     emergency_fund_months: float = 0.0
 
     @property
     def net_worth(self) -> float:
-        """净资产 = 可投资资产 - 负债 / Net worth = investable assets - liabilities"""
+        """Net worth = investable assets - liabilities."""
         return self.investable_assets - self.total_liabilities
 
     @property
     def savings_rate(self) -> float:
-        """储蓄率 = (收入 - 支出) / 收入 / Savings rate = (income - expenses) / income"""
+        """Savings rate = (income - expenses) / income."""
         if self.annual_income <= 0:
             return 0.0
         return (self.annual_income - self.annual_expenses) / self.annual_income
 
     @property
     def debt_to_asset_ratio(self) -> float:
-        """资产负债率 = 负债 / 可投资资产 / Debt-to-asset ratio"""
+        """Debt-to-asset ratio."""
         if self.investable_assets <= 0:
             return 1.0
         return self.total_liabilities / self.investable_assets
@@ -127,135 +72,75 @@ class FinancialSituation:
 
 @dataclass
 class InvestmentGoal:
-    """
-    A single investment goal with target amount and time horizon.
-    单个投资目标，包含目标金额和时间范围。
-
-    CFA IPS Element: Return Objectives
-    CFA IPS 要素：收益目标
-    """
-    # 目标名称（如"退休"、"子女教育"、"购房"）/ Goal name
+    """A single investment goal with target amount and time horizon."""
     name: str = ""
-    # 目标金额 / Target amount
     target_amount: float = 0.0
-    # 距今年数 / Years from now
     years: int = 0
-    # 优先级：high / medium / low / Priority level
     priority: str = "medium"
 
 
 @dataclass
 class RiskProfile:
-    """
-    Risk tolerance assessment results.
-    风险承受能力评估结果。
-
-    CFA Framework / CFA 框架:
-        Risk Tolerance = min(Ability, Willingness)
-        风险承受能力 = min(承受能力, 承担意愿)
-
-        - Ability (承受能力): objective, based on financial situation
-          客观指标，基于财务状况
-        - Willingness (承担意愿): subjective, based on psychological comfort
-          主观指标，基于心理承受能力
-
-    When ability and willingness conflict, the advisor should use
-    the LOWER score and counsel the client to align the two.
-    当两者冲突时，顾问应采用较低评分，并引导客户统一两者。
-    """
-    # 承受能力评分 (1-5, 5=最高) / Ability score (1-5, 5=highest)
+    """Risk tolerance assessment: Risk Tolerance = min(Ability, Willingness)."""
     ability_score: float = 0.0
-    # 承担意愿评分 (1-5, 5=最高) / Willingness score (1-5, 5=highest)
     willingness_score: float = 0.0
-    # 最终风险承受能力等级 / Final risk tolerance level
     tolerance_level: str = ""
-    # 风险承受能力描述 / Risk tolerance description
     description: str = ""
 
     @property
     def final_score(self) -> float:
-        """
-        最终评分 = min(承受能力, 承担意愿)
-        CFA 原则：取较低值，确保客户不会承担超出其能力或意愿的风险
-        Final score = min(ability, willingness)
-        CFA principle: use the lower score to ensure client doesn't
-        take risk beyond their capacity or comfort level.
-        """
+        """Final score = min(ability, willingness)."""
         if self.ability_score == 0 or self.willingness_score == 0:
             return 0.0
         return min(self.ability_score, self.willingness_score)
 
     def classify(self) -> str:
-        """
-        根据最终评分分类风险承受能力等级。
-        Classify risk tolerance level based on final score.
-
-        Delegates to module-level classify_risk_score() which is the
-        single source of truth for breakpoints and labels.
-
-        Returns:
-            Risk tolerance level string.
-        """
+        """Classify risk tolerance level based on final score."""
         return classify_risk_score(self.final_score)
 
 
 @dataclass
 class ClientProfile:
-    """
-    Complete client profile following the CFA IPS framework.
-    遵循 CFA IPS 框架的完整客户画像。
+    """Complete client profile following the CFA IPS framework."""
 
-    This is the central data structure for the AI Advisor system.
-    All downstream modules (AI Advisor, IPS Generator, Portfolio Optimizer)
-    consume this profile to generate personalized recommendations.
-
-    这是 AI 顾问系统的核心数据结构。
-    所有下游模块（AI 顾问、IPS 生成器、组合优化器）
-    都消费此画像以生成个性化建议。
-    """
-    # === 客户识别 / Client Identification ===
     name: str = ""
     age: int = 30
     marital_status: str = "single"  # single / married / divorced / widowed
     dependents: int = 0
 
-    # === 财务状况 / Financial Situation ===
     financial: FinancialSituation = field(default_factory=FinancialSituation)
 
-    # === 投资目标 / Investment Goals ===
     goals: list = field(default_factory=list)
 
-    # === 投资期限 / Time Horizon ===
-    # 以年为单位 / In years
+
     time_horizon_years: int = 10
-    # 是否多阶段 / Multi-stage (e.g., accumulation → distribution)
+
     is_multi_stage: bool = False
 
-    # === 流动性需求 / Liquidity Needs ===
-    # 近期需要的现金金额 / Near-term cash needed
+
+
     liquidity_needs: float = 0.0
 
-    # === 税务状况 / Tax Considerations ===
+
     tax_status: str = "taxable"  # tax-exempt / taxable / tax-deferred
 
-    # === 特殊情况 / Unique Circumstances ===
+
     esg_preference: bool = False
     sector_restrictions: list = field(default_factory=list)
     notes: str = ""
 
-    # === 风险评估 / Risk Assessment ===
+
     risk_profile: RiskProfile = field(default_factory=RiskProfile)
 
-    # === 问卷原始回答 / Questionnaire Answers ===
+
     ability_answers: dict[str, str] = field(default_factory=dict)
     willingness_answers: dict[str, str] = field(default_factory=dict)
 
-    # === 元数据 / Metadata ===
+
     created_at: str = ""
     updated_at: str = ""
 
     def __post_init__(self):
-        """初始化时间戳 / Initialize timestamps."""
         now = datetime.now().isoformat()
         if not self.created_at:
             self.created_at = now
@@ -263,10 +148,7 @@ class ClientProfile:
             self.updated_at = now
 
     def summary(self) -> str:
-        """
-        Generate a human-readable summary of the client profile.
-        生成客户画像的可读摘要。
-        """
+        """Human-readable summary of the client profile."""
         lines = [
             f"Client Profile: {self.name}",
             f"  Age: {self.age}, Marital Status: {self.marital_status}",
@@ -281,12 +163,7 @@ class ClientProfile:
         return "\n".join(lines)
 
 
-# ============================================================
-# Risk Scoring Logic
-# 风险评分逻辑
-# ============================================================
-
-# 问题选项及对应评分 / Question options with corresponding scores
+# Question options with corresponding scores
 RISK_ABILITY_QUESTIONS = {
     "income_stability": {
         "question": "How stable is your current income? / 你目前的收入有多稳定？",
@@ -386,26 +263,7 @@ RISK_WILLINGNESS_QUESTIONS = {
 
 
 def compute_ability_score(answers: dict) -> float:
-    """
-    Compute the client's ability-to-bear-risk score.
-    计算客户的风险承受能力评分。
-
-    Ability is OBJECTIVE — based on financial facts:
-    承受能力是客观的 —— 基于财务事实：
-    - Income stability (收入稳定性)
-    - Investment knowledge (投资知识)
-    - Investment experience (投资经验)
-    - Emergency fund adequacy (应急基金充足性)
-    - Income vs expenses ratio (收支比)
-
-    Args:
-        answers: Dict mapping question keys to selected option keys.
-                 映射问题键到所选选项键的字典。
-
-    Returns:
-        Average ability score (1-5).
-        平均承受能力评分 (1-5)。
-    """
+    """Compute the client's objective ability-to-bear-risk score (1-5)."""
     scores = []
     for q_key, q_data in RISK_ABILITY_QUESTIONS.items():
         if q_key in answers:
@@ -416,23 +274,7 @@ def compute_ability_score(answers: dict) -> float:
 
 
 def compute_willingness_score(answers: dict) -> float:
-    """
-    Compute the client's willingness-to-take-risk score.
-    计算客户的风险承担意愿评分。
-
-    Willingness is SUBJECTIVE — based on psychological comfort:
-    承担意愿是主观的 —— 基于心理承受能力：
-    - Reaction to losses (对亏损的反应)
-    - Volatility comfort (波动率承受度)
-    - Gambling propensity (赌博倾向)
-    - Tracking error tolerance (跟踪误差容忍度)
-
-    Args:
-        answers: Dict mapping question keys to selected option keys.
-
-    Returns:
-        Average willingness score (1-5).
-    """
+    """Compute the client's subjective willingness-to-take-risk score (1-5)."""
     scores = []
     for q_key, q_data in RISK_WILLINGNESS_QUESTIONS.items():
         if q_key in answers:
@@ -443,22 +285,7 @@ def compute_willingness_score(answers: dict) -> float:
 
 
 def assess_risk(ability_answers: dict, willingness_answers: dict) -> RiskProfile:
-    """
-    Compute full risk profile from questionnaire answers.
-    从问卷答案计算完整的风险画像。
-
-    CFA Principle / CFA 原则:
-        Risk Tolerance = min(Ability, Willingness)
-        When the two conflict, the LOWER score prevails.
-        The advisor should counsel the client to align the two.
-
-    Args:
-        ability_answers: Answers to ability questions.
-        willingness_answers: Answers to willingness questions.
-
-    Returns:
-        RiskProfile with scores and classification.
-    """
+    """Compute full risk profile from questionnaire answers."""
     profile = RiskProfile(
         ability_score=compute_ability_score(ability_answers),
         willingness_score=compute_willingness_score(willingness_answers),
@@ -467,34 +294,18 @@ def assess_risk(ability_answers: dict, willingness_answers: dict) -> RiskProfile
     return profile
 
 
-# ============================================================
-# Profile Persistence — JSON Storage
-# 画像持久化 —— JSON 存储
-# ============================================================
 
 PROFILES_DIR = DATA_DIR / "profiles"
 
 
 def save_profile(profile: ClientProfile) -> Path:
-    """
-    Save a client profile to a JSON file.
-    将客户画像保存为 JSON 文件。
-
-    Args:
-        profile: ClientProfile instance to save.
-
-    Returns:
-        Path to the saved file.
-    """
+    """Save a client profile to a JSON file."""
     PROFILES_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 使用客户名和时间戳作为文件名
-    # Use client name and timestamp as filename
     safe_name = sanitize_filename(profile.name)
     filename = f"{safe_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     filepath = PROFILES_DIR / filename
 
-    # 更新时间戳 / Update timestamp
     profile.updated_at = datetime.now().isoformat()
 
     with open(filepath, "w", encoding="utf-8") as f:
@@ -504,20 +315,10 @@ def save_profile(profile: ClientProfile) -> Path:
 
 
 def load_profile(filepath: Path) -> ClientProfile:
-    """
-    Load a client profile from a JSON file.
-    从 JSON 文件加载客户画像。
-
-    Args:
-        filepath: Path to the JSON file.
-
-    Returns:
-        ClientProfile instance.
-    """
+    """Load a client profile from a JSON file."""
     with open(filepath, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # 重建嵌套数据对象 / Rebuild nested data objects
     financial = FinancialSituation(**data.pop("financial", {}))
     risk = RiskProfile(**data.pop("risk_profile", {}))
     goals = [InvestmentGoal(**g) for g in data.pop("goals", [])]
@@ -531,13 +332,7 @@ def load_profile(filepath: Path) -> ClientProfile:
 
 
 def list_profiles() -> list[dict]:
-    """
-    List all saved client profiles with summary info.
-    列出所有已保存的客户画像及摘要信息。
-
-    Returns:
-        List of dicts with filepath, name, age, risk level.
-    """
+    """List all saved client profiles with summary info."""
     PROFILES_DIR.mkdir(parents=True, exist_ok=True)
     profiles = []
     for filepath in sorted(PROFILES_DIR.glob("*.json"), reverse=True):
@@ -556,36 +351,12 @@ def list_profiles() -> list[dict]:
 
 
 def update_profile(filepath: Path, profile: ClientProfile) -> Path:
-    """
-    Update an existing client profile file.
-    更新已存在的客户画像文件。
-
-    This function overwrites the existing file with updated profile data.
-    It preserves the original filepath and updates the 'updated_at' timestamp.
-
-    该函数用更新后的画像数据覆盖现有文件。
-    保留原始文件路径并更新 'updated_at' 时间戳。
-
-    Args:
-        filepath: Path to the existing profile JSON file.
-                  现有画像 JSON 文件的路径。
-        profile: Updated ClientProfile instance.
-                 更新后的 ClientProfile 实例。
-
-    Returns:
-        Path to the updated file (same as input filepath).
-        更新后的文件路径（与输入的 filepath 相同）。
-
-    Raises:
-        FileNotFoundError: If the specified file does not exist.
-                           如果指定的文件不存在。
-    """
+    """Update an existing client profile file in-place."""
     if not filepath.exists():
         raise FileNotFoundError(
             f"Profile file not found: {filepath} / 画像文件未找到: {filepath}"
         )
 
-    # 更新时间戳 / Update timestamp
     profile.updated_at = datetime.now().isoformat()
 
     with open(filepath, "w", encoding="utf-8") as f:
@@ -595,25 +366,7 @@ def update_profile(filepath: Path, profile: ClientProfile) -> Path:
 
 
 def delete_profile(filepath: Path) -> bool:
-    """
-    Delete a client profile file.
-    删除客户画像文件。
-
-    Args:
-        filepath: Path to the profile JSON file to delete.
-                  要删除的画像 JSON 文件路径。
-
-    Returns:
-        True if deletion was successful, False otherwise.
-        删除成功返回 True，否则返回 False。
-
-    CFA Reference / CFA 参考:
-        Data retention policies may require keeping client records
-        for a certain period. In production systems, consider
-        soft-delete (archiving) instead of hard-delete.
-        数据保留政策可能要求保留客户记录一定期限。
-        在生产系统中，考虑使用软删除（归档）而非硬删除。
-    """
+    """Delete a client profile file."""
     try:
         if filepath.exists():
             filepath.unlink()
@@ -623,75 +376,23 @@ def delete_profile(filepath: Path) -> bool:
         return False
 
 
-# ============================================================
-# Behavioral Finance — Bias Identification
-# 行为金融学 —— 偏差识别
-# ============================================================
 
 @dataclass
 class BehavioralBias:
-    """
-    Represents a detected behavioral finance bias.
-    表示检测到的行为金融偏差。
-
-    CFA Reference / CFA 参考:
-        CFA L3 Behavioral Finance: Common investor biases include
-        loss aversion, overconfidence, anchoring, recency bias,
-        mental accounting, and herding behavior.
-        CFA 三级行为金融学：常见的投资者偏差包括损失厌恶、
-        过度自信、锚定效应、近因偏差、心理账户和羊群效应。
-    """
-    # 偏差类型 / Bias type
+    """A detected behavioral finance bias."""
     bias_type: str
-    # 偏差名称（中英文）/ Bias name (bilingual)
     name: str
-    # 偏差描述 / Bias description
     description: str
-    # 严重程度：high / medium / low / Severity level
     severity: str
-    # 纠偏建议 / Debiasing recommendation
     recommendation: str
 
 
 def identify_behavioral_biases(profile: ClientProfile) -> list[BehavioralBias]:
-    """
-    Identify potential behavioral finance biases based on client profile.
-    基于客户画像识别潜在的行为金融偏差。
-
-    This function analyzes the client's risk questionnaire answers,
-    financial situation, and investment behavior patterns to detect
-    common behavioral biases documented in CFA curriculum.
-
-    该函数分析客户的风险问卷答案、财务状况和投资行为模式，
-    以检测 CFA 课程中记录的常见行为偏差。
-
-    CFA Reference / CFA 参考:
-        CFA L3 Behavioral Finance:
-        - Loss Aversion: Tendency to feel losses more intensely than gains
-          损失厌恶：对损失的感受比收益更强烈
-        - Overconfidence: Overestimating one's investment ability
-          过度自信：高估自己的投资能力
-        - Risk Perception Mismatch: Willingness vs ability conflict
-          风险感知错配：意愿与能力的冲突
-
-    Args:
-        profile: Complete ClientProfile with risk assessment.
-                 包含风险评估的完整 ClientProfile。
-
-    Returns:
-        List of detected BehavioralBias instances.
-        检测到的 BehavioralBias 实例列表。
-    """
+    """Identify potential behavioral biases from client profile data."""
     biases: list[BehavioralBias] = []
     rp = profile.risk_profile
 
-    # ============================================================
-    # 1. Loss Aversion Detection / 损失厌恶检测
-    # ============================================================
-    # 如果客户对损失反应过于强烈（willingness 低但 ability 高），
-    # 可能存在损失厌恶偏差
-    # If client overreacts to losses (low willingness but high ability),
-    # may indicate loss aversion bias
+
     if rp.ability_score > 0 and rp.willingness_score > 0:
         if rp.willingness_score <= 2.0 and rp.ability_score >= 3.5:
             biases.append(BehavioralBias(
@@ -714,12 +415,7 @@ def identify_behavioral_biases(profile: ClientProfile) -> list[BehavioralBias]:
                 ),
             ))
 
-    # ============================================================
-    # 2. Overconfidence Detection / 过度自信检测
-    # ============================================================
-    # 如果客户声称高投资知识但经验有限，可能存在过度自信
-    # If client claims high knowledge but has limited experience,
-    # may indicate overconfidence
+
     if rp.ability_score >= 4.0 and rp.willingness_score >= 4.5:
         biases.append(BehavioralBias(
             bias_type="overconfidence",
@@ -741,12 +437,7 @@ def identify_behavioral_biases(profile: ClientProfile) -> list[BehavioralBias]:
             ),
         ))
 
-    # ============================================================
-    # 3. Ability-Willingness Conflict / 能力-意愿冲突检测
-    # ============================================================
-    # CFA 原则：当能力和意愿冲突时，取较低值并进行投资者教育
-    # CFA principle: when ability and willingness conflict, use lower
-    # score and provide investor education
+    # When ability and willingness conflict, use the lower score
     if rp.ability_score > 0 and rp.willingness_score > 0:
         score_diff = abs(rp.ability_score - rp.willingness_score)
         if score_diff >= 1.5:
@@ -771,11 +462,7 @@ def identify_behavioral_biases(profile: ClientProfile) -> list[BehavioralBias]:
                 ),
             ))
 
-    # ============================================================
-    # 4. Financial Behavior Risk / 财务行为风险检测
-    # ============================================================
-    # 如果负债率高但风险偏好也高，存在行为风险
-    # If high debt ratio but also high risk appetite, behavioral risk exists
+
     if profile.financial.debt_to_asset_ratio > 0.5 and rp.willingness_score >= 4.0:
         biases.append(BehavioralBias(
             bias_type="leverage_risk",
@@ -798,9 +485,7 @@ def identify_behavioral_biases(profile: ClientProfile) -> list[BehavioralBias]:
             ),
         ))
 
-    # ============================================================
-    # 5. Emergency Fund Adequacy / 应急基金充足性检测
-    # ============================================================
+
     if profile.financial.emergency_fund_months < 3 and rp.willingness_score >= 3.0:
         biases.append(BehavioralBias(
             bias_type="inadequate_safety_net",
@@ -826,15 +511,10 @@ def identify_behavioral_biases(profile: ClientProfile) -> list[BehavioralBias]:
     return biases
 
 
-# =============================================================
-# Profile Comparison / 画像对比分析
-# =============================================================
+
 @dataclass
 class ProfileComparison:
-    """
-    Represents a comparison between multiple client profiles.
-    多个客户画像的对比结果。
-    """
+    """Comparison results across multiple client profiles."""
     client_names: list[str] = field(default_factory=list)
     risk_score_comparison: dict[str, float] = field(default_factory=dict)
     risk_level_comparison: dict[str, str] = field(default_factory=dict)
@@ -847,27 +527,7 @@ class ProfileComparison:
 
 
 def compare_profiles(profiles: list[ClientProfile]) -> ProfileComparison:
-    """
-    Compare multiple client profiles across key financial and risk metrics.
-    对比多个客户画像的关键财务和风险指标。
-
-    This function enables wealth managers to perform side-by-side analysis
-    of different clients, useful for resource allocation and service tiering.
-
-    Args:
-        profiles: List of ClientProfile instances to compare (minimum 2)
-
-    Returns:
-        ProfileComparison with structured comparison data and insights
-
-    Raises:
-        ValueError: If fewer than 2 profiles provided
-
-    CFA Reference:
-        - IPS comparison across client segments
-        - Risk tolerance = min(ability, willingness) for each client
-        - Behavioral bias severity analysis across client base
-    """
+    """Compare multiple client profiles across key metrics."""
     if len(profiles) < 2:
         raise ValueError(
             "At least 2 profiles required for comparison. / "
@@ -880,24 +540,20 @@ def compare_profiles(profiles: list[ClientProfile]) -> ProfileComparison:
         name = profile.name
         comparison.client_names.append(name)
 
-        # Risk score and level / 风险评分与等级
+
         rp = profile.risk_profile
         comparison.risk_score_comparison[name] = rp.final_score
         comparison.risk_level_comparison[name] = rp.tolerance_level
 
-        # Net worth comparison / 净资产对比
         fin = profile.financial
         comparison.net_worth_comparison[name] = fin.net_worth
 
-        # Savings rate comparison / 储蓄率对比
         savings_rate = fin.savings_rate
         comparison.savings_rate_comparison[name] = savings_rate
 
-        # Behavioral bias count / 行为偏差数量
         biases = identify_behavioral_biases(profile)
         comparison.bias_count_comparison[name] = len(biases)
 
-        # Financial summary / 财务概要
         comparison.financial_summary[name] = {
             "annual_income": fin.annual_income,
             "net_worth": fin.net_worth,
@@ -908,7 +564,6 @@ def compare_profiles(profiles: list[ClientProfile]) -> ProfileComparison:
             "risk_level": rp.tolerance_level,
         }
 
-    # Generate insights / 生成对比洞察
     comparison.insights = _generate_comparison_insights(comparison, profiles)
 
     return comparison
@@ -918,13 +573,10 @@ def _generate_comparison_insights(
     comparison: ProfileComparison,
     profiles: list[ClientProfile],
 ) -> list[str]:
-    """
-    Generate analytical insights from profile comparison.
-    从画像对比中生成分析洞察。
-    """
+    """Generate analytical insights from profile comparison."""
     insights: list[str] = []
 
-    # Find highest and lowest risk clients / 找出最高和最低风险客户
+
     risk_scores = comparison.risk_score_comparison
     if risk_scores:
         max_risk_name = max(risk_scores, key=risk_scores.get)
@@ -940,7 +592,7 @@ def _generate_comparison_insights(
                 f"({risk_scores[min_risk_name]:.1f})。"
             )
 
-    # Find highest net worth client / 找出最高净资产客户
+
     net_worths = comparison.net_worth_comparison
     if net_worths:
         max_nw_name = max(net_worths, key=net_worths.get)
@@ -956,7 +608,7 @@ def _generate_comparison_insights(
                 f"净资产范围：{max_nw_name} 是 {min_nw_name} 的 {nw_ratio:.1f} 倍。"
             )
 
-    # Savings rate comparison / 储蓄率对比
+
     savings_rates = comparison.savings_rate_comparison
     if savings_rates:
         avg_rate = sum(savings_rates.values()) / len(savings_rates)
@@ -971,7 +623,7 @@ def _generate_comparison_insights(
                 f"高储蓄率客户 ({', '.join(high_savers)}) 可能适合更激进的投资策略。"
             )
 
-    # Behavioral bias analysis / 行为偏差分析
+
     bias_counts = comparison.bias_count_comparison
     if bias_counts:
         max_biases = max(bias_counts.values())
@@ -989,7 +641,7 @@ def _generate_comparison_insights(
                 f"可能需要更多的行为金融指导。"
             )
 
-    # Risk ability vs willingness mismatch / 风险能力与意愿不匹配
+
     for profile in profiles:
         rp = profile.risk_profile
         if rp.ability_score >= 4.0 and rp.willingness_score <= 2.0:
@@ -1014,10 +666,7 @@ def _generate_comparison_insights(
 
 
 def format_comparison_report(comparison: ProfileComparison) -> str:
-    """
-    Format profile comparison as a readable report.
-    将画像对比格式化为可读报告。
-    """
+    """Format profile comparison as a readable report."""
     lines: list[str] = []
     lines.append("=" * 60)
     lines.append("CLIENT PROFILE COMPARISON REPORT / 客户画像对比报告")
@@ -1025,7 +674,7 @@ def format_comparison_report(comparison: ProfileComparison) -> str:
     lines.append(f"Report Date / 报告日期: {comparison.comparison_date}")
     lines.append("")
 
-    # Risk comparison table / 风险对比表
+    # Risk comparison table
     lines.append("-" * 60)
     lines.append("RISK PROFILE COMPARISON / 风险画像对比")
     lines.append("-" * 60)
@@ -1038,7 +687,7 @@ def format_comparison_report(comparison: ProfileComparison) -> str:
         lines.append(f"{name:<20} {score:<10.1f} {level:<20}")
     lines.append("")
 
-    # Financial comparison / 财务对比
+    # Financial comparison
     lines.append("-" * 60)
     lines.append("FINANCIAL COMPARISON / 财务对比")
     lines.append("-" * 60)
@@ -1051,7 +700,7 @@ def format_comparison_report(comparison: ProfileComparison) -> str:
         lines.append(f"{name:<20} ${nw:>12,.0f} {sr:>12.1%}")
     lines.append("")
 
-    # Behavioral bias comparison / 行为偏差对比
+    # Behavioral bias comparison
     lines.append("-" * 60)
     lines.append("BEHAVIORAL BIASES / 行为偏差")
     lines.append("-" * 60)
@@ -1060,7 +709,7 @@ def format_comparison_report(comparison: ProfileComparison) -> str:
         lines.append(f"{name:<20} {count} biases detected")
     lines.append("")
 
-    # Insights / 洞察
+    # Insights
     lines.append("-" * 60)
     lines.append("KEY INSIGHTS / 关键洞察")
     lines.append("-" * 60)

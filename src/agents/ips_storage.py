@@ -1,4 +1,4 @@
-"""
+﻿"""
 AI WealthPilot - IPS Storage & Export Module
 
 Provides persistence and export capabilities for AI-generated
@@ -26,9 +26,7 @@ from src.utils import sanitize_filename
 from src.agents.ips_models import IPSDocument, AuditTrail
 
 
-# ============================================================
 # Storage Directory
-# ============================================================
 
 IPS_DIR = DATA_DIR / "ips"
 
@@ -39,9 +37,7 @@ def _ensure_ips_dir() -> Path:
     return IPS_DIR
 
 
-# ============================================================
 # Core CRUD Operations
-# ============================================================
 
 def save_ips(
     ips_dict: dict,
@@ -136,9 +132,7 @@ def list_ips_documents(limit: int = 50) -> list[dict]:
     return documents
 
 
-# ============================================================
 # Export Functions
-# ============================================================
 
 def export_ips_markdown(ips_dict: dict, audit_trail_dict: Optional[dict] = None) -> str:
     """

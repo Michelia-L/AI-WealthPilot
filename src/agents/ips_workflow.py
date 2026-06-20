@@ -1,21 +1,12 @@
-"""
-AI WealthPilot - IPS LangGraph Workflow Engine
+﻿"""
+IPS LangGraph workflow engine.
 
-Orchestrates the multi-agent IPS generation workflow as a LangGraph
-state machine. The workflow follows a Generate → Review → Revise
-loop with conditional routing and audit trail tracking.
+Orchestrates the multi-agent IPS generation workflow:
+START → CME → generate → review(×3) → validate_saa → finalize/revise.
 
-Workflow Graph:
-    START → generate_cme → generate → select_docs → review_suitability →
-    review_compliance → review_consistency → validate_saa →
-        (all pass) → finalize → END
-        (issues)   → revise → select_docs (loop, max 3)
-        (max rounds) → finalize (escalate) → END
-
-CFA Reference:
+References:
     - CFA L3 PWM: IPS generation and review process
     - CFA L3: Setting Capital Market Expectations
-    - CFA L3: Compliance and documentation requirements
 """
 
 import hashlib
@@ -57,10 +48,6 @@ from src.portfolio.cme_models import CMEReport, SAAValidationResult
 
 logger = logging.getLogger(__name__)
 
-
-# ============================================================
-# Workflow State Schema
-# ============================================================
 
 class IPSWorkflowState(BaseModel):
     """
@@ -147,9 +134,6 @@ class IPSWorkflowState(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-# ============================================================
-# Helper Functions
-# ============================================================
 
 def _ips_version_hash(ips_dict: dict) -> str:
     """Generate a short hash for an IPS version identifier."""
@@ -172,29 +156,9 @@ def _all_passed(review_results: list[dict]) -> bool:
     return all(r.get("passed", False) for r in review_results)
 
 
-# ============================================================
-# Workflow Node Functions
-# ============================================================
 
 async def generate_cme_node(state: IPSWorkflowState) -> dict[str, Any]:
-    """
-    Node: Generate Capital Market Expectations (CME).
-
-    Fetches historical market data and computes expected returns,
-    volatilities, correlations, and risk metrics for each IPS asset
-    class. The resulting CME report is stored in state for injection
-    into the IPS generator's LLM prompt.
-
-    CFA Reference:
-        CFA L3: Setting Capital Market Expectations is a prerequisite
-        for any asset allocation decision in the IPS.
-
-    Args:
-        state: Current workflow state.
-
-    Returns:
-        State updates with CME report and formatted text.
-    """
+    """Node: generate Capital Market Expectations for prompt injection."""
     logger.info("=== CME Generation Node ===")
 
     try:
@@ -229,18 +193,7 @@ async def generate_cme_node(state: IPSWorkflowState) -> dict[str, Any]:
 
 
 async def generate_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
-    """
-    Node: Generate the initial IPS draft.
-
-    Calls the IPS generator agent with client profile data,
-    IPS template reference, and CME data injected as full-text context.
-
-    Args:
-        state: Current workflow state.
-
-    Returns:
-        State updates with the generated IPS draft.
-    """
+    """Node: generate the initial IPS draft via LLM."""
     logger.info("=== IPS Generation Node ===")
     state_updates: dict[str, Any] = {"status": "generating"}
 
@@ -268,24 +221,9 @@ async def generate_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
 
 
 async def select_review_docs_node(state: IPSWorkflowState) -> dict[str, Any]:
-    """
-    Node: Select and prepare documents for the review context.
-
-    For now, this uses a rule-based approach:
-    - L0 (always inject): client profile data
-    - L1 (rule-based): compliance checklist items for each dimension
-
-    Future: LLM-based intelligent document selection.
-
-    Args:
-        state: Current workflow state.
-
-    Returns:
-        State updates with selected review context.
-    """
+    """Node: load compliance checklist and reset review state for new round."""
     logger.info("=== Document Selection Node ===")
 
-    # Load compliance checklist if not already loaded
     checklist = state.checklist
     if not checklist:
         checklist = load_compliance_checklist()
@@ -293,31 +231,37 @@ async def select_review_docs_node(state: IPSWorkflowState) -> dict[str, Any]:
     return {
         "checklist": checklist,
         "status": "reviewing",
-        "review_results": [],   # Reset for new review round
+        "review_results": [],
         "all_review_issues": [],
     }
 
 
-async def review_suitability_node(state: IPSWorkflowState) -> dict[str, Any]:
-    """
-    Node: Suitability review — check client-IPS fit.
+# Map dimension → agent factory for the parameterized review node
+_REVIEWER_FACTORIES = {
+    ReviewDimension.SUITABILITY: create_suitability_reviewer,
+    ReviewDimension.COMPLIANCE: create_compliance_reviewer,
+    ReviewDimension.CONSISTENCY: create_consistency_reviewer,
+}
 
-    Verifies risk level matching, return feasibility,
-    time horizon alignment, and liquidity adequacy.
+
+async def _run_review_node(
+    state: IPSWorkflowState,
+    dimension: ReviewDimension,
+) -> dict[str, Any]:
+    """Shared implementation for all review dimension nodes.
 
     Args:
         state: Current workflow state.
+        dimension: Which review dimension to execute.
 
     Returns:
-        State updates with suitability review results appended.
+        State updates with review results and issues appended.
     """
-    logger.info("=== Suitability Review Node ===")
-    dimension = ReviewDimension.SUITABILITY
+    logger.info("=== %s Review Node ===", dimension.value.title())
 
     try:
-        agent = create_suitability_reviewer()
+        agent = _REVIEWER_FACTORIES[dimension]()
 
-        # Extract checklist items for this dimension
         checklist_items = (
             state.checklist
             .get("dimensions", {})
@@ -335,16 +279,13 @@ async def review_suitability_node(state: IPSWorkflowState) -> dict[str, Any]:
 
         result = await agent.run(prompt)
         review: ReviewResult = result.output
-        review_dict = review.model_dump()
 
-        logger.info("Suitability review: passed=%s, issues=%d",
-                     review.passed, len(review.issues))
+        logger.info("%s review: passed=%s, issues=%d",
+                     dimension.value.title(), review.passed, len(review.issues))
 
-        # Append to current round's results
         current_results = list(state.review_results)
-        current_results.append(review_dict)
+        current_results.append(review.model_dump())
 
-        # Collect issues for potential revision
         current_issues = list(state.all_review_issues)
         current_issues.extend([i.model_dump() for i in review.issues])
 
@@ -354,8 +295,7 @@ async def review_suitability_node(state: IPSWorkflowState) -> dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error("Suitability review failed: %s", e, exc_info=True)
-        # On error, create a "failed" review result
+        logger.error("%s review failed: %s", dimension.value.title(), e, exc_info=True)
         error_result = ReviewResult(
             dimension=dimension,
             passed=False,
@@ -365,149 +305,25 @@ async def review_suitability_node(state: IPSWorkflowState) -> dict[str, Any]:
         current_results = list(state.review_results)
         current_results.append(error_result)
         return {"review_results": current_results}
+
+
+async def review_suitability_node(state: IPSWorkflowState) -> dict[str, Any]:
+    """Node: suitability review — check client-IPS fit."""
+    return await _run_review_node(state, ReviewDimension.SUITABILITY)
 
 
 async def review_compliance_node(state: IPSWorkflowState) -> dict[str, Any]:
-    """
-    Node: Compliance review — check regulatory requirements.
-
-    Verifies risk disclosure, compliance statements, weight
-    constraints, and instrument restrictions.
-
-    Args:
-        state: Current workflow state.
-
-    Returns:
-        State updates with compliance review results appended.
-    """
-    logger.info("=== Compliance Review Node ===")
-    dimension = ReviewDimension.COMPLIANCE
-
-    try:
-        agent = create_compliance_reviewer()
-
-        checklist_items = (
-            state.checklist
-            .get("dimensions", {})
-            .get(dimension.value, {})
-            .get("checks", [])
-        )
-
-        ips_json = json.dumps(state.ips_draft, ensure_ascii=False, indent=2)
-        prompt = build_review_prompt(
-            ips_json=ips_json,
-            client_profile_json=state.client_profile_json,
-            dimension=dimension,
-            checklist_items=checklist_items,
-        )
-
-        result = await agent.run(prompt)
-        review: ReviewResult = result.output
-        review_dict = review.model_dump()
-
-        logger.info("Compliance review: passed=%s, issues=%d",
-                     review.passed, len(review.issues))
-
-        current_results = list(state.review_results)
-        current_results.append(review_dict)
-        current_issues = list(state.all_review_issues)
-        current_issues.extend([i.model_dump() for i in review.issues])
-
-        return {
-            "review_results": current_results,
-            "all_review_issues": current_issues,
-        }
-
-    except Exception as e:
-        logger.error("Compliance review failed: %s", e, exc_info=True)
-        error_result = ReviewResult(
-            dimension=dimension,
-            passed=False,
-            issues=[],
-            summary=f"审查过程出错: {str(e)}"
-        ).model_dump()
-        current_results = list(state.review_results)
-        current_results.append(error_result)
-        return {"review_results": current_results}
+    """Node: compliance review — check regulatory requirements."""
+    return await _run_review_node(state, ReviewDimension.COMPLIANCE)
 
 
 async def review_consistency_node(state: IPSWorkflowState) -> dict[str, Any]:
-    """
-    Node: Consistency review — check internal logic consistency.
-
-    Verifies that all IPS sections are logically consistent with
-    each other (risk level matches allocation, etc.).
-
-    Args:
-        state: Current workflow state.
-
-    Returns:
-        State updates with consistency review results appended.
-    """
-    logger.info("=== Consistency Review Node ===")
-    dimension = ReviewDimension.CONSISTENCY
-
-    try:
-        agent = create_consistency_reviewer()
-
-        checklist_items = (
-            state.checklist
-            .get("dimensions", {})
-            .get(dimension.value, {})
-            .get("checks", [])
-        )
-
-        ips_json = json.dumps(state.ips_draft, ensure_ascii=False, indent=2)
-        prompt = build_review_prompt(
-            ips_json=ips_json,
-            client_profile_json=state.client_profile_json,
-            dimension=dimension,
-            checklist_items=checklist_items,
-        )
-
-        result = await agent.run(prompt)
-        review: ReviewResult = result.output
-        review_dict = review.model_dump()
-
-        logger.info("Consistency review: passed=%s, issues=%d",
-                     review.passed, len(review.issues))
-
-        current_results = list(state.review_results)
-        current_results.append(review_dict)
-        current_issues = list(state.all_review_issues)
-        current_issues.extend([i.model_dump() for i in review.issues])
-
-        return {
-            "review_results": current_results,
-            "all_review_issues": current_issues,
-        }
-
-    except Exception as e:
-        logger.error("Consistency review failed: %s", e, exc_info=True)
-        error_result = ReviewResult(
-            dimension=dimension,
-            passed=False,
-            issues=[],
-            summary=f"审查过程出错: {str(e)}"
-        ).model_dump()
-        current_results = list(state.review_results)
-        current_results.append(error_result)
-        return {"review_results": current_results}
+    """Node: consistency review — check internal logic consistency."""
+    return await _run_review_node(state, ReviewDimension.CONSISTENCY)
 
 
 async def revise_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
-    """
-    Node: Revise the IPS based on review feedback.
-
-    Takes all accumulated review issues and produces a revised
-    IPSDocument that addresses each issue.
-
-    Args:
-        state: Current workflow state.
-
-    Returns:
-        State updates with revised IPS draft.
-    """
+    """Node: revise the IPS based on accumulated review feedback."""
     logger.info("=== IPS Revision Node (round %d) ===", state.revision_count + 1)
 
     try:
@@ -525,7 +341,6 @@ async def revise_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
         revised_ips: IPSDocument = result.output
         revised_dict = revised_ips.model_dump()
 
-        # Record revision in audit trail
         version_before = _ips_version_hash(state.ips_draft) if state.ips_draft else "none"
         version_after = _ips_version_hash(revised_dict)
 
@@ -562,27 +377,7 @@ async def revise_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
 
 
 async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
-    """
-    Node: Quantitative SAA validation against CME data.
-
-    Uses the portfolio optimizer to verify that the LLM-generated
-    Strategic Asset Allocation is consistent with CME assumptions:
-    - Weights sum to 100%
-    - Portfolio expected return covers the required return
-    - Portfolio volatility is within risk tolerance band
-    - Allocation is near the efficient frontier
-
-    CFA Reference:
-        CFA L3: SAA must be grounded in defensible CME assumptions.
-        Any mismatch between stated returns and achievable returns
-        should be flagged.
-
-    Args:
-        state: Current workflow state.
-
-    Returns:
-        State updates with SAA validation results merged into review.
-    """
+    """Node: quantitative SAA validation against CME data."""
     logger.info("=== SAA Validation Node ===")
 
     # Skip if no CME data available
@@ -745,7 +540,6 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                     suggestion="在 return_objective 和 risk_disclosure 中明确说明收益目标处于 SAA 预期区间上端。",
                 ).model_dump())
 
-            # === Validation 3: Portfolio Volatility σ_p = √(w^T Σ w) ===
             n = len(matched_weights)
             w_norm = w / w.sum()  # Normalize weights
             v = np.array(matched_vols)
@@ -828,7 +622,6 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                         ),
                     ).model_dump())
 
-            # === Validation 4: Weighted Portfolio VaR / CVaR ===
             w_var = np.array(matched_vars)
             w_cvar = np.array(matched_cvars)
             # Linear weighted approximation (conservative upper bound)
@@ -886,13 +679,7 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
 
 
 def _fuzzy_asset_match(saa_name: str, cme_name: str) -> bool:
-    """
-    Fuzzy match between SAA asset class name and CME asset class name.
-
-    Handles cases like:
-        SAA: "国内权益（A股）" <-> CME: "国内权益（A股/沪深300）"
-        SAA: "固定收益（利率债+信用债）" <-> CME: "固定收益"
-    """
+    """Fuzzy match SAA asset class name against CME asset class name."""
     keywords_map = {
         "国内权益": ["国内权益", "A股", "沪深300"],
         "国际权益": ["国际权益", "发达市场", "EFA"],
@@ -913,18 +700,7 @@ def _fuzzy_asset_match(saa_name: str, cme_name: str) -> bool:
 
 
 async def finalize_node(state: IPSWorkflowState) -> dict[str, Any]:
-    """
-    Node: Finalize the IPS and generate audit trail.
-
-    Determines whether the IPS is approved or needs human escalation,
-    then assembles the complete audit trail.
-
-    Args:
-        state: Current workflow state.
-
-    Returns:
-        State updates with final IPS and audit trail.
-    """
+    """Node: finalize the IPS and assemble audit trail."""
     logger.info("=== Finalization Node ===")
 
     # Determine final status
@@ -968,19 +744,10 @@ async def finalize_node(state: IPSWorkflowState) -> dict[str, Any]:
     }
 
 
-# ============================================================
-# Routing Functions (Conditional Edges)
-# ============================================================
+
 
 def route_after_review(state: IPSWorkflowState) -> str:
-    """
-    Route after all three reviews complete.
-
-    Returns:
-        "pass" if all reviews passed.
-        "revise" if there are issues and revision budget remains.
-        "escalate" if there are critical issues exceeding revision budget.
-    """
+    """Route after all reviews: 'pass', 'revise', or 'escalate'."""
     if _all_passed(state.review_results):
         logger.info("All reviews passed → finalize")
         return "pass"
@@ -996,13 +763,7 @@ def route_after_review(state: IPSWorkflowState) -> str:
 
 
 def route_after_revision(state: IPSWorkflowState) -> str:
-    """
-    Route after a revision is completed.
-
-    Returns:
-        "review_again" if revision budget remains.
-        "escalate" if max revisions reached.
-    """
+    """Route after revision: 'review_again' or 'escalate'."""
     if state.revision_count >= state.max_revisions:
         logger.warning("Max revisions reached after revision → escalate")
         return "escalate"
@@ -1011,22 +772,10 @@ def route_after_revision(state: IPSWorkflowState) -> str:
     return "review_again"
 
 
-# ============================================================
-# Graph Construction
-# ============================================================
+
 
 def build_ips_workflow() -> StateGraph:
-    """
-    Build the complete IPS generation LangGraph workflow.
-
-    Graph:
-        START → generate_cme → generate → select_docs →
-        review_suitability → review_compliance → review_consistency →
-        validate_saa → (routing) → finalize / revise
-
-    Returns:
-        Configured StateGraph (not yet compiled).
-    """
+    """Build the complete IPS generation LangGraph workflow."""
     workflow = StateGraph(IPSWorkflowState)
 
     # Add nodes
@@ -1077,17 +826,7 @@ def build_ips_workflow() -> StateGraph:
 
 
 def compile_ips_workflow(checkpointer: Optional[Any] = None):
-    """
-    Build and compile the IPS workflow with optional checkpointing.
-
-    Args:
-        checkpointer: LangGraph checkpointer for state persistence.
-            Use MemorySaver() for testing or SqliteSaver for production.
-            If None, uses MemorySaver by default.
-
-    Returns:
-        Compiled LangGraph application ready for invocation.
-    """
+    """Build and compile the IPS workflow with optional checkpointing."""
     workflow = build_ips_workflow()
 
     if checkpointer is None:
@@ -1096,30 +835,14 @@ def compile_ips_workflow(checkpointer: Optional[Any] = None):
     return workflow.compile(checkpointer=checkpointer)
 
 
-# ============================================================
-# High-Level API
-# ============================================================
 
 async def generate_ips(
     client_profile_dict: dict,
     max_revisions: int = 3,
     thread_id: str = "default",
 ) -> dict:
-    """
-    High-level API to generate a complete IPS.
-
-    This is the main entry point for IPS generation.
-    It sets up the workflow, runs it to completion, and
-    returns the final IPS with audit trail.
-
-    Args:
-        client_profile_dict: ClientProfile serialized as dict.
-        max_revisions: Maximum revision rounds (default 3).
-        thread_id: Unique thread ID for checkpointing.
-
-    Returns:
-        Dict with keys: 'ips', 'audit_trail', 'status'.
-    """
+    """High-level API: generate a complete IPS with audit trail."""
+   
     # Load reference documents
     template = load_ips_template()
 

@@ -1,4 +1,4 @@
-"""
+﻿"""
 AI WealthPilot - CME Cache Manager
 
 File-based caching layer for Capital Market Expectations (CME) reports.
@@ -73,9 +73,7 @@ class CMECacheManager:
     def _metadata_path(self) -> Path:
         return self.cache_dir / _METADATA_FILENAME
 
-    # ================================================================
     # Public Interface
-    # ================================================================
 
     def save(self, report_dict: dict, params_hash: str) -> None:
         """
@@ -205,9 +203,7 @@ class CMECacheManager:
 
         logger.info("CME cache invalidated")
 
-    # ================================================================
     # Static Helpers
-    # ================================================================
 
     @staticmethod
     def compute_params_hash(
@@ -242,9 +238,7 @@ class CMECacheManager:
         content = f"{lookback_years}|{inflation}|{ticker_repr}|{iv_blending_tau}"
         return hashlib.md5(content.encode()).hexdigest()[:8]
 
-    # ================================================================
     # Private Helpers
-    # ================================================================
 
     def _load_metadata(self) -> Optional[dict]:
         """Load and parse the metadata JSON file."""

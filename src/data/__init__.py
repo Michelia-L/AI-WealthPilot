@@ -1,4 +1,4 @@
-"""AI WealthPilot - Data Module"""
+﻿"""AI WealthPilot - Data Module"""
 from src.data.market_data import (
     fetch_price_history,
     compute_returns,

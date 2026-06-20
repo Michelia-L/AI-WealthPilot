@@ -1,30 +1,12 @@
 """
 AI WealthPilot - Advisory Report Storage Module
-AI WealthPilot - 建议书持久化存储模块
 
-Provides persistence for AI-generated advisory reports.
-Stores reports as JSON files with metadata and maintains
-associations with client profiles.
+Provides persistence for AI-generated advisory reports. Stores reports
+as JSON files with metadata and maintains associations with client profiles.
 
-为 AI 生成的建议书提供持久化存储。
-将报告以 JSON 文件形式存储，包含元数据，
-并维护与客户画像的关联。
-
-Key Features / 核心功能:
-    1. Save advisory reports with full metadata
-       保存包含完整元数据的建议书
-    2. Load and query stored reports
-       加载和查询已存储的报告
-    3. Link reports to client profiles
-       建立报告与客户画像的关联
-    4. Export reports to Markdown, HTML, and JSON formats
-       将报告导出为 Markdown、HTML 和 JSON 格式
-
-CFA Reference / CFA 参考:
-    - CFA L3: Documentation requirements for client advisory records
-      CFA 三级：客户咨询记录的文档要求
-    - GIPS: Record-keeping standards for investment performance
-      GIPS：投资业绩的记录保存标准
+CFA Reference:
+- CFA L3: Documentation requirements for client advisory records.
+- GIPS: Record-keeping standards for investment performance.
 """
 
 import html
@@ -42,76 +24,64 @@ from src.utils import sanitize_filename
 
 # ============================================================
 # Data Model — Stored Report
-# 数据模型 —— 存储的建议书
+# Data Model - Stored Report
 # ============================================================
 
 @dataclass
 class StoredReport:
-    """
-    Represents a stored advisory report with metadata.
-    表示包含元数据的已存储建议书。
-
-    This dataclass captures all relevant information about
-    a generated advisory report for persistence and retrieval.
-
-    该数据类捕获生成的建议书的所有相关信息，用于持久化和检索。
-    """
-    # 唯一标识符 / Unique identifier
+    """Represents a stored advisory report with metadata for persistence."""
+    # Unique identifier
     report_id: str = ""
-    # 关联的客户名称 / Associated client name
+    # Associated client name
     client_name: str = ""
-    # 关联的客户画像文件路径 / Associated client profile filepath
+    # Associated client profile filepath
     profile_filepath: str = ""
-    # 建议书正文（Markdown 格式）/ Report body (Markdown format)
+    # Report body (Markdown format)
     content: str = ""
-    # 使用的 AI 模型 / AI model used
+    # AI model used
     model: str = ""
-    # 生成时间戳 / Generation timestamp
+    # Generation timestamp
     generated_at: str = ""
-    # Token 用量统计 / Token usage statistics
+    # Token usage statistics
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
-    # 存储文件路径 / Storage filepath
+    # Storage filepath
     filepath: str = ""
-    # 用户备注 / User notes
+    # User notes
     notes: str = ""
 
 
 # ============================================================
 # Storage Directory Configuration
-# 存储目录配置
+# Storage Directory Configuration
 # ============================================================
 
 REPORTS_DIR = DATA_DIR / "reports"
 
 
 def _ensure_reports_dir() -> Path:
-    """
-    Ensure the reports directory exists.
-    确保报告目录存在。
+    """Ensure the reports directory exists.
 
     Returns:
-        Path to the reports directory.
+        Path: The reports directory path.
     """
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     return REPORTS_DIR
 
 
 def _generate_report_id() -> str:
-    """
-    Generate a unique report identifier.
-    生成唯一的报告标识符。
+    """Generate a unique report identifier.
 
     Returns:
-        Unique ID string based on timestamp.
+        str: Unique ID string based on timestamp.
     """
     return datetime.now().strftime("%Y%m%d_%H%M%S_%f")
 
 
 # ============================================================
 # Core CRUD Operations
-# 核心增删改查操作
+# Core CRUD Operations
 # ============================================================
 
 def save_report(
@@ -123,33 +93,23 @@ def save_report(
     completion_tokens: int = 0,
     notes: str = "",
 ) -> StoredReport:
-    """
-    Save an advisory report to JSON file.
-    将建议书保存为 JSON 文件。
+    """Save an advisory report to JSON file.
 
     Args:
         content: Report content in Markdown format.
-                 Markdown 格式的报告内容。
         client_name: Name of the client.
-                     客户名称。
         model: AI model used for generation.
-               用于生成的 AI 模型。
         profile_filepath: Path to associated client profile (optional).
-                          关联的客户画像路径（可选）。
         prompt_tokens: Number of prompt tokens used.
-                       使用的提示词 token 数。
         completion_tokens: Number of completion tokens generated.
-                           生成的完成 token 数。
         notes: User notes about this report.
-               用户对此报告的备注。
 
     Returns:
-        StoredReport instance with filepath set.
-        设置了 filepath 的 StoredReport 实例。
+        StoredReport: StoredReport instance with filepath set.
     """
     _ensure_reports_dir()
 
-    # 创建报告实例 / Create report instance
+    # Create report instance
     report_id = _generate_report_id()
     safe_name = sanitize_filename(client_name)
     filename = f"report_{safe_name}_{report_id}.json"
@@ -186,7 +146,7 @@ def save_report(
         notes=notes,
     )
 
-    # 保存到文件 / Save to file
+    # Save to file
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(asdict(report_to_save), f, indent=2, ensure_ascii=False)
 
@@ -208,22 +168,17 @@ def save_report(
 
 
 def load_report(filepath: Path) -> StoredReport:
-    """
-    Load a stored report from JSON file.
-    从 JSON 文件加载已存储的报告。
+    """Load a stored report from JSON file.
 
     Args:
         filepath: Path to the report JSON file.
-                  报告 JSON 文件的路径。
 
     Returns:
-        StoredReport instance.
+        StoredReport: Loaded StoredReport instance.
 
     Raises:
         FileNotFoundError: If the file does not exist.
-                           如果文件不存在。
         json.JSONDecodeError: If the file is not valid JSON.
-                              如果文件不是有效的 JSON。
     """
     with open(filepath, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -243,19 +198,14 @@ def list_reports(
     client_name: Optional[str] = None,
     limit: int = 50,
 ) -> list[dict]:
-    """
-    List stored advisory reports with optional filtering.
-    列出已存储的建议书，支持可选筛选。
+    """List stored advisory reports with optional filtering.
 
     Args:
         client_name: Filter by client name (optional).
-                     按客户名称筛选（可选）。
         limit: Maximum number of reports to return.
-               返回的最大报告数量。
 
     Returns:
-        List of dicts with report summary info.
-        包含报告摘要信息的字典列表。
+        list[dict]: List of dicts with report summary info.
     """
     _ensure_reports_dir()
 
@@ -264,7 +214,7 @@ def list_reports(
         try:
             report = load_report(filepath)
 
-            # 按客户名称筛选 / Filter by client name
+            # Filter by client name
             if client_name and report.client_name != client_name:
                 continue
 
@@ -288,17 +238,13 @@ def list_reports(
 
 
 def delete_report(filepath: Path) -> bool:
-    """
-    Delete a stored report file.
-    删除已存储的报告文件。
+    """Delete a stored report file.
 
     Args:
         filepath: Path to the report JSON file.
-                  报告 JSON 文件的路径。
 
     Returns:
-        True if deletion was successful, False otherwise.
-        删除成功返回 True，否则返回 False。
+        bool: True if deletion was successful, False otherwise.
     """
     try:
         if filepath.exists():
@@ -311,21 +257,17 @@ def delete_report(filepath: Path) -> bool:
 
 # ============================================================
 # Report-Profile Association
-# 报告-画像关联
+# Report-Profile Association
 # ============================================================
 
 def get_reports_for_profile(profile_filepath: str) -> list[StoredReport]:
-    """
-    Get all reports associated with a specific client profile.
-    获取与特定客户画像关联的所有报告。
+    """Get all reports associated with a specific client profile.
 
     Args:
         profile_filepath: Path to the client profile file.
-                          客户画像文件路径。
 
     Returns:
-        List of StoredReport instances linked to the profile.
-        与该画像关联的 StoredReport 实例列表。
+        list[StoredReport]: List of StoredReport instances linked to the profile.
     """
     _ensure_reports_dir()
 
@@ -342,19 +284,14 @@ def get_reports_for_profile(profile_filepath: str) -> list[StoredReport]:
 
 
 def update_report_notes(filepath: Path, notes: str) -> bool:
-    """
-    Update the notes field of a stored report.
-    更新已存储报告的备注字段。
+    """Update the notes field of a stored report.
 
     Args:
         filepath: Path to the report JSON file.
-                  报告 JSON 文件的路径。
         notes: New notes content.
-               新的备注内容。
 
     Returns:
-        True if update was successful, False otherwise.
-        更新成功返回 True，否则返回 False。
+        bool: True if update was successful, False otherwise.
     """
     try:
         report = load_report(filepath)
@@ -370,45 +307,29 @@ def update_report_notes(filepath: Path, notes: str) -> bool:
 
 # ============================================================
 # Export Functions
-# 导出函数
+# Export Functions
 # ============================================================
 
 def _markdown_to_html(markdown_text: str) -> str:
-    """
-    Convert Markdown text to basic HTML.
-    将 Markdown 文本转换为基本 HTML。
-
-    This is a simple converter that handles common Markdown elements.
-    For production use, consider using a full Markdown parser like `markdown`.
-
-    这是一个简单的转换器，处理常见的 Markdown 元素。
-    在生产环境中，建议使用完整的 Markdown 解析器如 `markdown`。
+    """Convert Markdown text to basic HTML.
 
     Args:
         markdown_text: Markdown formatted text.
 
     Returns:
-        HTML formatted string.
+        str: HTML formatted string.
     """
     return markdown.markdown(markdown_text, extensions=['extra', 'nl2br'], output_format='html5')
 
 
 def export_report_markdown(report: StoredReport) -> str:
-    """
-    Export a stored report to formatted Markdown.
-    将已存储的报告导出为格式化的 Markdown。
-
-    Adds metadata header to the report content for standalone viewing.
-
-    为报告内容添加元数据头部，便于独立查看。
+    """Export a stored report to formatted Markdown.
 
     Args:
         report: StoredReport instance to export.
-                要导出的 StoredReport 实例。
 
     Returns:
-        Formatted Markdown string.
-        格式化的 Markdown 字符串。
+        str: Formatted Markdown string.
     """
     metadata_header = f"""# Investment Advisory Report / 投资咨询建议书
 
@@ -426,29 +347,19 @@ def export_report_markdown(report: StoredReport) -> str:
 
 
 def export_report_html(report: StoredReport) -> str:
-    """
-    Export a stored report to formatted HTML.
-    将已存储的报告导出为格式化的 HTML。
-
-    Creates a standalone HTML document with embedded CSS styling
-    suitable for printing or viewing in a browser.
-
-    创建一个独立的 HTML 文档，包含嵌入式 CSS 样式，
-    适合打印或在浏览器中查看。
+    """Export a stored report to formatted HTML.
 
     Args:
         report: StoredReport instance to export.
-                要导出的 StoredReport 实例。
 
     Returns:
-        Complete HTML document string.
-        完整的 HTML 文档字符串。
+        str: Complete HTML document string.
     """
-    # Convert content from Markdown to HTML / 将内容从 Markdown 转换为 HTML
+    # Convert content from Markdown to HTML
     content_html = _markdown_to_html(report.content)
 
     # Escape user-originated fields to prevent XSS
-    # 转义用户输入字段以防止 XSS 攻击
+    # Escape user-originated fields to prevent XSS
     safe_client_name = html.escape(report.client_name)
     safe_model = html.escape(report.model)
     safe_report_id = html.escape(report.report_id)
@@ -589,29 +500,18 @@ def export_report_to_file(
     output_path: Path,
     format: str = "markdown",
 ) -> Path:
-    """
-    Export a report to a standalone file.
-    将报告导出为独立文件。
-
-    Supported formats / 支持的格式:
-        - 'markdown': Markdown (.md) format
-        - 'html': HTML (.html) format with embedded CSS
-        - 'json': JSON format with full metadata
+    """Export a report to a standalone file.
 
     Args:
         report: StoredReport instance to export.
-                要导出的 StoredReport 实例。
         output_path: Path for the output file.
-                     输出文件的路径。
         format: Export format ('markdown', 'html', or 'json').
-                导出格式（'markdown'、'html' 或 'json'）。
 
     Returns:
-        Path to the exported file.
-        导出文件的路径。
+        Path: Path to the exported file.
 
     Raises:
-        ValueError: If unsupported format specified.
+        ValueError: If unsupported format is specified.
     """
     if format == "markdown":
         content = export_report_markdown(report)
@@ -631,12 +531,10 @@ def export_report_to_file(
 
 
 def get_export_formats() -> list[dict[str, str]]:
-    """
-    Get list of supported export formats with descriptions.
-    获取支持的导出格式及其描述。
+    """Get list of supported export formats with descriptions.
 
     Returns:
-        List of dicts with 'format', 'extension', and 'description' keys.
+        list[dict[str, str]]: List of dicts with export format descriptions.
     """
     return [
         {

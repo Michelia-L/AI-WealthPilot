@@ -1,13 +1,10 @@
-"""
-AI WealthPilot - IPS Data Models (Pydantic Schemas)
+﻿"""
+Pydantic schemas for CFA-aligned Investment Policy Statement (IPS).
 
-Defines the complete, CFA-aligned Investment Policy Statement (IPS)
-data models using Pydantic BaseModel. These schemas guarantee
-structured, validated LLM outputs for the IPS generator workflow.
+Structured, validated LLM output models for the IPS generator workflow.
 
-CFA Reference:
-    - CFA L3 Private Wealth Management: Investment Policy Statement
-    - CFA L3: RRTTLLU constraint framework
+References:
+    - CFA L3 PWM: Investment Policy Statement & RRTTLLU framework
     - CFA L3: Risk Tolerance = min(Ability, Willingness)
 """
 
@@ -18,9 +15,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
-# ============================================================
-# Enums — Risk & Review Classification
-# ============================================================
+
 
 class RiskToleranceLevel(str, Enum):
     """Risk tolerance level enumeration aligned with CFA framework."""
@@ -45,19 +40,10 @@ class ReviewDimension(str, Enum):
     CONSISTENCY = "consistency"    # Internal logic consistency
 
 
-# ============================================================
-# IPS Section Models — CFA Framework
-# ============================================================
+
 
 class GoalReturnRequirement(BaseModel):
-    """
-    Per-goal return requirement for multi-objective portfolios.
-
-    CFA Reference:
-        CFA L3 PWM: Each client goal may have distinct required return,
-        time horizon, and priority. The IPS should decompose the aggregate
-        required return into per-goal requirements when multiple goals exist.
-    """
+    """Per-goal return requirement for multi-objective portfolios."""
     goal_name: str = Field(
         description="Goal name, e.g. 'Retirement', 'Child Education', 'House Purchase'"
     )
@@ -85,14 +71,7 @@ class GoalReturnRequirement(BaseModel):
 
 
 class ReturnObjective(BaseModel):
-    """
-    IPS Section: Return Objectives.
-
-    CFA Reference:
-        Quantify required return to meet client goals.
-        Distinguish nominal vs real returns.
-        When multiple goals exist, decompose into per-goal requirements.
-    """
+    """IPS Section: Return Objectives."""
     required_nominal_return: float = Field(
         description="Required nominal annual return rate, e.g. 0.08 for 8%. "
                     "When multiple goals exist, this is the capital-weighted composite rate."
@@ -119,18 +98,7 @@ class ReturnObjective(BaseModel):
 
 
 class RiskToleranceAssessment(BaseModel):
-    """
-    IPS Section: Risk Tolerance.
-
-    CFA Dual-Track Assessment:
-        - Ability: objective, based on financial facts
-        - Willingness: subjective, based on psychological comfort
-        - Final = min(Ability, Willingness)
-
-    Quantitative Risk Anchors:
-        Concrete numeric thresholds derived from the client's risk
-        profile, enabling automated validation against SAA results.
-    """
+    """IPS Section: Risk Tolerance (dual-track ability/willingness assessment)."""
     ability_assessment: str = Field(
         description="Objective risk ability assessment narrative"
     )
@@ -179,13 +147,7 @@ class TimeHorizonStage(BaseModel):
 
 
 class TimeHorizonAnalysis(BaseModel):
-    """
-    IPS Section: Time Horizon.
-
-    CFA Reference:
-        Longer horizons generally permit higher equity allocation.
-        Multi-stage horizons require distinct strategies per stage.
-    """
+    """IPS Section: Time Horizon."""
     stages: list[TimeHorizonStage] = Field(
         description="Investment stages with durations"
     )
@@ -198,12 +160,7 @@ class TimeHorizonAnalysis(BaseModel):
 
 
 class LiquidityConstraint(BaseModel):
-    """
-    IPS Section: Liquidity Constraints.
-
-    CFA Reference:
-        Ensure portfolio can meet cash needs without forced liquidation.
-    """
+    """IPS Section: Liquidity Constraints."""
     immediate_needs: float = Field(
         description="Cash needed within 12 months"
     )
@@ -219,12 +176,7 @@ class LiquidityConstraint(BaseModel):
 
 
 class TaxConstraint(BaseModel):
-    """
-    IPS Section: Tax Constraints.
-
-    CFA Reference:
-        Tax status affects asset location and after-tax returns.
-    """
+    """IPS Section: Tax Constraints."""
     tax_status: str = Field(
         description="Client tax status: taxable, tax-exempt, or tax-deferred"
     )
@@ -237,12 +189,7 @@ class TaxConstraint(BaseModel):
 
 
 class LegalConstraint(BaseModel):
-    """
-    IPS Section: Legal & Regulatory Constraints.
-
-    CFA Reference:
-        External legal constraints on investment decisions.
-    """
+    """IPS Section: Legal & Regulatory Constraints."""
     applicable_regulations: list[str] = Field(
         description="List of applicable regulations"
     )
@@ -252,13 +199,7 @@ class LegalConstraint(BaseModel):
 
 
 class UniqueCircumstance(BaseModel):
-    """
-    IPS Section: Unique Circumstances.
-
-    CFA Reference:
-        Any factor not covered by other constraints that
-        affects investment decisions.
-    """
+    """IPS Section: Unique Circumstances."""
     esg_preferences: Optional[str] = Field(
         default=None,
         description="ESG investment preferences if any"
@@ -290,12 +231,7 @@ class AssetAllocationTarget(BaseModel):
 
 
 class InvestmentGuideline(BaseModel):
-    """
-    IPS Section: Investment Guidelines & Policy.
-
-    CFA Reference:
-        Translates objectives and constraints into actionable allocation.
-    """
+    """IPS Section: Investment Guidelines & Policy."""
     strategic_allocation: list[AssetAllocationTarget] = Field(
         description="Strategic Asset Allocation (SAA) targets"
     )
@@ -320,12 +256,7 @@ class BenchmarkSpec(BaseModel):
 
 
 class MonitoringPolicy(BaseModel):
-    """
-    IPS Section: Monitoring & Evaluation.
-
-    CFA Reference:
-        Ongoing monitoring ensures portfolio stays aligned with IPS.
-    """
+    """IPS Section: Monitoring & Evaluation."""
     review_frequency: str = Field(
         description="Review frequency, e.g. 'quarterly' or 'semi-annual'"
     )
@@ -341,15 +272,7 @@ class MonitoringPolicy(BaseModel):
 
 
 class FeeSchedule(BaseModel):
-    """
-    IPS Section: Fee and Cost Disclosure.
-
-    CFA Reference:
-        CFA L3 PWM: The IPS should disclose all investment-related costs
-        including management fees, custody fees, and transaction costs.
-        Net-of-fee return expectations are essential for realistic
-        goal-based planning.
-    """
+    """IPS Section: Fee and Cost Disclosure."""
     management_fee_rate: float = Field(
         default=0.0,
         description="Annual investment management fee rate, e.g. 0.01 for 1%"
@@ -378,13 +301,7 @@ class FeeSchedule(BaseModel):
 
 
 class CurrencyPolicy(BaseModel):
-    """
-    Currency management policy for multi-currency portfolios.
-
-    CFA Reference:
-        CFA L3: Currency management policy, base currency definition,
-        and currency hedging strategy for foreign exposure.
-    """
+    """Currency management policy for multi-currency portfolios."""
     base_currency: str = Field(default="CNY", description="Client's base/reporting currency")
     foreign_exposure_pct: float = Field(default=0.0, description="Estimated foreign currency exposure as pct of portfolio")
     hedging_strategy: str = Field(default="", description="Currency hedging approach, e.g. 'Unhedged', 'Partial hedge via forward contracts'")
@@ -392,22 +309,10 @@ class CurrencyPolicy(BaseModel):
     currency_narrative: str = Field(default="", description="Narrative on currency risk and management")
 
 
-# ============================================================
-# Top-Level IPS Document Model
-# ============================================================
+
 
 class IPSDocument(BaseModel):
-    """
-    Complete Investment Policy Statement (IPS).
-
-    This is the top-level structured output for the IPS generator.
-    Each field maps to a CFA-defined IPS section, ensuring the LLM
-    produces a complete, validated document with no missing sections.
-
-    CFA Reference:
-        CFA L3 PWM: IPS is the governing document for the
-        investment management relationship.
-    """
+    """Complete Investment Policy Statement (IPS) — top-level output."""
     # Metadata
     client_name: str = Field(description="Client full name")
     prepared_by: str = Field(
@@ -472,9 +377,7 @@ class IPSDocument(BaseModel):
     )
 
 
-# ============================================================
-# Review Data Models
-# ============================================================
+
 
 class ReviewIssue(BaseModel):
     """A single issue found during IPS review."""
@@ -521,9 +424,7 @@ class ReviewResult(BaseModel):
     )
 
 
-# ============================================================
-# Audit Trail Models
-# ============================================================
+
 
 class RevisionRecord(BaseModel):
     """Audit trail record for a single revision round."""

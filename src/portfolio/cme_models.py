@@ -1,4 +1,4 @@
-"""
+﻿"""
 AI WealthPilot - Capital Market Expectations (CME) Data Models
 
 Pydantic schemas for structured CME reports used by the IPS generator.
@@ -57,7 +57,6 @@ class AssetClassCME(BaseModel):
     )
 
     # --- Forward-looking volatility fields
-    # 前瞻性波动率字段
     implied_volatility: Optional[float] = Field(
         default=None,
         description="Market-implied annualized volatility from options/IV index "
@@ -122,7 +121,6 @@ class CMEReport(BaseModel):
     )
 
     # --- Implied Volatility metadata
-    # 隐含波动率元数据
     iv_blending_tau: float = Field(
         default=0.5,
         description="Bayesian blending parameter τ: weight on implied volatility. "

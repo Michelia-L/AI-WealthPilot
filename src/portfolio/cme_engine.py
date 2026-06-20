@@ -1,4 +1,4 @@
-"""
+﻿"""
 AI WealthPilot - Capital Market Expectations (CME) Engine
 
 Computes Capital Market Expectations by leveraging existing quantitative
@@ -67,9 +67,7 @@ _FALLBACK_CME_PATH = (
 )
 
 
-# ============================================================
 # Core CME Computation
-# ============================================================
 
 def compute_cme(
     lookback_years: int = CME_LOOKBACK_YEARS,
@@ -362,9 +360,7 @@ def _compute_cme_fresh(
     return report
 
 
-# ============================================================
 # Risk-Free Rate with Source Tracking
-# ============================================================
 
 def _fetch_risk_free_rate_with_source() -> tuple[float, str]:
     """
@@ -415,9 +411,7 @@ def _fetch_risk_free_rate_with_source() -> tuple[float, str]:
     return DEFAULT_RISK_FREE_RATE, "static_fallback"
 
 
-# ============================================================
 # Volatility Regime Classification
-# ============================================================
 
 def _classify_vol_regime(implied_vol: float, historical_vol: float) -> str:
     """
@@ -458,9 +452,7 @@ def _classify_vol_regime(implied_vol: float, historical_vol: float) -> str:
         return "high"
 
 
-# ============================================================
 # Fallback CME Loading
-# ============================================================
 
 def _load_fallback_cme() -> CMEReport:
     """
@@ -487,9 +479,7 @@ def _load_fallback_cme() -> CMEReport:
     return CMEReport(**data)
 
 
-# ============================================================
 # LLM Prompt Formatting
-# ============================================================
 
 def format_cme_for_prompt(report: CMEReport) -> str:
     """

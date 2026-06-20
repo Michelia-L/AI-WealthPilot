@@ -126,12 +126,33 @@ def esg_profile():
     )
 
 
+MOCK_REPORT_CONTENT = """
+## 📋 Client Summary / 客户概况总结
+The client is seeking long-term growth.
+
+## 🎯 Investment Objectives Analysis / 投资目标分析
+Feasible goal with expected return mapped correctly.
+
+## ⚖️ Risk Tolerance Interpretation / 风险承受能力解读
+Risk score is moderate, willingness and ability are aligned.
+
+## 📊 Recommended Asset Allocation / 建议资产配置方案
+We recommend 60% equities, 30% bonds, and 10% alternatives.
+
+## 💡 Implementation Strategy / 实施策略与注意事项
+Use low-cost ETFs and rebalance semi-annually.
+
+## ⚠️ Risk Disclosure / 风险披露与免责声明
+Past performance does not guarantee future results.
+"""
+
+
 @pytest.fixture
 def mock_openai_response():
     """Create a mock OpenAI API response."""
     mock_response = Mock()
     mock_response.choices = [Mock()]
-    mock_response.choices[0].message.content = "Mock advisory report content"
+    mock_response.choices[0].message.content = MOCK_REPORT_CONTENT
     mock_response.usage = Mock()
     mock_response.usage.prompt_tokens = 1000
     mock_response.usage.completion_tokens = 2000
@@ -143,7 +164,13 @@ def mock_openai_response():
 def mock_stream_chunks():
     """Create mock streaming response chunks."""
     chunks = []
-    for text in ["Hello ", "World", "! This is ", "a test report."]:
+    text_chunks = [
+        "## 📋 Client Summary / 客户概况总结\nClient summary goes here.\n",
+        "## 🎯 Investment Objectives Analysis / 投资目标分析\nGoal is feasible.\n",
+        "## ⚖️ Risk Tolerance / 风险承受能力\nScore is aligned.\n",
+        "## 📊 Recommended Asset Allocation / 建议资产配置\n## 💡 Implementation Strategy / 实施策略\n## ⚠️ Risk Disclosure / 风险披露"
+    ]
+    for text in text_chunks:
         chunk = Mock()
         chunk.choices = [Mock()]
         chunk.choices[0].delta.content = text
@@ -199,6 +226,52 @@ class TestAdvisorReport:
         assert d["content"] == "Test"
         assert d["client_name"] == "Client"
         assert d["success"] is True
+
+
+# ============================================================
+# Test Report Validation
+# ============================================================
+
+class TestReportValidation:
+    """Tests for advisory report content validation."""
+
+    def test_validation_success(self):
+        """Test validation passes with correct structure and length."""
+        content = """
+        Client Summary: Patient investor.
+        Investment Objectives: Retire in 20 years.
+        Risk Tolerance: Moderate score.
+        Asset Allocation: Balanced weights.
+        Implementation Strategy: ETFs with tax optimization.
+        Risk Disclosure: Market volatility warning.
+        """
+        assert len(content) > 100
+        from src.agents.advisor import validate_report_content
+        is_valid, err = validate_report_content(content)
+        assert is_valid is True
+        assert err == ""
+
+    def test_validation_too_short(self):
+        """Test validation fails when content is too short."""
+        content = "Short summary."
+        from src.agents.advisor import validate_report_content
+        is_valid, err = validate_report_content(content)
+        assert is_valid is False
+        assert "too short" in err
+
+    def test_validation_missing_sections(self):
+        """Test validation fails when sections are missing."""
+        content = """
+        Client Summary: Patient investor.
+        Investment Objectives: Retire in 20 years.
+        Risk Tolerance: Moderate score.
+        This string has > 100 characters to pass length check,
+        but it is missing other parts.
+        """
+        from src.agents.advisor import validate_report_content
+        is_valid, err = validate_report_content(content)
+        assert is_valid is False
+        assert "Missing required sections" in err
 
 
 # ============================================================
@@ -334,7 +407,7 @@ class TestReportGeneration:
 
         # Verify
         assert report.success is True
-        assert report.content == "Mock advisory report content"
+        assert report.content == MOCK_REPORT_CONTENT
         assert report.client_name == "Test User"
         assert report.prompt_tokens == 1000
         assert report.completion_tokens == 2000
@@ -411,8 +484,7 @@ class TestStreamingGeneration:
 
         # Verify chunks
         assert len(chunks) == 4
-        assert chunks[0] == "Hello "
-        assert chunks[1] == "World"
+        assert chunks[0].startswith("## 📋 Client Summary")
 
     @patch("src.agents.advisor._get_client")
     def test_stream_advice_wrapper(self, mock_get_client, sample_profile, mock_stream_chunks):
@@ -435,7 +507,7 @@ class TestStreamingGeneration:
         assert len(report_container) == 1
         report = report_container[0]
         assert report.success is True
-        assert report.content == "Hello World! This is a test report."
+        assert report.content.startswith("## 📋 Client Summary")
 
     @patch("src.agents.advisor._get_client")
     def test_stream_advice_error_handling(self, mock_get_client, sample_profile):

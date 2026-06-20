@@ -1,25 +1,17 @@
 """
 AI WealthPilot - Streamlit Application Entry Point
-AI WealthPilot - Streamlit 应用入口
 
 This is the main entry point for the Streamlit dashboard.
 It provides the sidebar navigation and routes to individual page modules.
 
-这是 Streamlit 仪表板的主入口。
-提供侧栏导航并路由到各个页面模块。
-
-Run with / 运行方式: streamlit run src/app.py
+Run command: streamlit run src/app.py
 """
 
 import sys
 from pathlib import Path
 
-# ============================================================
-# 路径配置：确保项目根目录在 Python 的搜索路径中
 # Path setup: ensure the project root is on Python's module search path
-# 这样 `from src.xxx import ...` 才能正常工作
 # This allows `from src.xxx import ...` to work correctly
-# ============================================================
 PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
@@ -28,11 +20,8 @@ import streamlit as st
 from src.views.styles import inject_premium_styles
 from src.config import APP_VERSION
 
-# ============================================================
-# Page Configuration / 页面配置
-# 必须在所有其他 Streamlit 命令之前调用
+# Page Configuration
 # Must be called before any other Streamlit command
-# ============================================================
 st.set_page_config(
     page_title="AI WealthPilot",
     page_icon="🏦",
@@ -40,12 +29,9 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# 注入高品质的 CSS 样式系统 / Inject premium styling system
 inject_premium_styles()
 
-# ============================================================
-# Sidebar Navigation / 侧栏导航
-# ============================================================
+# Sidebar Navigation
 st.sidebar.markdown(
     '<div class="sidebar-brand">AI WealthPilot</div>'
     '<div class="sidebar-subtitle">Intelligent Wealth Management</div>',
@@ -53,8 +39,6 @@ st.sidebar.markdown(
 )
 st.sidebar.divider()
 
-# 页面导航选择器 / Page navigation selector
-# 使用更现代、高端的 Unicode 符号替换彩色 Emoji / Use premium monochromatic unicode symbols
 page = st.sidebar.radio(
     "Navigation",
     options=[
@@ -70,13 +54,9 @@ page = st.sidebar.radio(
 st.sidebar.divider()
 st.sidebar.caption(f"v{APP_VERSION} · AI Advisor Online")
 
-# ============================================================
-# Page Router / 页面路由
-# 根据用户在侧栏中选择的页面，渲染对应的内容
+# Page Router
 # Renders the corresponding page based on the user's sidebar selection
-# ============================================================
 if page == "✦ Market Dashboard":
-    # 导入并渲染市场仪表板页面
     # Import and render the Market Dashboard page
     from src.views.market_dashboard import render as render_market_dashboard
     render_market_dashboard()
@@ -94,7 +74,6 @@ elif page == "⌬ Client Profiling":
     render_client_profiling()
 
 elif page == "◈ AI Advisor":
-    # 导入并渲染 AI 顾问页面
     # Import and render the AI Advisor page
     from src.views.ai_advisor import render as render_ai_advisor
     render_ai_advisor()

@@ -1,29 +1,18 @@
 """
-AI WealthPilot - Compliance & Suitability Disclaimer Components
-AI WealthPilot - 合规与适配性免责声明组件
+Compliance & suitability disclaimer UI components.
 
-Shared Streamlit UI components that render front-of-page regulatory
-disclaimers before any quantitative output is displayed. In real
-wealth management scenarios, compliance statements must be presented
-and acknowledged before clients view any analytics.
+Shared Streamlit components that render regulatory disclaimers
+before any quantitative output is displayed.
 
-共享的 Streamlit UI 组件，在任何量化输出展示之前渲染前置监管
-免责声明。在真实财富管理场景中，合规声明必须在客户查看分析结果
-之前呈现并获得确认。
-
-CFA References:
+References:
     - CFA L3 PWM: Suitability and fiduciary duty standards
-      (IPS must include risk disclosure and compliance language).
-    - Global Investment Performance Standards (GIPS):
-      Disclosure of model limitations and backtesting caveats.
+    - GIPS: Disclosure of model limitations and backtesting caveats
 """
 
 import streamlit as st
 
 
-# ============================================================
-# Bilingual Compliance Text / 双语合规声明文本
-# ============================================================
+# Bilingual Compliance Text
 
 _COMPLIANCE_ITEMS = [
     {
@@ -120,25 +109,10 @@ _INFO_TEXT = (
 )
 
 
-# ============================================================
-# Compliance UI Components / 合规 UI 组件
-# ============================================================
+# Compliance UI Components
 
 def render_suitability_disclaimer(key_suffix: str = "default") -> bool:
-    """
-    Render a prominent suitability disclaimer with a mandatory acknowledgment
-    checkbox. Must be confirmed before any quantitative output is displayed.
-
-    渲染醒目的适配性免责声明，包含必须勾选的确认复选框。
-    用户在确认之前不应看到任何量化输出。
-
-    Args:
-        key_suffix: Unique key suffix to avoid collision across pages
-                    (e.g., "advisor", "optimizer", "retirement").
-
-    Returns:
-        True if the user has checked the acknowledgment box, False otherwise.
-    """
+    """Render suitability disclaimer with mandatory acknowledgment checkbox."""
     checkbox_key = f"compliance_acknowledged_{key_suffix}"
 
     st.markdown(
@@ -177,33 +151,10 @@ def render_suitability_disclaimer(key_suffix: str = "default") -> bool:
 
 
 def render_compliance_banner() -> None:
-    """
-    Render a compact compliance banner for auto-display pages
-    (e.g., Market Dashboard) where data loads automatically
-    without a user-triggered "generate" action.
-
-    Distinct from the full disclaimer: no checkbox is required,
-    but the banner appears prominently at the top of the page
-    before any quantitative content.
-
-    为自动展示数据的页面（如市场仪表板）渲染紧凑的合规横幅。
-    与完整免责声明不同：无需 checkbox，但横幅会醒目地显示在
-    页面顶部，先于任何量化内容。
-    """
+    """Render a compact compliance banner for auto-display pages."""
     st.info(_BANNER_TEXT, icon="⚠️")
 
 
 def render_client_profiling_notice() -> None:
-    """
-    Render a lightweight informational notice for data-input pages
-    (e.g., Client Profiling) that do not produce quantitative outputs.
-
-    For data-collection pages it is appropriate to show a brief
-    privacy and demo-purpose notice rather than the full investment
-    disclaimer.
-
-    为数据输入页面（如客户画像）渲染轻量级信息提示。
-    对于数据收集页面，显示简短的隐私和演示目的通知而非完整
-    投资声明更为合适。
-    """
+    """Render a lightweight privacy/demo-purpose notice for data-input pages."""
     st.info(_INFO_TEXT, icon="ℹ️")

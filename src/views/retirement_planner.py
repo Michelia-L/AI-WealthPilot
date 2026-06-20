@@ -1,6 +1,5 @@
 """
 AI WealthPilot - Retirement Planner Page
-AI WealthPilot - 退休规划器页面
 
 Interactive Streamlit page for goal-based retirement planning using
 Monte Carlo simulation. Users input their financial situation and
@@ -8,12 +7,9 @@ retirement goals, and the system simulates thousands of possible
 outcomes to estimate the probability of a comfortable retirement.
 
 CFA References:
-    - CFA L3 Private Wealth Management: Goal-Based Planning
-      (Constructing client profiles and identifying retirement goals).
-    - CFA L3: Monte Carlo simulation for retirement readiness assessment
-      (Simulating asset growth paths and estimating survival probability).
-    - CFA L3: Human Capital vs Financial Capital framework
-      (Balancing work-life savings phase with post-retirement spending).
+- CFA L3 Private Wealth Management: Goal-Based Planning.
+- CFA L3: Monte Carlo simulation for retirement readiness assessment.
+- CFA L3: Human Capital vs Financial Capital framework.
 """
 
 import streamlit as st
@@ -463,7 +459,6 @@ def render() -> None:
     )
     st.divider()
 
-    # === 前置合规声明 / Pre-Simulation Compliance Disclaimer ===
     acknowledged = render_suitability_disclaimer("retirement")
 
     if not acknowledged:

@@ -1,19 +1,13 @@
 """
 AI WealthPilot - Client Profiling Questionnaire Page
-AI WealthPilot - 客户画像问卷页面
 
 Interactive Streamlit page that collects client information through
 a structured questionnaire based on the CFA IPS framework. Computes
 risk tolerance scores and generates a complete client profile.
 
-交互式 Streamlit 页面，通过基于 CFA IPS 框架的结构化问卷
-收集客户信息。计算风险承受能力评分并生成完整的客户画像。
-
-CFA Reference / CFA 参考:
-    - CFA L3 Private Wealth: Investment Policy Statement (IPS) framework
-      CFA 三级私人财富管理：投资政策声明（IPS）框架
-    - CFA L3: Risk tolerance assessment = min(Ability, Willingness)
-      CFA 三级：风险承受能力评估 = min(承受能力, 承担意愿)
+CFA Reference:
+- CFA L3 Private Wealth: Investment Policy Statement (IPS) framework.
+- CFA L3: Risk tolerance assessment = min(Ability, Willingness).
 """
 
 import streamlit as st
@@ -40,18 +34,10 @@ from src.views.compliance import render_client_profiling_notice
 
 
 def _render_basic_info() -> dict:
-    """
-    Render the basic information section.
-    渲染基本信息部分。
-
-    Collects / 收集:
-        - Name (姓名)
-        - Age (年龄)
-        - Marital status (婚姻状况)
-        - Number of dependents (受抚养人数)
+    """Render the basic information section.
 
     Returns:
-        Dict with basic info fields.
+        dict: Basic information fields (name, age, marital_status, dependents).
     """
     st.markdown("#### ⌬ Basic Information / 基本信息")
 
@@ -85,19 +71,10 @@ def _render_basic_info() -> dict:
 
 
 def _render_financial_situation() -> dict:
-    """
-    Render the financial situation section.
-    渲染财务状况部分。
-
-    Collects / 收集:
-        - Annual income (年收入)
-        - Annual expenses (年支出)
-        - Investable assets (可投资资产)
-        - Total liabilities (负债总额)
-        - Emergency fund months (应急基金月数)
+    """Render the financial situation section.
 
     Returns:
-        Dict with financial fields.
+        dict: Financial fields (income, expenses, assets, liabilities, emergency fund).
     """
     st.markdown("#### ⧉ Financial Situation / 财务状况")
 
@@ -140,22 +117,13 @@ def _render_financial_situation() -> dict:
 
 
 def _render_investment_goals() -> list[dict]:
-    """
-    Render the investment goals section with dynamic add/remove.
-    渲染投资目标部分，支持动态添加/删除。
-
-    Each goal has / 每个目标包含:
-        - Name (名称): e.g., Retirement, Education, House
-        - Target amount (目标金额)
-        - Time horizon (时间范围, years)
-        - Priority (优先级)
+    """Render the investment goals section with dynamic add/remove functionality.
 
     Returns:
-        List of goal dicts.
+        list[dict]: List of investment goals.
     """
     st.markdown("#### ✦ Investment Goals / 投资目标")
 
-    # 使用 session state 管理目标列表
     # Use session state to manage the goals list
     if "goals" not in st.session_state:
         st.session_state.goals = [
@@ -164,7 +132,6 @@ def _render_investment_goals() -> list[dict]:
 
     goals = st.session_state.goals
 
-    # 展示现有目标 / Display existing goals
     for i, goal in enumerate(goals):
         col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 0.5])
         with col1:
@@ -194,7 +161,6 @@ def _render_investment_goals() -> list[dict]:
                 goals.pop(i)
                 st.rerun()
 
-    # 添加新目标按钮 / Add new goal button
     if st.button("➕ Add Goal / 添加目标"):
         goals.append({
             "name": "",
@@ -208,17 +174,10 @@ def _render_investment_goals() -> list[dict]:
 
 
 def _render_risk_ability_questions() -> dict:
-    """
-    Render the risk ability (objective) questionnaire.
-    渲染风险承受能力（客观）问卷。
-
-    These questions assess the client's OBJECTIVE capacity to bear risk,
-    based on their financial situation and knowledge.
-
-    这些问题评估客户承担风险的客观能力，基于其财务状况和知识。
+    """Render the risk ability (objective) questionnaire.
 
     Returns:
-        Dict mapping question keys to selected option keys.
+        dict: Selected option keys mapped to question keys.
     """
     st.markdown("#### ⌬ Risk Ability Assessment / 风险承受能力评估")
     st.caption(
@@ -243,18 +202,10 @@ def _render_risk_ability_questions() -> dict:
 
 
 def _render_risk_willingness_questions() -> dict:
-    """
-    Render the risk willingness (subjective) questionnaire.
-    渲染风险承担意愿（主观）问卷。
-
-    These questions assess the client's PSYCHOLOGICAL comfort with risk,
-    which may differ from their objective capacity.
-
-    这些问题评估客户对风险的心理承受能力，
-    可能与其客观能力不同。
+    """Render the risk willingness (subjective) questionnaire.
 
     Returns:
-        Dict mapping question keys to selected option keys.
+        dict: Selected option keys mapped to question keys.
     """
     st.markdown("#### ⌬ Risk Willingness Assessment / 风险承担意愿评估")
     st.caption(
@@ -277,22 +228,13 @@ def _render_risk_willingness_questions() -> dict:
 
 
 def _render_profile_summary(profile: ClientProfile) -> None:
-    """
-    Render the completed profile summary and risk assessment.
-    渲染完成的画像摘要和风险评估。
-
-    Displays / 展示:
-        - Client overview (客户概览)
-        - Financial summary (财务摘要)
-        - Risk tolerance result with CFA explanation (风险承受能力结果)
-        - Investment goals (投资目标)
+    """Render the completed profile summary and risk assessment.
 
     Args:
         profile: Completed ClientProfile instance.
     """
     st.markdown("#### ⧉ Profile Summary / 画像摘要")
 
-    # === 客户概览 / Client Overview ===
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Name / 姓名", profile.name or "N/A")
@@ -303,7 +245,6 @@ def _render_profile_summary(profile: ClientProfile) -> None:
     with col4:
         st.metric("Time Horizon / 投资期限", f"{profile.time_horizon_years} years / 年")
 
-    # === 财务摘要 / Financial Summary ===
     st.markdown("**Financial Overview / 财务概览**")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -317,7 +258,6 @@ def _render_profile_summary(profile: ClientProfile) -> None:
 
     st.divider()
 
-    # === 风险评估结果 / Risk Assessment Result ===
     st.markdown("**Risk Tolerance Assessment / 风险承受能力评估**")
     st.markdown("")
 
@@ -343,7 +283,6 @@ def _render_profile_summary(profile: ClientProfile) -> None:
             help="min(Ability, Willingness) — CFA principle",
         )
 
-    # 风险等级展示 / Risk level display
     tolerance = rp.tolerance_level
     if rp.ability_score > 0 and rp.willingness_score > 0:
         if rp.ability_score < rp.willingness_score:
@@ -376,7 +315,6 @@ def _render_profile_summary(profile: ClientProfile) -> None:
 
     st.divider()
 
-    # === 投资目标 / Investment Goals ===
     if profile.goals:
         st.markdown("**Investment Goals / 投资目标**")
         goals_data = [
@@ -394,7 +332,6 @@ def _render_profile_summary(profile: ClientProfile) -> None:
             hide_index=True,
         )
 
-    # === 特殊情况 / Unique Circumstances ===
     if profile.esg_preference or profile.sector_restrictions or profile.notes:
         st.markdown("**Special Considerations / 特殊考量**")
         if profile.esg_preference:
@@ -406,20 +343,7 @@ def _render_profile_summary(profile: ClientProfile) -> None:
 
 
 def render() -> None:
-    """
-    Main render function for the Client Profiling page.
-    客户画像页面的主渲染函数。
-
-    Page flow / 页面流程:
-        1. Basic information / 基本信息
-        2. Financial situation / 财务状况
-        3. Investment goals / 投资目标
-        4. Risk ability questionnaire / 风险承受能力问卷
-        5. Risk willingness questionnaire / 风险承担意愿问卷
-        6. Additional settings / 附加设置
-        7. Generate & save profile / 生成并保存画像
-    """
-    # === Initialize session state values for form fields ===
+    """Main render function for the Client Profiling page."""
     if "profile_name" not in st.session_state:
         st.session_state.profile_name = ""
     if "profile_age" not in st.session_state:
@@ -465,7 +389,6 @@ def render() -> None:
         "填写以下问卷，基于 CFA 投资政策声明（IPS）框架生成你的投资画像。"
     )
 
-    # === 轻量级数据提示 / Lightweight Data Notice ===
     render_client_profiling_notice()
 
     # Check if in edit mode and show warning/cancel option
@@ -499,44 +422,31 @@ def render() -> None:
 
     st.divider()
 
-    # ====================================
-    # Step 1: Basic Info / 基本信息
-    # ====================================
+    # Step 1: Basic Info
     basic = _render_basic_info()
     st.divider()
 
-    # ====================================
-    # Step 2: Financial Situation / 财务状况
-    # ====================================
+    # Step 2: Financial Situation
     financial = _render_financial_situation()
     st.divider()
 
-    # ====================================
-    # Step 3: Investment Goals / 投资目标
-    # ====================================
+    # Step 3: Investment Goals
     goals = _render_investment_goals()
 
-    # 投资期限 = 最远目标的年数
     # Time horizon = years of the farthest goal
     time_horizon = max((g["years"] for g in goals), default=10)
 
     st.divider()
 
-    # ====================================
-    # Step 4: Risk Ability Questions / 承受能力问卷
-    # ====================================
+    # Step 4: Risk Ability Questions
     ability_answers = _render_risk_ability_questions()
     st.divider()
 
-    # ====================================
-    # Step 5: Risk Willingness Questions / 承担意愿问卷
-    # ====================================
+    # Step 5: Risk Willingness Questions
     willingness_answers = _render_risk_willingness_questions()
     st.divider()
 
-    # ====================================
-    # Step 6: Additional Settings / 附加设置
-    # ====================================
+    # Step 6: Additional Settings
     st.markdown("#### ⌬ Additional Settings / 附加设置")
 
     col1, col2 = st.columns(2)
@@ -569,23 +479,18 @@ def render() -> None:
 
     st.divider()
 
-    # ====================================
-    # Step 7: Generate Profile / 生成画像
-    # ====================================
+    # Step 7: Generate Profile
     st.markdown("#### ✦ Generate Profile / 生成画像")
 
     button_label = "💾 Update Profile / 更新我的画像" if is_editing else "🧮 Generate My Profile / 生成我的画像"
     
     if st.button(button_label, type="primary"):
-        # 基本校验 / Basic validation
         if not basic["name"].strip():
             st.error("❌ Please enter your name. / 请输入你的姓名。")
             return
 
-        # 计算风险评估 / Compute risk assessment
         risk_profile = assess_risk(ability_answers, willingness_answers)
 
-        # 构建完整画像 / Build complete profile
         profile = ClientProfile(
             name=basic["name"],
             age=basic["age"],
@@ -606,23 +511,17 @@ def render() -> None:
         )
 
         if is_editing:
-            # 更新已存在画像 / Update existing profile
             from src.agents.profiler import update_profile
             filepath = update_profile(Path(st.session_state.editing_profile_path), profile)
             st.success(f"✅ Profile updated in `{filepath.name}` / 画像已更新")
             # Clear edit state
             st.session_state.editing_profile_path = None
         else:
-            # 保存全新画像 / Save new profile
             filepath = save_profile(profile)
             st.success(f"✅ Profile saved to `{filepath.name}` / 画像已保存")
 
-        # 展示画像摘要 / Display profile summary
         _render_profile_summary(profile)
 
-    # ====================================
-    # 已保存画像列表 / Saved Profiles List
-    # ====================================
     st.divider()
     st.markdown("#### ⧉ Saved Profiles / 已保存的画像")
 
@@ -690,9 +589,7 @@ def render() -> None:
     else:
         st.info("No profiles saved yet. / 尚无已保存的画像。")
 
-    # ====================================
-    # Profile Comparison / 画像对比
-    # ====================================
+    # Profile Comparison
     st.divider()
     st.markdown("#### ⧉ Profile Comparison / 画像对比")
 
@@ -720,14 +617,14 @@ def render() -> None:
                         st.error(f"Failed to load {name}: {e}")
 
                 if len(loaded_profiles) >= 2:
-                    # Run comparison / 执行对比分析
+                    # Run comparison
                     comparison = compare_profiles(loaded_profiles)
 
-                    # Display comparison report / 展示对比报告
+                    # Display comparison report
                     report = format_comparison_report(comparison)
                     st.code(report, language=None)
 
-                    # Interactive comparison table / 交互式对比表
+                    # Interactive comparison table
                     st.markdown("**Detailed Comparison / 详细对比**")
 
                     comparison_data = []
@@ -749,7 +646,7 @@ def render() -> None:
                         hide_index=True,
                     )
 
-                    # Key insights / 关键洞察
+                    # Key insights
                     st.markdown("**Key Insights / 关键洞察**")
                     for insight in comparison.insights:
                         st.markdown(f"- {insight}")

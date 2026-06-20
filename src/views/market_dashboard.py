@@ -1,18 +1,14 @@
 """
 AI WealthPilot - Market Dashboard Page (Premium UI Edition)
-AI WealthPilot - 市场仪表板页面 (高端重构版)
 
 This module implements the premium interactive Market Dashboard for the Streamlit app.
 It displays real-time market quotes, historical price charts, correlation
-heatmaps, and risk/return statistics for the user's asset universe using a
-modern financial terminal experience with glassmorphism,
-CSS grids, and top-bar control layouts.
+heatmaps, and risk/return statistics for the user's asset universe.
 
 CFA References:
-    - CFA L3: Capital Market Expectations — Monitoring market conditions
-      is essential for forming forward-looking return assumptions.
-    - CFA L1: Quantitative Methods — Correlation analysis for diversification.
-    - CFA L3: Portfolio Management — Portfolio risk and return metrics.
+- CFA L3: Capital Market Expectations — Monitoring market conditions.
+- CFA L1: Quantitative Methods — Correlation analysis for diversification.
+- CFA L3: Portfolio Management — Portfolio risk and return metrics.
 """
 
 import streamlit as st
@@ -46,9 +42,7 @@ from src.portfolio.risk_metrics import (
 from src.config import ASSET_UNIVERSE, TRADING_DAYS_PER_YEAR
 from src.views.compliance import render_compliance_banner
 
-# ============================================================
 # Time period mapping table: UI label -> yfinance period parameter
-# ============================================================
 PERIOD_OPTIONS = {
     "1 Month": "1mo",
     "3 Months": "3mo",
@@ -60,9 +54,7 @@ PERIOD_OPTIONS = {
 
 ALL_CATEGORIES: List[str] = sorted(set(info["category"] for info in ASSET_UNIVERSE.values()))
 
-# ============================================================
 # Data Caching Functions (TTL = 300s to balance speed & rate limits)
-# ============================================================
 @st.cache_data(ttl=300, show_spinner=False)
 def _cached_fetch_prices_v2(tickers: Tuple[str, ...], period: str) -> Optional[pd.DataFrame]:
     """
@@ -102,9 +94,7 @@ def _cached_get_quotes_v2(tickers: Tuple[str, ...]) -> Optional[pd.DataFrame]:
             st.exception(e)
         return None
 
-# ============================================================
 # UI Components
-# ============================================================
 
 def _render_top_controls() -> Tuple[List[str], str]:
     """
@@ -510,9 +500,7 @@ def _render_risk_statistics(prices_df: Optional[pd.DataFrame]) -> None:
     else:
         st.info("Insufficient data points for statistical significance.")
 
-# ============================================================
 # Main Render Function
-# ============================================================
 
 def render() -> None:
     """
@@ -522,7 +510,6 @@ def render() -> None:
     # 1. Top control bar (replacing the sidebar)
     selected_tickers, period = _render_top_controls()
 
-    # === 前置合规横幅 / Pre-Content Compliance Banner ===
     render_compliance_banner()
 
     if not selected_tickers:
