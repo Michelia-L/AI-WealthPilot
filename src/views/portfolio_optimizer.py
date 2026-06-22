@@ -458,7 +458,7 @@ def _render_selected_portfolio(
         show_pie: Whether to render the allocation pie chart.
         show_sharpe_quality: Whether to render the Sharpe ratio quality caption.
     """
-    st.markdown(f"### ✦ {title}")
+    st.markdown(f"### {title}")
 
     col1, col2, col3 = st.columns(3)
 
@@ -541,7 +541,7 @@ def _render_asset_class_weights(results: Dict[str, Any]) -> None:
     if "asset_class_weights" not in selected:
         return
 
-    st.markdown("### ⌬ Asset Class Weights / 资产类别权重")
+    st.markdown("### Asset Class Weights / 资产类别权重")
 
     asset_class_weights = selected["asset_class_weights"]
 
@@ -579,7 +579,7 @@ def _render_comparison_table(results: Dict[str, Any]) -> None:
     Args:
         results: Dict from _run_optimization.
     """
-    st.markdown("### ⧉ Portfolio Comparison / 组合对比")
+    st.markdown("### Portfolio Comparison / 组合对比")
 
     max_sharpe = results["max_sharpe"]
     min_vol = results["min_vol"]
@@ -624,7 +624,7 @@ def _render_asset_universe(optimizer: PortfolioOptimizer) -> None:
     Args:
         optimizer: PortfolioOptimizer instance.
     """
-    st.markdown("### ⧉ Asset Universe Summary / 资产池摘要")
+    st.markdown("### Asset Universe Summary / 资产池摘要")
 
     summary_data = []
     for name in optimizer.asset_names:
@@ -669,7 +669,7 @@ def _render_bl_views_input(
     Returns:
         List of ViewInput objects.
     """
-    st.markdown("### ⌬ Investor Views / 投资者观点")
+    st.markdown("### Investor Views / 投资者观点")
     st.caption(
         "Add your investment views. The Black-Litterman model will blend these "
         "views with market equilibrium returns. / "
@@ -886,7 +886,7 @@ def _render_bl_returns_comparison(bl_optimizer: BlackLittermanOptimizer) -> None
     Args:
         bl_optimizer: BlackLittermanOptimizer instance.
     """
-    st.markdown("### ⧉ Returns Comparison / 收益率对比")
+    st.markdown("### Returns Comparison / 收益率对比")
 
     data = []
     for i, name in enumerate(bl_optimizer.asset_names):
@@ -1050,7 +1050,7 @@ def _render_bl_impact_analysis(bl_optimizer: BlackLittermanOptimizer) -> None:
     Args:
         bl_optimizer: BlackLittermanOptimizer instance.
     """
-    st.markdown("### ⌖ View Impact Analysis / 观点影响分析")
+    st.markdown("### View Impact Analysis / 观点影响分析")
 
     adjustments = []
     for i, name in enumerate(bl_optimizer.asset_names):
@@ -1108,7 +1108,7 @@ def render() -> None:
     Main render function for the Portfolio Optimizer page.
     Orchestrates the top-bar control console, optimization, and all visualizations.
     """
-    st.title("⧉ Portfolio Optimizer")
+    st.title("Portfolio Optimizer")
 
     acknowledged = render_suitability_disclaimer("optimizer")
 

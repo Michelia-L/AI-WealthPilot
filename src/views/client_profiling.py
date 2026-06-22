@@ -39,7 +39,7 @@ def _render_basic_info() -> dict:
     Returns:
         dict: Basic information fields (name, age, marital_status, dependents).
     """
-    st.markdown("#### ⌬ Basic Information / 基本信息")
+    st.markdown("#### Basic Information / 基本信息")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -76,7 +76,7 @@ def _render_financial_situation() -> dict:
     Returns:
         dict: Financial fields (income, expenses, assets, liabilities, emergency fund).
     """
-    st.markdown("#### ⧉ Financial Situation / 财务状况")
+    st.markdown("#### Financial Situation / 财务状况")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -122,7 +122,7 @@ def _render_investment_goals() -> list[dict]:
     Returns:
         list[dict]: List of investment goals.
     """
-    st.markdown("#### ✦ Investment Goals / 投资目标")
+    st.markdown("#### Investment Goals / 投资目标")
 
     # Use session state to manage the goals list
     if "goals" not in st.session_state:
@@ -179,7 +179,7 @@ def _render_risk_ability_questions() -> dict:
     Returns:
         dict: Selected option keys mapped to question keys.
     """
-    st.markdown("#### ⌬ Risk Ability Assessment / 风险承受能力评估")
+    st.markdown("#### Risk Ability Assessment / 风险承受能力评估")
     st.caption(
         "These questions assess your **objective capacity** to bear risk. / "
         "这些问题评估你承担风险的**客观能力**。"
@@ -207,7 +207,7 @@ def _render_risk_willingness_questions() -> dict:
     Returns:
         dict: Selected option keys mapped to question keys.
     """
-    st.markdown("#### ⌬ Risk Willingness Assessment / 风险承担意愿评估")
+    st.markdown("#### Risk Willingness Assessment / 风险承担意愿评估")
     st.caption(
         "These questions assess your **psychological comfort** with risk. "
         "Answer honestly — there are no right or wrong answers. / "
@@ -233,7 +233,7 @@ def _render_profile_summary(profile: ClientProfile) -> None:
     Args:
         profile: Completed ClientProfile instance.
     """
-    st.markdown("#### ⧉ Profile Summary / 画像摘要")
+    st.markdown("#### Profile Summary / 画像摘要")
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -382,7 +382,7 @@ def render() -> None:
         if key not in st.session_state:
             st.session_state[key] = list(q_data["options"].keys())[0]
 
-    st.title("⌬ Client Profiling / 客户画像")
+    st.title("Client Profiling / 客户画像")
     st.markdown(
         "Complete the questionnaire below to generate your investment profile "
         "based on the CFA Investment Policy Statement (IPS) framework. / "
@@ -447,7 +447,7 @@ def render() -> None:
     st.divider()
 
     # Step 6: Additional Settings
-    st.markdown("#### ⌬ Additional Settings / 附加设置")
+    st.markdown("#### Additional Settings / 附加设置")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -480,7 +480,7 @@ def render() -> None:
     st.divider()
 
     # Step 7: Generate Profile
-    st.markdown("#### ✦ Generate Profile / 生成画像")
+    st.markdown("#### Generate Profile / 生成画像")
 
     button_label = "💾 Update Profile / 更新我的画像" if is_editing else "🧮 Generate My Profile / 生成我的画像"
     
@@ -523,7 +523,7 @@ def render() -> None:
         _render_profile_summary(profile)
 
     st.divider()
-    st.markdown("#### ⧉ Saved Profiles / 已保存的画像")
+    st.markdown("#### Saved Profiles / 已保存的画像")
 
     profiles = list_profiles()
     if profiles:
@@ -591,7 +591,7 @@ def render() -> None:
 
     # Profile Comparison
     st.divider()
-    st.markdown("#### ⧉ Profile Comparison / 画像对比")
+    st.markdown("#### Profile Comparison / 画像对比")
 
     if len(profiles) >= 2:
         # Build name-to-filepath mapping for loading profiles

@@ -50,7 +50,7 @@ def _render_api_status() -> bool:
 
 def _render_profile_selector() -> ClientProfile | None:
     """Render profile selection dropdown and return the selected profile."""
-    st.markdown("#### ⧉ Select Client Profile")
+    st.markdown("#### Select Client Profile")
 
     profiles = list_profiles()
 
@@ -96,7 +96,7 @@ def _render_profile_selector() -> ClientProfile | None:
 
 def _render_profile_preview(profile: ClientProfile) -> None:
     """Render a compact dashboard preview of the selected client profile."""
-    st.markdown("#### ⌬ Profile Preview")
+    st.markdown("#### Profile Preview")
 
     # Row 1: Basic info
     col1, col2, col3, col4 = st.columns(4)
@@ -197,7 +197,7 @@ def _render_report(report: AdvisorReport, profile: ClientProfile = None) -> None
             st.caption(f"📊 Total tokens: {report.total_tokens:,}")
             st.caption(f"🕐 Generated: {report.generated_at[:19]}")
 
-    st.markdown("#### ⧉ Save Report")
+    st.markdown("#### Save Report")
 
     col1, col2, col3 = st.columns(3)
 
@@ -264,7 +264,7 @@ def _render_report(report: AdvisorReport, profile: ClientProfile = None) -> None
 
 def _render_historical_reports(profile: ClientProfile = None) -> None:
     """Render the historical reports section with view/load options."""
-    st.markdown("#### ⧉ Historical Reports")
+    st.markdown("#### Historical Reports")
 
     if profile:
         profile_path = None
@@ -339,7 +339,7 @@ def _render_historical_reports(profile: ClientProfile = None) -> None:
 
 def render() -> None:
     """Main render function for the AI Advisor page."""
-    st.title("✦ AI Wealth Advisor / AI 财富顾问")
+    st.title("AI Wealth Advisor / AI 财富顾问")
     st.markdown(
         "Generate a personalized, CFA-compliant investment advisory report "
         "powered by **DeepSeek V4 Pro**. Select a client profile below to "
@@ -361,7 +361,7 @@ def render() -> None:
     _render_profile_preview(profile)
     st.divider()
 
-    st.markdown("#### ✦ Generate Advisory Report")
+    st.markdown("#### Generate Advisory Report")
 
     acknowledged = render_suitability_disclaimer("advisor")
 

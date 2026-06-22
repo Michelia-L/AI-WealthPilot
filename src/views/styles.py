@@ -1,8 +1,19 @@
 """
 AI WealthPilot - Premium Style Injection Module
 
-This module defines the global CSS styling and typography overrides 
-to achieve a premium "Obsidian & Gold Glassmorphism" financial terminal aesthetic.
+Defines global CSS overrides for the "Obsidian & Gold" quant-terminal aesthetic.
+
+Typography system (single identity, "AI Quant Terminal"):
+- Brand monogram (sidebar logo ONLY): 'Cinzel' — heritage serif anchor, like a
+  private-bank wordmark. Never used for in-page headings.
+- Display & section headings: 'Outfit' — geometric grotesk for quant-grade clarity.
+- Body & UI text: 'Plus Jakarta Sans'.
+- Numeric / tabular data: 'JetBrains Mono'.
+
+Color contrast tiers (WCAG-aware on OLED #050505):
+- Primary text:   #ffffff / #f8fafc
+- Body weak text: #cbd5e1  (slate-300, ~11:1 — readable prose, labels, tables)
+- Meta text:      #94a3b8  (slate-400 — timestamps, version, UPPERCASE micro-labels only)
 """
 
 import streamlit as st
@@ -124,13 +135,13 @@ def inject_premium_styles() -> None:
             border: 1px solid rgba(255, 255, 255, 0.04) !important;
             cursor: pointer !important;
             transition: all 600ms cubic-bezier(0.32, 0.72, 0, 1) !important;
-            color: #94a3b8 !important;
+            color: #cbd5e1 !important;  /* body weak text — readable nav labels */
             font-size: 0.95rem !important;
             font-weight: 500 !important;
         }
         
         [data-testid="stSidebar"] [data-testid="stRadio"] label p {
-            color: #94a3b8 !important;
+            color: #cbd5e1 !important;
             transition: all 600ms cubic-bezier(0.32, 0.72, 0, 1) !important;
         }
 
@@ -382,7 +393,7 @@ def inject_premium_styles() -> None:
         .stMarkdown p > sub,
         [data-testid="stMarkdownContainer"] caption,
         div.stCaption p {
-            color: #94a3b8 !important;
+            color: #cbd5e1 !important;  /* body weak text — readable explanatory prose */
             opacity: 1.0 !important;
             font-size: 0.88rem !important;
         }
@@ -395,7 +406,7 @@ def inject_premium_styles() -> None:
             border: 1px solid rgba(255, 255, 255, 0.04) !important;
         }
         [data-testid="stTabBar"] button {
-            color: #94a3b8 !important;
+            color: #cbd5e1 !important;  /* body weak text — readable tab labels */
             font-family: 'Outfit', sans-serif !important;
             font-weight: 500 !important;
             border-radius: 8px !important;
@@ -452,7 +463,7 @@ def inject_premium_styles() -> None:
             margin-bottom: 20px;
         }
         .compliance-disclaimer .compliance-body {
-            color: #94a3b8 !important;
+            color: #cbd5e1 !important;  /* body weak text — compliance prose must be readable */
             font-size: 0.88rem !important;
             line-height: 1.55 !important;
             margin-bottom: 8px;
@@ -472,8 +483,133 @@ def inject_premium_styles() -> None:
             font-size: 0.88rem !important;
             line-height: 1.5 !important;
         }
+        /* ============================================================
+           7. Sidebar Nav Buttons (inline-SVG icon links)
+           ============================================================ */
+        .nav-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 11px 16px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            color: #cbd5e1;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 600ms cubic-bezier(0.32, 0.72, 0, 1);
+        }
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.03);
+            border-color: rgba(212, 175, 55, 0.25);
+            color: #ffffff;
+            transform: translateX(6px) scale(1.02);
+        }
+        .nav-link .nav-icon {
+            flex-shrink: 0;
+            width: 20px;
+            height: 20px;
+            color: #94a3b8;
+            transition: color 600ms cubic-bezier(0.32, 0.72, 0, 1);
+        }
+        .nav-link:hover .nav-icon { color: #d4af37; }
+        .nav-link.active {
+            background: rgba(212, 175, 55, 0.06);
+            border-color: rgba(212, 175, 55, 0.6);
+            color: #ffffff;
+            font-weight: 600;
+            transform: translateX(2px);
+            box-shadow: 0 8px 24px rgba(212, 175, 55, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+        }
+        .nav-link.active .nav-icon { color: #d4af37; }
         </style>
         <div class="noise-overlay"></div>
         """,
         unsafe_allow_html=True,
     )
+
+
+# ============================================================
+# Sidebar Navigation: inline-SVG icons (no Unicode glyphs)
+# ============================================================
+# Each icon is a Lucide-style hairline SVG (stroke-width 1.5). Stored as raw
+# markup so render_sidebar_nav can drop them straight into <a> elements.
+# Using SVG (not Unicode like ✦⧉⌖⌬◈) guarantees consistent rendering across
+# Windows/macOS/Linux and keeps icons accessible via aria-label.
+
+_NAV_SVG = {
+    "market": (
+        '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" '
+        'aria-hidden="true"><path d="M3 17l5-6 4 3 5-7 4 5"/><path d="M3 21h18"/></svg>'
+    ),
+    "portfolio": (
+        '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" '
+        'aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect '
+        'x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" '
+        'height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>'
+    ),
+    "retirement": (
+        '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" '
+        'aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>'
+    ),
+    "profiling": (
+        '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" '
+        'aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg>'
+    ),
+    "advisor": (
+        '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" '
+        'aria-hidden="true"><path d="M12 3l1.6 4.8L18.5 9l-4.9 1.2L12 15l-1.6-4.8L5.5 9l4.9-1.2z"/>'
+        '<path d="M5 19l1-2M19 19l-1-2"/></svg>'
+    ),
+}
+
+NAV_ITEMS = [
+    {"key": "market", "label": "Market Dashboard"},
+    {"key": "portfolio", "label": "Portfolio Optimizer"},
+    {"key": "retirement", "label": "Retirement Planner"},
+    {"key": "profiling", "label": "Client Profiling"},
+    {"key": "advisor", "label": "AI Advisor"},
+]
+
+
+def render_sidebar_nav(items: list[dict], active_key: str) -> str:
+    """Render the sidebar navigation as inline-SVG icon links.
+
+    Each link is a plain anchor targeting ``?nav=<key>`` so Streamlit picks the
+    selection up from query params (no JavaScript needed). The active item is
+    highlighted with a gold accent.
+
+    Args:
+        items: List of ``{"key": str, "label": str}`` nav entries.
+        active_key: The key of the currently active page.
+
+    Returns:
+        HTML string for ``st.sidebar.markdown(..., unsafe_allow_html=True)``.
+    """
+    links = []
+    for item in items:
+        key = item["key"]
+        label = item["label"]
+        is_active = key == active_key
+        cls = "nav-link active" if is_active else "nav-link"
+        # aria-label carries the page name so the decorative SVG is not the
+        # only thing a screen reader announces.
+        icon = _NAV_SVG.get(key, "")
+        current_attr = ' aria-current="page"' if is_active else ""
+        links.append(
+            f'<a class="{cls}" href="?nav={key}" aria-label="{label}"{current_attr}>'
+            f'{icon}<span>{label}</span></a>'
+        )
+    return '<nav class="nav-list" aria-label="Main navigation">' + "".join(links) + "</nav>"

@@ -111,9 +111,10 @@ def _render_top_controls() -> Tuple[List[str], str]:
     background: linear-gradient(135deg, #FDE047 0%, #D4AF37 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    font-family: 'Cinzel', serif;
+    font-family: 'Outfit', sans-serif;
     font-size: 2.2rem;
     font-weight: 700;
+    letter-spacing: -0.02em;
     margin-bottom: -10px;
 }
 .premium-subtitle {
@@ -286,7 +287,7 @@ def _render_market_overview(quotes_df: Optional[pd.DataFrame]) -> None:
         if cat_data.empty:
             continue
 
-        st.markdown(f"<div class='category-label'>✦ {category}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='category-label'>{category}</div>", unsafe_allow_html=True)
         
         cards_html = "<div class='asset-grid'>"
         
@@ -545,7 +546,7 @@ def render() -> None:
     # Footer disclaimer
     st.markdown("""
         <div style='text-align: center; margin-top: 50px; color: #64748B; font-size: 0.8rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px;'>
-            ✦ Data sourced from Yahoo Finance via yfinance. Real-time metrics cached for 5 minutes. <br>
-            ✦ Quantitative outputs are for informational purposes only.
+            Data sourced from Yahoo Finance via yfinance. Real-time metrics cached for 5 minutes. <br>
+            Quantitative outputs are for informational purposes only.
         </div>
     """, unsafe_allow_html=True)

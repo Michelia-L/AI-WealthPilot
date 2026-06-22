@@ -184,7 +184,7 @@ def _render_summary_metrics(result: Dict[str, Any], config: Dict[str, Any]) -> N
         result: Simulation result dict from _run_simulation.
         config: User configuration dict.
     """
-    st.markdown("### ⧉ Retirement Plan Summary / 退休规划摘要")
+    st.markdown("### Retirement Plan Summary / 退休规划摘要")
 
     survival_rate = result["survival_rate"]
     accum = result["accumulation"]
@@ -321,7 +321,7 @@ def _render_distribution_analysis(result: Dict[str, Any], config: Dict[str, Any]
         result: Simulation result dict.
         config: User configuration dict.
     """
-    st.markdown("### ⌖ Distribution Phase — Retirement Spending / 分配阶段")
+    st.markdown("### Distribution Phase — Retirement Spending / 分配阶段")
 
     dist_paths = result["distribution_paths"]
 
@@ -387,7 +387,7 @@ def _render_sensitivity_analysis(config: Dict[str, Any]) -> None:
     Args:
         config: User configuration dict.
     """
-    st.markdown("### ⌬ Sensitivity Analysis / 敏感性分析")
+    st.markdown("### Sensitivity Analysis / 敏感性分析")
     st.markdown(
         "**How does changing your annual savings affect the outcome? / "
         "改变年度储蓄金额如何影响结果？**"
@@ -450,7 +450,7 @@ def render() -> None:
     Main render function for the Retirement Planner page.
     Orchestrates user inputs, simulation, and all visualizations.
     """
-    st.title("✦ Retirement Planner")
+    st.title("Retirement Planner")
     st.markdown(
         "Goal-based retirement planning using Monte Carlo simulation. "
         "Find out if your savings are on track for a comfortable retirement. / "

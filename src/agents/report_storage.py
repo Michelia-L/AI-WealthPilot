@@ -419,124 +419,218 @@ def export_report_html(report: StoredReport) -> str:
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Investment Advisory Report - {safe_client_name}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
+        /* ============================================================
+           Formal advisory document — light "official letterhead" brand
+           extension of the dark Obsidian & Gold terminal. White ground for
+           print/archive fidelity; gold accent + Cinzel serif headings carry
+           the heritage weight appropriate to a signed IPS document.
+           ============================================================ */
+        :root {{
+            --gold-1: #f3e7c4;
+            --gold-2: #d4af37;
+            --gold-3: #aa7c11;
+            --ink: #1c1917;
+            --ink-soft: #44403c;
+            --rule: #e7e5e4;
+            --paper: #ffffff;
+            --paper-tint: #faf9f7;
+        }}
         body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            max-width: 900px;
+            font-family: 'Plus Jakarta Sans', 'Segoe UI', Tahoma, sans-serif;
+            line-height: 1.7;
+            max-width: 880px;
             margin: 0 auto;
-            padding: 20px;
-            color: #333;
+            padding: 48px 40px;
+            color: var(--ink);
+            background: var(--paper);
+            -webkit-font-smoothing: antialiased;
         }}
-        .header {{
-            background-color: #1a365d;
-            color: white;
-            padding: 30px;
-            border-radius: 8px;
-            margin-bottom: 30px;
+        .letterhead {{
+            border-top: 3px solid var(--gold-2);
+            border-bottom: 1px solid var(--rule);
+            padding: 28px 0 26px;
+            margin-bottom: 36px;
         }}
-        .header h1 {{
-            margin: 0 0 10px 0;
-            font-size: 24px;
+        .letterhead .brand {{
+            font-family: 'Cinzel', serif;
+            font-size: 0.95rem;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--gold-3);
+            margin-bottom: 10px;
+        }}
+        .letterhead h1 {{
+            font-family: 'Cinzel', serif;
+            font-size: 1.9rem;
+            font-weight: 700;
+            color: var(--ink);
+            margin: 0 0 4px;
+            letter-spacing: 0.01em;
+            line-height: 1.2;
+        }}
+        .letterhead .doc-sub {{
+            font-size: 0.82rem;
+            font-weight: 500;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--gold-3);
         }}
         .metadata {{
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            font-size: 14px;
+            gap: 14px 28px;
+            font-size: 0.9rem;
+            margin-top: 22px;
+            padding-top: 18px;
+            border-top: 1px solid var(--rule);
         }}
         .metadata-item {{
             display: flex;
-            align-items: center;
+            align-items: baseline;
         }}
         .metadata-label {{
-            font-weight: bold;
-            margin-right: 8px;
-            color: #a0aec0;
+            font-weight: 600;
+            min-width: 150px;
+            color: var(--gold-3);
+            font-size: 0.72rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-right: 12px;
+        }}
+        .metadata-value {{
+            color: var(--ink);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.88rem;
         }}
         .content {{
-            background-color: white;
-            padding: 30px;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
+            padding: 8px 0;
         }}
-        h1, h2, h3 {{
-            color: #1a365d;
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 10px;
+        h1, h2, h3, h4 {{
+            font-family: 'Cinzel', serif;
+            color: var(--ink);
+            font-weight: 600;
+            line-height: 1.3;
         }}
-        h1 {{ font-size: 28px; }}
-        h2 {{ font-size: 22px; }}
-        h3 {{ font-size: 18px; }}
+        .content h1 {{ font-size: 1.5rem; border-bottom: 2px solid var(--gold-2); padding-bottom: 10px; margin-top: 36px; }}
+        .content h2 {{ font-size: 1.28rem; border-bottom: 1px solid var(--rule); padding-bottom: 8px; margin-top: 30px; }}
+        .content h3 {{ font-size: 1.1rem; margin-top: 24px; }}
+        .content h4 {{ font-size: 0.98rem; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; }}
+        p {{ margin: 12px 0; color: var(--ink-soft); }}
         hr {{
             border: none;
-            border-top: 1px solid #e2e8f0;
-            margin: 20px 0;
+            border-top: 1px solid var(--rule);
+            margin: 28px 0;
         }}
         strong {{
-            color: #1a365d;
+            color: var(--ink);
+            font-weight: 600;
         }}
-        ul {{
-            background-color: #f7fafc;
-            padding: 20px 40px;
+        ul, ol {{
+            background: var(--paper-tint);
+            border-left: 2px solid var(--gold-2);
+            padding: 16px 24px 16px 40px;
+            border-radius: 0 6px 6px 0;
+            margin: 16px 0;
+        }}
+        li {{ margin-bottom: 8px; color: var(--ink-soft); }}
+        li:last-child {{ margin-bottom: 0; }}
+        blockquote {{
+            border-left: 3px solid var(--gold-2);
+            margin: 18px 0;
+            padding: 8px 20px;
+            color: var(--ink-soft);
+            font-style: italic;
+            background: var(--paper-tint);
+        }}
+        table {{
+            border-collapse: collapse;
+            width: 100%;
+            margin: 18px 0;
+            font-size: 0.9rem;
+        }}
+        th, td {{
+            border: 1px solid var(--rule);
+            padding: 10px 14px;
+            text-align: left;
+        }}
+        th {{
+            background: var(--paper-tint);
+            font-weight: 600;
+            color: var(--ink);
+            border-bottom: 2px solid var(--gold-2);
+        }}
+        code {{
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--paper-tint);
+            padding: 2px 6px;
             border-radius: 4px;
-        }}
-        li {{
-            margin-bottom: 8px;
+            font-size: 0.88em;
+            color: var(--gold-3);
         }}
         .footer {{
-            text-align: center;
-            margin-top: 30px;
-            padding: 20px;
-            color: #718096;
-            font-size: 12px;
+            margin-top: 48px;
+            padding-top: 22px;
+            border-top: 1px solid var(--rule);
+            color: #78716c;
+            font-size: 0.78rem;
+            line-height: 1.6;
+        }}
+        .footer .brand-line {{
+            font-family: 'Cinzel', serif;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--gold-3);
+            font-weight: 600;
+            margin-bottom: 4px;
         }}
         @media print {{
-            body {{
-                max-width: 100%;
-                padding: 0;
-            }}
-            .header {{
-                background-color: #1a365d !important;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-            }}
+            body {{ max-width: 100%; padding: 0; font-size: 11pt; }}
+            .letterhead {{ border-top: 3px solid var(--gold-2) !important; }}
+            ul, ol, blockquote, th {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
+            a {{ color: var(--ink); text-decoration: none; }}
         }}
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Investment Advisory Report / 投资咨询建议书</h1>
+    <header class="letterhead">
+        <div class="brand">AI WealthPilot</div>
+        <h1>Investment Advisory Report<br>投资咨询建议书</h1>
+        <div class="doc-sub">Private Wealth Management · Confidential</div>
         <div class="metadata">
             <div class="metadata-item">
-                <span class="metadata-label">Client / 客户:</span>
-                <span>{safe_client_name}</span>
+                <span class="metadata-label">Client / 客户</span>
+                <span class="metadata-value">{safe_client_name}</span>
             </div>
             <div class="metadata-item">
-                <span class="metadata-label">Generated / 生成时间:</span>
-                <span>{safe_generated_at}</span>
+                <span class="metadata-label">Generated / 生成时间</span>
+                <span class="metadata-value">{safe_generated_at}</span>
             </div>
             <div class="metadata-item">
-                <span class="metadata-label">AI Model / AI 模型:</span>
-                <span>{safe_model}</span>
+                <span class="metadata-label">AI Model / AI 模型</span>
+                <span class="metadata-value">{safe_model}</span>
             </div>
             <div class="metadata-item">
-                <span class="metadata-label">Token Usage / Token 用量:</span>
-                <span>{report.total_tokens:,}</span>
+                <span class="metadata-label">Token Usage / Token 用量</span>
+                <span class="metadata-value">{report.total_tokens:,}</span>
             </div>
         </div>
-    </div>
+    </header>
 
-    <div class="content">
+    <main class="content">
         {content_html}
-    </div>
+    </main>
 
-    <div class="footer">
-        <p>Generated by AI WealthPilot | AI WealthPilot 生成</p>
+    <footer class="footer">
+        <div class="brand-line">AI WealthPilot</div>
         <p>Report ID: {safe_report_id}</p>
         <p>This report is for informational purposes only and does not constitute financial advice.</p>
         <p>本报告仅供参考，不构成投资建议。</p>
-    </div>
+    </footer>
 </body>
 </html>"""
 
@@ -593,7 +687,7 @@ def get_export_formats() -> list[dict[str, str]]:
         {
             "format": "html",
             "extension": ".html",
-            "description": "HTML format with styling for viewing/printing / 用于查看/打印的带样式 HTML 格式",
+            "description": "HTML format — formal letterhead styling for viewing/printing / 正式信纸样式 HTML，适合查看/打印",
         },
         {
             "format": "json",
