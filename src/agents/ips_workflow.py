@@ -152,8 +152,13 @@ def _has_critical_issues(review_results: list[dict]) -> bool:
 
 
 def _all_passed(review_results: list[dict]) -> bool:
-    """Check if all review dimensions passed."""
-    return all(r.get("passed", False) for r in review_results)
+    """Check if all review dimensions passed.
+
+    An empty review list is treated as a fail-safe: returning True would
+    auto-approve an IPS that was never actually reviewed. Gating sites
+    (finalize_node, route_after_review) escalate such cases to a human.
+    """
+    return bool(review_results) and all(r.get("passed", False) for r in review_results)
 
 
 
@@ -408,8 +413,13 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                 "cvar_95": ac.cvar_95,
             }
 
-        # Extract SAA weights and match to CME
-        saa_issues: list[dict] = []
+        # Extract SAA weights and match to CME.
+        # saa_issues keeps live ReviewIssue objects (not dicts) so we can
+        # synthesize a ReviewResult below that makes SAA critical findings
+        # influence routing — otherwise route_after_review only sees the
+        # three LLM reviewer results and would silently approve an IPS whose
+        # SAA fails weight-sum / volatility / return-feasibility checks (#A‑1).
+        saa_issues: list[ReviewIssue] = []
         total_weight = 0.0
         matched_weights: list[float] = []
         matched_returns: list[float] = []
@@ -474,7 +484,7 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                     "确保 SAA 资产类别名称与 CME 提供的名称保持一致，"
                     "或在 IPS 中说明未覆盖资产类别的预期假设来源。"
                 ),
-            ).model_dump())
+            ))
             logger.warning(
                 "Unmatched SAA assets: %s (total weight: %.1f%%)",
                 unmatched_desc, unmatched_total * 100,
@@ -492,7 +502,7 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                 ),
                 regulation_reference="CFA: SAA weights must sum to 100%",
                 suggestion="调整各资产类别权重使其加总为 100%。",
-            ).model_dump())
+            ))
 
         # Validation 2: Portfolio expected return vs required return
         if matched_weights:
@@ -524,7 +534,7 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                         f"(b) 或下调收益目标至 CME 可支撑的 {portfolio_return:.2%} 附近；"
                         f"(c) 或通过补充措施（增加储蓄、延长期限）弥补缺口。"
                     ),
-                ).model_dump())
+                ))
             elif required_return > 0 and portfolio_return < required_return:
                 gap = required_return - portfolio_return
                 saa_issues.append(ReviewIssue(
@@ -538,7 +548,7 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                     ),
                     regulation_reference="CFA L3: Return feasibility assessment",
                     suggestion="在 return_objective 和 risk_disclosure 中明确说明收益目标处于 SAA 预期区间上端。",
-                ).model_dump())
+                ))
 
             n = len(matched_weights)
             w_norm = w / w.sum()  # Normalize weights
@@ -601,7 +611,7 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                             "降低权益类或高波动资产配置比例，"
                             "或增加固定收益/现金配置以降低组合波动率。"
                         ),
-                    ).model_dump())
+                    ))
                 elif portfolio_vol < band[0] * 0.8:
                     saa_issues.append(ReviewIssue(
                         section="investment_guidelines",
@@ -620,7 +630,7 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                         suggestion=(
                             "可适度提高权益类配置以更充分利用风险预算。"
                         ),
-                    ).model_dump())
+                    ))
 
             w_var = np.array(matched_vars)
             w_cvar = np.array(matched_cvars)
@@ -648,19 +658,33 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                 gmv_volatility=0.0,  # Full optimization needed (P2)
                 is_return_feasible=(portfolio_return >= required_return * 0.9),
                 is_volatility_acceptable=is_vol_acceptable,
-                issues=[issue.get("description", "") for issue in saa_issues],
+                issues=[issue.description for issue in saa_issues],
             )
         else:
             validation_result = None
 
-        # Merge SAA issues into review results
+        # Merge SAA issues into review state. Crucially, also synthesize a
+        # ReviewResult and append it to review_results so that
+        # route_after_review's _all_passed check reflects SAA findings —
+        # otherwise CRITICAL SAA issues (weight sum ≠ 100%, vol out of band,
+        # return infeasible) are silently dropped and the IPS is approved
+        # despite failing quantitative validation (#A‑1).
         if saa_issues:
             logger.warning("SAA validation found %d issues", len(saa_issues))
             current_issues = list(state.all_review_issues)
-            current_issues.extend(saa_issues)
+            current_issues.extend([i.model_dump() for i in saa_issues])
 
-            # Check if any existing review should be marked as failed
             current_results = list(state.review_results)
+            current_results.append(ReviewResult(
+                dimension=ReviewDimension.CONSISTENCY,
+                passed=False,
+                issues=saa_issues,
+                summary=(
+                    f"SAA 量化验证发现 {len(saa_issues)} 个问题"
+                    f"（含 {sum(1 for i in saa_issues if i.severity == IssueSeverity.CRITICAL)} 个 critical），"
+                    "详见 issues 列表。"
+                ),
+            ).model_dump())
 
             return {
                 "all_review_issues": current_issues,

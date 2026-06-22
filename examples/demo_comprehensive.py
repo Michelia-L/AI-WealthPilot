@@ -515,8 +515,8 @@ def demo_risk_metrics(returns):
         print(f"  Annualized Volatility / 年化波动率: {metrics['annualized_volatility']:.2%}")
         print(f"  Sharpe Ratio / 夏普比率: {metrics['sharpe_ratio']:.2f}")
         print(f"  Sortino Ratio / 索提诺比率: {metrics['sortino_ratio']:.2f}")
-        print(f"  95% VaR / 95%在险价值: {metrics['var_95']:.2%}")
-        print(f"  95% CVaR / 95%条件在险价值: {metrics['cvar_95']:.2%}")
+        print(f"  95% VaR (daily) / 95%在险价值（日度）: {metrics['var_95_daily']:.2%}")
+        print(f"  95% CVaR (daily) / 95%条件在险价值（日度）: {metrics['cvar_95_daily']:.2%}")
         print(f"  Skewness / 偏度: {metrics['skewness']:.2f}")
         print(f"  Kurtosis / 峰度: {metrics['kurtosis']:.2f}")
 
@@ -615,7 +615,7 @@ def main():
     print(f"\n3. Key Risk Metrics (US Equity) / 关键风险指标（美股）:")
     us_metrics = metrics[0]
     print(f"   - Sharpe Ratio / 夏普比率: {us_metrics['sharpe_ratio']:.2f}")
-    print(f"   - 95% VaR / 95%在险价值: {us_metrics['var_95']:.2%}")
+    print(f"   - 95% VaR (daily) / 95%在险价值（日度）: {us_metrics['var_95_daily']:.2%}")
     print(f"   - Max Drawdown / 最大回撤: {us_metrics.get('max_drawdown', 'N/A')}")
 
     # Save and open charts

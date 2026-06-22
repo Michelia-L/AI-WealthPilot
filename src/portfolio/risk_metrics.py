@@ -91,7 +91,10 @@ def value_at_risk(
         method: 'historical' or 'parametric' (Gaussian).
 
     Returns:
-        VaR as a positive number (loss magnitude).
+        Daily VaR as a positive number (loss magnitude). The horizon matches
+        the input series (daily). To compare against annualized metrics,
+        scale by √252 — see ``compute_all_metrics`` which emits the key as
+        ``var_95_daily`` to make the horizon explicit (#7).
     """
     if method == "historical":
         return -float(np.percentile(returns, (1 - confidence) * 100))
@@ -115,7 +118,8 @@ def conditional_var(
         confidence: Confidence level (e.g. 0.95).
 
     Returns:
-        CVaR as a positive number.
+        Daily CVaR as a positive number. Horizon matches the input series
+        (daily); see ``compute_all_metrics`` (``cvar_95_daily``), #7.
     """
     var = value_at_risk(returns, confidence, method="historical")
     tail_losses = returns[returns <= -var]
@@ -140,8 +144,11 @@ def compute_all_metrics(
         "annualized_volatility": float(returns.std() * np.sqrt(TRADING_DAYS_PER_YEAR)),
         "sharpe_ratio": sharpe_ratio(returns),
         "sortino_ratio": sortino_ratio(returns),
-        "var_95": value_at_risk(returns, 0.95),
-        "cvar_95": conditional_var(returns, 0.95),
+        # VaR/CVaR are DAILY (horizon = input series). Suffix makes the unit
+        # explicit so callers don't compare against the annualized ratios
+        # above without scaling (see value_at_risk / conditional_var, #7).
+        "var_95_daily": value_at_risk(returns, 0.95),
+        "cvar_95_daily": conditional_var(returns, 0.95),
         "skewness": float(returns.skew()),
         "kurtosis": float(returns.kurtosis()),
     }

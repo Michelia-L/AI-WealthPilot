@@ -13,6 +13,7 @@ import html
 import json
 import re
 import markdown
+import nh3
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +21,45 @@ from typing import Optional
 
 from src.config import DATA_DIR, PROJECT_ROOT
 from src.utils import sanitize_filename
+
+
+# Allowlist for sanitizing LLM-generated report content before it is embedded
+# in HTML (#8). The `markdown` library with the 'extra' extension passes raw
+# HTML through unchanged, so a payload like `<script>` or `<img onerror=...>`
+# from the model output would otherwise land verbatim in the report document.
+# nh3 drops anything not on this list and any disallowed attributes.
+_HTML_ALLOWED_TAGS = {
+    "a", "abbr", "b", "blockquote", "br", "code", "del", "div", "em",
+    "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "img", "ins", "kbd",
+    "li", "mark", "ol", "p", "pre", "q", "s", "small", "span", "strong",
+    "sub", "sup", "table", "tbody", "td", "tfoot", "th", "thead", "tr",
+    "u", "ul",
+}
+
+_HTML_ALLOWED_ATTRIBUTES = {
+    "a": {"href", "title"},
+    "img": {"src", "alt", "title"},
+    # Allow inline class/alignment on structural tags (markdown tables etc.)
+    # but never event handlers or `style` with script-bearing URLs.
+    "th": {"align"}, "td": {"align"}, "col": {"align", "span"},
+    "colgroup": {"align", "span"},
+    "span": {"class"}, "div": {"class"}, "code": {"class"},
+}
+
+
+def _sanitize_html(html_str: str) -> str:
+    """Sanitize Markdown-rendered HTML to a safe allowlist (XSS prevention, #8).
+
+    Strips ``<script>``, ``<iframe>``, event-handler attributes (``onerror`` etc.),
+    and ``javascript:`` URLs while preserving formatting tags produced by the
+    Markdown renderer.
+    """
+    return nh3.clean(
+        html_str,
+        tags=_HTML_ALLOWED_TAGS,
+        attributes=_HTML_ALLOWED_ATTRIBUTES,
+        url_schemes={"http", "https", "mailto"},
+    )
 
 
 # ============================================================
@@ -311,15 +351,23 @@ def update_report_notes(filepath: Path, notes: str) -> bool:
 # ============================================================
 
 def _markdown_to_html(markdown_text: str) -> str:
-    """Convert Markdown text to basic HTML.
+    """Convert Markdown text to sanitized HTML.
+
+    The Markdown renderer (with the 'extra' extension) passes raw HTML through
+    unchanged, so LLM-generated content could carry `<script>` or event-handler
+    payloads. The output is therefore sanitized to a safe tag/attribute
+    allowlist before it is embedded in any HTML document (#8).
 
     Args:
         markdown_text: Markdown formatted text.
 
     Returns:
-        str: HTML formatted string.
+        str: Sanitized HTML string safe to embed in a report document.
     """
-    return markdown.markdown(markdown_text, extensions=['extra', 'nl2br'], output_format='html5')
+    rendered = markdown.markdown(
+        markdown_text, extensions=['extra', 'nl2br'], output_format='html5'
+    )
+    return _sanitize_html(rendered)
 
 
 def export_report_markdown(report: StoredReport) -> str:

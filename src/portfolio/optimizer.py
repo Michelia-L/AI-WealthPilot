@@ -120,21 +120,34 @@ class PortfolioOptimizer:
             columns=self.cov_matrix.columns,
         )
 
-    def portfolio_performance(self, weights: np.ndarray) -> tuple[float, float, float]:
+    def portfolio_performance(
+        self,
+        weights: np.ndarray,
+        mean_override: Optional[np.ndarray] = None,
+    ) -> tuple[float, float, float]:
         """Compute annualized return, volatility, and Sharpe for given weights.
 
         Args:
             weights: Portfolio weight array (must sum to 1).
+            mean_override: Optional per-asset expected-return vector used in
+                place of ``self.mean_returns``. The resampled-MVO path threads
+                its Monte-Carlo draws through this argument rather than mutating
+                ``self.mean_returns`` (which would race with concurrent readers
+                and was restored via try/finally — see #1). Defaults to None.
 
         Returns:
             Tuple of (return, volatility, sharpe_ratio).
         """
         # R_p = w' × μ
-        portfolio_return = np.dot(weights, self.mean_returns)
+        mean = mean_override if mean_override is not None else self.mean_returns
+        portfolio_return = np.dot(weights, mean)
         # σ_p = √(w' × Σ × w)
         portfolio_volatility = np.sqrt(
             np.dot(weights.T, np.dot(self.cov_values, weights))
         )
+        # Reporting context: zero volatility is degenerate; return Sharpe 0.
+        # Objective functions (neg_sharpe) apply their own infeasibility penalty
+        # — see maximize_sharpe / bl_maximize_sharpe (#5).
         sharpe_ratio = (
             (portfolio_return - self.risk_free_rate) / portfolio_volatility
             if portfolio_volatility > 0
@@ -146,12 +159,16 @@ class PortfolioOptimizer:
         self,
         target_return: Optional[float] = None,
         allow_short: bool = False,
+        mean_override: Optional[np.ndarray] = None,
     ) -> dict:
         """Find minimum volatility portfolio, optionally at a target return.
 
         Args:
             target_return: If set, constrains portfolio to this return level.
             allow_short: Allow negative weights.
+            mean_override: Optional expected-return vector overriding
+                ``self.mean_returns`` (used by the resampled-MVO path to avoid
+                mutating instance state, #1). Defaults to None.
 
         Returns:
             Dict with 'weights', 'return', 'volatility', 'sharpe', 'success'.
@@ -160,7 +177,10 @@ class PortfolioOptimizer:
         init_weights = np.ones(n) / n
         bounds = ((-1, 1) if allow_short else (0, 1),) * n
         cov = self.cov_values
-        mean_vals = self.mean_returns.values
+        if mean_override is not None:
+            mean_vals = np.asarray(mean_override, dtype=float)
+        else:
+            mean_vals = self.mean_returns.values
 
         constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1}]
         if target_return is not None:
@@ -180,7 +200,7 @@ class PortfolioOptimizer:
         )
 
         weights = result.x
-        ret, vol, sharpe = self.portfolio_performance(weights)
+        ret, vol, sharpe = self.portfolio_performance(weights, mean_override)
         return {
             "weights": dict(zip(self.asset_names, weights)),
             "return": ret,
@@ -189,11 +209,18 @@ class PortfolioOptimizer:
             "success": result.success,
         }
 
-    def maximize_sharpe(self, allow_short: bool = False) -> dict:
+    def maximize_sharpe(
+        self,
+        allow_short: bool = False,
+        mean_override: Optional[np.ndarray] = None,
+    ) -> dict:
         """Find maximum Sharpe ratio portfolio (tangency portfolio).
 
         Args:
             allow_short: Allow negative weights.
+            mean_override: Optional expected-return vector overriding
+                ``self.mean_returns`` (used by the resampled-MVO path to avoid
+                mutating instance state, #1). Defaults to None.
 
         Returns:
             Dict with 'weights', 'return', 'volatility', 'sharpe', 'success'.
@@ -204,8 +231,11 @@ class PortfolioOptimizer:
         constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1}]
 
         def neg_sharpe(w):
-            ret, vol, _ = self.portfolio_performance(w)
-            return -(ret - self.risk_free_rate) / vol if vol > 0 else 0
+            ret, vol, _ = self.portfolio_performance(w, mean_override)
+            # Zero volatility is degenerate/infeasible. Returning a large
+            # positive value steers SLSQP away rather than treating it as the
+            # global optimum (0). See #5.
+            return -(ret - self.risk_free_rate) / vol if vol > 0 else 1e10
 
         result = minimize(
             fun=neg_sharpe,
@@ -216,7 +246,7 @@ class PortfolioOptimizer:
         )
 
         weights = result.x
-        ret, vol, sharpe = self.portfolio_performance(weights)
+        ret, vol, sharpe = self.portfolio_performance(weights, mean_override)
         return {
             "weights": dict(zip(self.asset_names, weights)),
             "return": ret,
@@ -229,25 +259,35 @@ class PortfolioOptimizer:
         self,
         n_points: int = 100,
         allow_short: bool = False,
+        mean_override: Optional[np.ndarray] = None,
     ) -> pd.DataFrame:
         """Compute efficient frontier across a range of target returns.
 
         Args:
             n_points: Number of frontier points.
             allow_short: Allow negative weights.
+            mean_override: Optional expected-return vector overriding
+                ``self.mean_returns`` (used by the resampled-MVO path, #1).
+                Defaults to None.
 
         Returns:
             DataFrame with 'return', 'volatility', 'sharpe', and asset weight columns.
         """
-        min_ret = self.mean_returns.min()
-        max_ret = self.mean_returns.max()
+        if mean_override is not None:
+            mean_series = np.asarray(mean_override, dtype=float)
+        else:
+            mean_series = self.mean_returns
+        min_ret = mean_series.min()
+        max_ret = mean_series.max()
         target_returns = np.linspace(min_ret, max_ret, n_points)
 
         frontier = []
         for target in target_returns:
             try:
                 result = self.minimize_volatility(
-                    target_return=target, allow_short=allow_short
+                    target_return=target,
+                    allow_short=allow_short,
+                    mean_override=mean_override,
                 )
                 if result["success"]:
                     row = {
@@ -327,18 +367,20 @@ class PortfolioOptimizer:
         daily_mean = self.returns.mean().values
         cov_over_T = daily_cov / len(self.returns)
 
-        original_mean_returns = self.mean_returns
-        try:
-            for _ in range(n_simulations):
-                sampled = np.random.multivariate_normal(daily_mean, cov_over_T)
-                self.mean_returns = pd.Series(
-                    sampled * TRADING_DAYS_PER_YEAR, index=self.asset_names,
-                )
-                result = objective_fn(allow_short=allow_short, **objective_kwargs)
-                if result['success']:
-                    all_weights.append(np.array(list(result['weights'].values())))
-        finally:
-            self.mean_returns = original_mean_returns
+        # Thread the sampled expected returns through each objective as a
+        # local argument (mean_override) instead of mutating self.mean_returns.
+        # The previous try/finally save-restore raced with any concurrent
+        # reader of self.mean_returns (e.g. portfolio_performance), #1.
+        for _ in range(n_simulations):
+            sampled = np.random.multivariate_normal(daily_mean, cov_over_T)
+            mean_override = sampled * TRADING_DAYS_PER_YEAR
+            result = objective_fn(
+                allow_short=allow_short,
+                mean_override=mean_override,
+                **objective_kwargs,
+            )
+            if result['success']:
+                all_weights.append(np.array(list(result['weights'].values())))
 
         if not all_weights:
             equal_weights = np.ones(self.n_assets) / self.n_assets
@@ -423,18 +465,18 @@ class PortfolioOptimizer:
         daily_mean = self.returns.mean().values
         cov_over_T = daily_cov / len(self.returns)
 
-        original_mean_returns = self.mean_returns
-        try:
-            for _ in range(n_simulations):
-                sampled = np.random.multivariate_normal(daily_mean, cov_over_T)
-                self.mean_returns = pd.Series(
-                    sampled * TRADING_DAYS_PER_YEAR, index=self.asset_names,
-                )
-                frontier = self.efficient_frontier(n_points=n_points, allow_short=allow_short)
-                if not frontier.empty:
-                    all_frontiers.append(frontier)
-        finally:
-            self.mean_returns = original_mean_returns
+        # Pass sampled means via mean_override instead of mutating
+        # self.mean_returns (thread-safety, #1).
+        for _ in range(n_simulations):
+            sampled = np.random.multivariate_normal(daily_mean, cov_over_T)
+            mean_override = sampled * TRADING_DAYS_PER_YEAR
+            frontier = self.efficient_frontier(
+                n_points=n_points,
+                allow_short=allow_short,
+                mean_override=mean_override,
+            )
+            if not frontier.empty:
+                all_frontiers.append(frontier)
 
         if not all_frontiers:
             return pd.DataFrame()
@@ -490,10 +532,16 @@ class PortfolioOptimizer:
         bounds = ((-1, 1) if allow_short else (0, 1),) * n
         constraints = [{'type': 'eq', 'fun': lambda w: np.sum(w) - 1}]
 
+        # Use ndarray (self.cov_values) and the .values of the mean Series on
+        # the SLSQP hot path; passing the pandas objects here triggers
+        # index-alignment dispatch on every Jacobian evaluation (#9).
+        cov = self.cov_values
+        mean_vals = self.mean_returns.values
+
         if target_return is not None:
             constraints.append({
                 'type': 'eq',
-                'fun': lambda w: np.dot(w, self.mean_returns) - target_return,
+                'fun': lambda w: np.dot(w, mean_vals) - target_return,
             })
 
         asset_class_indices = {}
@@ -516,7 +564,7 @@ class PortfolioOptimizer:
             })
 
         def portfolio_volatility(w):
-            return np.sqrt(np.dot(w.T, np.dot(self.cov_matrix, w)))
+            return np.sqrt(np.dot(w.T, np.dot(cov, w)))
 
         result = minimize(
             fun=portfolio_volatility,
@@ -707,7 +755,9 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
 
         def neg_sharpe_bl(w):
             ret, vol, _ = self.bl_portfolio_performance(w)
-            return -(ret - self.risk_free_rate) / vol if vol > 0 else 0
+            # Zero volatility is degenerate/infeasible; return a large penalty
+            # so SLSQP does not mistake it for the optimum (#5).
+            return -(ret - self.risk_free_rate) / vol if vol > 0 else 1e10
 
         result = minimize(
             fun=neg_sharpe_bl, x0=init_weights,

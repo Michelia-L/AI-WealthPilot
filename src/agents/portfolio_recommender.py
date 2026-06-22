@@ -19,6 +19,17 @@ from src.portfolio.optimizer import PortfolioOptimizer
 from src.config import RISK_FREE_RATE
 
 
+# Goal priority ranking used to pick the primary (most important) goal.
+# Replaces the previous `max(goals, key=lambda g: g.priority == "high")`,
+# which collapsed priority to a bool and could not distinguish medium from low.
+_PRIORITY_RANK = {"high": 3, "medium": 2, "low": 1}
+
+
+def _goal_priority_rank(goal) -> int:
+    """Numeric rank for a goal's priority; unknown/missing → lowest."""
+    return _PRIORITY_RANK.get(getattr(goal, "priority", "low"), 0)
+
+
 # Data Model — Portfolio Recommendation
 
 @dataclass
@@ -118,7 +129,7 @@ def recommend_portfolio(
     # Step 5: If target return is specified in goals, try to achieve it
     if profile.goals:
         # Calculate required return based on most important goal
-        primary_goal = max(profile.goals, key=lambda g: g.priority == "high")
+        primary_goal = max(profile.goals, key=_goal_priority_rank)
         if primary_goal.years > 0:
             required_return = (
                 (primary_goal.target_amount / max(profile.financial.investable_assets, 1))

@@ -848,7 +848,7 @@ class TestRiskMetrics:
         expected_keys = {
             "annualized_return", "annualized_volatility",
             "sharpe_ratio", "sortino_ratio",
-            "var_95", "cvar_95",
+            "var_95_daily", "cvar_95_daily",
             "skewness", "kurtosis",
         }
         assert expected_keys.issubset(set(metrics.keys()))

@@ -302,14 +302,24 @@ class TestResampledMVO:
         traditional_weights = np.array(list(traditional_result['weights'].values()))
         resampled_weights = np.array(list(resampled_result['weights'].values()))
 
+        n_assets = len(traditional_weights)
+
+        # Structural invariants: both must be valid long-only portfolios.
+        assert abs(traditional_weights.sum() - 1.0) < 1e-6
+        assert abs(resampled_weights.sum() - 1.0) < 1e-6
+        # HHI for a long-only portfolio lies in [1/n, 1.0].
+        assert 1.0 / n_assets <= np.sum(traditional_weights ** 2) <= 1.0 + 1e-9
+        assert 1.0 / n_assets <= np.sum(resampled_weights ** 2) <= 1.0 + 1e-9
+
         traditional_hhi = np.sum(traditional_weights ** 2)
         resampled_hhi = np.sum(resampled_weights ** 2)
 
-        # 重抽样MVO的HHI应该更小（更分散）
-        # Resampled MVO should have lower HHI (more diversified)
-        # 注意：这不是绝对的，但在大多数情况下成立
-        # Note: This is not absolute, but holds in most cases
-        print(f"Traditional HHI: {traditional_hhi:.4f}, Resampled HHI: {resampled_hhi:.4f}")
+        # 重抽样MVO的HHI通常更小（更分散）。这并非绝对定律，故用宽松上界：
+        # resampled 不应比 traditional 显著更集中。
+        # Resampled MVO is usually more diversified (lower HHI). Not a hard
+        # law, so use a loose upper bound: resampled must not be markedly
+        # *more* concentrated than traditional.
+        assert resampled_hhi <= traditional_hhi * 1.5 + 1e-9
 
     def test_resampled_minimize_volatility_structure(self, sample_returns):
         """

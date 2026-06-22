@@ -20,6 +20,23 @@ from src.config import DATA_DIR
 from src.utils import sanitize_filename
 
 
+def format_ratio(value: float) -> str:
+    """Format a ratio for display, handling the +inf sentinel (#B‑5).
+
+    debt_to_asset_ratio returns +inf when a client has liabilities but zero
+    investable assets (a genuine max-leverage signal). ``f"{inf:.1%}"`` would
+    render as the unhelpful literal "inf%"; this helper shows a meaningful
+    label instead while normal values use percent formatting.
+    """
+    if value != value:  # NaN
+        return "N/A"
+    if value == float("inf"):
+        return "∞ (无资产但有负债)"
+    if value == float("-inf"):
+        return "-∞"
+    return f"{value:.1%}"
+
+
 # Breakpoints for mapping 1-5 risk score to risk tolerance levels.
 RISK_SCORE_BREAKPOINTS: list[float] = [1.5, 2.5, 3.5, 4.5]
 
@@ -64,9 +81,16 @@ class FinancialSituation:
 
     @property
     def debt_to_asset_ratio(self) -> float:
-        """Debt-to-asset ratio."""
+        """Debt-to-investable-asset ratio.
+
+        Returns:
+            0.0 when leveraged with no assets nor liabilities (healthy);
+            +inf when liabilities exist but assets are zero (max leverage,
+            correctly triggers leverage-risk flag in identify_behavioral_biases);
+            otherwise the standard ratio total_liabilities / investable_assets.
+        """
         if self.investable_assets <= 0:
-            return 1.0
+            return float("inf") if self.total_liabilities > 0 else 0.0
         return self.total_liabilities / self.investable_assets
 
 
@@ -469,10 +493,10 @@ def identify_behavioral_biases(profile: ClientProfile) -> list[BehavioralBias]:
             name="Leverage Risk Behavior / 杠杆风险行为",
             description=(
                 f"Your debt-to-asset ratio is "
-                f"{profile.financial.debt_to_asset_ratio:.1%}, "
+                f"{format_ratio(profile.financial.debt_to_asset_ratio)}, "
                 f"yet you show high risk tolerance. This combination "
                 f"increases financial vulnerability. / "
-                f"您的资产负债率为 {profile.financial.debt_to_asset_ratio:.1%}，"
+                f"您的资产负债率为 {format_ratio(profile.financial.debt_to_asset_ratio)}，"
                 f"但您显示出高风险容忍度。这种组合增加了财务脆弱性。"
             ),
             severity="high",

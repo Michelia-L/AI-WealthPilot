@@ -292,8 +292,8 @@ def main():
     print(f"  Annualized Volatility / 年化波动率: {metrics['annualized_volatility']:.2%}")
     print(f"  Sharpe Ratio / 夏普比率: {metrics['sharpe_ratio']:.2f}")
     print(f"  Sortino Ratio / 索提诺比率: {metrics['sortino_ratio']:.2f}")
-    print(f"  95% VaR (Daily) / 95%在险价值（日度）: {metrics['var_95']:.2%}")
-    print(f"  95% CVaR (Daily) / 95%条件在险价值（日度）: {metrics['cvar_95']:.2%}")
+    print(f"  95% VaR (Daily) / 95%在险价值（日度）: {metrics['var_95_daily']:.2%}")
+    print(f"  95% CVaR (Daily) / 95%条件在险价值（日度）: {metrics['cvar_95_daily']:.2%}")
     print(f"  Skewness / 偏度: {metrics['skewness']:.2f}")
     print(f"  Kurtosis / 峰度: {metrics['kurtosis']:.2f}")
 
@@ -314,13 +314,13 @@ def main():
         print("   ✗ Low risk-adjusted return")
         print("     较低的风险调整后收益")
 
-    print(f"\n2. 95% VaR ({metrics['var_95']:.2%} daily):")
-    print(f"   On a typical bad day, the portfolio could lose up to {metrics['var_95']:.2%}")
-    print(f"   在典型的糟糕一天，组合可能损失高达{metrics['var_95']:.2%}")
+    print(f"\n2. 95% VaR ({metrics['var_95_daily']:.2%} daily):")
+    print(f"   On a typical bad day, the portfolio could lose up to {metrics['var_95_daily']:.2%}")
+    print(f"   在典型的糟糕一天，组合可能损失高达{metrics['var_95_daily']:.2%}")
 
-    print(f"\n3. 95% CVaR ({metrics['cvar_95']:.2%} daily):")
-    print(f"   In extreme scenarios (worst 5%), average loss is {metrics['cvar_95']:.2%}")
-    print(f"   在极端情景下（最差5%），平均损失为{metrics['cvar_95']:.2%}")
+    print(f"\n3. 95% CVaR ({metrics['cvar_95_daily']:.2%} daily):")
+    print(f"   In extreme scenarios (worst 5%), average loss is {metrics['cvar_95_daily']:.2%}")
+    print(f"   在极端情景下（最差5%），平均损失为{metrics['cvar_95_daily']:.2%}")
 
     # ============================================================
     # 5. Summary

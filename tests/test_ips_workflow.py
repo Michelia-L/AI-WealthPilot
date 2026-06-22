@@ -224,8 +224,13 @@ class TestHelpers:
         assert _all_passed(results) is False
 
     def test_all_passed_empty(self):
-        """Test _all_passed with empty list."""
-        assert _all_passed([]) is True
+        """Empty review list must fail-safe (escalate), not auto-approve (#4).
+
+        _all_passed([]) previously returned True via vacuous truth, which let
+        an IPS with zero reviews be approved/routed to finalize. The safe
+        default is now False.
+        """
+        assert _all_passed([]) is False
 
     def test_has_critical_issues(self):
         """Test _has_critical_issues detection."""

@@ -236,20 +236,48 @@ class TestReportValidation:
     """Tests for advisory report content validation."""
 
     def test_validation_success(self):
-        """Test validation passes with correct structure and length."""
+        """Test validation passes with Markdown headings for all 6 sections."""
         content = """
-        Client Summary: Patient investor.
-        Investment Objectives: Retire in 20 years.
-        Risk Tolerance: Moderate score.
-        Asset Allocation: Balanced weights.
-        Implementation Strategy: ETFs with tax optimization.
-        Risk Disclosure: Market volatility warning.
+        ## 1. Client Summary / 客户概况
+        Patient investor.
+
+        ## 2. Investment Objectives / 投资目标
+        Retire in 20 years.
+
+        ## 3. Risk Tolerance / 风险承受能力
+        Moderate score.
+
+        ## 4. Asset Allocation / 资产配置
+        Balanced weights.
+
+        ## 5. Implementation Strategy / 实施策略
+        ETFs with tax optimization.
+
+        ## 6. Risk Disclosure / 风险披露
+        Market volatility warning.
         """
         assert len(content) > 100
         from src.agents.advisor import validate_report_content
         is_valid, err = validate_report_content(content)
         assert is_valid is True
         assert err == ""
+
+    def test_validation_rejects_prose_only(self):
+        """Validation must require Markdown headings, not prose mentions (#A-3).
+
+        Previously any report that merely mentioned the section keywords
+        anywhere in running prose passed. Now the keywords must appear in
+        '#'-prefixed heading lines.
+        """
+        content = (
+            "Some preamble mentioning Client Summary and Asset Allocation "
+            "in passing, with no Markdown headings and enough words to "
+            "easily exceed the one-hundred-character minimum length gate."
+        )
+        from src.agents.advisor import validate_report_content
+        is_valid, err = validate_report_content(content)
+        assert is_valid is False
+        assert "heading" in err.lower()
 
     def test_validation_too_short(self):
         """Test validation fails when content is too short."""
@@ -343,6 +371,11 @@ class TestPromptConstruction:
         prompt = _build_user_prompt(esg_profile)
 
         assert "sustainable investing" in prompt
+        # Free-text fields must be wrapped in delimiters so the model treats
+        # them as data, not instructions (prompt-injection hardening, #A-3).
+        assert "<client_notes>" in prompt and "</client_notes>" in prompt
+        assert "<client_restrictions>" in prompt and "</client_restrictions>" in prompt
+        assert "<client_name>" in prompt
 
     def test_no_goals_message(self):
         """Test message when no goals defined."""

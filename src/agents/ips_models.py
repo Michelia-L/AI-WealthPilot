@@ -12,7 +12,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 
@@ -222,12 +222,31 @@ class UniqueCircumstance(BaseModel):
 
 
 class AssetAllocationTarget(BaseModel):
-    """A single asset class allocation target with range constraints."""
+    """A single asset class allocation target with range constraints.
+
+    Allocation weights must lie in [0, 1] and satisfy min ≤ target ≤ max.
+    These constraints previously did not exist (#6): a negative volatility-free
+    weight or a target outside its range could be accepted silently.
+    """
     asset_class: str = Field(description="Asset class name")
-    target_weight: float = Field(description="Target allocation weight, e.g. 0.30 for 30%")
-    min_weight: float = Field(description="Minimum allowed weight")
-    max_weight: float = Field(description="Maximum allowed weight")
+    target_weight: float = Field(ge=0, le=1, description="Target allocation weight, e.g. 0.30 for 30%")
+    min_weight: float = Field(ge=0, le=1, description="Minimum allowed weight")
+    max_weight: float = Field(ge=0, le=1, description="Maximum allowed weight")
     rationale: str = Field(description="Allocation rationale for this asset class")
+
+    @model_validator(mode="after")
+    def _validate_weight_range(self) -> "AssetAllocationTarget":
+        if self.min_weight > self.target_weight:
+            raise ValueError(
+                f"min_weight ({self.min_weight}) must be <= "
+                f"target_weight ({self.target_weight}) for {self.asset_class}"
+            )
+        if self.target_weight > self.max_weight:
+            raise ValueError(
+                f"target_weight ({self.target_weight}) must be <= "
+                f"max_weight ({self.max_weight}) for {self.asset_class}"
+            )
+        return self
 
 
 class InvestmentGuideline(BaseModel):

@@ -117,9 +117,13 @@ class TestFinancialSituation:
         assert abs(sample_financial.debt_to_asset_ratio - 0.25) < 1e-6
 
     def test_debt_to_asset_ratio_zero_assets(self):
-        """Debt-to-asset ratio should be 1.0 when assets are 0."""
+        """Debt-to-asset ratio: inf when leveraged with no assets, 0.0 otherwise."""
+        # Liabilities but no assets → max leverage (inf), triggers leverage-risk flag.
         fin = FinancialSituation(investable_assets=0, total_liabilities=10_000)
-        assert fin.debt_to_asset_ratio == 1.0
+        assert fin.debt_to_asset_ratio == float("inf")
+        # No liabilities and no assets → healthy (0.0), no false-positive flag.
+        fin_zero = FinancialSituation(investable_assets=0, total_liabilities=0)
+        assert fin_zero.debt_to_asset_ratio == 0.0
 
     def test_default_values(self):
         """Default FinancialSituation should have all zeros."""

@@ -37,7 +37,10 @@ class AssetClassCME(BaseModel):
         description="Annualized expected return (arithmetic mean), e.g. 0.08 for 8%"
     )
     volatility: float = Field(
-        description="Annualized volatility (std dev), e.g. 0.22 for 22%"
+        ge=0,
+        description="Annualized volatility (std dev), e.g. 0.22 for 22%. "
+                    "Must be non-negative: a negative value is mathematically "
+                    "invalid and breaks the covariance/sqrt chain downstream."
     )
     sharpe_ratio: float = Field(
         description="Historical Sharpe ratio"
