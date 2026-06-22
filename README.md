@@ -232,7 +232,8 @@ AI-WealthPilot/
 │   │   ├── risk_metrics.py       # Risk calculators (Sharpe, Sortino, VaR, CVaR)
 │   │   ├── views.py              # Black-Litterman view encoding (P/Q/Omega, Idzorek confidence)
 │   │   ├── cme_engine.py         # Capital Market Expectations engine & risk-free rate cascade
-│   │   └── cme_models.py         # CME Pydantic data models (CMEReport, SAAValidationResult)
+│   │   ├── cme_models.py         # CME Pydantic data models (CMEReport, SAAValidationResult)
+│   │   └── cme_cache.py          # CME cache management and local file persistence
 │   ├── data/                     # [Data Pipeline]
 │   │   ├── market_data.py        # yfinance pipeline, multi-currency FX conversion & correlation calculations
 │   │   └── implied_volatility.py # VIX/MOVE implied volatility fetcher & Bayesian blending proxy mapper
@@ -263,9 +264,11 @@ AI-WealthPilot/
 │   ├── test_advanced_portfolio.py# Resampled frontier & regularization tests
 │   ├── test_advisor.py           # DeepSeek advisor integration tests
 │   ├── test_market_data.py       # Async data fetching, currency conversion & cache testing
+│   ├── test_cme_cache.py         # CME caching behavior and expiry logic tests
 │   ├── test_cme_engine.py        # CME computation, IV blending, fallback & risk-free rate cascade tests
 │   ├── test_implied_volatility.py # Implied volatility fetching, proxy mapping & degradation tests
 │   ├── test_ips_models.py        # IPS data structures schemas tests
+│   ├── test_ips_storage.py       # IPS document exports and JSON/Markdown storage validations
 │   ├── test_ips_workflow.py      # LangGraph Generate-Review-Revise loop execution tests
 │   ├── test_portfolio_recommender.py # Portfolio recommendation logic consistency tests
 │   ├── test_comparison_export.py # Profile comparison data exports tests
@@ -278,6 +281,7 @@ AI-WealthPilot/
 │   ├── demo_advanced_optimization.py # Advanced regularization & Resampled MVO demo
 │   └── demo_ips_generator.py     # Multi-Agent LangGraph workflow execution terminal demo
 └── data/
+    ├── cache/                    # Local market data query and FRED API caches
     ├── profiles/                 # Client profiles (JSON document store)
     ├── reports/                  # Generated AI proposals (JSON)
     ├── ips/                      # Standardized IPS and audit trail storage folder
@@ -337,7 +341,7 @@ AI-WealthPilot/
 To run the automated tests covering portfolio mathematics, client profiling scoring, and agent integration:
 
 ```bash
-pytest -v
+python -m pytest -v
 ```
 
 ---

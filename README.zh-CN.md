@@ -40,7 +40,7 @@
 
 - 🎓 **对标 CFA® 三级私人财富管理框架**  
   实现客观财务**承受能力 (Ability)** 与主观心理**承担意愿 (Willingness)** 的双轨制风险承受度模型。严格执行 CFA 的审慎原则，当两者冲突时“就低不就高”，以最大化保护客户利益。
-- 🧮 **现代投资组合理论与优化与正则化 (MPT/MVO)**  
+- 🧮 **现代投资组合理论优化与正则化 (MPT/MVO)**  
   利用 `SciPy` 的 SLSQP 算法求解约束优化问题，绘制有效前沿 (Efficient Frontier)，求解切点组合 (Tangency Portfolio，即最大夏普比率组合) 以及资本配置线 (CAL)。实现自动条件数检测与对角加载（Diagonal Loading）或特征值裁剪（Eigenvalue Clipping）的数值正则化，确保数值稳定性。
 - 💎 **协方差矩阵收缩估计量**  
   支持 Ledoit-Wolf 和 OAS (Oracle Approximating Shrinkage) 估计量（依赖 `scikit-learn`），与传统样本协方差相比，能够显著降低 MVO 对输入参数估计误差的敏感度，解决噪声扩展问题。
@@ -230,7 +230,8 @@ AI-WealthPilot/
 │   │   ├── risk_metrics.py       # 风险指标计算（Sharpe, Sortino, VaR, CVaR）
 │   │   ├── views.py              # Black-Litterman 观点编码（P/Q/Omega 矩阵，Idzorek 置信度法）
 │   │   ├── cme_engine.py         # 资本市场预期 (CME) 引擎与无风险利率三级级联
-│   │   └── cme_models.py         # CME Pydantic 数据模型（CMEReport, SAAValidationResult）
+│   │   ├── cme_models.py         # CME Pydantic 数据模型（CMEReport, SAAValidationResult）
+│   │   └── cme_cache.py          # CME 预期数据缓存管理与本地持久化工具
 │   ├── data/                     # 【数据拉取模块】
 │   │   ├── market_data.py        # yfinance 异步行情拉取、多币种汇率转换与相关性矩阵计算
 │   │   └── implied_volatility.py # VIX/MOVE 隐含波动率拉取与贝叶斯混合代理映射器
@@ -261,9 +262,11 @@ AI-WealthPilot/
 │   ├── test_advanced_portfolio.py# 重抽样有效前沿与矩阵正则化测试
 │   ├── test_advisor.py           # DeepSeek 顾问 Agent 集成测试
 │   ├── test_market_data.py       # 异步行情接口、多币种汇率转换及缓存加载测试
+│   ├── test_cme_cache.py         # CME 缓存逻辑与过期机制测试
 │   ├── test_cme_engine.py        # CME 计算、IV 混合、静态回退与无风险利率级联测试
 │   ├── test_implied_volatility.py # 隐含波动率拉取、代理映射与降级处理测试
 │   ├── test_ips_models.py        # IPS Pydantic 模型的严格约束边界测试
+│   ├── test_ips_storage.py       # IPS 文档导出与 JSON/Markdown 本地存储验证测试
 │   ├── test_ips_workflow.py      # LangGraph 状态机生成-审查-修订循环测试
 │   ├── test_portfolio_recommender.py # 资产配置推荐建议一致性测试
 │   ├── test_comparison_export.py # 画像对比数据导出与格式化测试
@@ -276,6 +279,7 @@ AI-WealthPilot/
 │   ├── demo_advanced_optimization.py # 高级优化特性演示（矩阵正则化与重抽样 MVO）
 │   └── demo_ips_generator.py     # LangGraph 驱动的 AI 编排 IPS 多轮迭代生成终端演示
 └── data/
+    ├── cache/                    # 市场行情拉取与 FRED API 数据本地缓存目录
     ├── profiles/                 # 客户画像 JSON 数据库
     ├── reports/                  # 生成的理财建议书数据库
     ├── ips/                      # 生成的标准化 IPS 建议书及审计追踪文件
@@ -335,7 +339,7 @@ AI-WealthPilot/
 使用 `pytest` 运行涵盖量化引擎、画像评分及 Agent 流式交互的单元测试：
 
 ```bash
-pytest -v
+python -m pytest -v
 ```
 
 ---
