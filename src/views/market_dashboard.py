@@ -5,10 +5,7 @@ This module implements the premium interactive Market Dashboard for the Streamli
 It displays real-time market quotes, historical price charts, correlation
 heatmaps, and risk/return statistics for the user's asset universe.
 
-CFA References:
-- CFA L3: Capital Market Expectations — Monitoring market conditions.
-- CFA L1: Quantitative Methods — Correlation analysis for diversification.
-- CFA L3: Portfolio Management — Portfolio risk and return metrics.
+
 """
 
 import streamlit as st
@@ -449,7 +446,7 @@ def _render_risk_statistics(prices_df: Optional[pd.DataFrame]) -> None:
         asset_info = ASSET_UNIVERSE.get(col, {})
         display_name = asset_info.get("name", col)
 
-        # Financial logic formulas explained (CFA Level 1 & Portfolio Management):
+        # Financial logic formulas:
         # 1. Annualized Return: R_ann = E(R_p) = Mean(R_daily) * 252 (trading days)
         #    This scales the expected daily return to an annual basis.
         ann_return = float(ret_series.mean() * TRADING_DAYS_PER_YEAR)

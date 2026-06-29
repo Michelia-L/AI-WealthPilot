@@ -1,4 +1,4 @@
-﻿"""
+"""
 AI WealthPilot - Visualization Module
 
 Plotly-based chart components for portfolio analysis dashboards.
@@ -108,10 +108,6 @@ def plot_efficient_frontier(
     """
     Plot the efficient frontier with optional random portfolio cloud,
     highlighted optimal portfolios, and Capital Allocation Line (CAL).
-
-    CFA Reference: CFA Level I, Portfolio Management — CAL represents the
-    risk-return tradeoff for portfolios combining the risk-free asset with
-    the tangency portfolio. The CAL slope equals the maximum Sharpe ratio.
 
     Args:
         frontier: DataFrame with 'return', 'volatility' columns for the efficient frontier.

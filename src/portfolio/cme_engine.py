@@ -1,4 +1,4 @@
-﻿"""
+"""
 AI WealthPilot - Capital Market Expectations (CME) Engine
 
 Computes Capital Market Expectations by leveraging existing quantitative
@@ -15,12 +15,7 @@ Pipeline:
     7. Package into CMEReport (Pydantic)
     8. Format as LLM-readable text for prompt injection
 
-CFA Reference:
-    - CFA L3: Setting Capital Market Expectations
-    - CFA L3: Asset Allocation with CME inputs
-    - CFA L3: Historical approach (backward-looking)
-    - CFA L3: Model-based approach (options-implied volatility)
-    - CFA L3: Multi-method blending for robust CME
+
 """
 
 import json
@@ -420,11 +415,6 @@ def _classify_vol_regime(implied_vol: float, historical_vol: float) -> str:
     The ratio of implied-to-historical volatility indicates whether
     the market is pricing in higher or lower future volatility
     compared to recent realized volatility.
-
-    CFA Reference:
-        CFA L3 — VIX premium/discount to realized vol as a
-        forward-looking risk signal. IV/HV > 1 suggests risk-off
-        sentiment; IV/HV < 1 suggests complacency.
 
     Thresholds (based on empirical VIX research):
         ratio < 0.8  → 'low'       (market complacent)

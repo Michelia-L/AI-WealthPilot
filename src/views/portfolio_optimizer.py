@@ -5,10 +5,6 @@ Interactive Streamlit page for Mean-Variance Portfolio Optimization.
 Users can select asset classes, configure parameters, and visualize
 the efficient frontier, optimal portfolios, and risk-return metrics.
 
-CFA References:
-- CFA L1: Modern Portfolio Theory (MPT), Efficient Frontier, Capital Allocation Line.
-- CFA L3: Asset Allocation — Strategic asset allocation using mean-variance framework.
-- CFA L3: Black-Litterman Model — Bayesian combination of equilibrium and views.
 """
 
 import streamlit as st

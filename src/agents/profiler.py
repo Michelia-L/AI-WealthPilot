@@ -1,13 +1,9 @@
-﻿"""
-Client profiling agent using the CFA IPS framework.
+"""
+Client profiling agent using the IPS framework.
 
 Collects client information through structured questionnaires and
-computes risk tolerance scores following the CFA dual-track model:
+computes risk tolerance scores following the dual-track model:
 Risk Tolerance = min(Ability, Willingness).
-
-References:
-    - CFA L3 PWM: Investment Policy Statement framework
-    - CFA L3: Risk Tolerance = min(Ability, Willingness)
 """
 
 import json
@@ -125,7 +121,7 @@ class RiskProfile:
 
 @dataclass
 class ClientProfile:
-    """Complete client profile following the CFA IPS framework."""
+    """Complete client profile following the IPS framework."""
 
     name: str = ""
     age: int = 30
@@ -478,10 +474,10 @@ def identify_behavioral_biases(profile: ClientProfile) -> list[BehavioralBias]:
                 ),
                 severity="high",
                 recommendation=(
-                    "Per CFA guidelines, we use the lower score to protect you. "
+                    "Per prudential guidelines, we use the lower score to protect you. "
                     "Consider discussing with an advisor to align your comfort "
                     "level with your financial capacity. / "
-                    "根据 CFA 指引，我们采用较低评分以保护您。"
+                    "根据审慎原则，我们采用较低评分以保护您。"
                     "建议与顾问讨论，使您的心理舒适度与财务能力相匹配。"
                 ),
             ))

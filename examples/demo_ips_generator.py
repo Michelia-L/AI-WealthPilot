@@ -14,8 +14,6 @@ Requirements:
     - DEEPSEEK_API_KEY configured in .env
     - All dependencies installed (langgraph, pydantic-ai)
 
-CFA Reference:
-    - CFA L3 PWM: Investment Policy Statement generation
 """
 
 import asyncio

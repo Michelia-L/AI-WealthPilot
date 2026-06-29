@@ -17,9 +17,6 @@ Covers / 覆盖:
     - Mathematical properties and invariants
       数学性质和不变量
 
-CFA Reference / CFA 参考:
-    CFA L3 Asset Allocation: Black-Litterman Model
-    CFA 三级资产配置：Black-Litterman 模型
 """
 
 import numpy as np

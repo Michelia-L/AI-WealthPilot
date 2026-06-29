@@ -2,12 +2,8 @@
 AI WealthPilot - Client Profiling Questionnaire Page
 
 Interactive Streamlit page that collects client information through
-a structured questionnaire based on the CFA IPS framework. Computes
+a structured questionnaire based on the IPS framework. Computes
 risk tolerance scores and generates a complete client profile.
-
-CFA Reference:
-- CFA L3 Private Wealth: Investment Policy Statement (IPS) framework.
-- CFA L3: Risk tolerance assessment = min(Ability, Willingness).
 """
 
 import streamlit as st
@@ -280,7 +276,7 @@ def _render_profile_summary(profile: ClientProfile) -> None:
         st.metric(
             "Final Score / 最终评分",
             f"{rp.final_score:.1f} / 5",
-            help="min(Ability, Willingness) — CFA principle",
+            help="min(Ability, Willingness) — prudential principle",
         )
 
     tolerance = rp.tolerance_level
@@ -288,19 +284,18 @@ def _render_profile_summary(profile: ClientProfile) -> None:
         if rp.ability_score < rp.willingness_score:
             note = (
                 "⚠️ Your ability to bear risk is LOWER than your willingness. "
-                "CFA guidelines recommend using the lower score. "
+                "Prudential guidelines recommend using the lower score. "
                 "Consider building a larger emergency fund or increasing savings. / "
-                "你的风险承受能力低于你的承担意愿。"
-                "CFA 准则建议采用较低评分。"
+                "审慎原则建议采用较低评分。"
                 "建议增加应急基金或提高储蓄率。"
             )
         elif rp.willingness_score < rp.ability_score:
             note = (
                 "💡 Your willingness to take risk is LOWER than your ability. "
-                "CFA guidelines recommend using the lower score. "
+                "Prudential guidelines recommend using the lower score. "
                 "You may benefit from education about long-term investing. / "
                 "你的风险承担意愿低于你的承受能力。"
-                "CFA 准则建议采用较低评分。"
+                "审慎原则建议采用较低评分。"
                 "你可以通过学习长期投资知识来提升信心。"
             )
         else:
@@ -385,8 +380,8 @@ def render() -> None:
     st.title("Client Profiling / 客户画像")
     st.markdown(
         "Complete the questionnaire below to generate your investment profile "
-        "based on the CFA Investment Policy Statement (IPS) framework. / "
-        "填写以下问卷，基于 CFA 投资政策声明（IPS）框架生成你的投资画像。"
+        "based on the Investment Policy Statement (IPS) framework. / "
+        "填写以下问卷，基于投资政策声明（IPS）框架生成你的投资画像。"
     )
 
     render_client_profiling_notice()

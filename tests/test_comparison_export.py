@@ -4,9 +4,6 @@ AI WealthPilot - 画像对比分析与增强导出功能测试
 
 Tests for Phase 3 Step 6 (Profile Comparison) and Step 7 (Enhanced Export).
 
-CFA Reference / CFA 参考:
-    - Client profiling and IPS framework
-    - Documentation and record-keeping requirements
 """
 
 import json

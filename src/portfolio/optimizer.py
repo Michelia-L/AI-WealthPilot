@@ -1,4 +1,4 @@
-﻿"""
+"""
 Portfolio optimization engine: MVO, Efficient Frontier, Black-Litterman.
 
 Implements Markowitz mean-variance optimization with SLSQP solver,
@@ -8,7 +8,6 @@ Bayesian model for combining equilibrium returns with investor views.
 References:
     - Markowitz, H. (1952). Portfolio Selection. Journal of Finance.
     - Black & Litterman (1992). Global Portfolio Optimization. FAJ.
-    - CFA L3: Asset Allocation & Mean-Variance Framework
 """
 
 import numpy as np

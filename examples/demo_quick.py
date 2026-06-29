@@ -318,8 +318,8 @@ def main():
     print("     Black-Litterman结合均衡与投资者观点")
     print("  3. Monte Carlo simulates thousands of scenarios for planning")
     print("     蒙特卡洛模拟数千种情景用于规划")
-    print("  4. All implementations follow CFA curriculum standards")
-    print("     所有实现遵循CFA课程标准")
+    print("  4. All implementations follow industry-standard methodologies")
+    print("     所有实现遵循行业标准方法论")
 
 
 if __name__ == "__main__":

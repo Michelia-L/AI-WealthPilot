@@ -189,8 +189,7 @@ class TestPortfolioOptimizer:
         than the equal-weight portfolio.
         全局最小方差（GMV）组合应比等权组合具有更低的波动率。
 
-        CFA L3: The GMV portfolio is the leftmost point on the efficient frontier.
-        CFA 三级：GMV 组合是有效前沿上最左边的点。
+        The GMV portfolio is the leftmost point on the efficient frontier.
         """
         opt = PortfolioOptimizer(sample_returns)
         gmv = opt.minimize_volatility()
@@ -232,10 +231,8 @@ class TestPortfolioOptimizer:
         minimum volatility portfolio's Sharpe ratio.
         最大夏普组合的夏普比率应 ≥ 最小波动率组合的夏普比率。
 
-        CFA L1: The tangency portfolio (max Sharpe) is the optimal risky portfolio;
+        The tangency portfolio (max Sharpe) is the optimal risky portfolio;
         the GMV is a sub-optimal choice on the efficient frontier.
-        CFA 一级：切点组合（最大夏普）是最优风险组合，
-        GMV 在有效前沿上是次优选择。
         """
         opt = PortfolioOptimizer(sample_returns)
         max_s = opt.maximize_sharpe()
@@ -725,9 +722,8 @@ class TestRiskMetrics:
         对于下行有限的收益分布，索提诺比率通常 ≥ 夏普比率，
         因为下行偏差 ≤ 总标准差。
 
-        CFA Reference: Sortino only penalizes downside deviation, so it is
+        Sortino only penalizes downside deviation, so it is
         typically higher than Sharpe for return streams with positive mean.
-        CFA 参考：索提诺只惩罚下行偏差，对正均值收益流通常高于夏普。
         """
         sr = sharpe_ratio(sample_returns["US_EQ"])
         so = sortino_ratio(sample_returns["US_EQ"])
@@ -793,9 +789,8 @@ class TestRiskMetrics:
         99% VaR should be ≥ 95% VaR (higher confidence → more extreme quantile).
         99% VaR 应 ≥ 95% VaR（更高置信度 → 更极端的分位数）。
 
-        CFA Reference: Higher confidence level corresponds to a more
+        Higher confidence level corresponds to a more
         conservative (larger) VaR estimate.
-        CFA 参考：更高的置信水平对应更保守（更大）的 VaR 估计。
         """
         var_95 = value_at_risk(sample_returns["US_EQ"], confidence=0.95)
         var_99 = value_at_risk(sample_returns["US_EQ"], confidence=0.99)
@@ -824,10 +819,8 @@ class TestRiskMetrics:
         be at least as large as VaR itself.
         CVaR 是超过 VaR 阈值后的预期损失，因此必须 ≥ VaR 本身。
 
-        CFA Reference: CVaR (Expected Shortfall) is a coherent risk measure
+        CVaR (Expected Shortfall) is a coherent risk measure
         that captures tail risk. It always ≥ VaR by definition.
-        CFA 参考：CVaR（预期亏损）是一致性风险度量，
-        捕捉尾部风险。根据定义它总是 ≥ VaR。
         """
         var = value_at_risk(sample_returns["US_EQ"], confidence=0.95)
         cvar = conditional_var(sample_returns["US_EQ"], confidence=0.95)

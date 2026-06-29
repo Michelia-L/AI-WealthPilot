@@ -4,8 +4,7 @@ AI WealthPilot - Portfolio Recommender Module
 Integrates the quantitative portfolio optimization engine with client profiling
 to generate personalized asset allocation recommendations based on risk scores.
 
-CFA Reference:
-- CFA L3 Asset Allocation: Risk tolerance drives strategic asset allocation (SAA).
+
 """
 
 import numpy as np
@@ -200,7 +199,7 @@ def _generate_rationale(
         rationale_parts.extend([
             "⚠️ **Note**: There is a significant difference between your "
             "objective risk ability and subjective willingness. "
-            "Per CFA guidelines, we use the lower score to protect you.",
+            "Per prudential guidelines, we use the lower score to protect you.",
             "",
         ])
 

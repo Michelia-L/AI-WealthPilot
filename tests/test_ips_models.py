@@ -5,9 +5,7 @@ Tests the Pydantic schemas for IPS documents, review results,
 and audit trail models. Verifies validation, serialization,
 and constraint enforcement.
 
-CFA Reference:
-    - CFA L3: IPS structural requirements
-    - CFA L3: Risk Tolerance = min(Ability, Willingness)
+
 """
 
 import json
@@ -306,7 +304,7 @@ class TestRiskToleranceAssessment:
             willingness_assessment="Low willingness",
             conflict_resolution="Use lower score (willingness)",
             overall_risk_level="moderately_conservative",
-            risk_narrative="Conflict resolved using CFA principle",
+            risk_narrative="Conflict resolved using prudential principle",
         )
         assert obj.conflict_resolution is not None
 
@@ -548,7 +546,7 @@ class TestReviewModels:
             dimension=ReviewDimension.SUITABILITY,
             severity=IssueSeverity.CRITICAL,
             description="Risk level does not match profile",
-            regulation_reference="CFA IPS Framework",
+            regulation_reference="IPS Framework",
             suggestion="Adjust risk level to moderate",
         )
         assert issue.severity == IssueSeverity.CRITICAL

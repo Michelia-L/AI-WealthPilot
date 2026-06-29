@@ -1,6 +1,6 @@
 {
   "version": "1.1",
-  "description": "IPS 合规检查清单 — 对标 CFA Level III PWM 框架",
+  "description": "IPS 合规检查清单 — 对标 PWM 行业标准框架",
   "dimensions": {
     "suitability": {
       "name": "适配性检查",

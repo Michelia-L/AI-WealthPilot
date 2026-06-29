@@ -6,10 +6,6 @@ Monte Carlo simulation. Users input their financial situation and
 retirement goals, and the system simulates thousands of possible
 outcomes to estimate the probability of a comfortable retirement.
 
-CFA References:
-- CFA L3 Private Wealth Management: Goal-Based Planning.
-- CFA L3: Monte Carlo simulation for retirement readiness assessment.
-- CFA L3: Human Capital vs Financial Capital framework.
 """
 
 import streamlit as st

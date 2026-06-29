@@ -4,9 +4,6 @@ AI WealthPilot - Advisory Report Storage Module
 Provides persistence for AI-generated advisory reports. Stores reports
 as JSON files with metadata and maintains associations with client profiles.
 
-CFA Reference:
-- CFA L3: Documentation requirements for client advisory records.
-- GIPS: Record-keeping standards for investment performance.
 """
 
 import html

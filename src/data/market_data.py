@@ -4,9 +4,6 @@ Market data acquisition layer using yfinance.
 Fetches historical and real-time market data for the asset universe,
 with optional cross-currency translation to a unified base currency.
 
-References:
-    - CFA L3: Asset Allocation - Currency Management
-    - CFA L1: Quantitative Methods - Time-Series Analysis
 """
 
 import os

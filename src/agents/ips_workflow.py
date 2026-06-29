@@ -1,12 +1,8 @@
-﻿"""
+"""
 IPS LangGraph workflow engine.
 
 Orchestrates the multi-agent IPS generation workflow:
 START → CME → generate → review(×3) → validate_saa → finalize/revise.
-
-References:
-    - CFA L3 PWM: IPS generation and review process
-    - CFA L3: Setting Capital Market Expectations
 """
 
 import hashlib
@@ -477,7 +473,7 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                     f"组合层面的收益率和波动率验证不包含这些资产。"
                 ),
                 regulation_reference=(
-                    "CFA L3: All SAA asset classes must have "
+                    "All SAA asset classes must have "
                     "defensible CME assumptions."
                 ),
                 suggestion=(
@@ -500,7 +496,7 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                     f"SAA 权重之和为 {total_weight:.4f}（{total_weight:.2%}），"
                     f"偏离 100% 达 {abs(total_weight - 1.0):.2%}。"
                 ),
-                regulation_reference="CFA: SAA weights must sum to 100%",
+                regulation_reference="SAA weights must sum to 100%",
                 suggestion="调整各资产类别权重使其加总为 100%。",
             ))
 
@@ -526,7 +522,7 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                         f"缺口 {gap:.2%}。当前配置无法支撑收益目标。"
                     ),
                     regulation_reference=(
-                        "CFA L3: Required return must be achievable within "
+                        "Required return must be achievable within "
                         "the SAA's expected return range."
                     ),
                     suggestion=(
@@ -546,7 +542,7 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                         f"略低于所需收益率 {required_return:.2%}（缺口 {gap:.2%}）。"
                         f"需承担上行风险方可实现，应在 IPS 中明确说明。"
                     ),
-                    regulation_reference="CFA L3: Return feasibility assessment",
+                    regulation_reference="Return feasibility assessment",
                     suggestion="在 return_objective 和 risk_disclosure 中明确说明收益目标处于 SAA 预期区间上端。",
                 ))
 
@@ -604,7 +600,7 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                             f"当前配置的风险水平超出客户承受范围。"
                         ),
                         regulation_reference=(
-                            "CFA L3: Portfolio risk must be consistent "
+                            "Portfolio risk must be consistent "
                             "with stated risk tolerance level."
                         ),
                         suggestion=(
@@ -625,7 +621,7 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                             f"配置可能过于保守，难以达成收益目标。"
                         ),
                         regulation_reference=(
-                            "CFA L3: Efficient use of risk budget"
+                            "Efficient use of risk budget"
                         ),
                         suggestion=(
                             "可适度提高权益类配置以更充分利用风险预算。"

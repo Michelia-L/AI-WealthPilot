@@ -1,11 +1,9 @@
-﻿"""
+"""
 Risk and performance metrics for portfolio analysis.
 
 Computes standard risk-adjusted return measures and tail-risk
 indicators used in portfolio evaluation and wealth management.
 
-References:
-    - CFA L1/L3: Quantitative Methods & Portfolio Management
     - Basel III framework for VaR / CVaR
 """
 

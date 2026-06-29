@@ -5,11 +5,6 @@ Fetches market-implied volatility indices (VIX, MOVE) via yfinance
 as forward-looking volatility inputs for the CME engine's
 Bayesian blending framework.
 
-CFA Reference:
-    - CFA L3: Setting Capital Market Expectations — model-based approach
-      using options-implied volatility as a forward-looking estimate.
-    - CFA L3: Asset Allocation — incorporating market-implied risk signals
-      alongside historical estimates for more robust CME inputs.
     - VIX: CBOE Volatility Index, reflects S&P 500 30-day implied volatility.
     - MOVE: ICE BofAML MOVE Index, reflects US Treasury implied volatility.
 

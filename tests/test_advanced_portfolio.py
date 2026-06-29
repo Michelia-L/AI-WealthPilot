@@ -14,12 +14,6 @@ Test suite for advanced portfolio optimization features:
     - Numerical stability
       数值稳定性
 
-CFA Reference / CFA 参考:
-    CFA L3 Asset Allocation: Testing portfolio optimization implementations
-    requires attention to numerical stability, constraint handling, and
-    robustness to input estimation errors.
-    CFA 三级资产配置：测试投资组合优化实现需要关注数值稳定性、
-    约束处理和对输入估计误差的鲁棒性。
 """
 
 import numpy as np

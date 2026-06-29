@@ -4,8 +4,6 @@ AI WealthPilot - Black-Litterman View Processor
 Processes investor views into Black-Litterman model matrices (P, Q, Omega).
 Supports both absolute and relative return views.
 
-CFA Reference:
-- CFA L3 Asset Allocation: Black-Litterman model.
 """
 
 import numpy as np

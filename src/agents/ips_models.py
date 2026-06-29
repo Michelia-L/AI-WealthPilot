@@ -1,11 +1,7 @@
-﻿"""
-Pydantic schemas for CFA-aligned Investment Policy Statement (IPS).
+"""
+Pydantic schemas for Investment Policy Statement (IPS).
 
 Structured, validated LLM output models for the IPS generator workflow.
-
-References:
-    - CFA L3 PWM: Investment Policy Statement & RRTTLLU framework
-    - CFA L3: Risk Tolerance = min(Ability, Willingness)
 """
 
 from datetime import datetime
@@ -18,7 +14,7 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class RiskToleranceLevel(str, Enum):
-    """Risk tolerance level enumeration aligned with CFA framework."""
+    """Risk tolerance level enumeration."""
     CONSERVATIVE = "conservative"
     MODERATELY_CONSERVATIVE = "moderately_conservative"
     MODERATE = "moderate"
@@ -344,7 +340,7 @@ class IPSDocument(BaseModel):
     )
     version: str = Field(default="1.0", description="IPS version")
 
-    # IPS Sections (CFA Framework)
+    # IPS Sections
     executive_summary: str = Field(
         description="Executive summary of the IPS (max 300 chars)"
     )
@@ -384,7 +380,7 @@ class IPSDocument(BaseModel):
     )
     fee_schedule: Optional[FeeSchedule] = Field(
         default=None,
-        description="Fee and cost disclosure section (CFA L3 PWM requirement)"
+        description="Fee and cost disclosure section"
     )
 
     # Compliance
@@ -414,7 +410,7 @@ class ReviewIssue(BaseModel):
     )
     regulation_reference: Optional[str] = Field(
         default=None,
-        description="Cited regulation or CFA principle if applicable"
+        description="Cited regulation or principle if applicable"
     )
     suggestion: str = Field(
         description="Suggested fix for the issue"

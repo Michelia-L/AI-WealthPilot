@@ -6,8 +6,6 @@ conditional routing, and node function contracts.
 These tests use mocked LLM calls to verify workflow logic
 without requiring a live API key.
 
-CFA Reference:
-    - CFA L3: IPS generation and review process
 """
 
 import json

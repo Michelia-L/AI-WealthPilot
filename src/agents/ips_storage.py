@@ -1,4 +1,4 @@
-﻿"""
+"""
 AI WealthPilot - IPS Storage & Export Module
 
 Provides persistence and export capabilities for AI-generated
@@ -10,9 +10,7 @@ Key Features:
     3. Export to Markdown
     4. List and query stored IPS documents
 
-CFA Reference:
-    - CFA L3: Documentation and record-keeping requirements
-    - GIPS: Record-keeping standards
+
 """
 
 import json
@@ -722,8 +720,6 @@ def export_ips_pdf(
     Returns:
         Path to the exported PDF file.
 
-    CFA Reference:
-        CFA L3: Professional documentation standards for IPS delivery.
     """
     font_path = _find_cjk_font()
     builder = _IPSPDF(font_path)

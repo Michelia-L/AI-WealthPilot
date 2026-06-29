@@ -23,15 +23,6 @@ Output / 输出:
     - Portfolio allocation recommendations
       投资组合配置建议
 
-CFA Reference / CFA 参考:
-    This demo implements concepts from:
-    本演示实现了以下概念：
-    - CFA Level I: Portfolio Management, Mean-Variance Framework
-      CFA 一级：投资组合管理，均值-方差框架
-    - CFA Level III: Asset Allocation, Black-Litterman Model
-      CFA 三级：资产配置，Black-Litterman 模型
-    - CFA Level III: Private Wealth Management, Monte Carlo Simulation
-      CFA 三级：私人财富管理，蒙特卡洛模拟
 """
 
 import sys

@@ -4,8 +4,6 @@ Compliance & suitability disclaimer UI components.
 Shared Streamlit components that render regulatory disclaimers
 before any quantitative output is displayed.
 
-References:
-    - CFA L3 PWM: Suitability and fiduciary duty standards
     - GIPS: Disclosure of model limitations and backtesting caveats
 """
 

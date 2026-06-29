@@ -136,9 +136,9 @@ IPS_ASSET_CLASS_TICKERS = {
 # τ (tau) controls the weight placed on forward-looking implied volatility:
 #   blended_vol = τ × σ_implied + (1-τ) × σ_historical
 #   τ = 0.0 → pure historical volatility (backward-looking only)
-#   τ = 0.5 → equal weight (default; CFA-recommended balanced approach)
+#   τ = 0.5 → equal weight (default; balanced approach)
 #   τ = 1.0 → pure implied volatility (forward-looking only)
-# CFA Reference: CFA L3 — multi-method CME blending.
+
 CME_IV_BLENDING_TAU = 0.5
 
 # SAA Validation thresholds

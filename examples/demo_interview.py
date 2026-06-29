@@ -46,8 +46,8 @@ def main():
     print("AI WEALTHPILOT - PORTFOLIO ENGINE DEMO")
     print("AI WEALTHPILOT - 投资组合引擎演示")
     print("=" * 60)
-    print("\nDemonstrating CFA-aligned quantitative finance modules:")
-    print("展示与CFA课程对齐的量化金融模块：")
+    print("\nDemonstrating quantitative finance modules:")
+    print("展示量化金融模块：")
     print("  1. Mean-Variance Optimization (Markowitz)")
     print("     均值-方差优化（Markowitz）")
     print("  2. Monte Carlo Simulation (GBM)")
@@ -355,8 +355,8 @@ def main():
     print(f"   - 夏普比率：{metrics['sharpe_ratio']:.2f}（风险调整绩效）")
     print(f"   - VaR and CVaR quantify downside risk")
     print(f"   - VaR和CVaR量化下行风险")
-    print(f"   - All metrics aligned with CFA curriculum standards")
-    print(f"   - 所有指标与CFA课程标准对齐")
+    print(f"   - All metrics follow industry-standard methodologies")
+    print(f"   - 所有指标遵循行业标准方法论")
 
     print("\n" + "=" * 60)
     print("DEMO COMPLETED SUCCESSFULLY!")
@@ -373,8 +373,8 @@ def main():
     print("     风险指标（夏普、VaR、CVaR）如何计算和解读")
     print("  4. Real-world application: retirement planning with uncertainty")
     print("     实际应用：考虑不确定性的退休规划")
-    print("  5. CFA curriculum alignment and professional standards")
-    print("     CFA课程对齐和专业标准")
+    print("  5. Professional standards and best practices")
+    print("     专业标准与最佳实践")
 
 
 if __name__ == "__main__":

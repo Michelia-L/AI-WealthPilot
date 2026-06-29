@@ -1,8 +1,8 @@
-﻿"""
+"""
 AI WealthPilot - CME Cache Manager
 
 File-based caching layer for Capital Market Expectations (CME) reports.
-CME is a strategic, long-term forecast (CFA L3) that does not need to be
+CME is a strategic, long-term forecast that does not need to be
 recomputed on every IPS workflow run. This module provides TTL-based
 caching with parameter-hash validation and graceful degradation.
 
@@ -12,9 +12,7 @@ Cache strategy:
        fall back to stale data on failure (stale-while-revalidate)
     3. NO cache → full computation required
 
-CFA Reference:
-    - CFA L3: Setting Capital Market Expectations — typically updated
-      quarterly or semi-annually, not on every portfolio review.
+
 """
 
 import hashlib

@@ -7,13 +7,12 @@
 
   # AI WealthPilot
 
-  *A CFA® L3-Inspired Wealth Management Prototype & Quantitative Portfolio Engine*
+  *A Practical Wealth Management Prototype & Quantitative Portfolio Engine*
 
   [![Python](https://img.shields.io/badge/Python-3.11+-blue?style=flat-square&logo=python&logoColor=white)](https://www.python.org)
   [![Streamlit](https://img.shields.io/badge/Framework-Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)](https://streamlit.io)
   [![LangGraph](https://img.shields.io/badge/Agent-LangGraph-9f1239?style=flat-square&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
   [![PydanticAI](https://img.shields.io/badge/Framework-Pydantic--AI-0284c7?style=flat-square)](https://ai.pydantic.dev/)
-  [![CFA](https://img.shields.io/badge/CFA-Level%20III%20PWM-gold?style=flat-square)](https://www.cfainstitute.org)
   [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
   [![Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=flat-square)](https://github.com/Michelia-L/AI-WealthPilot/actions)
 
@@ -27,7 +26,7 @@
 
 ## Overview
 
-**AI WealthPilot** is a research-oriented asset allocation and decision-support prototype designed for private wealth management. It bridges financial academic theories and modern software engineering by instantiating the core syllabus of **CFA® Level III (Private Wealth Management)** into a functional quantitative engine. 
+**AI WealthPilot** is a research-oriented asset allocation and decision-support prototype designed for private wealth management. It bridges financial academic theories and modern software engineering by implementing industry-standard private wealth management methodologies into a functional quantitative engine. 
 
 The system couples a **Modern Portfolio Theory (MPT)** optimization solver with a **Geometric Brownian Motion (GBM)** life-cycle Monte Carlo simulator, and overlays an **AI Advisor Agent** to generate behavioral-finance-aware client recommendations.
 
@@ -38,7 +37,7 @@ The system couples a **Modern Portfolio Theory (MPT)** optimization solver with 
 
 ## Key Features
 
-- 🎓 **CFA® Level III Framework Alignment**  
+- 🎓 **Industry-Standard Risk Assessment Framework**  
   Implements the dual-track client profiling methodology, evaluating objective financial **Ability** and subjective psychological **Willingness** to take risk, defaulting to the conservative lower-of-the-two score to protect the client.
 - 🧮 **Rigorous Portfolio Optimization & Regularization**  
   Uses the `SciPy` SLSQP solver for Mean-Variance Optimization (MVO) to compute the Efficient Frontier, find the Tangency Portfolio (maximizing Sharpe ratio), and plot the Capital Allocation Line (CAL). Integrates condition number checking and automatic diagonal loading or eigenvalue clipping to maintain robust numerical stability.
@@ -205,7 +204,7 @@ $$S_{t+\Delta t} = S_t \exp \left( \left(\mu - \frac{1}{2}\sigma^2\right)\Delta 
   $$V_{t+1} = V_t \exp \left( \left(\mu_{\text{dist}} - \frac{1}{2}\sigma_{\text{dist}}^2\right) + \sigma_{\text{dist}} Z_t \right) - \text{Nominal Withdrawal}_t$$
   Where the nominal retirement income adjusts dynamically for inflation over time:
   $$\text{Nominal Withdrawal}_t = \text{Desired Real Income} \times (1 + \gamma)^{T_{\text{accum}} + t}$$
-  Here, $\gamma$ represents the assumed annualized inflation rate and $T_{\text{accum}}$ is the number of accumulation years. This ensures the model accurately preserves purchasing power, aligning with the CFA syllabus framework on longevity risk and inflation drag.
+  Here, $\gamma$ represents the assumed annualized inflation rate and $T_{\text{accum}}$ is the number of accumulation years. This ensures the model accurately preserves purchasing power, following established actuarial and wealth planning practices for longevity risk and inflation drag.
 
 *Note: For long-horizon, multi-period simulations, log-normal modeling (geometric/compound returns) is required because returns are time-additive. The $-\frac{1}{2}\sigma^2$ drift adjustment is the Jensen's Inequality correction, preventing systematic overestimation of long-term accumulated wealth.*
 
@@ -244,7 +243,7 @@ AI-WealthPilot/
 │   │   ├── market_dashboard.py   # Cross-asset quotes & correlation visualizers
 │   │   ├── portfolio_optimizer.py# MVO & Black-Litterman allocations
 │   │   ├── retirement_planner.py # Monte Carlo simulation planner
-│   │   ├── client_profiling.py   # CFA IPS questionnaire & profiles registry
+│   │   ├── client_profiling.py   # IPS questionnaire & profiles registry
 │   │   ├── ai_advisor.py         # AI advisor proposal interface (streaming)
 │   │   └── compliance.py         # Compliance & suitability disclaimer UI components
 │   ├── agents/                   # [AI Agent Core]
@@ -252,7 +251,7 @@ AI-WealthPilot/
 │   │   ├── advisor.py            # DeepSeek V4 Pro report generator agent (streaming)
 │   │   ├── portfolio_recommender.py # Personalized asset allocator agent
 │   │   ├── report_storage.py     # Multi-format (HTML/Markdown/JSON) report serializer & storage
-│   │   ├── ips_models.py         # CFA-aligned IPS Pydantic schemas (18 models incl. CurrencyPolicy, FeeSchedule)
+│   │   ├── ips_models.py         # IPS Pydantic schemas (18 models incl. CurrencyPolicy, FeeSchedule)
 │   │   ├── ips_agents.py         # PydanticAI agent definitions for generator, reviewer, reviser
 │   │   ├── ips_workflow.py       # LangGraph state machine orchestrating Generate-Review-Revise
 │   │   └── ips_storage.py        # Persistence and exports for IPS and audit trail reports
@@ -276,7 +275,7 @@ AI-WealthPilot/
 │   └── test_phase3_features.py   # End-to-end features integration tests
 ├── examples/                     # [Demo & Showcase Scripts]
 │   ├── demo_quick.py             # Simple quick demo (MVO + BL + Monte Carlo)
-│   ├── demo_interview.py         # CFA-aligned core interview demo (MVO + MC + Risk)
+│   ├── demo_interview.py         # Core quantitative engine demo (MVO + MC + Risk)
 │   ├── demo_comprehensive.py     # Complete visual demo with Plotly charts opening in browser
 │   ├── demo_advanced_optimization.py # Advanced regularization & Resampled MVO demo
 │   └── demo_ips_generator.py     # Multi-Agent LangGraph workflow execution terminal demo
@@ -374,6 +373,6 @@ python examples/demo_ips_generator.py
 > [!WARNING]
 > **Compliance & Professional Disclaimer**:
 > 
-> 1. **AI WealthPilot** is developed as an educational portfolio project demonstrating quantitative programming, CFA® syllabus implementation, and AI Agent architecture.
+> 1. **AI WealthPilot** is developed as an educational portfolio project demonstrating quantitative programming, quantitative finance implementation, and AI Agent architecture.
 > 2. All generated weights, optimized frontiers, wealth survival rates, and AI recommendations are **simulations based on historical values and mathematical assumptions. They do not constitute formal investment advice or a professional financial plan**.
 > 3. Financial markets carry extreme risk. Quantitative models are subject to structural model drift and systemic tail events. The author and project hold no liability for any financial losses incurred.

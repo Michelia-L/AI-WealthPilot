@@ -1,14 +1,11 @@
-﻿"""
+"""
 AI WealthPilot - Capital Market Expectations (CME) Data Models
 
 Pydantic schemas for structured CME reports used by the IPS generator.
 CME provides the quantitative foundation (expected returns, volatilities,
 correlations) that the LLM uses to construct data-driven asset allocations.
 
-CFA Reference:
-    - CFA L3: Setting Capital Market Expectations
-    - CFA L3: Asset Allocation — integrating CME into IPS
-    - CFA L3: Forecasting Asset Class Returns (historical, survey, model-based)
+
 """
 
 from typing import Optional
@@ -23,9 +20,6 @@ class AssetClassCME(BaseModel):
     Contains historical-based return and risk metrics computed from
     market data, used as quantitative inputs for IPS asset allocation.
 
-    CFA Reference:
-        CFA L3: Each asset class in the IPS should have explicit
-        expected return, volatility, and correlation assumptions.
     """
     name: str = Field(
         description="Asset class display name, e.g. '国内权益（A股/沪深300）'"
@@ -92,9 +86,6 @@ class CMEReport(BaseModel):
     and macro assumptions into a single document that gets injected
     into the IPS generator's LLM context.
 
-    CFA Reference:
-        CFA L3: CME is a prerequisite for any asset allocation decision.
-        The IPS must reference explicit, defensible market assumptions.
     """
     as_of_date: str = Field(
         description="Data as-of date, e.g. '2026-06-05'"

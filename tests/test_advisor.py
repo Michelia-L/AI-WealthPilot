@@ -349,7 +349,7 @@ class TestPromptConstruction:
         prompt = _build_user_prompt(conflicting_profile)
 
         assert "CONFLICT DETECTED" in prompt or "冲突检测" in prompt
-        assert "CFA principle: use the LOWER score" in prompt
+        assert "Prudential principle: use the LOWER score" in prompt
 
     def test_no_conflict_when_aligned(self, sample_profile):
         """Test no conflict note when scores are aligned."""
@@ -569,9 +569,8 @@ class TestStreamingGeneration:
 class TestSystemPrompt:
     """Tests for system prompt content."""
 
-    def test_system_prompt_contains_cfa_reference(self):
-        """Test that system prompt references CFA framework."""
-        assert "CFA" in SYSTEM_PROMPT
+    def test_system_prompt_contains_framework_reference(self):
+        """Test that system prompt references PWM framework."""
         assert "Private Wealth Management" in SYSTEM_PROMPT
         assert "IPS" in SYSTEM_PROMPT or "Investment Policy Statement" in SYSTEM_PROMPT
 
@@ -591,7 +590,7 @@ class TestSystemPrompt:
     def test_system_prompt_contains_constraints(self):
         """Test that system prompt includes constraints."""
         assert "Never guarantee" in SYSTEM_PROMPT or "绝不保证" in SYSTEM_PROMPT
-        assert "CFA principles" in SYSTEM_PROMPT or "CFA 原则" in SYSTEM_PROMPT
+        assert "established principles" in SYSTEM_PROMPT or "审慎原则" in SYSTEM_PROMPT
 
 
 # ============================================================

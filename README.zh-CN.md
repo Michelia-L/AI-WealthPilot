@@ -7,13 +7,12 @@
 
   # AI WealthPilot
 
-  *基于 CFA® L3 知识体系的智能财富管理原型与组合量化引擎*
+  *面向实务的智能财富管理原型与组合量化引擎*
 
   [![Python](https://img.shields.io/badge/Python-3.11+-blue?style=flat-square&logo=python&logoColor=white)](https://www.python.org)
   [![Streamlit](https://img.shields.io/badge/Framework-Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)](https://streamlit.io)
   [![LangGraph](https://img.shields.io/badge/Agent-LangGraph-9f1239?style=flat-square&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
   [![PydanticAI](https://img.shields.io/badge/Framework-Pydantic--AI-0284c7?style=flat-square)](https://ai.pydantic.dev/)
-  [![CFA](https://img.shields.io/badge/CFA-Level%20III%20PWM-gold?style=flat-square)](https://www.cfainstitute.org)
   [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
   [![Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=flat-square)](https://github.com/Michelia-L/AI-WealthPilot/actions)
 
@@ -27,7 +26,7 @@
 
 ## 项目概述
 
-**AI WealthPilot** 是一个面向私人财富管理场景的资产配置与决策支持原型系统。它将 **CFA® 三级私人财富管理 (Private Wealth Management)** 的经典理论考纲具象化为可运行的量化代码，在学术严谨性与现代软件工程之间架起桥梁。
+**AI WealthPilot** 是一个面向私人财富管理场景的资产配置与决策支持原型系统。它将私人财富管理领域的业界标准方法论具象化为可运行的量化代码，在学术严谨性与现代软件工程之间架起桥梁。
 
 该系统深度融合了 **均值-方差优化 (MVO)** 与 **几何布朗运动 (GBM)** 财富生命周期蒙特卡洛路径模拟器，并搭载 **AI 顾问 Agent** 识别行为金融学偏差，生成个性化的配置建议书。
 
@@ -38,8 +37,8 @@
 
 ## 核心功能
 
-- 🎓 **对标 CFA® 三级私人财富管理框架**  
-  实现客观财务**承受能力 (Ability)** 与主观心理**承担意愿 (Willingness)** 的双轨制风险承受度模型。严格执行 CFA 的审慎原则，当两者冲突时“就低不就高”，以最大化保护客户利益。
+- 🎓 **业界标准风险评估框架**  
+  实现客观财务**承受能力 (Ability)** 与主观心理**承担意愿 (Willingness)** 的双轨制风险承受度 model。严格执行审慎原则，当两者冲突时“就低不就高”，以最大化保护客户利益。
 - 🧮 **现代投资组合理论优化与正则化 (MPT/MVO)**  
   利用 `SciPy` 的 SLSQP 算法求解约束优化问题，绘制有效前沿 (Efficient Frontier)，求解切点组合 (Tangency Portfolio，即最大夏普比率组合) 以及资本配置线 (CAL)。实现自动条件数检测与对角加载（Diagonal Loading）或特征值裁剪（Eigenvalue Clipping）的数值正则化，确保数值稳定性。
 - 💎 **协方差矩阵收缩估计量**  
@@ -203,7 +202,7 @@ $$S_{t+\Delta t} = S_t \exp \left( \left(\mu - \frac{1}{2}\sigma^2\right)\Delta 
   $$V_{t+1} = V_t \exp \left( \left(\mu_{\text{dist}} - \frac{1}{2}\sigma_{\text{dist}}^2\right) + \sigma_{\text{dist}} Z_t \right) - \text{Nominal Withdrawal}_t$$
   其中，名义提取额名义值会随通胀逐年进行动态修正：
   $$\text{Nominal Withdrawal}_t = \text{Desired Real Income} \times (1 + \gamma)^{T_{\text{accum}} + t}$$
-  其中 $\gamma$ 代表年化通货膨胀率假设，$T_{\text{accum}}$ 为工作积累期年数，以确保模型精确维护退休后的实际购买力支出需求，完全契合 CFA 考纲对长寿风险与通胀侵蚀的定量度量。
+  其中 $\gamma$ 代表年化通货膨胀率假设，$T_{\text{accum}}$ 为工作积累期年数，以确保模型精确维护退休后的实际购买力支出需求，遵循业界对长寿风险与通胀侵蚀的标准定量度量。
 
 *注：在进行长周期、多期的资产路径模拟中，由于单期收益率的复利效应和波动率拖累（Volatility Drag），我们必须采用对数收益率（几何均值收益率），它具有时间可加性。引入的 $-\frac{1}{2}\sigma^2$ 项为 Jensen 不等式修正，能够消除对多期累计财富的系统性高估。*
 
@@ -242,7 +241,7 @@ AI-WealthPilot/
 │   │   ├── market_dashboard.py   # 跨资产行情监控与相关性热力图
 │   │   ├── portfolio_optimizer.py# MVO & Black-Litterman 配置界面
 │   │   ├── retirement_planner.py # 蒙特卡洛财富寿命规划器
-│   │   ├── client_profiling.py   # CFA IPS 问卷与客户档案库
+│   │   ├── client_profiling.py   # IPS 问卷与客户档案库
 │   │   ├── ai_advisor.py         # AI 顾问流式建议书交互页面
 │   │   └── compliance.py         # 合规与免责声明 UI 组件
 │   ├── agents/                   # 【AI 决策与智能体层】
@@ -250,7 +249,7 @@ AI-WealthPilot/
 │   │   ├── advisor.py            # DeepSeek V4 Pro 建议书生成 Agent（流式）
 │   │   ├── portfolio_recommender.py # 客户画像-资产类别风险匹配 Agent
 │   │   ├── report_storage.py     # 多格式（HTML/Markdown/JSON）建议书序列化存储与导出
-│   │   ├── ips_models.py         # CFA-IPS 核心 Pydantic 强类型数据模型（18个模型，含 CurrencyPolicy、FeeSchedule）
+│   │   ├── ips_models.py         # IPS 核心 Pydantic 强类型数据模型（18个模型，含 CurrencyPolicy、FeeSchedule）
 │   │   ├── ips_agents.py         # 基于 PydanticAI 的生成/多审查员/修订 Agent 定义
 │   │   ├── ips_workflow.py       # 基于 LangGraph 的多智能体闭环工作流状态机
 │   │   └── ips_storage.py        # 投资政策声明书及审计历史的本地存储与 MD 导出器
@@ -274,7 +273,7 @@ AI-WealthPilot/
 │   └── test_phase3_features.py   # 阶段3功能端到端集成测试
 ├── examples/                     # 【示例与演示脚本】
 │   ├── demo_quick.py             # 快速入门演示（MVO + BL + 蒙特卡洛）
-│   ├── demo_interview.py         # 对标 CFA 核心演示（MVO + 蒙特卡洛 + 风险指标）
+│   ├── demo_interview.py         # 核心量化引擎演示（MVO + 蒙特卡洛 + 风险指标）
 │   ├── demo_comprehensive.py     # 完整可视化演示（在浏览器中打开交互式 Plotly 图表）
 │   ├── demo_advanced_optimization.py # 高级优化特性演示（矩阵正则化与重抽样 MVO）
 │   └── demo_ips_generator.py     # LangGraph 驱动的 AI 编排 IPS 多轮迭代生成终端演示
@@ -349,7 +348,7 @@ python -m pytest -v
 我们在 `examples/` 目录下提供了几个独立的演示脚本，用于离线运行量化引擎并展示核心功能：
 
 ```bash
-# 运行对标 CFA 的核心面试演示（包含 MVO、蒙特卡洛、夏普比率/VaR/CVaR 风险指标）
+# 运行核心量化引擎演示（包含 MVO、蒙特卡洛、夏普比率/VaR/CVaR 风险指标）
 python examples/demo_interview.py
 
 # 运行快速入门演示（包含 MVO、Black-Litterman、蒙特卡洛模拟）
@@ -372,6 +371,6 @@ python examples/demo_ips_generator.py
 > [!WARNING]
 > **合规声明与专业免责条款**：
 > 
-> 1. **AI WealthPilot** 项目仅作为作者**展示金融编程能力、CFA® 知识理论体系落地和 AI Agent 工程设计的个人学习作品集**。
+> 1. **AI WealthPilot** 项目仅作为作者**展示金融编程能力、量化金融理论落地和 AI Agent 工程设计的个人学习作品集**。
 > 2. 系统输出的所有资产比重、优化曲线、财富存活率及 AI 顾问方案均为**基于历史数据及特定量化模型假设下的理论模拟结果，在任何情况下均不构成实质性投资建议或理财规划书**。
 > 3. 金融市场波动巨大，量化模型存在结构性漂移和尾部黑天鹅风险。作者及项目不为任何因据此投资决策产生的资金损失承担法律责任。

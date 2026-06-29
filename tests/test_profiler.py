@@ -2,7 +2,7 @@
 AI WealthPilot - Client Profiler Tests
 AI WealthPilot - 客户画像模块测试
 
-Tests for the CFA IPS-based client profiling system, covering:
+Tests for the IPS-based client profiling system, covering:
 - Financial situation calculations (净资产, 储蓄率, 资产负债率)
 - Risk profile scoring and classification (风险评分与分类)
 - Questionnaire scoring logic (问卷评分逻辑)
@@ -140,7 +140,7 @@ class TestFinancialSituation:
 class TestRiskProfile:
 
     def test_final_score_uses_minimum(self):
-        """CFA principle: final score = min(ability, willingness)."""
+        """Prudential principle: final score = min(ability, willingness)."""
         rp = RiskProfile(ability_score=4.0, willingness_score=2.5)
         assert rp.final_score == 2.5
 

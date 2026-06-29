@@ -1,4 +1,4 @@
-﻿"""
+"""
 AI Wealth Advisor page — Streamlit UI for generating AI advisory reports.
 
 Users select a client profile, preview key metrics, then generate a
@@ -341,10 +341,10 @@ def render() -> None:
     """Main render function for the AI Advisor page."""
     st.title("AI Wealth Advisor / AI 财富顾问")
     st.markdown(
-        "Generate a personalized, CFA-compliant investment advisory report "
+        "Generate a personalized investment advisory report "
         "powered by **DeepSeek V4 Pro**. Select a client profile below to "
         "get started. / \n\n"
-        "生成由 **DeepSeek V4 Pro** 驱动的个性化、符合 CFA 规范的投资咨询建议书。"
+        "生成由 **DeepSeek V4 Pro** 驱动的个性化投资咨询建议书。"
         "请在下方选择一个客户画像开始。"
     )
     st.divider()

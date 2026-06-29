@@ -1,12 +1,10 @@
-﻿"""
+"""
 Monte Carlo simulator for goal-based portfolio planning.
 
 Simulates portfolio value paths using Geometric Brownian Motion (GBM)
 with optional contributions/withdrawals. Supports two-phase retirement
 planning (accumulation → distribution) with survival rate estimation.
 
-References:
-    - CFA L3: Private Wealth Management — Goal-Based Planning
     - Glasserman (2003). Monte Carlo Methods in Financial Engineering.
 """
 
