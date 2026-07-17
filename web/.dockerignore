@@ -1,0 +1,10 @@
+# Dependencies
+node_modules/
+
+# Build output (rebuilt inside the image)
+.next/
+out/
+
+# VCS & misc
+.git/
+*.log
