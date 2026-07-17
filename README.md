@@ -255,6 +255,16 @@ AI-WealthPilot/
 │   │   ├── ips_agents.py         # PydanticAI agent definitions for generator, reviewer, reviser
 │   │   ├── ips_workflow.py       # LangGraph state machine orchestrating Generate-Review-Revise
 │   │   └── ips_storage.py        # Persistence and exports for IPS and audit trail reports
+├── api/                          # [FastAPI Shell — new, migration in progress]
+│   ├── main.py                   # App entry: CORS, routers, /api/health
+│   ├── routers/                  # Read-only endpoints (market quotes, risk-free rate, CME)
+│   └── Dockerfile                # API image (context = repo root)
+├── web/                          # [Next.js Frontend — new, migration in progress]
+│   ├── src/app/                  # App Router pages (validation dashboard at /)
+│   ├── src/components/           # Quotes grid, CME table sections
+│   ├── src/lib/                  # Typed API client & formatters
+│   └── Dockerfile                # Web image (standalone output)
+├── docker-compose.yml            # One-command full stack: web (3000) + api (8000)
 ├── tests/                        # [Automated Test Suite]
 │   ├── conftest.py               # Pytest fixtures and mock API configurations
 │   ├── test_portfolio.py         # Core quant engine validations
@@ -332,6 +342,20 @@ AI-WealthPilot/
    streamlit run src/app.py
    ```
    The app will run locally at `http://localhost:8501`.
+
+### Next.js Frontend (Migration in Progress)
+
+The project is migrating to a decoupled **Next.js + FastAPI** architecture (see [`docs/migration-nextjs.md`](docs/migration-nextjs.md) for the roadmap). The Streamlit UI remains fully functional during the transition.
+
+```bash
+# Full stack via Docker (recommended)
+docker compose up --build
+# → Web: http://localhost:3000   API docs: http://localhost:8000/docs
+
+# Or run both sides from source
+uvicorn api.main:app --reload --port 8000   # FastAPI shell over src/
+cd web && npm install && npm run dev        # Next.js frontend
+```
 
 ---
 
