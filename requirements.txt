@@ -27,5 +27,9 @@ markdown>=3.4.0
 nh3>=0.2.0  # HTML sanitizer for LLM-generated report content (XSS prevention)
 fpdf2>=2.8.0
 
+# API Layer (thin FastAPI shell over src/ for the Next.js frontend)
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+
 # Testing
 pytest>=7.4.0

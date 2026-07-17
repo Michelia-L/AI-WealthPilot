@@ -1,0 +1,26 @@
+# Frontend build context (huge, built by web/Dockerfile)
+web/
+node_modules/
+
+# VCS
+.git/
+
+# Python local env & caches
+.venv/
+__pycache__/
+*.pyc
+
+# Secrets
+.env
+
+# Not needed inside the API image
+scratch/
+notebooks/
+tests/
+examples/
+
+# Runtime user data stays on the host (mounted as a volume by compose)
+data/ips/
+data/profiles/
+data/reports/
+data/cache/

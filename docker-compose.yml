@@ -1,0 +1,32 @@
+# AI WealthPilot — local-first deployment.
+#
+#   docker compose up --build
+#
+# Web:  http://localhost:3000  (Next.js)
+# API:  http://localhost:8000  (FastAPI, docs at /docs)
+#
+# The stack is host-agnostic: point it at a VPS later and it works unchanged.
+
+services:
+  api:
+    build:
+      context: .          # repository root — the API imports the src/ package
+      dockerfile: api/Dockerfile
+    env_file:
+      - path: .env        # optional: FRED_API_KEY / DEEPSEEK_API_KEY
+        required: false
+    volumes:
+      - ./data:/app/data  # CME cache, profiles, reports stay on the host
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: ./web
+    environment:
+      # Server Components fetch the API over the internal compose network.
+      API_ORIGIN: http://api:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
