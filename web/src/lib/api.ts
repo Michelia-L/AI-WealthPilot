@@ -255,3 +255,62 @@ export const OPTIMIZER_PERIOD_OPTIONS = [
 
 export const getAssetClasses = () =>
   getJson<AssetClassesResponse>("/api/portfolio/asset-classes");
+
+// ---------------------------------------------------------------------------
+// Retirement planning
+// ---------------------------------------------------------------------------
+
+export interface RetirementRequest {
+  current_age: number;
+  retirement_age: number;
+  life_expectancy: number;
+  current_savings: number;
+  annual_savings: number;
+  desired_annual_income: number;
+  inflation_rate: number;
+  expected_return: number;
+  volatility: number;
+  n_simulations: number;
+}
+
+export interface TerminalStats {
+  mean: number;
+  median: number;
+  p5: number;
+  p25: number;
+  p75: number;
+  p95: number;
+}
+
+export interface DepletionAnalysis {
+  never_depleted_pct: number;
+  depleted_within_10y_pct: number;
+  median_depletion_year: number | null;
+}
+
+export interface SensitivityRow {
+  annual_savings: number;
+  is_current: boolean;
+  survival_rate: number;
+  median_at_retirement: number;
+}
+
+export interface RetirementResponse {
+  as_of: string;
+  params: RetirementRequest & { seed: number };
+  survival_rate: number;
+  accumulation_years: number;
+  distribution_years: number;
+  terminal_at_retirement: TerminalStats;
+  accumulation_chart: PlotlyFigure;
+  distribution_chart: PlotlyFigure;
+  depletion: DepletionAnalysis;
+  sensitivity: SensitivityRow[];
+}
+
+export const SIMULATION_OPTIONS = [
+  { value: 1000, label: "1k" },
+  { value: 5000, label: "5k" },
+  { value: 10000, label: "10k" },
+  { value: 50000, label: "50k" },
+] as const;

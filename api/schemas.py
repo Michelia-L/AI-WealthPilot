@@ -188,3 +188,64 @@ class OptimizeResponse(BaseModel):
     allocation_chart: dict[str, Any]
     asset_stats: list[AssetStat]
     bl: Optional[BLInsight] = None
+
+
+# ---------------------------------------------------------------------------
+# Retirement planning (two-phase Monte Carlo)
+# ---------------------------------------------------------------------------
+
+
+class RetirementRequest(BaseModel):
+    current_age: int = Field(default=30, ge=18, le=80)
+    retirement_age: int = Field(default=60, ge=19, le=90)
+    life_expectancy: int = Field(default=85, ge=30, le=110)
+    current_savings: float = Field(default=100000, ge=0)
+    annual_savings: float = Field(default=50000, ge=0)
+    desired_annual_income: float = Field(default=80000, ge=0)
+    inflation_rate: float = Field(default=0.025, ge=0, le=0.2)
+    expected_return: float = Field(default=0.07, ge=-0.1, le=0.4)
+    volatility: float = Field(default=0.15, ge=0.01, le=0.8)
+    n_simulations: int = Field(default=10000, ge=1000, le=50000)
+
+
+class TerminalStats(BaseModel):
+    """Terminal portfolio value distribution at the end of accumulation."""
+
+    mean: float
+    median: float
+    p5: float
+    p25: float
+    p75: float
+    p95: float
+
+
+class DepletionAnalysis(BaseModel):
+    never_depleted_pct: float = Field(description="Share of paths that never hit zero")
+    depleted_within_10y_pct: float = Field(
+        description="Share of paths depleted within the first 10 distribution years"
+    )
+    median_depletion_year: Optional[float] = Field(
+        default=None, description="Median depletion year among depleted paths"
+    )
+
+
+class SensitivityRow(BaseModel):
+    annual_savings: float
+    is_current: bool
+    survival_rate: float
+    median_at_retirement: float
+
+
+class RetirementResponse(BaseModel):
+    as_of: datetime
+    params: dict[str, Any]
+    survival_rate: float = Field(
+        description="Fraction of distribution paths that never hit zero"
+    )
+    accumulation_years: int
+    distribution_years: int
+    terminal_at_retirement: TerminalStats
+    accumulation_chart: dict[str, Any]
+    distribution_chart: dict[str, Any]
+    depletion: DepletionAnalysis
+    sensitivity: list[SensitivityRow]

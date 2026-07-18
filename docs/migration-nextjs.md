@@ -1,6 +1,6 @@
 # Next.js 迁移计划 / Migration Plan
 
-> Status: **Phase 3a complete** (2026-07-18) — 多页导航骨架 + 组合优化器（MVO / Resampled / BL）。
+> Status: **Phase 3b complete** (2026-07-18) — 退休规划（两阶段蒙特卡洛）。
 
 ## 目标
 
@@ -26,7 +26,7 @@ src/    Python 量化核心（优化器、CME、Agents）— 零改动，Streaml
 | 0+1 | 仓库改造 + FastAPI 薄壳（健康检查、行情、无风险利率、CME）+ Next.js 脚手架 + 验证页 + Docker | ✅ 2026-07-17 |
 | 2 | Market Dashboard 正式版（图表迁移：plotly `fig.to_json()` → plotly.js；类别/周期控件；Tabs + 归一化） | ✅ 2026-07-17 |
 | 3a | 多页导航骨架（sidebar layout）+ Portfolio Optimizer（首个 POST 端点 + 表单交互，MVO/Resampled/BL） | ✅ 2026-07-18 |
-| 3b | Retirement Planner（蒙特卡洛 POST + 表单页） | ⬜ |
+| 3b | Retirement Planner（蒙特卡洛 POST + 表单页） | ✅ 2026-07-18 |
 | 3c | 客户画像 CRUD 落 SQLite（SQLModel，schema 预留 `user_id`）+ 画像页面 | ⬜ |
 | 4 | AI Advisor 流式输出（SSE）；IPS 工作流异步任务化（进程内队列 + 进度推送） | ⬜ |
 | 5 | 部署打磨：数据迁移工具、公网简单认证、镜像瘦身 | ⬜ |
@@ -104,9 +104,19 @@ pytest tests/
 
 **已知限制：** 重采样（尤其高模拟次数）是分钟级同步计算，目前靠 loading 态承担；Phase 4 异步任务化后改善。
 
-## 下一步（Phase 3b/3c 切入点）
+## Phase 3b 交付内容（2026-07-18）
 
-1. `POST /api/retirement/simulate`：`MonteCarloSimulator.retirement_planning(...)` 参数化（年龄/储蓄/收入/通胀/收益/波动/模拟次数），响应 = 积累期/支取期路径图（`plot_monte_carlo_paths`）+ 存活率/分位数/枯竭分析；
-2. `/retirement` 页复用 3a 的表单-代理-结果模式；
-3. 画像 CRUD：`api/db.py`（SQLModel + SQLite，`user_id` 预留），`ClientProfile` 存为 JSON 列 + 索引字段（名称/年龄/风险等级/更新时间），迁移工具读 `data/profiles/*.json`；
-4. `/profiles` 页：列表 + 新建/编辑表单（风险问卷后续单独迁移）。
+**API 新增：**
+
+- `POST /api/retirement/simulate` — 两阶段退休蒙特卡洛（积累期储蓄注入 → 支取期通胀调整提款）。固定 seed=42 保证同参同结果；响应含积累/支取路径图（200 条采样路径 + 5–95 分位带）、存活率、退休时终值分位数（P5–P95 + 均值）、枯竭分析（从未耗尽 / 10 年内耗尽 / 中位耗尽年份，向量化镜像 Streamlit 算法）、储蓄敏感性表（0.5×–2× 六档，各 5000 次模拟）。年龄约束 422 校验。
+
+**Web 新增：**
+
+- `/retirement` 页：滑块表单（年龄三段、收益/波动/通胀）+ 金额输入 + 模拟次数档 → 存活率状态卡（≥85% 稳健 / ≥70% 关注 / 否则风险）+ 双路径图 + 枯竭分析 + 分位数表 + 敏感性表
+- 代理泛化：`src/lib/proxy.ts` 的 `proxyPost()` 供所有写路由复用（optimize / simulate 已接入）
+- 导航新增"退休规划"
+
+## 下一步（Phase 3c 切入点）
+
+1. `api/db.py`（SQLModel + SQLite，`user_id` 预留），`ClientProfile` 存为 JSON 列 + 索引字段（名称/年龄/风险等级/更新时间），迁移工具读 `data/profiles/*.json`；
+2. `/profiles` 页：列表 + 新建/编辑表单（风险问卷后续单独迁移）。

@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 const NAV_ITEMS = [
   { href: "/", label: "市场仪表盘", en: "Market Dashboard", icon: "📊" },
   { href: "/optimizer", label: "组合优化器", en: "Portfolio Optimizer", icon: "🧮" },
-  // Phase 3b/3c: 退休规划 /retirement · 客户画像 /profiles
+  { href: "/retirement", label: "退休规划", en: "Retirement", icon: "🎯" },
+  // Phase 3c: 客户画像 /profiles
 ];
 
 export default function NavSidebar() {

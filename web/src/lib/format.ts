@@ -78,3 +78,9 @@ export function fmtUtc(iso: string): string {
   if (Number.isNaN(d.getTime())) return iso;
   return `${d.toISOString().replace("T", " ").slice(0, 19)} UTC`;
 }
+
+/** Format a monetary amount with thousands separators ("4,745,560"). */
+export function fmtMoney(value: number | null, prefix = "$"): string {
+  if (value === null || Number.isNaN(value)) return "—";
+  return `${prefix}${value.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+}
