@@ -84,3 +84,8 @@ export function fmtMoney(value: number | null, prefix = "$"): string {
   if (value === null || Number.isNaN(value)) return "—";
   return `${prefix}${value.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
+
+/** Render a naive local ISO timestamp ("2026-07-18T15:04:05") compactly. */
+export function fmtLocal(iso: string): string {
+  return iso ? iso.slice(0, 16).replace("T", " ") : "—";
+}

@@ -7,7 +7,7 @@ const NAV_ITEMS = [
   { href: "/", label: "市场仪表盘", en: "Market Dashboard", icon: "📊" },
   { href: "/optimizer", label: "组合优化器", en: "Portfolio Optimizer", icon: "🧮" },
   { href: "/retirement", label: "退休规划", en: "Retirement", icon: "🎯" },
-  // Phase 3c: 客户画像 /profiles
+  { href: "/profiles", label: "客户画像", en: "Profiles", icon: "👤" },
 ];
 
 export default function NavSidebar() {

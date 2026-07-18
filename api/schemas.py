@@ -249,3 +249,93 @@ class RetirementResponse(BaseModel):
     distribution_chart: dict[str, Any]
     depletion: DepletionAnalysis
     sensitivity: list[SensitivityRow]
+
+
+# ---------------------------------------------------------------------------
+# Client profiles (Phase 3c — SQLite persistence)
+# ---------------------------------------------------------------------------
+
+MARITAL_STATUSES = ("single", "married", "divorced", "widowed")
+TAX_STATUSES = ("tax-exempt", "taxable", "tax-deferred")
+GOAL_PRIORITIES = ("high", "medium", "low")
+
+
+class FinancialSituationInput(BaseModel):
+    annual_income: float = Field(default=0.0, ge=0)
+    annual_expenses: float = Field(default=0.0, ge=0)
+    investable_assets: float = Field(default=0.0, ge=0)
+    total_liabilities: float = Field(default=0.0, ge=0)
+    emergency_fund_months: float = Field(default=0.0, ge=0)
+
+
+class InvestmentGoalInput(BaseModel):
+    name: str = Field(default="", max_length=100)
+    target_amount: float = Field(default=0.0, ge=0)
+    years: int = Field(default=0, ge=0, le=80)
+    priority: Literal["high", "medium", "low"] = "medium"
+
+
+class RiskScoresInput(BaseModel):
+    """Manual risk scores (0 = not assessed). The questionnaire that derives
+    these from answers migrates in a later phase; answers are stored raw."""
+
+    ability_score: float = Field(default=0.0, ge=0, le=5)
+    willingness_score: float = Field(default=0.0, ge=0, le=5)
+
+
+class ProfilePayload(BaseModel):
+    """Editable client profile — mirrors src.agents.profiler.ClientProfile."""
+
+    name: str = Field(min_length=1, max_length=100)
+    age: int = Field(ge=18, le=100)
+    marital_status: Literal["single", "married", "divorced", "widowed"] = "single"
+    dependents: int = Field(default=0, ge=0, le=20)
+    financial: FinancialSituationInput = Field(default_factory=FinancialSituationInput)
+    goals: list[InvestmentGoalInput] = Field(default_factory=list)
+    time_horizon_years: int = Field(default=10, ge=1, le=60)
+    is_multi_stage: bool = False
+    liquidity_needs: float = Field(default=0.0, ge=0)
+    tax_status: Literal["tax-exempt", "taxable", "tax-deferred"] = "taxable"
+    esg_preference: bool = False
+    sector_restrictions: list[str] = Field(default_factory=list)
+    notes: str = Field(default="", max_length=2000)
+    risk_scores: RiskScoresInput = Field(default_factory=RiskScoresInput)
+    ability_answers: dict[str, str] = Field(default_factory=dict)
+    willingness_answers: dict[str, str] = Field(default_factory=dict)
+
+
+class ProfileSummary(BaseModel):
+    id: int
+    name: str
+    age: int
+    risk_level: str
+    updated_at: str
+
+
+class ProfileListResponse(BaseModel):
+    profiles: list[ProfileSummary]
+
+
+class ProfileDerived(BaseModel):
+    """Metrics derived from src/ dataclass properties (single source of truth)."""
+
+    net_worth: float
+    annual_savings: float
+    savings_rate: float
+    debt_to_asset_ratio: Optional[float] = None  # None = +inf (debt, no assets)
+    final_risk_score: float
+    tolerance_level: str
+
+
+class ProfileDetailResponse(BaseModel):
+    id: int
+    created_at: str
+    updated_at: str
+    profile: dict[str, Any] = Field(description="Full stored ClientProfile dict")
+    derived: ProfileDerived
+
+
+class ProfileImportResponse(BaseModel):
+    files_found: int
+    imported: int
+    skipped: int

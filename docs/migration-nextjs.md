@@ -1,6 +1,6 @@
 # Next.js 迁移计划 / Migration Plan
 
-> Status: **Phase 3b complete** (2026-07-18) — 退休规划（两阶段蒙特卡洛）。
+> Status: **Phase 3c complete** (2026-07-18) — 客户画像落 SQLite + 画像页面。
 
 ## 目标
 
@@ -27,7 +27,7 @@ src/    Python 量化核心（优化器、CME、Agents）— 零改动，Streaml
 | 2 | Market Dashboard 正式版（图表迁移：plotly `fig.to_json()` → plotly.js；类别/周期控件；Tabs + 归一化） | ✅ 2026-07-17 |
 | 3a | 多页导航骨架（sidebar layout）+ Portfolio Optimizer（首个 POST 端点 + 表单交互，MVO/Resampled/BL） | ✅ 2026-07-18 |
 | 3b | Retirement Planner（蒙特卡洛 POST + 表单页） | ✅ 2026-07-18 |
-| 3c | 客户画像 CRUD 落 SQLite（SQLModel，schema 预留 `user_id`）+ 画像页面 | ⬜ |
+| 3c | 客户画像 CRUD 落 SQLite（SQLModel，schema 预留 `user_id`）+ 画像页面 | ✅ 2026-07-18 |
 | 4 | AI Advisor 流式输出（SSE）；IPS 工作流异步任务化（进程内队列 + 进度推送） | ⬜ |
 | 5 | 部署打磨：数据迁移工具、公网简单认证、镜像瘦身 | ⬜ |
 | 6 | 退役 Streamlit（删除 `src/views/`、`app.py`、streamlit 依赖） | ⬜ |
@@ -116,7 +116,29 @@ pytest tests/
 - 代理泛化：`src/lib/proxy.ts` 的 `proxyPost()` 供所有写路由复用（optimize / simulate 已接入）
 - 导航新增"退休规划"
 
-## 下一步（Phase 3c 切入点）
+## Phase 3c 交付内容（2026-07-18）
 
-1. `api/db.py`（SQLModel + SQLite，`user_id` 预留），`ClientProfile` 存为 JSON 列 + 索引字段（名称/年龄/风险等级/更新时间），迁移工具读 `data/profiles/*.json`；
-2. `/profiles` 页：列表 + 新建/编辑表单（风险问卷后续单独迁移）。
+**持久层新增：**
+
+- `api/db.py` — SQLModel + SQLite（`data/wealthpilot.db`，compose 卷挂载持久化）。`ProfileRecord` 表：完整画像存 JSON 列（保持 `asdict(ClientProfile)` 形状，下游 IPS/Advisor 阶段直接消费），名称/年龄/风险等级/更新时间为索引列，`user_id` 预留。`init_db()` 随应用启动幂等建表；`AIWP_DB_URL` 可覆盖（测试注入 tmp 库）。
+- `api/migrate_profiles.py` — 旧 JSON 画像导入工具（按 `(name, created_at)` 幂等去重），CLI `python -m api.migrate_profiles` 与端点共用同一实现。
+
+**API 新增：**
+
+- `GET/POST /api/profiles`、`GET/PUT/DELETE /api/profiles/{id}` — 完整 CRUD。请求模型 `ProfilePayload` 镜像 `ClientProfile`（婚姻/税务/优先级 Literal 校验）；风险等级由服务端按 src 规则 `min(能力, 意愿)` 计算（未评估=空串，不误标保守型）；`derived` 响应块（净资产/储蓄率/负债比/综合评分）直接读 src dataclass 属性，+inf 负债比序列化为 null。
+- `POST /api/profiles/import` — 从 `data/profiles/*.json` 导入（Streamlit 时代数据），幂等。
+- CORS 方法扩展为 GET/POST/PUT/DELETE。
+
+**Web 新增：**
+
+- `/profiles` 页：服务端渲染列表（风险等级彩色 chip）+ 客户端管理组件（新建/编辑表单：基本信息、财务状况、目标动态行编辑器、约束偏好、风险双滑块实时预览等级；删除确认；JSON 导入按钮）。
+- 代理层泛化：`proxyJson()` 支持 GET/POST/PUT/DELETE（204 空体特判），`/api/profiles` 三个写路由接入。
+- 导航新增"客户画像"。
+
+**已知限制：** 风险问卷 UI（9 题双轨制）后续单独迁移，当前以手动评分代替；画像对比（compare_profiles）与行为偏差分析随 Phase 4 顾问工作流接入。
+
+## 下一步（Phase 4 切入点）
+
+1. AI Advisor 流式输出（SSE）：`POST /api/advisor/chat` 流式端点 + web 端 EventSource/ReadableStream 消费；
+2. IPS 工作流异步任务化：进程内队列 + 进度推送（顺带解决 resampled-MVO 分钟级同步计算问题）；
+3. 风险问卷迁移：9 题双轨制表单，答案存入画像 `ability_answers`/`willingness_answers` 并自动算分。

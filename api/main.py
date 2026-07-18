@@ -8,6 +8,7 @@ Interactive docs: http://localhost:8000/docs
 """
 
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,7 +16,8 @@ from fastapi.middleware.cors import CORSMiddleware
 # Importing the api package first ensures the project-root sys.path guard
 # in api/__init__.py runs before any `src.*` import below.
 import api  # noqa: F401
-from api.routers import cme, market, portfolio, retirement
+from api.db import init_db
+from api.routers import cme, market, portfolio, profiles, retirement
 from api.schemas import HealthResponse
 from src.config import APP_NAME, APP_VERSION
 
@@ -25,6 +27,11 @@ DEFAULT_CORS_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
 
 def create_app() -> FastAPI:
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        init_db()  # create SQLite tables on first boot (idempotent)
+        yield
+
     app = FastAPI(
         title=f"{APP_NAME} API",
         version=APP_VERSION,
@@ -32,13 +39,14 @@ def create_app() -> FastAPI:
             "Thin FastAPI shell exposing the AI WealthPilot quant core "
             "(portfolio optimization, CME engine, AI advisor) to the Next.js frontend."
         ),
+        lifespan=lifespan,
     )
 
     cors_origins = os.getenv("CORS_ORIGINS")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins.split(",") if cors_origins else DEFAULT_CORS_ORIGINS,
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["*"],
     )
 
@@ -46,6 +54,7 @@ def create_app() -> FastAPI:
     app.include_router(cme.router, prefix="/api")
     app.include_router(portfolio.router, prefix="/api")
     app.include_router(retirement.router, prefix="/api")
+    app.include_router(profiles.router, prefix="/api")
 
     @app.get("/api/health", response_model=HealthResponse, tags=["meta"])
     def health() -> HealthResponse:
