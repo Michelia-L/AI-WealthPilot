@@ -1,6 +1,6 @@
 # Next.js 迁移计划 / Migration Plan
 
-> Status: **Phase 3c complete** (2026-07-18) — 客户画像落 SQLite + 画像页面。
+> Status: **Phase 4a complete** (2026-07-18) — AI 顾问流式建议书（SSE）。
 
 ## 目标
 
@@ -28,7 +28,8 @@ src/    Python 量化核心（优化器、CME、Agents）— 零改动，Streaml
 | 3a | 多页导航骨架（sidebar layout）+ Portfolio Optimizer（首个 POST 端点 + 表单交互，MVO/Resampled/BL） | ✅ 2026-07-18 |
 | 3b | Retirement Planner（蒙特卡洛 POST + 表单页） | ✅ 2026-07-18 |
 | 3c | 客户画像 CRUD 落 SQLite（SQLModel，schema 预留 `user_id`）+ 画像页面 | ✅ 2026-07-18 |
-| 4 | AI Advisor 流式输出（SSE）；IPS 工作流异步任务化（进程内队列 + 进度推送） | ⬜ |
+| 4a | AI Advisor 流式输出（SSE）+ 报告库 | ✅ 2026-07-18 |
+| 4b | IPS 工作流异步任务化（进程内队列 + 进度推送） | ⬜ |
 | 5 | 部署打磨：数据迁移工具、公网简单认证、镜像瘦身 | ⬜ |
 | 6 | 退役 Streamlit（删除 `src/views/`、`app.py`、streamlit 依赖） | ⬜ |
 
@@ -142,3 +143,21 @@ pytest tests/
 1. AI Advisor 流式输出（SSE）：`POST /api/advisor/chat` 流式端点 + web 端 EventSource/ReadableStream 消费；
 2. IPS 工作流异步任务化：进程内队列 + 进度推送（顺带解决 resampled-MVO 分钟级同步计算问题）；
 3. 风险问卷迁移：9 题双轨制表单，答案存入画像 `ability_answers`/`willingness_answers` 并自动算分。
+
+## Phase 4a 交付内容（2026-07-18）
+
+**API 新增（首个 SSE 端点）：**
+
+- `POST /api/advisor/report/stream` — 流式建议书。按 `profile_id` 从 SQLite 取画像 → 复用 src `generate_advice_stream` 同步生成器（Starlette 线程池迭代，事件循环不阻塞）→ SSE 事件协议：`token`（逐块文本）→ `done`（校验结果 + token 用量）/ `error`。未配置 `DEEPSEEK_API_KEY` 返回 503。
+- `GET /api/advisor/status` — API key 配置状态与模型名（前端据此降级提示）。
+- 报告库 CRUD：`POST/GET /api/advisor/reports`、`GET/DELETE /api/advisor/reports/{id}` — 复用 src report_storage（与 Streamlit 共享同一 JSON 报告库），列表响应剥离内部文件路径。
+- 重构：画像转换逻辑抽出为 `api/profile_convert.py`（payload ↔ asdict dict ↔ dataclass + derived 计算），供 profiles/advisor/IPS 三套路由复用。
+
+**Web 新增：**
+
+- `/advisor` 页：画像下拉（含风险等级）→ 生成 → markdown 逐 token 实时渲染（fetch + ReadableStream 手解 SSE，支持中止）→ done 元信息（token 用量）→ 保存到报告库 → 历史报告查看/删除。
+- `Markdown` 组件：react-markdown + remark-gfm，全套 slate/amber 暗色主题元素映射（后续 IPS 页复用）。
+- `proxyStream()`：SSE 直通代理（`res.body` 原样转发，零缓冲；错误回退 JSON）。
+- 导航新增"AI 顾问"。
+
+**已验证：** 容器内真实 DeepSeek 链路 60s 收到 2356 个 token 事件（约 100KB），逐 token 到达；测试 mock 生成器断言事件协议（token→done 序列、503/404 分支）。

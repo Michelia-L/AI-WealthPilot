@@ -339,3 +339,46 @@ class ProfileImportResponse(BaseModel):
     files_found: int
     imported: int
     skipped: int
+
+
+# ---------------------------------------------------------------------------
+# AI Advisor (Phase 4a — SSE streaming advisory reports)
+# ---------------------------------------------------------------------------
+
+
+class AdvisorStatusResponse(BaseModel):
+    configured: bool = Field(description="Whether DEEPSEEK_API_KEY is set")
+    model: str
+
+
+class AdvisorStreamRequest(BaseModel):
+    profile_id: int = Field(description="SQLite profile id to advise on")
+
+
+class SaveReportRequest(BaseModel):
+    client_name: str = Field(min_length=1, max_length=100)
+    content: str = Field(min_length=1, description="Report body in Markdown")
+    model: str = ""
+    prompt_tokens: int = Field(default=0, ge=0)
+    completion_tokens: int = Field(default=0, ge=0)
+    notes: str = Field(default="", max_length=2000)
+
+
+class ReportSummary(BaseModel):
+    report_id: str
+    client_name: str
+    model: str
+    generated_at: str
+    total_tokens: int
+    has_notes: bool
+
+
+class ReportListResponse(BaseModel):
+    reports: list[ReportSummary]
+
+
+class ReportDetailResponse(ReportSummary):
+    content: str
+    prompt_tokens: int
+    completion_tokens: int
+    notes: str

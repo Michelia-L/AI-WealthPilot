@@ -463,3 +463,51 @@ export const getProfiles = () => getJson<ProfileListResponse>("/api/profiles");
 
 export const getProfile = (id: number) =>
   getJson<ProfileDetailResponse>(`/api/profiles/${id}`);
+
+// ---------------------------------------------------------------------------
+// AI Advisor (Phase 4a — SSE streaming advisory reports)
+// ---------------------------------------------------------------------------
+
+export interface AdvisorStatusResponse {
+  configured: boolean;
+  model: string;
+}
+
+export interface ReportSummary {
+  report_id: string;
+  client_name: string;
+  model: string;
+  generated_at: string;
+  total_tokens: number;
+  has_notes: boolean;
+}
+
+export interface ReportListResponse {
+  reports: ReportSummary[];
+}
+
+export interface ReportDetailResponse extends ReportSummary {
+  content: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  notes: string;
+}
+
+/** Terminal SSE event after the token stream completes. */
+export interface AdvisorDoneEvent {
+  type: "done";
+  success: boolean;
+  model: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  error_message: string;
+}
+
+export const getAdvisorStatus = () =>
+  getJson<AdvisorStatusResponse>("/api/advisor/status");
+
+export const getAdvisorReports = (clientName?: string) =>
+  getJson<ReportListResponse>(
+    `/api/advisor/reports${clientName ? `?client_name=${encodeURIComponent(clientName)}` : ""}`
+  );

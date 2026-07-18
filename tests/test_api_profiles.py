@@ -1,39 +1,13 @@
 """
 API tests for the client-profile CRUD (Phase 3c).
 
-Each test runs against an isolated tmp-path SQLite database injected via
-FastAPI dependency override; ``api.main.init_db`` is patched out so the
-lifespan hook never touches the real data/wealthpilot.db.
+Uses the shared `client` fixture from conftest.py (isolated tmp-path
+SQLite injected via dependency override; lifespan init patched out).
 """
 
 import json
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlmodel import Session, SQLModel, create_engine
-
-from api.db import get_session
-from api.main import create_app
-
-
-@pytest.fixture
-def client(tmp_path, monkeypatch):
-    engine = create_engine(
-        f"sqlite:///{tmp_path}/test.db", connect_args={"check_same_thread": False}
-    )
-    SQLModel.metadata.create_all(engine)
-    # The lifespan hook would otherwise create the real data/wealthpilot.db.
-    monkeypatch.setattr("api.main.init_db", lambda: None)
-
-    app = create_app()
-
-    def override_session():
-        with Session(engine) as session:
-            yield session
-
-    app.dependency_overrides[get_session] = override_session
-    with TestClient(app) as test_client:
-        yield test_client
 
 
 def sample_payload(**overrides) -> dict:

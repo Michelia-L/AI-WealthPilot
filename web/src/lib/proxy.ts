@@ -35,3 +35,37 @@ export const proxyGet = (path: string) => proxyJson(path, "GET");
 export const proxyPost = (path: string, body: unknown) => proxyJson(path, "POST", body);
 export const proxyPut = (path: string, body: unknown) => proxyJson(path, "PUT", body);
 export const proxyDelete = (path: string) => proxyJson(path, "DELETE");
+
+/**
+ * Streaming proxy for SSE endpoints. Unlike proxyJson this never buffers:
+ * the upstream body is piped straight through so tokens reach the browser
+ * as they arrive. Error responses (JSON) are forwarded as usual.
+ */
+export async function proxyStream(path: string, body: unknown) {
+  try {
+    const res = await fetch(`${API_ORIGIN}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    if (!res.ok || !res.body) {
+      const data = await res
+        .json()
+        .catch(() => ({ detail: `上游服务错误（HTTP ${res.status}）` }));
+      return NextResponse.json(data, { status: res.status });
+    }
+    return new Response(res.body, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+      },
+    });
+  } catch {
+    return NextResponse.json(
+      { detail: "API 服务不可达，请确认后端已启动。" },
+      { status: 502 }
+    );
+  }
+}
