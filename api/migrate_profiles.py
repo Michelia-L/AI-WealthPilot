@@ -60,6 +60,20 @@ def import_json_profiles(session: Session, profiles_dir: Path | None = None) -> 
     return {"files_found": len(files), "imported": imported, "skipped": skipped}
 
 
+def maybe_auto_import() -> None:
+    """First-boot convenience: if the profiles table is empty, import legacy
+    JSON files (no-op when there is nothing to import). Idempotent."""
+    from api.db import engine, init_db
+
+    init_db()
+    with Session(engine) as session:
+        if session.exec(select(ProfileRecord.id).limit(1)).first() is not None:
+            return  # DB already has profiles — leave it untouched
+        result = import_json_profiles(session)
+    if result["imported"]:
+        print(f"Auto-imported {result['imported']} legacy JSON profile(s).")
+
+
 def main() -> None:
     from api.db import init_db
 

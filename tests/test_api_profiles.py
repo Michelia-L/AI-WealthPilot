@@ -193,3 +193,31 @@ def test_import_legacy_json_idempotent(client, isolate_storage_dirs):
     # Original timestamps survive the import.
     detail = client.get(f"/api/profiles/{profiles[0]['id']}").json()
     assert detail["created_at"].startswith("2026-06-0")
+
+
+def test_maybe_auto_import_only_seeds_empty_db(tmp_path, monkeypatch, isolate_storage_dirs):
+    """maybe_auto_import seeds legacy JSON on first boot, never overwrites."""
+    from sqlmodel import Session, SQLModel, create_engine, select
+
+    from api.db import ProfileRecord
+    from api.migrate_profiles import maybe_auto_import
+
+    profiles_dir, _ = isolate_storage_dirs
+    _write_legacy_profile(profiles_dir, "Legacy One", "2026-06-01T10:00:00")
+
+    engine = create_engine(
+        f"sqlite:///{tmp_path}/auto.db", connect_args={"check_same_thread": False}
+    )
+    SQLModel.metadata.create_all(engine)
+    monkeypatch.setattr("api.db.engine", engine)
+    monkeypatch.setattr("api.db.init_db", lambda: None)
+
+    maybe_auto_import()
+    with Session(engine) as session:
+        names = session.exec(select(ProfileRecord.name)).all()
+    assert names == ["Legacy One"]
+
+    # Second boot with a non-empty DB: no re-import, no duplication.
+    maybe_auto_import()
+    with Session(engine) as session:
+        assert len(session.exec(select(ProfileRecord.name)).all()) == 1

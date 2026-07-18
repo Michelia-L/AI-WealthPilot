@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # in api/__init__.py runs before any `src.*` import below.
 import api  # noqa: F401
 from api.db import init_db
+from api.migrate_profiles import maybe_auto_import
 from api.routers import advisor, cme, ips, market, portfolio, profiles, retirement
 from api.schemas import HealthResponse
 from src.config import APP_NAME, APP_VERSION
@@ -30,6 +31,7 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         init_db()  # create SQLite tables on first boot (idempotent)
+        maybe_auto_import()  # first boot: seed DB from legacy JSON if empty
         yield
 
     app = FastAPI(

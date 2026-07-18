@@ -1,6 +1,6 @@
 # Next.js 迁移计划 / Migration Plan
 
-> Status: **Phase 4b complete** (2026-07-18) — IPS 工作流异步任务化 + 进度推送。
+> Status: **Phase 5a complete** (2026-07-18) — 部署打磨（镜像瘦身 + 健康检查 + 首启自动迁移）。
 
 ## 目标
 
@@ -30,7 +30,9 @@ src/    Python 量化核心（优化器、CME、Agents）— 零改动，Streaml
 | 3c | 客户画像 CRUD 落 SQLite（SQLModel，schema 预留 `user_id`）+ 画像页面 | ✅ 2026-07-18 |
 | 4a | AI Advisor 流式输出（SSE）+ 报告库 | ✅ 2026-07-18 |
 | 4b | IPS 工作流异步任务化（进程内队列 + 进度推送） | ✅ 2026-07-18 |
-| 5 | 部署打磨：数据迁移工具、公网简单认证、镜像瘦身 | ⬜ |
+| 5a | 部署打磨：镜像瘦身（requirements-api 分离）、compose 健康检查、首启自动迁移、.dockerignore 审计 | ✅ 2026-07-18 |
+| 5b | 功能补齐：风险问卷迁移（9 题双轨制 + 自动算分）、IPS PDF 导出 | ⬜ |
+| 5c | 体验债：resampled-MVO 异步任务化、画像对比/行为偏差页 | ⬜ |
 | 6 | 退役 Streamlit（删除 `src/views/`、`app.py`、streamlit 依赖） | ⬜ |
 
 ## Milestone 1 交付内容
@@ -138,13 +140,11 @@ pytest tests/
 
 **已知限制：** 风险问卷 UI（9 题双轨制）后续单独迁移，当前以手动评分代替；画像对比（compare_profiles）与行为偏差分析随 Phase 4 顾问工作流接入。
 
-## 下一步（Phase 5 切入点）
+## 下一步（Phase 5b/5c 切入点）
 
-1. 部署打磨：镜像瘦身（多阶段 pip 缓存、.dockerignore 审计）、启动自检；
-2. 公网简单认证（单用户密码/OIDC 二选一，schema 已预留 `user_id`）；
-3. 风险问卷迁移：9 题双轨制表单，答案存入画像 `ability_answers`/`willingness_answers` 并自动算分；
-4. 体验债：resampled-MVO 分钟级计算接入 4b 的任务框架；IPS PDF 导出（`export_ips_pdf`）；
-5. 画像对比（compare_profiles）与行为偏差分析页面。
+1. **5b**：风险问卷迁移——`GET /api/profiles/questionnaire` 输出题目元数据，表单内 9 题双轨作答，`assess_risk` 自动算分写入画像；IPS PDF 导出（`export_ips_pdf` → `GET /api/ips/{id}/pdf` + 页面下载按钮）；
+2. **5c**：resampled-MVO 分钟级计算接入 4b 任务框架（队列复用泛化）；画像对比（compare_profiles）与行为偏差分析页面；
+3. 公网认证按产品定位（个人/小团队、本地优先）继续后置。
 
 ## Phase 4a 交付内容（2026-07-18）
 
@@ -181,3 +181,15 @@ pytest tests/
 - 导航新增"IPS 生成"。
 
 **已知限制：** 任务为进程内存活——API 重启后任务消失（已生成的 IPS 文档不受影响）；SSE 断连不取消后台任务；PDF 导出（`export_ips_pdf`）留待 Phase 5。
+
+## Phase 5a 交付内容（2026-07-18）
+
+**部署打磨：**
+
+- **镜像瘦身**：新增 `requirements-api.txt`（= 完整 requirements 剔除 streamlit/pytest 及其传递依赖树）；API 镜像 **1.31GB → 1.05GB（-20%）**。审计确认 `import streamlit` 仅存在于 `src/app.py` 与 `src/views/*`（API 导入图不可达）。完整 requirements.txt 保留为开发/Streamlit 环境直至 Phase 6。
+- **compose 健康检查**：api 服务内建 `/api/health` 健康检查（python urllib，零新依赖），web `depends_on: service_healthy` —— 启动顺序由"先后"变为"就绪"。
+- **首启自动迁移**：`maybe_auto_import()` 挂入 lifespan —— 仅当画像表为空时幂等导入 `data/profiles/*.json`（老用户 clone 后 `docker compose up` 即得既有画像；有数据则完全不动）。
+- **.dockerignore 收紧**：`data/` 整体排除（含 `wealthpilot.db`），构建上下文不再随运行数据膨胀。
+- 验证：437 测试通过；6 页 0 降级面板；optimize/retirement/ips 冒烟全过（retirement 存活率 0.71 与瘦身前逐位一致）。
+
+**注：** 公网认证按产品定位（个人/小团队、本地优先）继续后置，不计入 Phase 5 范围。

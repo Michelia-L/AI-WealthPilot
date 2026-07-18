@@ -19,6 +19,16 @@ services:
       - ./data:/app/data  # CME cache, profiles, reports stay on the host
     ports:
       - "8000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=5)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   web:
     build:
@@ -29,4 +39,5 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - api
+      api:
+        condition: service_healthy

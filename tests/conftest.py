@@ -39,8 +39,9 @@ def client(tmp_path, monkeypatch):
         f"sqlite:///{tmp_path}/test.db", connect_args={"check_same_thread": False}
     )
     SQLModel.metadata.create_all(engine)
-    # The lifespan hook would otherwise create the real data/wealthpilot.db.
+    # The lifespan hook would otherwise create/seed the real data/wealthpilot.db.
     monkeypatch.setattr("api.main.init_db", lambda: None)
+    monkeypatch.setattr("api.main.maybe_auto_import", lambda: None)
 
     app = create_app()
 

@@ -256,15 +256,16 @@ AI-WealthPilot/
 │   │   ├── ips_workflow.py       # LangGraph state machine orchestrating Generate-Review-Revise
 │   │   └── ips_storage.py        # Persistence and exports for IPS and audit trail reports
 ├── api/                          # [FastAPI Shell — new, migration in progress]
-│   ├── main.py                   # App entry: CORS, routers, /api/health
-│   ├── routers/                  # Read-only endpoints (market quotes, risk-free rate, CME)
-│   └── Dockerfile                # API image (context = repo root)
+│   ├── main.py                   # App entry: CORS, routers, /api/health, lifespan (init_db + auto-import)
+│   ├── routers/                  # market / cme / portfolio / retirement / profiles / advisor / ips
+│   ├── db.py                     # SQLModel + SQLite persistence (data/wealthpilot.db)
+│   └── Dockerfile                # API image (context = repo root, slim requirements-api.txt)
 ├── web/                          # [Next.js Frontend — new, migration in progress]
-│   ├── src/app/                  # App Router pages (validation dashboard at /)
-│   ├── src/components/           # Quotes grid, CME table sections
-│   ├── src/lib/                  # Typed API client & formatters
+│   ├── src/app/                  # App Router pages (dashboard, optimizer, retirement, profiles, advisor, ips)
+│   ├── src/components/           # Workspace components, Plotly wrapper, Markdown renderer
+│   ├── src/lib/                  # Typed API client, SSE helpers, same-origin proxy
 │   └── Dockerfile                # Web image (standalone output)
-├── docker-compose.yml            # One-command full stack: web (3000) + api (8000)
+├── docker-compose.yml            # One-command full stack: web (3000) + api (8000, healthchecked)
 ├── tests/                        # [Automated Test Suite]
 │   ├── conftest.py               # Pytest fixtures and mock API configurations
 │   ├── test_portfolio.py         # Core quant engine validations
