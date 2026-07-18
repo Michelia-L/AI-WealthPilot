@@ -10,6 +10,17 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# CJK font for IPS PDF rendering. src/agents/ips_storage.py `_find_cjk_font`
+# probes two fixed Linux paths (both named NotoSansCJK-Regular.ttc). Debian's
+# real fonts-noto-cjk is CFF-based, which fpdf2 2.8.7 garbles — so we install
+# WenQuanYi Micro Hei (TrueType outlines, ~5MB) and link it into a probed path.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends fonts-wqy-microhei \
+    && mkdir -p /usr/share/fonts/truetype/noto \
+    && ln -s /usr/share/fonts/truetype/wqy/wqy-microhei.ttc \
+        /usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies first for better layer caching
 COPY requirements-api.txt .
 RUN pip install --no-cache-dir -r requirements-api.txt

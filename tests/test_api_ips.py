@@ -126,3 +126,19 @@ def test_task_and_document_not_found(client):
     assert client.get("/api/ips/tasks/nonexistent/events").status_code == 404
     assert client.get("/api/ips/ips_nobody_20260101_000000").status_code == 404
     assert client.get("/api/ips/..%2F..%2Fsecret").status_code == 404
+
+
+def test_pdf_export(client, fake_workflow):
+    profile_id = _create_profile(client)
+    task_id = client.post("/api/ips/generate", json={"profile_id": profile_id}).json()["task_id"]
+    events = _parse_sse(client.get(f"/api/ips/tasks/{task_id}/events").text)
+    document_id = events[-1]["document_id"]
+
+    resp = client.get(f"/api/ips/{document_id}/pdf")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/pdf"
+    assert resp.content.startswith(b"%PDF-")
+    assert len(resp.content) > 1000  # a real multi-section document, not an error stub
+    assert "attachment" in resp.headers["content-disposition"]
+
+    assert client.get("/api/ips/ips_nobody_20260101_000000/pdf").status_code == 404

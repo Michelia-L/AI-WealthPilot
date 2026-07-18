@@ -94,3 +94,32 @@ export async function proxyStreamGet(path: string) {
     );
   }
 }
+
+/**
+ * Binary download proxy (PDF export). Streams the upstream body through
+ * untouched — parsing it as JSON (proxyGet) would corrupt the file.
+ * Content-Type / Content-Disposition are forwarded from the API.
+ */
+export async function proxyFile(path: string) {
+  try {
+    const res = await fetch(`${API_ORIGIN}${path}`, { cache: "no-store" });
+    if (!res.ok || !res.body) {
+      const data = await res
+        .json()
+        .catch(() => ({ detail: `上游服务错误（HTTP ${res.status}）` }));
+      return NextResponse.json(data, { status: res.status });
+    }
+    return new Response(res.body, {
+      status: 200,
+      headers: {
+        "Content-Type": res.headers.get("Content-Type") ?? "application/octet-stream",
+        "Content-Disposition": res.headers.get("Content-Disposition") ?? "attachment",
+      },
+    });
+  } catch {
+    return NextResponse.json(
+      { detail: "API 服务不可达，请确认后端已启动。" },
+      { status: 502 }
+    );
+  }
+}

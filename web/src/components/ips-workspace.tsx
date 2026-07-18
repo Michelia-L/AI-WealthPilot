@@ -41,7 +41,11 @@ export default function IpsWorkspace({
   const [steps, setSteps] = useState<ProgressStep[]>([]);
   const [doneInfo, setDoneInfo] = useState<DoneInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [viewing, setViewing] = useState<{ title: string; markdown: string } | null>(null);
+  const [viewing, setViewing] = useState<{
+    documentId: string;
+    title: string;
+    markdown: string;
+  } | null>(null);
 
   const configured = status?.configured ?? false;
 
@@ -93,10 +97,14 @@ export default function IpsWorkspace({
   async function viewDocument(doc: IpsDocumentSummary) {
     setError(null);
     try {
-      const res = await fetch(`/api/ips/${doc.document_id}`);
+      const res = await fetch(`/api/ips/${encodeURIComponent(doc.document_id)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : "加载失败");
-      setViewing({ title: `${doc.client_name} · v${doc.version}`, markdown: data.markdown });
+      setViewing({
+        documentId: doc.document_id,
+        title: `${doc.client_name} · v${doc.version}`,
+        markdown: data.markdown,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -237,13 +245,21 @@ export default function IpsWorkspace({
         <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-slate-200">📄 {viewing.title}</h3>
-            <button
-              type="button"
-              onClick={() => setViewing(null)}
-              className="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:text-slate-200"
-            >
-              关闭
-            </button>
+            <div className="flex items-center gap-2">
+              <a
+                href={`/api/ips/${encodeURIComponent(viewing.documentId)}/pdf`}
+                className="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:text-amber-300"
+              >
+                ⬇ 下载 PDF
+              </a>
+              <button
+                type="button"
+                onClick={() => setViewing(null)}
+                className="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:text-slate-200"
+              >
+                关闭
+              </button>
+            </div>
           </div>
           <Markdown>{viewing.markdown}</Markdown>
         </div>
@@ -295,10 +311,16 @@ export default function IpsWorkspace({
                       <button
                         type="button"
                         onClick={() => viewDocument(d)}
-                        className="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:text-slate-200"
+                        className="mr-2 rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:text-slate-200"
                       >
                         查看
                       </button>
+                      <a
+                        href={`/api/ips/${encodeURIComponent(d.document_id)}/pdf`}
+                        className="inline-block rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:text-amber-300"
+                      >
+                        ⬇ PDF
+                      </a>
                     </td>
                   </tr>
                 ))}

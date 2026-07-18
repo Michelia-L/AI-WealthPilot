@@ -465,6 +465,45 @@ export const getProfile = (id: number) =>
   getJson<ProfileDetailResponse>(`/api/profiles/${id}`);
 
 // ---------------------------------------------------------------------------
+// Risk questionnaire (Phase 5b — 9-question dual-track assessment)
+// ---------------------------------------------------------------------------
+
+export interface QuestionnaireOption {
+  key: string;
+  label: string; // bilingual "English / 中文"
+  score: number; // 1-5 — client live preview only; server recomputes on save
+}
+
+export interface QuestionnaireQuestion {
+  key: string;
+  question: string; // bilingual
+  options: QuestionnaireOption[];
+}
+
+export interface QuestionnaireResponse {
+  ability: QuestionnaireQuestion[];
+  willingness: QuestionnaireQuestion[];
+}
+
+export const getQuestionnaire = () =>
+  getJson<QuestionnaireResponse>("/api/profiles/questionnaire");
+
+/**
+ * Client mirror of src compute_*_score for live preview: average the option
+ * scores of the answered questions only. Returns 0 when nothing is answered
+ * (matches src "unassessed" semantics).
+ */
+export function scoreFromAnswers(
+  questions: QuestionnaireQuestion[],
+  answers: Record<string, string>
+): number {
+  const scores = questions
+    .map((q) => q.options.find((o) => o.key === answers[q.key])?.score)
+    .filter((s): s is number => s !== undefined);
+  return scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+}
+
+// ---------------------------------------------------------------------------
 // AI Advisor (Phase 4a — SSE streaming advisory reports)
 // ---------------------------------------------------------------------------
 

@@ -39,8 +39,10 @@ def sample_payload(**overrides) -> dict:
         "sector_restrictions": [],
         "notes": "",
         "risk_scores": {"ability_score": 1.0, "willingness_score": 3.5},
-        "ability_answers": {"income_stability": "very_unstable"},
-        "willingness_answers": {"loss_reaction": "buy_more"},
+        # Answers default to empty: non-empty answers derive scores via the
+        # src questionnaire rules and override manual risk_scores on save.
+        "ability_answers": {},
+        "willingness_answers": {},
     }
     payload.update(overrides)
     return payload
@@ -156,6 +158,82 @@ def test_infinite_debt_ratio_serialized_as_none(client):
     )
     assert resp.status_code == 201
     assert resp.json()["derived"]["debt_to_asset_ratio"] is None
+
+
+# ---------------------------------------------------------------------------
+# Risk questionnaire (Phase 5b)
+# ---------------------------------------------------------------------------
+
+
+def test_questionnaire_endpoint_mirrors_src(client):
+    from src.agents.profiler import RISK_ABILITY_QUESTIONS, RISK_WILLINGNESS_QUESTIONS
+
+    resp = client.get("/api/profiles/questionnaire")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert [q["key"] for q in body["ability"]] == list(RISK_ABILITY_QUESTIONS)
+    assert [q["key"] for q in body["willingness"]] == list(RISK_WILLINGNESS_QUESTIONS)
+
+    # Option keys/scores round-trip so the client can preview live.
+    first = body["ability"][0]
+    src_first = RISK_ABILITY_QUESTIONS[first["key"]]
+    assert {o["key"]: o["score"] for o in first["options"]} == {
+        k: o["score"] for k, o in src_first["options"].items()
+    }
+    assert all(1 <= o["score"] <= 5 for q in body["ability"] for o in q["options"])
+
+
+def test_answers_derive_scores_and_override_manual(client):
+    """Non-empty answers win over manual risk_scores on save."""
+    resp = client.post(
+        "/api/profiles",
+        json=sample_payload(
+            risk_scores={"ability_score": 4.5, "willingness_score": 4.0},
+            ability_answers={"income_stability": "very_unstable"},  # score 1
+            willingness_answers={"loss_reaction": "buy_more"},  # score 4
+        ),
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["profile"]["risk_profile"]["ability_score"] == pytest.approx(1.0)
+    assert body["profile"]["risk_profile"]["willingness_score"] == pytest.approx(4.0)
+    assert body["derived"]["tolerance_level"] == "Conservative / 保守型"
+    # Answers are stored for form prefill.
+    assert body["profile"]["ability_answers"] == {"income_stability": "very_unstable"}
+
+
+def test_partial_answers_average_over_answered_only(client):
+    resp = client.post(
+        "/api/profiles",
+        json=sample_payload(
+            ability_answers={
+                "income_stability": "very_stable",  # 5
+                "investment_knowledge": "moderate",  # 3
+            },
+            willingness_answers={
+                "loss_reaction": "aggressively_buy",  # 5
+                "gambling_scenario": "definitely_no",  # 1
+            },
+        ),
+    )
+    body = resp.json()
+    assert body["profile"]["risk_profile"]["ability_score"] == pytest.approx(4.0)
+    assert body["profile"]["risk_profile"]["willingness_score"] == pytest.approx(3.0)
+    assert body["derived"]["tolerance_level"] == "Moderate / 平衡型"
+
+
+def test_invalid_answer_keys_ignored(client):
+    """Keys unknown to the src questionnaire contribute nothing (0 = unassessed)."""
+    resp = client.post(
+        "/api/profiles",
+        json=sample_payload(
+            risk_scores={"ability_score": 0, "willingness_score": 0},
+            ability_answers={"not_a_question": "very_stable"},
+        ),
+    )
+    assert resp.status_code == 201
+    assert resp.json()["derived"]["tolerance_level"] == ""
 
 
 def _write_legacy_profile(profiles_dir, name, created_at, **extra):

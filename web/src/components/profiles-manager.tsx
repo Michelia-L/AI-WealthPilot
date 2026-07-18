@@ -7,11 +7,14 @@ import type {
   ProfileDetailResponse,
   ProfilePayload,
   ProfileSummary,
+  QuestionnaireQuestion,
+  QuestionnaireResponse,
 } from "@/lib/api";
 import {
   classifyRiskPreview,
   detailToPayload,
   MARITAL_STATUS_OPTIONS,
+  scoreFromAnswers,
   TAX_STATUS_OPTIONS,
 } from "@/lib/api";
 import { fmtLocal, fmtMoney, fmtPct } from "@/lib/format";
@@ -180,12 +183,67 @@ function RiskSlider({
   );
 }
 
+/** One questionnaire track (ability or willingness): questions + toggleable options. */
+function QuestionTrack({
+  title,
+  questions,
+  answers,
+  onAnswer,
+}: {
+  title: string;
+  questions: QuestionnaireQuestion[];
+  answers: Record<string, string>;
+  onAnswer: (questionKey: string, optionKey: string) => void;
+}) {
+  return (
+    <div className="space-y-5">
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+        {title}
+      </h4>
+      {questions.map((q, qi) => (
+        <div key={q.key}>
+          <p className="text-sm leading-snug text-slate-200">
+            <span className="mr-1.5 font-mono text-xs text-slate-500">{qi + 1}.</span>
+            {q.question}
+          </p>
+          <div className="mt-1.5 space-y-1">
+            {q.options.map((o) => {
+              const selected = answers[q.key] === o.key;
+              return (
+                <button
+                  key={o.key}
+                  type="button"
+                  onClick={() => onAnswer(q.key, o.key)}
+                  className={`flex w-full items-center gap-2 rounded-md border px-2.5 py-1 text-left text-xs transition-colors ${
+                    selected
+                      ? "border-amber-500/60 bg-amber-950/40 text-amber-200"
+                      : "border-slate-800 text-slate-400 hover:border-slate-600 hover:text-slate-300"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-2 w-2 shrink-0 rounded-full ${
+                      selected ? "bg-amber-400" : "bg-slate-700"
+                    }`}
+                  />
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ------------------------------ main component ---------------------------- */
 
 export default function ProfilesManager({
   initialProfiles,
+  questionnaire,
 }: {
   initialProfiles: ProfileSummary[] | null;
+  questionnaire: QuestionnaireResponse | null;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<"list" | "create" | "edit">("list");
@@ -200,6 +258,19 @@ export default function ProfilesManager({
     setForm((prev) => ({ ...prev, [key]: value }));
   const setFin = (key: keyof ProfilePayload["financial"], value: number) =>
     setForm((prev) => ({ ...prev, financial: { ...prev.financial, [key]: value } }));
+
+  /** Toggle a questionnaire answer; clicking the selected option clears it. */
+  const setAnswer = (
+    track: "ability_answers" | "willingness_answers",
+    questionKey: string,
+    optionKey: string
+  ) =>
+    setForm((prev) => {
+      const answers = { ...prev[track] };
+      if (answers[questionKey] === optionKey) delete answers[questionKey];
+      else answers[questionKey] = optionKey;
+      return { ...prev, [track]: answers };
+    });
 
   function startCreate() {
     setForm(EMPTY_FORM);
@@ -318,10 +389,18 @@ export default function ProfilesManager({
   /* --------------------------------- form --------------------------------- */
 
   if (mode !== "list") {
-    const preview = classifyRiskPreview(
-      form.risk_scores.ability_score,
-      form.risk_scores.willingness_score
-    );
+    // Mirror of the server-side precedence: a track with answers derives its
+    // score from the questionnaire; an unanswered track keeps manual scores.
+    const abilityScore =
+      questionnaire && Object.keys(form.ability_answers).length > 0
+        ? scoreFromAnswers(questionnaire.ability, form.ability_answers)
+        : form.risk_scores.ability_score;
+    const willingnessScore =
+      questionnaire && Object.keys(form.willingness_answers).length > 0
+        ? scoreFromAnswers(questionnaire.willingness, form.willingness_answers)
+        : form.risk_scores.willingness_score;
+    const preview = classifyRiskPreview(abilityScore, willingnessScore);
+    const fmtScore = (v: number) => (v === 0 ? "—" : v.toFixed(1));
     return (
       <div className="space-y-5">
         <div className="flex items-center justify-between">
@@ -452,21 +531,47 @@ export default function ProfilesManager({
         </section>
 
         <section className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-          <div className="flex items-baseline justify-between">
-            <h3 className="text-sm font-semibold text-slate-200">风险评分</h3>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="text-sm font-semibold text-slate-200">风险问卷</h3>
             <span className="text-xs text-slate-500">
-              综合容忍度 = min(能力, 意愿) → <span className="text-amber-300">{preview}</span>
+              能力 <span className="font-mono text-slate-300">{fmtScore(abilityScore)}</span>
+              {" · "}意愿 <span className="font-mono text-slate-300">{fmtScore(willingnessScore)}</span>
+              {" → "}综合 = min(能力, 意愿)：<span className="text-amber-300">{preview}</span>
             </span>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <RiskSlider label="风险承受能力" value={form.risk_scores.ability_score}
-              onChange={(v) => set("risk_scores", { ...form.risk_scores, ability_score: v })} />
-            <RiskSlider label="风险承受意愿" value={form.risk_scores.willingness_score}
-              onChange={(v) => set("risk_scores", { ...form.risk_scores, willingness_score: v })} />
-          </div>
-          <p className="text-xs text-slate-600">
-            评分为 0 表示未评估；标准化风险问卷将在后续阶段迁移。
-          </p>
+          {questionnaire ? (
+            <>
+              <div className="grid gap-6 lg:grid-cols-2">
+                <QuestionTrack
+                  title="风险承受能力（客观 · 5 题）"
+                  questions={questionnaire.ability}
+                  answers={form.ability_answers}
+                  onAnswer={(q, o) => setAnswer("ability_answers", q, o)}
+                />
+                <QuestionTrack
+                  title="风险承受意愿（主观 · 4 题）"
+                  questions={questionnaire.willingness}
+                  answers={form.willingness_answers}
+                  onAnswer={(q, o) => setAnswer("willingness_answers", q, o)}
+                />
+              </div>
+              <p className="text-xs text-slate-600">
+                已答题目自动算分（未答题不参与平均），保存时覆盖手动评分；再次点击选项可取消作答。全部留空则保留手动评分，0 表示未评估。
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-2">
+                <RiskSlider label="风险承受能力" value={form.risk_scores.ability_score}
+                  onChange={(v) => set("risk_scores", { ...form.risk_scores, ability_score: v })} />
+                <RiskSlider label="风险承受意愿" value={form.risk_scores.willingness_score}
+                  onChange={(v) => set("risk_scores", { ...form.risk_scores, willingness_score: v })} />
+              </div>
+              <p className="text-xs text-slate-600">
+                风险问卷加载失败（API 未就绪），暂以手动评分代替；评分为 0 表示未评估。
+              </p>
+            </>
+          )}
         </section>
 
         <div className="flex items-center gap-4">

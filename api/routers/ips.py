@@ -11,12 +11,14 @@ persisted to the src/ JSON store (shared with Streamlit) on success.
 
 import asyncio
 import json
+import tempfile
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
@@ -221,4 +223,33 @@ def get_ips(document_id: str) -> IpsDetailResponse:
             record.get("ips", {}), record.get("audit_trail")
         ),
         metadata=record.get("metadata", {}),
+    )
+
+
+@router.get("/{document_id}/pdf")
+def get_ips_pdf(document_id: str) -> Response:
+    """Render the stored IPS as a downloadable PDF (src export_ips_pdf).
+
+    The src builder writes to a file path, so we render into a temp dir and
+    stream the bytes back. document_id may contain CJK (client names), hence
+    the RFC 5987 filename* in Content-Disposition.
+    """
+    filepath = _find_ips_file(document_id)
+    if filepath is None:
+        raise HTTPException(status_code=404, detail="IPS 文档不存在")
+    record = ips_storage.load_ips(filepath)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        pdf_path = ips_storage.export_ips_pdf(
+            record.get("ips", {}),
+            Path(tmpdir) / "ips.pdf",
+            record.get("audit_trail"),
+        )
+        pdf_bytes = pdf_path.read_bytes()
+    disposition = (
+        f"attachment; filename=\"ips.pdf\"; filename*=UTF-8''{quote(document_id)}.pdf"
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": disposition},
     )

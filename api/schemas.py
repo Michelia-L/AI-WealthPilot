@@ -276,8 +276,9 @@ class InvestmentGoalInput(BaseModel):
 
 
 class RiskScoresInput(BaseModel):
-    """Manual risk scores (0 = not assessed). The questionnaire that derives
-    these from answers migrates in a later phase; answers are stored raw."""
+    """Manual risk scores (0 = not assessed). On save, non-empty
+    questionnaire answers take precedence and these are overwritten by
+    the derived scores (see profile_convert.payload_to_data)."""
 
     ability_score: float = Field(default=0.0, ge=0, le=5)
     willingness_score: float = Field(default=0.0, ge=0, le=5)
@@ -339,6 +340,29 @@ class ProfileImportResponse(BaseModel):
     files_found: int
     imported: int
     skipped: int
+
+
+class QuestionnaireOption(BaseModel):
+    """One answer option; score lets the client preview live — the server
+    still recomputes authoritatively from the submitted answers."""
+
+    key: str
+    label: str = Field(description="Bilingual 'English / 中文' label")
+    score: int = Field(ge=1, le=5)
+
+
+class QuestionnaireQuestion(BaseModel):
+    key: str
+    question: str = Field(description="Bilingual 'English / 中文' question text")
+    options: list[QuestionnaireOption]
+
+
+class QuestionnaireResponse(BaseModel):
+    """The 9-question dual-track risk questionnaire (src/agents/profiler.py):
+    5 objective ability questions + 4 subjective willingness questions."""
+
+    ability: list[QuestionnaireQuestion]
+    willingness: list[QuestionnaireQuestion]
 
 
 # ---------------------------------------------------------------------------

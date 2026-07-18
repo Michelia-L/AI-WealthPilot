@@ -1,6 +1,6 @@
 # Next.js 迁移计划 / Migration Plan
 
-> Status: **Phase 5a complete** (2026-07-18) — 部署打磨（镜像瘦身 + 健康检查 + 首启自动迁移）。
+> Status: **Phase 5b complete** (2026-07-18) — 功能补齐（风险问卷迁移 + IPS PDF 导出）。
 
 ## 目标
 
@@ -31,7 +31,7 @@ src/    Python 量化核心（优化器、CME、Agents）— 零改动，Streaml
 | 4a | AI Advisor 流式输出（SSE）+ 报告库 | ✅ 2026-07-18 |
 | 4b | IPS 工作流异步任务化（进程内队列 + 进度推送） | ✅ 2026-07-18 |
 | 5a | 部署打磨：镜像瘦身（requirements-api 分离）、compose 健康检查、首启自动迁移、.dockerignore 审计 | ✅ 2026-07-18 |
-| 5b | 功能补齐：风险问卷迁移（9 题双轨制 + 自动算分）、IPS PDF 导出 | ⬜ |
+| 5b | 功能补齐：风险问卷迁移（9 题双轨制 + 自动算分）、IPS PDF 导出 | ✅ 2026-07-18 |
 | 5c | 体验债：resampled-MVO 异步任务化、画像对比/行为偏差页 | ⬜ |
 | 6 | 退役 Streamlit（删除 `src/views/`、`app.py`、streamlit 依赖） | ⬜ |
 
@@ -140,11 +140,10 @@ pytest tests/
 
 **已知限制：** 风险问卷 UI（9 题双轨制）后续单独迁移，当前以手动评分代替；画像对比（compare_profiles）与行为偏差分析随 Phase 4 顾问工作流接入。
 
-## 下一步（Phase 5b/5c 切入点）
+## 下一步（Phase 5c 切入点）
 
-1. **5b**：风险问卷迁移——`GET /api/profiles/questionnaire` 输出题目元数据，表单内 9 题双轨作答，`assess_risk` 自动算分写入画像；IPS PDF 导出（`export_ips_pdf` → `GET /api/ips/{id}/pdf` + 页面下载按钮）；
-2. **5c**：resampled-MVO 分钟级计算接入 4b 任务框架（队列复用泛化）；画像对比（compare_profiles）与行为偏差分析页面；
-3. 公网认证按产品定位（个人/小团队、本地优先）继续后置。
+1. **5c**：resampled-MVO 分钟级计算接入 4b 任务框架（队列复用泛化）；画像对比（compare_profiles）与行为偏差分析页面；
+2. 公网认证按产品定位（个人/小团队、本地优先）继续后置。
 
 ## Phase 4a 交付内容（2026-07-18）
 
@@ -193,3 +192,19 @@ pytest tests/
 - 验证：437 测试通过；6 页 0 降级面板；optimize/retirement/ips 冒烟全过（retirement 存活率 0.71 与瘦身前逐位一致）。
 
 **注：** 公网认证按产品定位（个人/小团队、本地优先）继续后置，不计入 Phase 5 范围。
+
+## Phase 5b 交付内容（2026-07-18）
+
+**风险问卷迁移：**
+
+- `GET /api/profiles/questionnaire` — 输出 src 双轨问卷元数据（能力 5 题 + 意愿 4 题，题目与选项均为双语），含每题每选项分值供前端实时预览；服务端保存时仍按 src `compute_*_score` 权威重算。
+- **算分优先级**：`payload_to_data` 中某轨答案非空即由问卷派生该轨分数并覆盖手动滑块分（部分作答按已答题平均）；答案为空轨保留手动分 —— 旧画像（无答案）行为完全不变。答案随画像落库，编辑时回填。
+- `/profiles` 表单：风险评分区替换为 9 题问卷 UI（选项点选/再点取消，实时显示能力/意愿分与综合等级预览）；问卷加载失败（API 未就绪）降级回手动滑块。
+
+**IPS PDF 导出：**
+
+- `GET /api/ips/{id}/pdf` — 复用 src `export_ips_pdf`（临时目录渲染后回读字节流），`Content-Disposition` 按 RFC 5987 编码（文件名含中文客户端名）。
+- API 镜像内置 CJK 字体（WenQuanYi Micro Hei，软链至 `_find_cjk_font` 探测路径）—— slim 基础镜像无 CJK 字体；实测 Debian 的 fonts-noto-cjk 为 CFF 轮廓，fpdf2 2.8.7 嵌入后中文乱码，改用 TrueType 轮廓的文泉驿微米黑（仅 ~5MB）。
+- Web：`proxyFile()` 二进制直通代理（`proxyGet` 的 `res.json()` 会毁文件流）；文档库表格与 markdown 查看页各加下载按钮。
+
+验证：442 测试通过（新增问卷端点/算分优先级/部分作答平均/无效答案键/PDF 导出 5 项）；`next build` 通过；容器内端到端冒烟（问卷端点、PDF 真实字节流、字体落位）见提交记录。

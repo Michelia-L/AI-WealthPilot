@@ -22,7 +22,11 @@ from api.schemas import (
     ProfileListResponse,
     ProfilePayload,
     ProfileSummary,
+    QuestionnaireOption,
+    QuestionnaireQuestion,
+    QuestionnaireResponse,
 )
+from src.agents.profiler import RISK_ABILITY_QUESTIONS, RISK_WILLINGNESS_QUESTIONS
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
 
@@ -43,6 +47,21 @@ def _get_or_404(profile_id: int, session: Session) -> ProfileRecord:
     if record is None:
         raise HTTPException(status_code=404, detail=f"画像不存在（id={profile_id}）")
     return record
+
+
+def _build_track(questions: dict) -> list[QuestionnaireQuestion]:
+    """Flatten one src/ question dict into response models (order preserved)."""
+    return [
+        QuestionnaireQuestion(
+            key=q_key,
+            question=q_data["question"],
+            options=[
+                QuestionnaireOption(key=o_key, label=o["label"], score=o["score"])
+                for o_key, o in q_data["options"].items()
+            ],
+        )
+        for q_key, q_data in questions.items()
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -86,6 +105,21 @@ def create_profile(
     session.commit()
     session.refresh(record)
     return _detail(record)
+
+
+# NOTE: declared before /{profile_id} — FastAPI matches routes in order, so
+# the literal "questionnaire" segment must win over the int parameter.
+@router.get("/questionnaire", response_model=QuestionnaireResponse)
+def get_questionnaire() -> QuestionnaireResponse:
+    """9-question dual-track risk questionnaire straight from src/ profiler.
+
+    Option scores are included so the client can show a live preview; the
+    server recomputes authoritative scores from the submitted answers on save.
+    """
+    return QuestionnaireResponse(
+        ability=_build_track(RISK_ABILITY_QUESTIONS),
+        willingness=_build_track(RISK_WILLINGNESS_QUESTIONS),
+    )
 
 
 @router.get("/{profile_id}", response_model=ProfileDetailResponse)

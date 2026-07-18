@@ -17,6 +17,8 @@ from src.agents.profiler import (
     FinancialSituation,
     InvestmentGoal,
     RiskProfile,
+    compute_ability_score,
+    compute_willingness_score,
 )
 
 
@@ -29,10 +31,23 @@ def tolerance_level(ability: float, willingness: float) -> str:
 
 
 def payload_to_data(payload: ProfilePayload, created_at: str) -> dict[str, Any]:
-    """Serialize the editable payload to the asdict(ClientProfile) shape."""
+    """Serialize the editable payload to the asdict(ClientProfile) shape.
+
+    Questionnaire answers take precedence over manual slider scores: when a
+    track's answers are non-empty, its score is derived via src/ rules and
+    overwrites risk_scores; empty answers keep the manual fallback.
+    """
     now = datetime.now().isoformat()
-    ability = payload.risk_scores.ability_score
-    willingness = payload.risk_scores.willingness_score
+    ability = (
+        compute_ability_score(payload.ability_answers)
+        if payload.ability_answers
+        else payload.risk_scores.ability_score
+    )
+    willingness = (
+        compute_willingness_score(payload.willingness_answers)
+        if payload.willingness_answers
+        else payload.risk_scores.willingness_score
+    )
     return {
         "name": payload.name,
         "age": payload.age,
