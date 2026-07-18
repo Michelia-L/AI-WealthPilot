@@ -1,6 +1,6 @@
 # Next.js 迁移计划 / Migration Plan
 
-> Status: **Phase 2 complete** (2026-07-17) — 正式 Market Dashboard（图表平移 + 交互控件）。
+> Status: **Phase 3a complete** (2026-07-18) — 多页导航骨架 + 组合优化器（MVO / Resampled / BL）。
 
 ## 目标
 
@@ -25,7 +25,9 @@ src/    Python 量化核心（优化器、CME、Agents）— 零改动，Streaml
 |---|---|---|
 | 0+1 | 仓库改造 + FastAPI 薄壳（健康检查、行情、无风险利率、CME）+ Next.js 脚手架 + 验证页 + Docker | ✅ 2026-07-17 |
 | 2 | Market Dashboard 正式版（图表迁移：plotly `fig.to_json()` → plotly.js；类别/周期控件；Tabs + 归一化） | ✅ 2026-07-17 |
-| 3 | Portfolio Optimizer + Retirement Planner（表单 → POST → 图表）；客户画像 CRUD 落 SQLite（SQLModel） | ⬜ |
+| 3a | 多页导航骨架（sidebar layout）+ Portfolio Optimizer（首个 POST 端点 + 表单交互，MVO/Resampled/BL） | ✅ 2026-07-18 |
+| 3b | Retirement Planner（蒙特卡洛 POST + 表单页） | ⬜ |
+| 3c | 客户画像 CRUD 落 SQLite（SQLModel，schema 预留 `user_id`）+ 画像页面 | ⬜ |
 | 4 | AI Advisor 流式输出（SSE）；IPS 工作流异步任务化（进程内队列 + 进度推送） | ⬜ |
 | 5 | 部署打磨：数据迁移工具、公网简单认证、镜像瘦身 | ⬜ |
 | 6 | 退役 Streamlit（删除 `src/views/`、`app.py`、streamlit 依赖） | ⬜ |
@@ -87,9 +89,24 @@ pytest tests/
 - 分析 Tabs：价格走势（客户端 base-100 归一化——直接解码 bdata typed array，零重取数）/ 相关性热力图 + 解读 / 风险统计表
 - 报价卡按类别分组，移植 Streamlit 版币种小数位规则与绿涨红跌约定
 
-## 下一步（Phase 3 切入点）
+## Phase 3a 交付内容（2026-07-18）
 
-1. `POST /api/portfolio/optimize`：请求体 = 资产选择 + 参数（回看窗口、无风险利率、约束、BL views），响应 = 权重 + 绩效 + 有效前沿/CAL 图表 JSON（复用 `plot_efficient_frontier`、`plot_allocation_pie`）；
-2. `POST /api/retirement/simulate`：蒙特卡洛参数 → 路径分位数 + `plot_monte_carlo_paths` 图表 JSON；
-3. 客户画像 CRUD：SQLModel + SQLite（schema 预留 `user_id`），替换 `data/profiles/*.json` 文件存储；
-4. 前端新增对应页面与侧边导航（多页面结构从此开始）。
+**API 新增（首个写端点）：**
+
+- `GET /api/portfolio/asset-classes` — 优化资产宇宙（DEFAULT_ASSET_CLASSES）
+- `POST /api/portfolio/optimize` — 组合优化。请求：资产 keys（≥2）、周期（1y–10y）、无风险利率（可空=自动获取）、方法（`mvo` / `resampled` / `black-litterman`）、目标（max-sharpe / min-vol）、做空开关、重采样次数、BL 配置（τ/δ/市值权重/观点列表，观点以资产 key 引用，服务端映射为名称）。响应：选中组合 + 最大夏普 + 最小波动三组权重与绩效、有效前沿图（含 CAL 与随机组合云）、配置饼图、逐资产统计、BL 均衡/后验收益对比、重采样权重波动。行情数据 TTL 缓存 5 min。
+
+**Web 新增：**
+
+- 侧边导航骨架：`layout.tsx` 重构为 sidebar + main 双栏，品牌与 API 健康徽标入驻 sidebar，`NavSidebar`（client，`usePathname` 高亮）驱动多页路由 `/` 与 `/optimizer`
+- 同源代理模式：`web/src/app/api/portfolio/optimize/route.ts` —— 浏览器只跟 Next 说话，`API_ORIGIN` 不出服务端（未来所有写操作沿用此模式）
+- `/optimizer` 页：完整参数表单（资产 chips、周期/方法/目标 pills、rf 自动/手动、做空开关、重采样滑块、BL 面板含 τ/δ/自定义市值权重/观点编辑器）→ 运行 → 指标卡 + 前沿图/饼图 + 权重明细表（含 BL 均衡/后验列、重采样 σ 列）+ 三组合对比卡
+
+**已知限制：** 重采样（尤其高模拟次数）是分钟级同步计算，目前靠 loading 态承担；Phase 4 异步任务化后改善。
+
+## 下一步（Phase 3b/3c 切入点）
+
+1. `POST /api/retirement/simulate`：`MonteCarloSimulator.retirement_planning(...)` 参数化（年龄/储蓄/收入/通胀/收益/波动/模拟次数），响应 = 积累期/支取期路径图（`plot_monte_carlo_paths`）+ 存活率/分位数/枯竭分析；
+2. `/retirement` 页复用 3a 的表单-代理-结果模式；
+3. 画像 CRUD：`api/db.py`（SQLModel + SQLite，`user_id` 预留），`ClientProfile` 存为 JSON 列 + 索引字段（名称/年龄/风险等级/更新时间），迁移工具读 `data/profiles/*.json`；
+4. `/profiles` 页：列表 + 新建/编辑表单（风险问卷后续单独迁移）。

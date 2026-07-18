@@ -3,7 +3,6 @@ import {
   DEFAULT_PERIOD,
   VALID_PERIODS,
   getAnalytics,
-  getHealth,
   getUniverse,
 } from "@/lib/api";
 import { QuotesSection } from "@/components/quotes-section";
@@ -11,23 +10,6 @@ import { CmeSection } from "@/components/cme-section";
 import { ApiOffline } from "@/components/api-offline";
 import DashboardControls from "@/components/dashboard-controls";
 import AnalyticsTabs from "@/components/analytics-tabs";
-
-/** Small API status chip in the header — streams in independently. */
-async function HealthBadge() {
-  const health = await getHealth();
-  if (!health) {
-    return (
-      <span className="rounded-full bg-rose-900/60 px-3 py-1 text-xs font-medium text-rose-300">
-        API 离线
-      </span>
-    );
-  }
-  return (
-    <span className="rounded-full bg-emerald-900/60 px-3 py-1 text-xs font-medium text-emerald-300">
-      API 在线 · v{health.version}
-    </span>
-  );
-}
 
 function SectionSkeleton({ rows = 4 }: { rows?: number }) {
   return (
@@ -83,7 +65,7 @@ export default async function Home({ searchParams }: PageProps) {
   if (!universe) {
     return (
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
-        <Header />
+        <PageHeading />
         <ApiOffline resource="资产宇宙元数据" />
       </div>
     );
@@ -105,7 +87,7 @@ export default async function Home({ searchParams }: PageProps) {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-6 py-10">
-      <Header />
+      <PageHeading />
 
       <DashboardControls
         categories={allCategories}
@@ -134,24 +116,13 @@ export default async function Home({ searchParams }: PageProps) {
   );
 }
 
-function Header() {
+function PageHeading() {
   return (
-    <header className="flex items-center justify-between">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-50">
-          Global Markets Pulse
-        </h1>
-        <p className="mt-1 text-sm text-slate-400">
-          AI WealthPilot · 实时行情与量化分析
-        </p>
-      </div>
-      <Suspense
-        fallback={
-          <span className="h-6 w-24 animate-pulse rounded-full bg-slate-800" />
-        }
-      >
-        <HealthBadge />
-      </Suspense>
+    <header>
+      <h1 className="text-2xl font-bold tracking-tight text-slate-50">
+        Global Markets Pulse
+      </h1>
+      <p className="mt-1 text-sm text-slate-400">实时行情与量化分析</p>
     </header>
   );
 }

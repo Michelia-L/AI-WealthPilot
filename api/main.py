@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # Importing the api package first ensures the project-root sys.path guard
 # in api/__init__.py runs before any `src.*` import below.
 import api  # noqa: F401
-from api.routers import cme, market
+from api.routers import cme, market, portfolio
 from api.schemas import HealthResponse
 from src.config import APP_NAME, APP_VERSION
 
@@ -44,6 +44,7 @@ def create_app() -> FastAPI:
 
     app.include_router(market.router, prefix="/api")
     app.include_router(cme.router, prefix="/api")
+    app.include_router(portfolio.router, prefix="/api")
 
     @app.get("/api/health", response_model=HealthResponse, tags=["meta"])
     def health() -> HealthResponse:

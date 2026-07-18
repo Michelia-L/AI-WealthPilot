@@ -159,3 +159,99 @@ export const getAnalytics = (period: string, tickers: string[]) =>
   getJson<AnalyticsResponse>(
     `/api/market/analytics?period=${encodeURIComponent(period)}&tickers=${tickersParam(tickers)}`
   );
+
+// ---------------------------------------------------------------------------
+// Portfolio optimization
+// ---------------------------------------------------------------------------
+
+export interface AssetClassInfo {
+  ticker: string;
+  name: string;
+}
+
+export interface AssetClassesResponse {
+  asset_classes: Record<string, AssetClassInfo>;
+}
+
+export interface BLViewInput {
+  view_type: "absolute" | "relative";
+  asset_long: string;
+  asset_short?: string | null;
+  expected_return: number;
+  confidence: number;
+}
+
+export interface BLConfigInput {
+  tau: number;
+  delta: number;
+  market_weights?: Record<string, number> | null;
+  views: BLViewInput[];
+}
+
+export type OptimizeMethod = "mvo" | "resampled" | "black-litterman";
+export type OptimizeMode = "max-sharpe" | "min-vol";
+
+export interface OptimizeRequest {
+  assets: string[];
+  period: string;
+  risk_free_rate?: number | null;
+  method: OptimizeMethod;
+  mode: OptimizeMode;
+  allow_short: boolean;
+  n_simulations: number;
+  bl?: BLConfigInput | null;
+}
+
+export interface PortfolioResult {
+  weights: Record<string, number>;
+  ann_return: number;
+  ann_volatility: number;
+  sharpe: number;
+  success: boolean;
+  weight_std: Record<string, number> | null;
+}
+
+export interface AssetStat {
+  key: string;
+  ticker: string;
+  name: string;
+  ann_return: number;
+  ann_volatility: number;
+}
+
+export interface BLInsight {
+  equilibrium_returns: Record<string, number>;
+  posterior_returns: Record<string, number>;
+}
+
+export interface OptimizeResponse {
+  as_of: string;
+  params: {
+    assets: string[];
+    period: string;
+    risk_free_rate: number;
+    method: OptimizeMethod;
+    mode: OptimizeMode;
+    allow_short: boolean;
+    n_simulations: number | null;
+    trading_days: number;
+  };
+  selected: PortfolioResult;
+  max_sharpe: PortfolioResult;
+  min_vol: PortfolioResult;
+  frontier_chart: PlotlyFigure;
+  allocation_chart: PlotlyFigure;
+  asset_stats: AssetStat[];
+  bl: BLInsight | null;
+}
+
+export const OPTIMIZER_PERIOD_OPTIONS = [
+  { value: "1y", label: "1Y" },
+  { value: "2y", label: "2Y" },
+  { value: "3y", label: "3Y" },
+  { value: "5y", label: "5Y" },
+  { value: "10y", label: "10Y" },
+] as const;
+
+export const getAssetClasses = () =>
+  getJson<AssetClassesResponse>("/api/portfolio/asset-classes");

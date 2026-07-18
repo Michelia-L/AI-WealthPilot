@@ -6,7 +6,7 @@ so the API contract and the engine can never drift apart.
 """
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -94,3 +94,97 @@ class AnalyticsResponse(BaseModel):
     price_chart: dict[str, Any]
     correlation_chart: Optional[dict[str, Any]] = None
     stats: list[RiskStat] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Portfolio optimization
+# ---------------------------------------------------------------------------
+
+
+class AssetClassInfo(BaseModel):
+    """An entry of DEFAULT_ASSET_CLASSES (optimization universe)."""
+
+    ticker: str
+    name: str
+
+
+class AssetClassesResponse(BaseModel):
+    asset_classes: dict[str, AssetClassInfo]
+
+
+class BLViewInput(BaseModel):
+    """One Black-Litterman investor view (asset keys, not display names)."""
+
+    view_type: Literal["absolute", "relative"]
+    asset_long: str = Field(description="Asset class key the view is bullish on")
+    asset_short: Optional[str] = Field(
+        default=None, description="Required for relative views"
+    )
+    expected_return: float = Field(
+        description="Annualized decimal (0.15 = 15%); spread for relative views"
+    )
+    confidence: float = Field(default=70, ge=0, le=100)
+
+
+class BLConfigInput(BaseModel):
+    tau: float = 0.025
+    delta: float = 2.5
+    market_weights: Optional[dict[str, float]] = Field(
+        default=None,
+        description="Market-cap weights keyed by asset class key; None = equal weights",
+    )
+    views: list[BLViewInput] = Field(default_factory=list)
+
+
+class OptimizeRequest(BaseModel):
+    assets: list[str] = Field(
+        default=["US_EQUITY", "INTL_EQUITY", "US_BOND", "GOLD"],
+        description="DEFAULT_ASSET_CLASSES keys (>= 2)",
+    )
+    period: Literal["1y", "2y", "3y", "5y", "10y"] = "5y"
+    risk_free_rate: Optional[float] = Field(
+        default=None, description="Annualized decimal; None = fetch dynamically"
+    )
+    method: Literal["mvo", "resampled", "black-litterman"] = "mvo"
+    mode: Literal["max-sharpe", "min-vol"] = "max-sharpe"
+    allow_short: bool = False
+    n_simulations: int = Field(default=200, ge=50, le=2000)
+    bl: Optional[BLConfigInput] = None
+
+
+class PortfolioResult(BaseModel):
+    weights: dict[str, float]
+    ann_return: float
+    ann_volatility: float
+    sharpe: float
+    success: bool = True
+    weight_std: Optional[dict[str, float]] = Field(
+        default=None, description="Resampled MVO only: weight dispersion per asset"
+    )
+
+
+class AssetStat(BaseModel):
+    key: str
+    ticker: str
+    name: str
+    ann_return: float
+    ann_volatility: float
+
+
+class BLInsight(BaseModel):
+    """Equilibrium (implied) vs posterior returns, per asset name."""
+
+    equilibrium_returns: dict[str, float]
+    posterior_returns: dict[str, float]
+
+
+class OptimizeResponse(BaseModel):
+    as_of: datetime
+    params: dict[str, Any] = Field(description="Effective parameters used")
+    selected: PortfolioResult
+    max_sharpe: PortfolioResult
+    min_vol: PortfolioResult
+    frontier_chart: dict[str, Any]
+    allocation_chart: dict[str, Any]
+    asset_stats: list[AssetStat]
+    bl: Optional[BLInsight] = None
