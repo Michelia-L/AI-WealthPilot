@@ -511,3 +511,29 @@ export const getAdvisorReports = (clientName?: string) =>
   getJson<ReportListResponse>(
     `/api/advisor/reports${clientName ? `?client_name=${encodeURIComponent(clientName)}` : ""}`
   );
+
+// ---------------------------------------------------------------------------
+// IPS workflow (Phase 4b — async generation tasks)
+// ---------------------------------------------------------------------------
+
+export interface IpsDocumentSummary {
+  document_id: string;
+  client_name: string;
+  version: string;
+  risk_level: string;
+  status: string;
+  revision_rounds: number;
+  saved_at: string;
+}
+
+export interface IpsListResponse {
+  documents: IpsDocumentSummary[];
+}
+
+export interface IpsDetailResponse {
+  document_id: string;
+  markdown: string;
+  metadata: Record<string, unknown>;
+}
+
+export const getIpsDocuments = () => getJson<IpsListResponse>("/api/ips");

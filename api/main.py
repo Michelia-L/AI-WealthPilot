@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # in api/__init__.py runs before any `src.*` import below.
 import api  # noqa: F401
 from api.db import init_db
-from api.routers import advisor, cme, market, portfolio, profiles, retirement
+from api.routers import advisor, cme, ips, market, portfolio, profiles, retirement
 from api.schemas import HealthResponse
 from src.config import APP_NAME, APP_VERSION
 
@@ -56,6 +56,7 @@ def create_app() -> FastAPI:
     app.include_router(retirement.router, prefix="/api")
     app.include_router(profiles.router, prefix="/api")
     app.include_router(advisor.router, prefix="/api")
+    app.include_router(ips.router, prefix="/api")
 
     @app.get("/api/health", response_model=HealthResponse, tags=["meta"])
     def health() -> HealthResponse:

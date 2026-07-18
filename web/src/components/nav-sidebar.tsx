@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: "/retirement", label: "退休规划", en: "Retirement", icon: "🎯" },
   { href: "/profiles", label: "客户画像", en: "Profiles", icon: "👤" },
   { href: "/advisor", label: "AI 顾问", en: "AI Advisor", icon: "🤖" },
+  { href: "/ips", label: "IPS 生成", en: "IPS Workflow", icon: "📜" },
 ];
 
 export default function NavSidebar() {

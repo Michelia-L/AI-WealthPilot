@@ -382,3 +382,38 @@ class ReportDetailResponse(ReportSummary):
     prompt_tokens: int
     completion_tokens: int
     notes: str
+
+
+# ---------------------------------------------------------------------------
+# IPS workflow (Phase 4b — async generation tasks)
+# ---------------------------------------------------------------------------
+
+
+class IpsGenerateRequest(BaseModel):
+    profile_id: int
+    max_revisions: int = Field(default=3, ge=0, le=5)
+
+
+class IpsTaskCreatedResponse(BaseModel):
+    task_id: str
+    profile_id: int
+
+
+class IpsDocumentSummary(BaseModel):
+    document_id: str
+    client_name: str
+    version: str
+    risk_level: str
+    status: str
+    revision_rounds: int
+    saved_at: str
+
+
+class IpsListResponse(BaseModel):
+    documents: list[IpsDocumentSummary]
+
+
+class IpsDetailResponse(BaseModel):
+    document_id: str
+    markdown: str
+    metadata: dict[str, Any]

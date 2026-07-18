@@ -10,21 +10,8 @@ import type {
   ReportSummary,
 } from "@/lib/api";
 import { fmtLocal } from "@/lib/format";
+import { readSseStream } from "@/lib/sse";
 import Markdown from "@/components/markdown";
-
-/** Parse one SSE block ("data: {json}") into an event object, or null. */
-function parseSseBlock(block: string): Record<string, unknown> | null {
-  for (const line of block.split("\n")) {
-    if (line.startsWith("data: ")) {
-      try {
-        return JSON.parse(line.slice(6));
-      } catch {
-        return null;
-      }
-    }
-  }
-  return null;
-}
 
 export default function AdvisorWorkspace({
   profiles,
@@ -73,30 +60,18 @@ export default function AdvisorWorkspace({
         );
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      for (;;) {
-        const { value, done: streamDone } = await reader.read();
-        if (streamDone) break;
-        buffer += decoder.decode(value, { stream: true });
-        const blocks = buffer.split("\n\n");
-        buffer = blocks.pop() ?? "";
-        for (const block of blocks) {
-          const event = parseSseBlock(block);
-          if (!event) continue;
-          if (event.type === "token") {
-            setText((prev) => prev + String(event.text ?? ""));
-          } else if (event.type === "done") {
-            setDone(event as unknown as AdvisorDoneEvent);
-            if (!event.success) {
-              setError(String(event.error_message || "报告校验未通过"));
-            }
-          } else if (event.type === "error") {
-            setError(String(event.message ?? "生成中断"));
+      await readSseStream(res.body, (event) => {
+        if (event.type === "token") {
+          setText((prev) => prev + String(event.text ?? ""));
+        } else if (event.type === "done") {
+          setDone(event as unknown as AdvisorDoneEvent);
+          if (!event.success) {
+            setError(String(event.error_message || "报告校验未通过"));
           }
+        } else if (event.type === "error") {
+          setError(String(event.message ?? "生成中断"));
         }
-      }
+      });
     } catch (e) {
       if (!controller.signal.aborted) {
         setError(e instanceof Error ? e.message : String(e));

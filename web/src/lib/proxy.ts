@@ -69,3 +69,28 @@ export async function proxyStream(path: string, body: unknown) {
     );
   }
 }
+
+/** Streaming proxy for GET SSE endpoints (task progress feeds). */
+export async function proxyStreamGet(path: string) {
+  try {
+    const res = await fetch(`${API_ORIGIN}${path}`, { cache: "no-store" });
+    if (!res.ok || !res.body) {
+      const data = await res
+        .json()
+        .catch(() => ({ detail: `上游服务错误（HTTP ${res.status}）` }));
+      return NextResponse.json(data, { status: res.status });
+    }
+    return new Response(res.body, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+      },
+    });
+  } catch {
+    return NextResponse.json(
+      { detail: "API 服务不可达，请确认后端已启动。" },
+      { status: 502 }
+    );
+  }
+}

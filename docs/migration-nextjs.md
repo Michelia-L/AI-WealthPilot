@@ -1,6 +1,6 @@
 # Next.js 迁移计划 / Migration Plan
 
-> Status: **Phase 4a complete** (2026-07-18) — AI 顾问流式建议书（SSE）。
+> Status: **Phase 4b complete** (2026-07-18) — IPS 工作流异步任务化 + 进度推送。
 
 ## 目标
 
@@ -29,7 +29,7 @@ src/    Python 量化核心（优化器、CME、Agents）— 零改动，Streaml
 | 3b | Retirement Planner（蒙特卡洛 POST + 表单页） | ✅ 2026-07-18 |
 | 3c | 客户画像 CRUD 落 SQLite（SQLModel，schema 预留 `user_id`）+ 画像页面 | ✅ 2026-07-18 |
 | 4a | AI Advisor 流式输出（SSE）+ 报告库 | ✅ 2026-07-18 |
-| 4b | IPS 工作流异步任务化（进程内队列 + 进度推送） | ⬜ |
+| 4b | IPS 工作流异步任务化（进程内队列 + 进度推送） | ✅ 2026-07-18 |
 | 5 | 部署打磨：数据迁移工具、公网简单认证、镜像瘦身 | ⬜ |
 | 6 | 退役 Streamlit（删除 `src/views/`、`app.py`、streamlit 依赖） | ⬜ |
 
@@ -138,11 +138,13 @@ pytest tests/
 
 **已知限制：** 风险问卷 UI（9 题双轨制）后续单独迁移，当前以手动评分代替；画像对比（compare_profiles）与行为偏差分析随 Phase 4 顾问工作流接入。
 
-## 下一步（Phase 4 切入点）
+## 下一步（Phase 5 切入点）
 
-1. AI Advisor 流式输出（SSE）：`POST /api/advisor/chat` 流式端点 + web 端 EventSource/ReadableStream 消费；
-2. IPS 工作流异步任务化：进程内队列 + 进度推送（顺带解决 resampled-MVO 分钟级同步计算问题）；
-3. 风险问卷迁移：9 题双轨制表单，答案存入画像 `ability_answers`/`willingness_answers` 并自动算分。
+1. 部署打磨：镜像瘦身（多阶段 pip 缓存、.dockerignore 审计）、启动自检；
+2. 公网简单认证（单用户密码/OIDC 二选一，schema 已预留 `user_id`）；
+3. 风险问卷迁移：9 题双轨制表单，答案存入画像 `ability_answers`/`willingness_answers` 并自动算分；
+4. 体验债：resampled-MVO 分钟级计算接入 4b 的任务框架；IPS PDF 导出（`export_ips_pdf`）；
+5. 画像对比（compare_profiles）与行为偏差分析页面。
 
 ## Phase 4a 交付内容（2026-07-18）
 
@@ -161,3 +163,21 @@ pytest tests/
 - 导航新增"AI 顾问"。
 
 **已验证：** 容器内真实 DeepSeek 链路 60s 收到 2356 个 token 事件（约 100KB），逐 token 到达；测试 mock 生成器断言事件协议（token→done 序列、503/404 分支）。
+
+## Phase 4b 交付内容（2026-07-18）
+
+**API 新增（异步任务 + 进度推送）：**
+
+- `POST /api/ips/generate` — 202 创建 IPS 生成任务。LangGraph 工作流以进程内 asyncio 任务运行（按既定决策不引入 Celery/Redis；任务进程级存活，重启即失）；`astream(stream_mode="updates")` 的节点完成事件推入每任务 `asyncio.Queue`；逐节点 delta 合并重建终态，成功后经 src `save_ips` 入库（与 Streamlit 共享 JSON 存储）。
+- `GET /api/ips/tasks/{id}/events` — SSE 进度流：`node`（含中文节点标签）→ `done`（document_id/状态/修订轮数）/ `error`。
+- 文档库：`GET /api/ips`（列表，document_id=文件 stem）、`GET /api/ips/{id}`（`export_ips_markdown` 渲染全文）；glob 按 id 定位文件，杜绝路径穿越。
+- 依赖修复：`pydantic-ai` 钉 `<1.107`（1.107+ 移除了 `ips_agents.py` 使用的 `OpenAIModel`；src 零改动原则下以钉版本解决）。
+
+**Web 新增：**
+
+- `/ips` 页：画像选择 + 最大修订轮数 → 创建任务 → SSE 实时节点进度时间线（节点逐个打勾 + 处理中转圈；修订循环自然展开为多行）→ 完成卡片（直达文档）→ 文档库表格（版本/风险等级/审批状态/修订轮数）→ markdown 全文查看。
+- `lib/sse.ts`：`parseSseBlock` + `readSseStream` 抽取共享（advisor 页同步重构复用）。
+- `proxyStreamGet()`：GET 型 SSE 直通代理（任务进度流）。
+- 导航新增"IPS 生成"。
+
+**已知限制：** 任务为进程内存活——API 重启后任务消失（已生成的 IPS 文档不受影响）；SSE 断连不取消后台任务；PDF 导出（`export_ips_pdf`）留待 Phase 5。

@@ -17,7 +17,9 @@ openai>=1.0.0
 # Agent Orchestration — IPS Generator (LangGraph + PydanticAI)
 langgraph>=0.2.0
 langgraph-checkpoint>=2.0.0
-pydantic-ai>=0.2.0
+# OpenAIModel was removed in pydantic-ai 1.107+; src/agents/ips_agents.py
+# still uses it (src stays untouched during the Streamlit migration).
+pydantic-ai>=1.0.0,<1.107.0
 pydantic>=2.0.0
 
 # Utilities
