@@ -12,10 +12,12 @@ Reports the user chooses to keep are persisted through src/ report_storage
 """
 
 import json
+from dataclasses import asdict
 from typing import Any, Generator, Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlmodel import Session
 
 from api.db import ProfileRecord, get_session
@@ -35,6 +37,7 @@ from src.agents.advisor import (
     is_api_configured,
 )
 from src.config import DEEPSEEK_MODEL
+from src.utils import sanitize_filename
 
 router = APIRouter(prefix="/advisor", tags=["advisor"])
 
@@ -171,3 +174,54 @@ def delete_report(report_id: str) -> None:
     filepath = _find_report_file(report_id)
     if filepath is None or not report_storage.delete_report(filepath):
         raise HTTPException(status_code=404, detail="报告不存在")
+
+
+_EXPORT_FORMATS = ("html", "markdown", "json")
+
+
+@router.get("/reports/{report_id}/export")
+def export_report_file(
+    report_id: str,
+    format: str = Query(default="html"),
+) -> Response:
+    """Export a stored report as a downloadable file (html / markdown / json).
+
+    The HTML/Markdown renderers live in src/ report_storage (letterhead-styled
+    standalone document); the JSON variant mirrors the stored record minus
+    internal filepaths, which never leave the API surface.
+    """
+    if format not in _EXPORT_FORMATS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"format 必须是 {' / '.join(_EXPORT_FORMATS)}",
+        )
+    filepath = _find_report_file(report_id)
+    if filepath is None:
+        raise HTTPException(status_code=404, detail="报告不存在")
+    report = report_storage.load_report(filepath)
+
+    base = f"report_{sanitize_filename(report.client_name) or 'client'}_{report.report_id}"
+    if format == "html":
+        body = report_storage.export_report_html(report)
+        media_type, ext = "text/html", "html"
+    elif format == "markdown":
+        body = report_storage.export_report_markdown(report)
+        media_type, ext = "text/markdown", "md"
+    else:
+        data = {
+            k: v
+            for k, v in asdict(report).items()
+            if k not in ("filepath", "profile_filepath")
+        }
+        body = json.dumps(data, ensure_ascii=False, indent=2)
+        media_type, ext = "application/json", "json"
+
+    disposition = (
+        f'attachment; filename="{base}.{ext}"; '
+        f"filename*=UTF-8''{quote(base)}.{ext}"
+    )
+    return Response(
+        content=body,
+        media_type=media_type,
+        headers={"Content-Disposition": disposition},
+    )

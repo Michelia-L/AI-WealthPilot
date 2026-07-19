@@ -142,3 +142,18 @@ def test_pdf_export(client, fake_workflow):
     assert "attachment" in resp.headers["content-disposition"]
 
     assert client.get("/api/ips/ips_nobody_20260101_000000/pdf").status_code == 404
+
+
+def test_markdown_export(client, fake_workflow):
+    profile_id = _create_profile(client)
+    task_id = client.post("/api/ips/generate", json={"profile_id": profile_id}).json()["task_id"]
+    events = _parse_sse(client.get(f"/api/ips/tasks/{task_id}/events").text)
+    document_id = events[-1]["document_id"]
+
+    resp = client.get(f"/api/ips/{document_id}/export")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/markdown")
+    assert "attachment" in resp.headers["content-disposition"]
+    assert "投资政策声明书" in resp.text
+
+    assert client.get("/api/ips/ips_nobody_20260101_000000/export").status_code == 404

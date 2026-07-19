@@ -477,3 +477,79 @@ class IpsDetailResponse(BaseModel):
     document_id: str
     markdown: str
     metadata: dict[str, Any]
+    # 与列表一致的摘要字段，便于查看页直接渲染头部信息
+    client_name: str = ""
+    version: str = "?"
+    risk_level: str = "?"
+    status: str = "?"
+    revision_rounds: int = 0
+    saved_at: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Portfolio monitoring & rebalancing (P10 — src/portfolio/monitoring.py)
+# ---------------------------------------------------------------------------
+
+
+class MonitoringPortfolioMetrics(BaseModel):
+    """Portfolio-level metrics under one weight set (target or drifted)."""
+
+    expected_return: Optional[float] = None
+    volatility: Optional[float] = None
+    sharpe: Optional[float] = None
+
+
+class MonitoringHoldingMetrics(BaseModel):
+    """CME metrics attached to one SAA holding (null when unmapped)."""
+
+    expected_return: float
+    volatility: float = Field(description="Blended vol preferred, historical fallback")
+    sharpe: float
+    max_drawdown: float
+    var_95: float
+    cvar_95: float
+
+
+class MonitoringHolding(BaseModel):
+    key: Optional[str] = Field(
+        default=None, description="IPS_ASSET_CLASS_TICKERS key; None when unmapped"
+    )
+    name: str = Field(description="SAA asset class display name")
+    ticker: Optional[str] = None
+    target_weight: float
+    min_weight: float
+    max_weight: float
+    drifted_weight: Optional[float] = None
+    drift_pp: Optional[float] = None
+    band_status: Literal["within", "above", "below", "unknown"]
+    period_return: Optional[float] = None
+    metrics: Optional[MonitoringHoldingMetrics] = None
+
+
+class MonitoringTrade(BaseModel):
+    key: Optional[str] = None
+    name: str
+    action: Literal["buy", "sell"]
+    weight_pp: float = Field(
+        description="target - drifted as a decimal; positive = buy, negative = sell"
+    )
+
+
+class MonitoringRebalance(BaseModel):
+    needed: bool
+    trades: list[MonitoringTrade] = Field(default_factory=list)
+
+
+class MonitoringResponse(BaseModel):
+    document_id: str
+    client_name: str
+    saved_at: str
+    as_of: str
+    cme_cache_status: str = Field(
+        description="CME provenance: 'fresh' | 'cached' | 'stale' | 'fallback'"
+    )
+    portfolio: MonitoringPortfolioMetrics
+    drifted_portfolio: MonitoringPortfolioMetrics
+    holdings: list[MonitoringHolding]
+    rebalance: MonitoringRebalance
+    notes: list[str] = Field(default_factory=list)

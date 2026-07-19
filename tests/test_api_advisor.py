@@ -118,3 +118,55 @@ def test_report_not_found(client):
     assert client.delete("/api/advisor/reports/20990101_000000_000000").status_code == 404
     # Malformed ids are 404 too, never a path traversal.
     assert client.get("/api/advisor/reports/..%2F..%2Fetc").status_code == 404
+
+
+def _save_report(client) -> str:
+    saved = client.post(
+        "/api/advisor/reports",
+        json={
+            "client_name": "John Doe",
+            "content": "# Report\nSome advice.",
+            "model": "deepseek-v4-pro",
+            "prompt_tokens": 10,
+            "completion_tokens": 20,
+        },
+    )
+    assert saved.status_code == 201
+    return saved.json()["report_id"]
+
+
+def test_export_report_html_and_markdown(client):
+    report_id = _save_report(client)
+
+    html = client.get(f"/api/advisor/reports/{report_id}/export?format=html")
+    assert html.status_code == 200
+    assert html.headers["content-type"].startswith("text/html")
+    assert "attachment" in html.headers["content-disposition"]
+    assert "投资咨询建议书" in html.text
+
+    md = client.get(f"/api/advisor/reports/{report_id}/export?format=markdown")
+    assert md.status_code == 200
+    assert md.headers["content-type"].startswith("text/markdown")
+    assert md.text.startswith("# Investment Advisory Report")
+    assert "Some advice." in md.text
+
+    js = client.get(f"/api/advisor/reports/{report_id}/export?format=json")
+    assert js.status_code == 200
+    payload = js.json()
+    assert payload["client_name"] == "John Doe"
+    assert payload["content"] == "# Report\nSome advice."
+    # internal paths never leave the API surface, even in exports
+    assert "filepath" not in payload
+    assert "profile_filepath" not in payload
+
+
+def test_export_report_validation_and_missing(client):
+    report_id = _save_report(client)
+    assert (
+        client.get(f"/api/advisor/reports/{report_id}/export?format=pdf").status_code
+        == 422
+    )
+    assert (
+        client.get("/api/advisor/reports/20990101_000000_000000/export").status_code
+        == 404
+    )

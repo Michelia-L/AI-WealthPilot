@@ -181,12 +181,19 @@ def get_ips(document_id: str) -> IpsDetailResponse:
     if filepath is None:
         raise HTTPException(status_code=404, detail="IPS 文档不存在")
     record = ips_storage.load_ips(filepath)
+    ips = record.get("ips", {})
+    meta = record.get("metadata", {})
+    audit = record.get("audit_trail", {})
     return IpsDetailResponse(
         document_id=document_id,
-        markdown=ips_storage.export_ips_markdown(
-            record.get("ips", {}), record.get("audit_trail")
-        ),
-        metadata=record.get("metadata", {}),
+        markdown=ips_storage.export_ips_markdown(ips, record.get("audit_trail")),
+        metadata=meta,
+        client_name=meta.get("client_name", ips.get("client_name", "Unknown")),
+        version=ips.get("version", "?"),
+        risk_level=ips.get("risk_tolerance", {}).get("overall_risk_level", "?"),
+        status=audit.get("final_status", "?"),
+        revision_rounds=audit.get("total_rounds", 0),
+        saved_at=meta.get("saved_at", ""),
     )
 
 
@@ -215,5 +222,25 @@ def get_ips_pdf(document_id: str) -> Response:
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
+        headers={"Content-Disposition": disposition},
+    )
+
+
+@router.get("/{document_id}/export")
+def export_ips_markdown(document_id: str) -> Response:
+    """Export the stored IPS (with audit trail) as a Markdown download."""
+    filepath = _find_ips_file(document_id)
+    if filepath is None:
+        raise HTTPException(status_code=404, detail="IPS 文档不存在")
+    record = ips_storage.load_ips(filepath)
+    markdown = ips_storage.export_ips_markdown(
+        record.get("ips", {}), record.get("audit_trail")
+    )
+    disposition = (
+        f"attachment; filename=\"ips.md\"; filename*=UTF-8''{quote(document_id)}.md"
+    )
+    return Response(
+        content=markdown,
+        media_type="text/markdown",
         headers={"Content-Disposition": disposition},
     )
