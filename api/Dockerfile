@@ -3,8 +3,8 @@
 # The build context is the REPOSITORY ROOT (see docker-compose.yml),
 # because the API imports the src/ package directly.
 #
-# requirements-api.txt excludes Streamlit/pytest (the Streamlit UI runs from
-# the dev environment until Phase 6) — this keeps the image slim.
+# requirements.txt is the single runtime dependency set (Streamlit was
+# retired in Phase 6; dev-only extras live in requirements-dev.txt).
 
 FROM python:3.11-slim
 
@@ -22,8 +22,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies first for better layer caching
-COPY requirements-api.txt .
-RUN pip install --no-cache-dir -r requirements-api.txt
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the quant core, the API shell, and the static CME fallback document.
 # Runtime data (cache, profiles, reports) is NOT baked in — it comes from

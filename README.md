@@ -10,7 +10,8 @@
   *A Practical Wealth Management Prototype & Quantitative Portfolio Engine*
 
   [![Python](https://img.shields.io/badge/Python-3.11+-blue?style=flat-square&logo=python&logoColor=white)](https://www.python.org)
-  [![Streamlit](https://img.shields.io/badge/Framework-Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)](https://streamlit.io)
+  [![Next.js](https://img.shields.io/badge/Frontend-Next.js-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
+  [![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
   [![LangGraph](https://img.shields.io/badge/Agent-LangGraph-9f1239?style=flat-square&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
   [![PydanticAI](https://img.shields.io/badge/Framework-Pydantic--AI-0284c7?style=flat-square)](https://ai.pydantic.dev/)
   [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
@@ -63,8 +64,8 @@ The system couples a **Modern Portfolio Theory (MPT)** optimization solver with 
   Employs LLMs (`DeepSeek V4 Pro`) to analyze client metrics, identify behavioral finance biases — including **loss aversion**, **overconfidence**, **ability-willingness mismatch**, **leverage risk**, and **inadequate safety net** — and generate personalized wealth advisor proposals.
 - 📄 **Enhanced Multi-Format Document Export**  
   Supports seamless export of AI advisor recommendations to standalone HTML (styled with inline CSS), Markdown, and raw JSON documents.
-- 📊 **Obsidian & Gold Glassmorphic UI**  
-  Custom-styled terminal with Obsidian & Gold Glassmorphic financial aesthetics built with Streamlit and powered by custom multi-dimensional Plotly charts.
+- 📊 **Obsidian & Gold Dark Terminal UI**  
+  Dark obsidian/amber financial terminal built with **Next.js + Tailwind**, streaming LLM tokens and task progress over SSE, with Plotly charts rendered server-side and shipped to plotly.js as JSON.
 
 ---
 
@@ -74,13 +75,15 @@ The following diagram illustrates the data flow and communication protocols betw
 
 ```mermaid
 graph TB
-    subgraph UI_Layer ["Interactive Client Layer (Streamlit UI)"]
-        UI[Streamlit Main App]
-        P1[Market Dashboard Page]
-        P2[Portfolio Optimizer Page]
-        P3[Retirement Planner Page]
-        P4[Client Profiling Page]
-        P5[AI Advisor Page]
+    subgraph UI_Layer ["Interactive Client Layer (Next.js + FastAPI)"]
+        UI[Next.js Frontend<br/>App Router · SSE Streaming]
+        API[FastAPI Shell<br/>REST / SSE transport over src/]
+        P1[Market Dashboard]
+        P2[Portfolio Optimizer]
+        P3[Retirement Planner]
+        P4[Client Profiling]
+        P5[AI Advisor]
+        P6[IPS Generator]
     end
 
     subgraph Quant_Engine ["Quantitative Finance Engine"]
@@ -106,12 +109,13 @@ graph TB
 
     subgraph Data_Layer ["Data Pipeline & Persistence"]
         YF[yfinance API<br/>Real-time Quotes & FX Rates]
-        JSON_DB[(Client Profiles<br/>JSON Document Store)]
+        JSON_DB[(Client Profiles<br/>SQLite + legacy JSON import)]
         IPS_DB[(IPS & Audit Trail<br/>JSON Store)]
     end
 
     %% UI Routing
-    UI --> P1 & P2 & P3 & P4 & P5
+    UI --> API
+    API --> P1 & P2 & P3 & P4 & P5 & P6
 
     %% Market Data Flow
     P1 --> YF
@@ -136,6 +140,7 @@ graph TB
     %% Storage Flow
     Final --> IPS_DB
     P5 --> IPS_DB
+    P6 --> IPS_DB
     
     style UI fill:#4f46e5,stroke:#312e81,color:#fff
     style MVO fill:#0284c7,stroke:#075985,color:#fff
@@ -222,7 +227,6 @@ $$S_{t+\Delta t} = S_t \exp \left( \left(\mu - \frac{1}{2}\sigma^2\right)\Delta 
 ```
 AI-WealthPilot/
 ├── src/
-│   ├── app.py                    # Streamlit main entrypoint & navigation
 │   ├── config.py                 # Core assets (13 classes), hyperparameters & configs
 │   ├── utils.py                  # Filename sanitization utility
 │   ├── portfolio/                # [Quantitative Engine]
@@ -238,14 +242,6 @@ AI-WealthPilot/
 │   │   └── implied_volatility.py # VIX/MOVE implied volatility fetcher & Bayesian blending proxy mapper
 │   ├── visualization/            # [Chart Renderer]
 │   │   └── charts.py             # Plotly interactive chart components
-│   ├── views/                    # [Streamlit Pages]
-│   │   ├── styles.py             # Obsidian & Gold visual styling and premium CSS injections
-│   │   ├── market_dashboard.py   # Cross-asset quotes & correlation visualizers
-│   │   ├── portfolio_optimizer.py# MVO & Black-Litterman allocations
-│   │   ├── retirement_planner.py # Monte Carlo simulation planner
-│   │   ├── client_profiling.py   # IPS questionnaire & profiles registry
-│   │   ├── ai_advisor.py         # AI advisor proposal interface (streaming)
-│   │   └── compliance.py         # Compliance & suitability disclaimer UI components
 │   ├── agents/                   # [AI Agent Core]
 │   │   ├── profiler.py           # Client profile parser agent & behavioral bias identification
 │   │   ├── advisor.py            # DeepSeek V4 Pro report generator agent (streaming)
@@ -255,12 +251,15 @@ AI-WealthPilot/
 │   │   ├── ips_agents.py         # PydanticAI agent definitions for generator, reviewer, reviser
 │   │   ├── ips_workflow.py       # LangGraph state machine orchestrating Generate-Review-Revise
 │   │   └── ips_storage.py        # Persistence and exports for IPS and audit trail reports
-├── api/                          # [FastAPI Shell — new, migration in progress]
+├── api/                          # [FastAPI Shell — transport-only over src/]
 │   ├── main.py                   # App entry: CORS, routers, /api/health, lifespan (init_db + auto-import)
 │   ├── routers/                  # market / cme / portfolio / retirement / profiles / advisor / ips
 │   ├── db.py                     # SQLModel + SQLite persistence (data/wealthpilot.db)
-│   └── Dockerfile                # API image (context = repo root, slim requirements-api.txt)
-├── web/                          # [Next.js Frontend — new, migration in progress]
+│   ├── tasks.py                  # Generic in-process background task registry + SSE drain
+│   ├── profile_convert.py        # ClientProfile payload ↔ dataclass conversion helpers
+│   ├── migrate_profiles.py       # Legacy JSON profile importer (first-boot auto-seed)
+│   └── Dockerfile                # API image (context = repo root, runtime requirements.txt)
+├── web/                          # [Next.js Frontend]
 │   ├── src/app/                  # App Router pages (dashboard, optimizer, retirement, profiles, advisor, ips)
 │   ├── src/components/           # Workspace components, Plotly wrapper, Markdown renderer
 │   ├── src/lib/                  # Typed API client, SSE helpers, same-origin proxy
@@ -282,7 +281,6 @@ AI-WealthPilot/
 │   ├── test_ips_workflow.py      # LangGraph Generate-Review-Revise loop execution tests
 │   ├── test_portfolio_recommender.py # Portfolio recommendation logic consistency tests
 │   ├── test_comparison_export.py # Profile comparison data exports tests
-│   ├── test_views.py             # Streamlit page rendering smoke tests
 │   └── test_phase3_features.py   # End-to-end features integration tests
 ├── examples/                     # [Demo & Showcase Scripts]
 │   ├── demo_quick.py             # Simple quick demo (MVO + BL + Monte Carlo)
@@ -304,10 +302,10 @@ AI-WealthPilot/
 
 ### Prerequisites
 
-- **Python 3.11+**
+- **Docker Desktop** (recommended), or **Python 3.11+** & **Node.js 20+** for running from source
 - Git
 
-### Installation
+### Option A — Docker (recommended)
 
 1. **Clone the Repository**
    ```bash
@@ -315,7 +313,24 @@ AI-WealthPilot/
    cd AI-WealthPilot
    ```
 
-2. **Set up Virtual Environment**
+2. **Environment Configuration**
+   ```bash
+   cp .env.example .env
+   # Add your DEEPSEEK_API_KEY in the .env file to enable the AI Advisor.
+   # Get your key at: https://platform.deepseek.com
+   ```
+
+3. **Launch the Full Stack**
+   ```bash
+   docker compose up --build
+   ```
+   → Web: `http://localhost:3000` · API docs: `http://localhost:8000/docs`
+
+### Option B — From Source
+
+1. **Clone & configure `.env`** as above.
+
+2. **Set up the API (FastAPI shell over src/)**
    ```bash
    # Windows
    python -m venv .venv
@@ -324,39 +339,20 @@ AI-WealthPilot/
    # macOS / Linux
    python3 -m venv .venv
    source .venv/bin/activate
+
+   pip install -r requirements-dev.txt   # runtime deps + pytest
+   uvicorn api.main:app --reload --port 8000
    ```
 
-3. **Install Dependencies**
+3. **Set up the Web frontend (Next.js)**
    ```bash
-   pip install -r requirements.txt
+   cd web
+   npm install
+   npm run dev   # http://localhost:3000
    ```
 
-4. **Environment Configuration**
-   ```bash
-   cp .env.example .env
-   # Add your DEEPSEEK_API_KEY in the .env file to enable the AI Advisor.
-   # Get your key at: https://platform.deepseek.com
-   ```
-
-5. **Launch App**
-   ```bash
-   streamlit run src/app.py
-   ```
-   The app will run locally at `http://localhost:8501`.
-
-### Next.js Frontend (Migration in Progress)
-
-The project is migrating to a decoupled **Next.js + FastAPI** architecture (see [`docs/migration-nextjs.md`](docs/migration-nextjs.md) for the roadmap). The Streamlit UI remains fully functional during the transition.
-
-```bash
-# Full stack via Docker (recommended)
-docker compose up --build
-# → Web: http://localhost:3000   API docs: http://localhost:8000/docs
-
-# Or run both sides from source
-uvicorn api.main:app --reload --port 8000   # FastAPI shell over src/
-cd web && npm install && npm run dev        # Next.js frontend
-```
+> [!NOTE]
+> The migration from Streamlit to Next.js + FastAPI is **complete** (Phase 6): the Streamlit UI has been retired. See [`docs/migration-nextjs.md`](docs/migration-nextjs.md) for the full journey.
 
 ---
 

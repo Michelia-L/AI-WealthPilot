@@ -1,0 +1,7 @@
+# Development dependencies — runtime set plus test tooling.
+#   pip install -r requirements-dev.txt
+
+-r requirements.txt
+
+# Testing
+pytest>=7.4.0

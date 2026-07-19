@@ -1,3 +1,7 @@
+# Runtime dependencies — FastAPI shell + quant core (this is the exact set
+# the API Docker image installs). Dev extras (pytest) live in
+# requirements-dev.txt.
+
 # Core
 numpy>=1.24.0
 pandas>=2.0.0
@@ -7,9 +11,8 @@ scikit-learn>=1.2.0
 # Data Sources
 yfinance>=0.2.28
 
-# Visualization
+# Visualization (figures are generated server-side, streamed as JSON)
 plotly>=5.18.0
-streamlit>=1.30.0
 
 # AI / LLM (DeepSeek V4 Pro — OpenAI-compatible API)
 openai>=1.0.0
@@ -18,7 +21,7 @@ openai>=1.0.0
 langgraph>=0.2.0
 langgraph-checkpoint>=2.0.0
 # OpenAIModel was removed in pydantic-ai 1.107+; src/agents/ips_agents.py
-# still uses it (src stays untouched during the Streamlit migration).
+# still uses it (src is frozen — pin instead of patching).
 pydantic-ai>=1.0.0,<1.107.0
 pydantic>=2.0.0
 
@@ -29,10 +32,7 @@ markdown>=3.4.0
 nh3>=0.2.0  # HTML sanitizer for LLM-generated report content (XSS prevention)
 fpdf2>=2.8.0
 
-# API Layer (thin FastAPI shell over src/ for the Next.js frontend)
+# API Layer
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
-sqlmodel>=0.0.22  # SQLite persistence (client profiles, future IPS/advisor tables)
-
-# Testing
-pytest>=7.4.0
+sqlmodel>=0.0.22  # SQLite persistence (client profiles, future user tables)

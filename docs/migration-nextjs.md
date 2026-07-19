@@ -1,6 +1,6 @@
 # Next.js 迁移计划 / Migration Plan
 
-> Status: **Phase 5c complete** (2026-07-19) — 体验债清偿（resampled-MVO 异步化 + 画像对比/行为偏差页）。
+> Status: **✅ 迁移完成 (Phase 6, 2026-07-19)** — Streamlit 已退役；Next.js + FastAPI 为唯一栈。
 
 ## 目标
 
@@ -9,13 +9,13 @@
 ```
 web/    Next.js (App Router) + Tailwind — 前端
 api/    FastAPI 薄壳 — 只做路由/校验/缓存/序列化，不含业务逻辑
-src/    Python 量化核心（优化器、CME、Agents）— 零改动，Streamlit 与新前端共用
+src/    Python 量化核心（优化器、CME、Agents）— 零改动
 ```
 
 关键原则：
 
 - **业务逻辑只活在 `src/`**。`api/` 是传输层，永远不放计算逻辑；新增端点 = 包装现有 `src/` 函数。
-- **Streamlit 全程可用**，直到 Phase 6 才退役。每个阶段结束都是可工作状态。
+- ~~**Streamlit 全程可用**，直到 Phase 6 才退役。~~ **已于 Phase 6 退役**（2026-07-19）。
 - **本地优先**：`docker compose up` 一条命令起全栈；源码直跑 `uvicorn` + `next dev` 同样支持。
 - 数据 schema 预留 `user_id` 维度，但多用户认证后置。
 
@@ -33,7 +33,7 @@ src/    Python 量化核心（优化器、CME、Agents）— 零改动，Streaml
 | 5a | 部署打磨：镜像瘦身（requirements-api 分离）、compose 健康检查、首启自动迁移、.dockerignore 审计 | ✅ 2026-07-18 |
 | 5b | 功能补齐：风险问卷迁移（9 题双轨制 + 自动算分）、IPS PDF 导出 | ✅ 2026-07-18 |
 | 5c | 体验债：resampled-MVO 异步任务化、画像对比/行为偏差页 | ✅ 2026-07-19 |
-| 6 | 退役 Streamlit（删除 `src/views/`、`app.py`、streamlit 依赖） | ⬜ |
+| 6 | 退役 Streamlit（删除 `src/views/`、`app.py`、streamlit 依赖） | ✅ 2026-07-19 |
 
 ## Milestone 1 交付内容
 
@@ -58,10 +58,7 @@ npm run dev        # http://localhost:3000
 # 全栈（推荐）
 docker compose up --build
 
-# Streamlit 旧 UI（迁移期间保持可用）
-streamlit run src/app.py
-
-# Python 测试
+# Python 测试（pip install -r requirements-dev.txt）
 pytest tests/
 ```
 
@@ -140,10 +137,10 @@ pytest tests/
 
 **已知限制：** 风险问卷 UI（9 题双轨制）后续单独迁移，当前以手动评分代替；画像对比（compare_profiles）与行为偏差分析随 Phase 4 顾问工作流接入。
 
-## 下一步（Phase 6 切入点）
+## 后续方向（迁移完成后）
 
-1. **6**：退役 Streamlit——删除 `src/views/`、`src/app.py` 与 streamlit 依赖（`requirements.txt` 与 `requirements-api.txt` 合一）；删除前确认 Streamlit 独有入口无残留引用（旧 JSON 画像导入工具可保留）。
-2. 公网认证按产品定位（个人/小团队、本地优先）继续后置。
+1. 公网认证按产品定位（个人/小团队、本地优先）继续后置；schema 已预留 `user_id` 维度。
+2. 历史文档中各 Phase 的"已知限制/下一步"小节为交付时点记录，保留备查。
 
 ## Phase 4a 交付内容（2026-07-18）
 
@@ -224,3 +221,15 @@ pytest tests/
 - `/profiles` 页列表加勾选列（上限 6）→「对比所选」→ 对比区块：指标对照表（风险评分/等级/净资产/收入/储蓄率/应急基金/偏差数）、src 双语洞察、逐画像偏差卡片（严重度 chip + 双语描述与建议）。
 
 验证：450 测试通过（新增异步任务生命周期/前置 422/错误事件/404 五项，对比偏差/校验/重名三项）；容器内真实重采样任务经 web 代理跑通（50 次模拟，sharpe 1.094，weight_std 齐全）；问卷作答创建画像 → 派生分数正确（4.4/1.75 → 稳健型）→ 双画像对比返回损失厌恶/风险错配偏差与 4 条洞察；6 页 0 降级面板。
+
+## Phase 6 交付内容（2026-07-19）— 迁移收官
+
+**Streamlit 退役：**
+
+- 删除 `src/app.py`、`src/views/`（7 个模块）、`tests/test_views.py`（AppTest 冒烟 5 例）。审计确认删除安全：`import streamlit` 仅存在于被删文件；src 核心对 views 零反向依赖；无 `.streamlit/` 配置；无 CI/脚本引用。
+- **依赖合一**：`requirements.txt` 成为唯一运行时依赖集（= 原 requirements-api.txt 内容，去掉 streamlit）；新增 `requirements-dev.txt`（`-r requirements.txt` + pytest）供本地开发；`requirements-api.txt` 删除；api/Dockerfile 改用 `requirements.txt`。
+- 文档：README（中/英）更新 badge、UI 特性条、mermaid 架构图（Next.js + FastAPI 客户端层、SQLite 画像存储、IPS 页）、目录树、Getting Started（Docker 为主路径）；IPS 页"与 Streamlit 共享存储"标签改为"本地 JSON 存储"。
+
+验证：445 测试通过（450 − 5 个被删的视图冒烟）；`next build` 通过；compose 重建后 6 页 0 降级面板，镜像内 `import streamlit` 确认不存在。
+
+**至此迁移全部完成。** Streamlit 时代的 JSON 画像/报告/IPS 存储保持兼容（首启自动导入工具保留）。后续方向：公网认证（按定位继续后置）、多用户 `user_id` 维度启用。

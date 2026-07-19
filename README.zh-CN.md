@@ -10,7 +10,8 @@
   *面向实务的智能财富管理原型与组合量化引擎*
 
   [![Python](https://img.shields.io/badge/Python-3.11+-blue?style=flat-square&logo=python&logoColor=white)](https://www.python.org)
-  [![Streamlit](https://img.shields.io/badge/Framework-Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)](https://streamlit.io)
+  [![Next.js](https://img.shields.io/badge/Frontend-Next.js-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
+  [![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
   [![LangGraph](https://img.shields.io/badge/Agent-LangGraph-9f1239?style=flat-square&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
   [![PydanticAI](https://img.shields.io/badge/Framework-Pydantic--AI-0284c7?style=flat-square)](https://ai.pydantic.dev/)
   [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
@@ -63,8 +64,8 @@
   基于先进大语言模型 (`DeepSeek V4 Pro`) 深度分析客户多维指标，识别其可能存在的行为金融偏差——包括**损失厌恶**、**过度自信**、**能力-意愿错配**、**杠杆风险**和**安全网不足**——生成专业、合规的流式理财建议书。
 - 📄 **多格式高级文档导出**  
   支持将 AI 顾问建议书无缝转换为独立的、带有精美内嵌 CSS 样式的 HTML 文档、Markdown 以及原生 JSON，便于跨平台分发和打印。
-- 📊 **黑曜石黄金玻璃微凸金融终端 (Obsidian & Gold Glassmorphic UI)**  
-  基于 Streamlit 深度定制，融合高端黑曜石底色与黄金磨砂玻璃微凸起视觉设计语言，搭载多维 Plotly 交互式图表，实现缩放、悬浮提示和多路径拟合曲线的高清渲染，力求呈现专业金融终端的视觉风格。
+- 📊 **黑曜石暗金金融终端 UI**  
+  基于 **Next.js + Tailwind** 打造的黑曜石/琥珀暗色金融终端，LLM token 与任务进度经 SSE 实时推送，Plotly 图表由服务端渲染并以 JSON 直送 plotly.js，力求呈现专业金融终端的视觉风格。
 
 ---
 
@@ -74,13 +75,15 @@
 
 ```mermaid
 graph TB
-    subgraph UI_Layer ["Interactive Client Layer (Streamlit UI)"]
-        UI[Streamlit Main App]
-        P1[Market Dashboard Page]
-        P2[Portfolio Optimizer Page]
-        P3[Retirement Planner Page]
-        P4[Client Profiling Page]
-        P5[AI Advisor Page]
+    subgraph UI_Layer ["Interactive Client Layer (Next.js + FastAPI)"]
+        UI[Next.js Frontend<br/>App Router · SSE Streaming]
+        API[FastAPI Shell<br/>REST / SSE transport over src/]
+        P1[Market Dashboard]
+        P2[Portfolio Optimizer]
+        P3[Retirement Planner]
+        P4[Client Profiling]
+        P5[AI Advisor]
+        P6[IPS Generator]
     end
 
     subgraph Quant_Engine ["Quantitative Finance Engine"]
@@ -106,12 +109,13 @@ graph TB
 
     subgraph Data_Layer ["Data Pipeline & Persistence"]
         YF[yfinance API<br/>Real-time Quotes & FX Rates]
-        JSON_DB[(Client Profiles<br/>JSON Document Store)]
+        JSON_DB[(Client Profiles<br/>SQLite + legacy JSON import)]
         IPS_DB[(IPS & Audit Trail<br/>JSON Store)]
     end
 
     %% UI Routing
-    UI --> P1 & P2 & P3 & P4 & P5
+    UI --> API
+    API --> P1 & P2 & P3 & P4 & P5 & P6
 
     %% Market Data Flow
     P1 --> YF
@@ -136,6 +140,7 @@ graph TB
     %% Storage Flow
     Final --> IPS_DB
     P5 --> IPS_DB
+    P6 --> IPS_DB
     
     style UI fill:#4f46e5,stroke:#312e81,color:#fff
     style MVO fill:#0284c7,stroke:#075985,color:#fff
@@ -220,7 +225,6 @@ $$S_{t+\Delta t} = S_t \exp \left( \left(\mu - \frac{1}{2}\sigma^2\right)\Delta 
 ```
 AI-WealthPilot/
 ├── src/
-│   ├── app.py                    # Streamlit 主程序入口与导航
 │   ├── config.py                 # 核心配置（13类资产配置）、超参数与系统设置
 │   ├── utils.py                  # 文件名清洗工具函数
 │   ├── portfolio/                # 【量化计算引擎】
@@ -236,14 +240,6 @@ AI-WealthPilot/
 │   │   └── implied_volatility.py # VIX/MOVE 隐含波动率拉取与贝叶斯混合代理映射器
 │   ├── visualization/            # 【图表渲染组件】
 │   │   └── charts.py             # Plotly 交互式专业图表
-│   ├── views/                    # 【Streamlit 视图页面】
-│   │   ├── styles.py             # 黑色黄金微凸起视觉效果 CSS 注入模块
-│   │   ├── market_dashboard.py   # 跨资产行情监控与相关性热力图
-│   │   ├── portfolio_optimizer.py# MVO & Black-Litterman 配置界面
-│   │   ├── retirement_planner.py # 蒙特卡洛财富寿命规划器
-│   │   ├── client_profiling.py   # IPS 问卷与客户档案库
-│   │   ├── ai_advisor.py         # AI 顾问流式建议书交互页面
-│   │   └── compliance.py         # 合规与免责声明 UI 组件
 │   ├── agents/                   # 【AI 决策与智能体层】
 │   │   ├── profiler.py           # 客户档案解析与行为金融偏差检测 Agent
 │   │   ├── advisor.py            # DeepSeek V4 Pro 建议书生成 Agent（流式）
@@ -253,6 +249,20 @@ AI-WealthPilot/
 │   │   ├── ips_agents.py         # 基于 PydanticAI 的生成/多审查员/修订 Agent 定义
 │   │   ├── ips_workflow.py       # 基于 LangGraph 的多智能体闭环工作流状态机
 │   │   └── ips_storage.py        # 投资政策声明书及审计历史的本地存储与 MD 导出器
+├── api/                          # 【FastAPI 薄壳 — 仅作 src/ 的传输层】
+│   ├── main.py                   # 应用入口：CORS、路由挂载、/api/health、生命周期（建表 + 首启自动导入）
+│   ├── routers/                  # market / cme / portfolio / retirement / profiles / advisor / ips
+│   ├── db.py                     # SQLModel + SQLite 持久化（data/wealthpilot.db）
+│   ├── tasks.py                  # 通用进程内后台任务注册表 + SSE 事件流
+│   ├── profile_convert.py        # ClientProfile 载荷 ↔ dataclass 转换助手
+│   ├── migrate_profiles.py       # 旧版 JSON 画像导入工具（首启自动播种）
+│   └── Dockerfile                # API 镜像（构建上下文 = 仓库根，运行时 requirements.txt）
+├── web/                          # 【Next.js 前端】
+│   ├── src/app/                  # App Router 页面（仪表盘、优化器、退休规划、画像、顾问、IPS）
+│   ├── src/components/           # 工作区组件、Plotly 封装、Markdown 渲染器
+│   ├── src/lib/                  # 类型化 API 客户端、SSE 助手、同源代理
+│   └── Dockerfile                # Web 镜像（standalone 输出）
+├── docker-compose.yml            # 一条命令起全栈：web (3000) + api (8000，带健康检查)
 ├── tests/                        # 【自动化测试套件】
 │   ├── conftest.py               # Pytest 全局共享 Mock 夹具与配置
 │   ├── test_portfolio.py         # MVO/BL 核心量化引擎单元测试
@@ -269,7 +279,6 @@ AI-WealthPilot/
 │   ├── test_ips_workflow.py      # LangGraph 状态机生成-审查-修订循环测试
 │   ├── test_portfolio_recommender.py # 资产配置推荐建议一致性测试
 │   ├── test_comparison_export.py # 画像对比数据导出与格式化测试
-│   ├── test_views.py             # Streamlit 页面渲染冒烟测试
 │   └── test_phase3_features.py   # 阶段3功能端到端集成测试
 ├── examples/                     # 【示例与演示脚本】
 │   ├── demo_quick.py             # 快速入门演示（MVO + BL + 蒙特卡洛）
@@ -279,7 +288,7 @@ AI-WealthPilot/
 │   └── demo_ips_generator.py     # LangGraph 驱动的 AI 编排 IPS 多轮迭代生成终端演示
 └── data/
     ├── cache/                    # 市场行情拉取与 FRED API 数据本地缓存目录
-    ├── profiles/                 # 客户画像 JSON 数据库
+    ├── profiles/                 # 客户画像 JSON 数据库（Streamlit 时代遗留，可一键导入 SQLite）
     ├── reports/                  # 生成的理财建议书数据库
     ├── ips/                      # 生成的标准化 IPS 建议书及审计追踪文件
     └── sample/                   # 离线 benchmark 行情缓存
@@ -291,10 +300,10 @@ AI-WealthPilot/
 
 ### 运行环境
 
-- **Python 3.11+**
+- **Docker Desktop**（推荐），或使用 **Python 3.11+** 与 **Node.js 20+** 从源码运行
 - Git
 
-### 安装部署
+### 方式 A —— Docker（推荐）
 
 1. **克隆代码仓库**
    ```bash
@@ -302,7 +311,24 @@ AI-WealthPilot/
    cd AI-WealthPilot
    ```
 
-2. **创建并激活虚拟环境**
+2. **配置环境变量**
+   ```bash
+   cp .env.example .env
+   # 用文本编辑器打开 .env，在其中配置您的 DEEPSEEK_API_KEY 以启用 AI 顾问。
+   # 您可在 DeepSeek 开放平台获取：https://platform.deepseek.com
+   ```
+
+3. **一键启动全栈**
+   ```bash
+   docker compose up --build
+   ```
+   → 前端：`http://localhost:3000` · API 文档：`http://localhost:8000/docs`
+
+### 方式 B —— 从源码运行
+
+1. **克隆仓库并配置 `.env`**（同上）。
+
+2. **启动 API（基于 src/ 的 FastAPI 薄壳）**
    ```bash
    # Windows 平台
    python -m venv .venv
@@ -311,25 +337,20 @@ AI-WealthPilot/
    # macOS / Linux 平台
    python3 -m venv .venv
    source .venv/bin/activate
+
+   pip install -r requirements-dev.txt   # 运行时依赖 + pytest
+   uvicorn api.main:app --reload --port 8000
    ```
 
-3. **安装项目依赖**
+3. **启动 Web 前端（Next.js）**
    ```bash
-   pip install -r requirements.txt
+   cd web
+   npm install
+   npm run dev   # http://localhost:3000
    ```
 
-4. **配置环境变量**
-   ```bash
-   cp .env.example .env
-   # 用文本编辑器打开 .env，在其中配置您的 DEEPSEEK_API_KEY 以启用 AI 顾问。
-   # 您可在 DeepSeek 开放平台获取：https://platform.deepseek.com
-   ```
-
-5. **启动仪表盘**
-   ```bash
-   streamlit run src/app.py
-   ```
-   启动成功后，浏览器会自动打开 `http://localhost:8501`。
+> [!NOTE]
+> Streamlit → Next.js + FastAPI 的迁移已**完成**（Phase 6）：Streamlit 界面已正式退役。完整迁移历程见 [`docs/migration-nextjs.md`](docs/migration-nextjs.md)。
 
 ---
 

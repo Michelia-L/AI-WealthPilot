@@ -268,7 +268,7 @@ export default function IpsWorkspace({
       {/* ------------------------------ 文档库 ------------------------------ */}
       <div>
         <h3 className="mb-3 text-sm font-semibold text-slate-200">
-          IPS 文档库 <span className="font-normal text-slate-500">— 与 Streamlit 共享存储</span>
+          IPS 文档库 <span className="font-normal text-slate-500">— 本地 JSON 存储</span>
         </h3>
         {initialDocuments.length === 0 ? (
           <p className="text-sm text-slate-500">暂无 IPS 文档。</p>
