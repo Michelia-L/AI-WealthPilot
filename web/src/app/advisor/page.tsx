@@ -1,5 +1,6 @@
 import { getAdvisorReports, getAdvisorStatus, getProfiles } from "@/lib/api";
 import AdvisorWorkspace from "@/components/advisor-workspace";
+import SectionHeader from "@/components/ui/section-header";
 
 export const metadata = {
   title: "AI 顾问 · AI WealthPilot",
@@ -18,15 +19,13 @@ export default async function AdvisorPage() {
   ]);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-50">
-          AI 顾问 <span className="text-base font-normal text-slate-400">AI Advisor</span>
-        </h1>
-        <p className="mt-1 text-sm text-slate-400">
-          基于客户画像的流式投资建议书（IPS 框架 · 行为金融 · 资产配置）
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-6xl px-6 py-10">
+      <SectionHeader
+        eyebrow="AI Advisor"
+        title="AI 顾问"
+        description="基于客户画像，由 DeepSeek 流式逐字生成个性化投资建议书（IPS 框架 · 行为金融 · 资产配置）。"
+        className="mb-8"
+      />
 
       <AdvisorWorkspace
         profiles={profiles?.profiles ?? null}

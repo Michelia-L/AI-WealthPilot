@@ -11,6 +11,15 @@ import type {
 import { fmtLocal } from "@/lib/format";
 import { readSseStream } from "@/lib/sse";
 import Markdown from "@/components/markdown";
+import { useClient } from "@/components/client-context";
+import Button from "@/components/ui/button";
+import { Badge } from "@/components/ui/chip";
+import EmptyState from "@/components/ui/empty";
+import { Field, Select } from "@/components/ui/field";
+import Icon from "@/components/ui/icon";
+import Panel from "@/components/ui/panel";
+import Segmented from "@/components/ui/segmented";
+import { Table, TD, TH, THead, TR } from "@/components/ui/table";
 
 interface ProgressStep {
   node: string;
@@ -25,6 +34,11 @@ interface DoneInfo {
 
 const MAX_REVISION_OPTIONS = [0, 1, 2, 3];
 
+const REVISION_SEGMENT_OPTIONS = MAX_REVISION_OPTIONS.map((n) => ({
+  value: n,
+  label: String(n),
+}));
+
 export default function IpsWorkspace({
   profiles,
   status,
@@ -35,6 +49,7 @@ export default function IpsWorkspace({
   initialDocuments: IpsDocumentSummary[];
 }) {
   const router = useRouter();
+  const { clientId, select } = useClient();
   const [selectedId, setSelectedId] = useState<number | null>(profiles?.[0]?.id ?? null);
   const [maxRevisions, setMaxRevisions] = useState(3);
   const [running, setRunning] = useState(false);
@@ -44,10 +59,31 @@ export default function IpsWorkspace({
   const [viewing, setViewing] = useState<{
     documentId: string;
     title: string;
+    version: string;
+    status: string;
+    revisionRounds: number;
     markdown: string;
   } | null>(null);
 
   const configured = status?.configured ?? false;
+
+  // 全局客户上下文仅应用一次作为默认选中（render 期条件调整，React 官方模式）；
+  // 此后以本页选择为准并回写上下文。
+  const [appliedGlobalDefault, setAppliedGlobalDefault] = useState(false);
+  if (
+    !appliedGlobalDefault &&
+    clientId !== null &&
+    profiles?.some((p) => p.id === clientId)
+  ) {
+    setAppliedGlobalDefault(true);
+    setSelectedId(clientId);
+  }
+
+  function handleSelectProfile(id: number) {
+    setSelectedId(id);
+    const p = profiles?.find((profile) => profile.id === id);
+    if (p) select(p.id, p.name);
+  }
 
   async function generate() {
     if (selectedId === null) return;
@@ -103,6 +139,9 @@ export default function IpsWorkspace({
       setViewing({
         documentId: doc.document_id,
         title: `${doc.client_name} · v${doc.version}`,
+        version: doc.version,
+        status: doc.status,
+        revisionRounds: doc.revision_rounds,
         markdown: data.markdown,
       });
     } catch (e) {
@@ -111,224 +150,243 @@ export default function IpsWorkspace({
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="mt-10 flex flex-col gap-8">
       {/* ------------------------------ 生成控制 ------------------------------ */}
-      <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+      <Panel>
         {!configured && (
-          <div className="rounded-lg border border-amber-800/60 bg-amber-950/40 px-4 py-3 text-sm text-amber-300">
-            ⚠ DEEPSEEK_API_KEY 未配置 —— 请在项目根目录 .env 中设置并重启 API 服务后使用。
+          <div className="mb-5 flex items-start gap-3 rounded-xl border border-gold-500/25 bg-gold-500/[0.07] px-4 py-3 text-sm text-gold-300">
+            <Icon name="warning" size={16} className="mt-0.5 shrink-0 text-gold-400" />
+            <span>
+              DEEPSEEK_API_KEY 未配置 —— 请在项目根目录 .env 中设置并重启 API 服务后使用。
+            </span>
           </div>
         )}
 
         {profiles === null ? (
-          <p className="text-sm text-rose-400">无法获取画像列表 —— 请确认 API 服务已启动。</p>
+          <p className="flex items-center gap-2 text-sm text-cinnabar-400">
+            <Icon name="warning" size={14} />
+            无法获取画像列表 —— 请确认 API 服务已启动。
+          </p>
         ) : profiles.length === 0 ? (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-mist-400">
             还没有客户画像。请先在
-            <Link href="/profiles" className="mx-1 text-amber-400 underline hover:text-amber-300">
+            <Link
+              href="/profiles"
+              className="mx-1 text-gold-400 underline underline-offset-4 hover:text-gold-300"
+            >
               客户画像
             </Link>
             页面创建。
           </p>
         ) : (
-          <div className="flex flex-wrap items-end gap-4">
-            <label className="block text-sm text-slate-300">
-              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                选择画像
-              </span>
-              <select
+          <div className="flex flex-wrap items-end gap-x-8 gap-y-5">
+            <Field label="选择画像" className="min-w-64">
+              <Select
                 value={selectedId ?? ""}
-                onChange={(e) => setSelectedId(Number(e.target.value))}
+                onChange={(e) => handleSelectProfile(Number(e.target.value))}
                 disabled={running}
-                className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
               >
                 {profiles.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}（{p.age} 岁{p.risk_level ? ` · ${p.risk_level.split(" / ")[1] ?? p.risk_level}` : ""}）
                   </option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </Field>
 
-            <label className="block text-sm text-slate-300">
-              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                最大修订轮数
-              </span>
-              <div className="flex overflow-hidden rounded-lg border border-slate-700">
-                {MAX_REVISION_OPTIONS.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setMaxRevisions(n)}
-                    disabled={running}
-                    className={`px-3 py-2 text-xs font-medium transition-colors ${
-                      maxRevisions === n
-                        ? "bg-slate-700 text-slate-100"
-                        : "text-slate-500 hover:text-slate-300"
-                    }`}
-                  >
-                    {n}
-                  </button>
-                ))}
+            <Field label="最大修订轮数">
+              <div className={running ? "pointer-events-none opacity-50" : undefined}>
+                <Segmented
+                  options={REVISION_SEGMENT_OPTIONS}
+                  value={maxRevisions}
+                  onChange={setMaxRevisions}
+                />
               </div>
-            </label>
+            </Field>
 
-            <button
-              type="button"
+            <Button
+              size="lg"
+              icon="scroll"
               onClick={generate}
               disabled={running || !configured || selectedId === null}
-              className="rounded-lg bg-amber-500 px-6 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {running ? "工作流运行中…" : "📜 生成 IPS"}
-            </button>
+              {running ? "工作流运行中…" : "生成 IPS"}
+            </Button>
 
-            <span className="text-xs text-slate-600">
-              多智能体工作流：CME → 初稿 → 三维评审 → SAA 量化验证 → 修订/定稿（通常需要数分钟）
-            </span>
+            <p className="max-w-60 pb-1 text-xs leading-5 text-mist-600">
+              CME → 初稿 → 三维评审 → SAA 量化验证 → 修订/定稿（通常需要数分钟）
+            </p>
           </div>
         )}
 
-        {error && <p className="text-sm text-rose-400">⚠ {error}</p>}
-      </div>
+        {error && (
+          <p className="mt-5 flex items-center gap-2 text-sm text-cinnabar-400">
+            <Icon name="warning" size={14} />
+            {error}
+          </p>
+        )}
+      </Panel>
 
       {/* ------------------------------ 进度时间线 ------------------------------ */}
       {(steps.length > 0 || running) && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-          <h3 className="mb-4 text-sm font-semibold text-slate-200">工作流进度</h3>
-          <ol className="space-y-2.5">
+        <Panel>
+          <h3 className="mb-4 text-sm font-semibold text-mist-100">工作流进度</h3>
+          <ol className="space-y-3">
             {steps.map((s, i) => (
               <li key={`${s.node}-${i}`} className="flex items-center gap-3 text-sm">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-900/60 text-xs text-emerald-300">
-                  ✓
-                </span>
-                <span className="text-slate-300">{s.label}</span>
+                <Icon name="check" size={14} className="text-jade-400" />
+                <span className="text-mist-200">{s.label}</span>
               </li>
             ))}
             {running && (
               <li className="flex items-center gap-3 text-sm">
-                <span className="flex h-5 w-5 items-center justify-center">
-                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+                <span className="flex w-3.5 items-center justify-center">
+                  <span className="h-1.5 w-1.5 rounded-full bg-gold-400 animate-pulse-dot" />
                 </span>
-                <span className="animate-pulse text-amber-300">正在处理…</span>
+                <span className="text-gold-300">正在处理…</span>
               </li>
             )}
           </ol>
 
           {doneInfo && (
-            <div className="mt-4 rounded-lg border border-emerald-800/60 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-300">
-              ✓ IPS 已生成并入库（状态：{doneInfo.status}
-              {doneInfo.revision_count > 0 ? `，修订 ${doneInfo.revision_count} 轮` : ""}）
-              <button
-                type="button"
+            <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-3 rounded-xl border border-jade-500/25 bg-jade-500/[0.07] px-4 py-3">
+              <Icon name="check" size={15} className="shrink-0 text-jade-400" />
+              <p className="text-sm text-jade-300">
+                IPS 已生成并入库 · 文档{" "}
+                <span className="font-mono text-xs">{doneInfo.document_id}</span> ·
+                状态 {doneInfo.status}
+                {doneInfo.revision_count > 0 ? ` · 修订 ${doneInfo.revision_count} 轮` : ""}
+              </p>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="ml-auto"
                 onClick={() =>
                   viewDocument({
                     document_id: doneInfo.document_id,
-                    client_name: "",
+                    client_name:
+                      profiles?.find((p) => p.id === selectedId)?.name ?? "",
                     version: "?",
                     risk_level: "",
-                    status: "",
-                    revision_rounds: 0,
+                    status: doneInfo.status,
+                    revision_rounds: doneInfo.revision_count,
                     saved_at: "",
                   })
                 }
-                className="ml-3 underline hover:text-emerald-200"
               >
-                立即查看 →
-              </button>
+                立即查看
+              </Button>
             </div>
           )}
-        </div>
+        </Panel>
       )}
 
       {/* ------------------------------ 文档查看 ------------------------------ */}
       {viewing && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-200">📄 {viewing.title}</h3>
+        <Panel>
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h3 className="font-display text-xl text-mist-100">{viewing.title}</h3>
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-mist-500">
+                <span>
+                  版本 <span className="font-mono text-mist-300">{viewing.version}</span>
+                </span>
+                <Badge tone={viewing.status === "approved" ? "jade" : "gold"} dot>
+                  {viewing.status || "unknown"}
+                </Badge>
+                <span>
+                  修订轮次 <span className="tnum text-mist-300">{viewing.revisionRounds}</span>
+                </span>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
-              <a
-                href={`/api/ips/${encodeURIComponent(viewing.documentId)}/pdf`}
-                className="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:text-amber-300"
-              >
-                ⬇ 下载 PDF
+              <a href={`/api/ips/${encodeURIComponent(viewing.documentId)}/pdf`}>
+                <Button variant="secondary" size="sm" trailingIcon="download">
+                  下载 PDF
+                </Button>
               </a>
-              <button
-                type="button"
-                onClick={() => setViewing(null)}
-                className="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:text-slate-200"
-              >
+              <Button variant="ghost" size="sm" icon="x" onClick={() => setViewing(null)}>
                 关闭
-              </button>
+              </Button>
             </div>
           </div>
           <Markdown>{viewing.markdown}</Markdown>
-        </div>
+        </Panel>
       )}
 
       {/* ------------------------------ 文档库 ------------------------------ */}
-      <div>
-        <h3 className="mb-3 text-sm font-semibold text-slate-200">
-          IPS 文档库 <span className="font-normal text-slate-500">— 本地 JSON 存储</span>
-        </h3>
+      <section>
+        <div className="mb-4 flex items-baseline gap-3">
+          <h2 className="font-display text-xl text-mist-100">IPS 文档库</h2>
+          <span className="text-xs text-mist-500">本地 JSON 存储</span>
+        </div>
         {initialDocuments.length === 0 ? (
-          <p className="text-sm text-slate-500">暂无 IPS 文档。</p>
+          <Panel pad={false}>
+            <EmptyState
+              icon="scroll"
+              title="暂无 IPS 文档"
+              hint="选择客户画像并运行上方工作流后，生成的 IPS 文档将保存在这里。"
+            />
+          </Panel>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-slate-800">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="bg-slate-900 text-xs uppercase tracking-wide text-slate-400">
+          <Panel pad={false} innerClassName="overflow-hidden">
+            <Table className="min-w-[760px]">
+              <THead>
                 <tr>
-                  <th className="px-4 py-3 font-medium">客户</th>
-                  <th className="px-4 py-3 font-medium">版本</th>
-                  <th className="px-4 py-3 font-medium">风险等级</th>
-                  <th className="px-4 py-3 font-medium">状态</th>
-                  <th className="px-4 py-3 text-right font-medium">修订轮数</th>
-                  <th className="px-4 py-3 font-medium">保存时间</th>
-                  <th className="px-4 py-3 text-right font-medium">操作</th>
+                  <TH>客户</TH>
+                  <TH>版本</TH>
+                  <TH>风险等级</TH>
+                  <TH>状态</TH>
+                  <TH className="text-right">修订轮数</TH>
+                  <TH>保存时间</TH>
+                  <TH className="text-right">操作</TH>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+              </THead>
+              <tbody>
                 {initialDocuments.map((d) => (
-                  <tr key={d.document_id} className="text-slate-300">
-                    <td className="px-4 py-3 font-medium text-slate-100">{d.client_name}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{d.version}</td>
-                    <td className="px-4 py-3 text-xs">{d.risk_level}</td>
-                    <td className="px-4 py-3 text-xs">
-                      <span
-                        className={`inline-block rounded-full px-2.5 py-0.5 font-medium ${
-                          d.status === "approved"
-                            ? "bg-emerald-900/60 text-emerald-300"
-                            : "bg-amber-900/60 text-amber-300"
-                        }`}
-                      >
+                  <TR key={d.document_id}>
+                    <TD className="font-medium text-mist-100">{d.client_name}</TD>
+                    <TD className="font-mono text-xs">{d.version}</TD>
+                    <TD>
+                      {d.risk_level ? (
+                        <Badge tone="steel">{d.risk_level}</Badge>
+                      ) : (
+                        <span className="text-mist-600">—</span>
+                      )}
+                    </TD>
+                    <TD>
+                      <Badge tone={d.status === "approved" ? "jade" : "gold"} dot>
                         {d.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-xs">{d.revision_rounds}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-500">
+                      </Badge>
+                    </TD>
+                    <TD className="text-right font-mono">{d.revision_rounds}</TD>
+                    <TD className="font-mono text-xs text-mist-500">
                       {fmtLocal(d.saved_at)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => viewDocument(d)}
-                        className="mr-2 rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:text-slate-200"
-                      >
-                        查看
-                      </button>
-                      <a
-                        href={`/api/ips/${encodeURIComponent(d.document_id)}/pdf`}
-                        className="inline-block rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:text-amber-300"
-                      >
-                        ⬇ PDF
-                      </a>
-                    </td>
-                  </tr>
+                    </TD>
+                    <TD className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          icon="eye"
+                          onClick={() => viewDocument(d)}
+                        >
+                          查看
+                        </Button>
+                        <a href={`/api/ips/${encodeURIComponent(d.document_id)}/pdf`}>
+                          <Button variant="secondary" size="sm" trailingIcon="download">
+                            PDF
+                          </Button>
+                        </a>
+                      </div>
+                    </TD>
+                  </TR>
                 ))}
               </tbody>
-            </table>
-          </div>
+            </Table>
+          </Panel>
         )}
-      </div>
+      </section>
     </div>
   );
 }

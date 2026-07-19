@@ -1,6 +1,7 @@
 import { getAssetClasses } from "@/lib/api";
 import { ApiOffline } from "@/components/api-offline";
 import OptimizerWorkspace from "@/components/optimizer-workspace";
+import SectionHeader from "@/components/ui/section-header";
 
 export const metadata = {
   title: "组合优化器 · AI WealthPilot",
@@ -16,14 +17,11 @@ export default async function OptimizerPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-50">
-          组合优化器 <span className="text-base font-normal text-slate-400">Portfolio Optimizer</span>
-        </h1>
-        <p className="mt-1 text-sm text-slate-400">
-          均值-方差优化 · 重采样前沿（Michaud）· Black-Litterman 贝叶斯配置
-        </p>
-      </header>
+      <SectionHeader
+        eyebrow="Portfolio Optimizer"
+        title="组合优化器"
+        description="均值-方差优化（MVO）、Michaud 重采样前沿与 Black-Litterman 贝叶斯配置，求解有效前沿上的最优资产组合。"
+      />
 
       {assetClasses ? (
         <OptimizerWorkspace assetClasses={assetClasses.asset_classes} />

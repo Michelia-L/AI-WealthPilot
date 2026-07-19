@@ -1,5 +1,6 @@
 import { getAdvisorStatus, getIpsDocuments, getProfiles } from "@/lib/api";
 import IpsWorkspace from "@/components/ips-workspace";
+import SectionHeader from "@/components/ui/section-header";
 
 export const metadata = {
   title: "IPS 生成 · AI WealthPilot",
@@ -18,15 +19,12 @@ export default async function IpsPage() {
   ]);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-50">
-          IPS 生成 <span className="text-base font-normal text-slate-400">Investment Policy Statement</span>
-        </h1>
-        <p className="mt-1 text-sm text-slate-400">
-          多智能体工作流：CME 注入 → 初稿 → 适当性/合规/一致性三维评审 → SAA 量化验证 → 修订定稿
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-6xl px-6 py-10">
+      <SectionHeader
+        eyebrow="IPS Workflow"
+        title="IPS 生成"
+        description="LangGraph 多智能体工作流：注入资本市场预期后生成初稿，经适当性、合规、一致性三维评审与 SAA 量化验证，自动修订直至定稿入库。"
+      />
 
       <IpsWorkspace
         profiles={profiles?.profiles ?? null}

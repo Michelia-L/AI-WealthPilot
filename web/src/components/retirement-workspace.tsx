@@ -5,92 +5,25 @@ import type { RetirementRequest, RetirementResponse } from "@/lib/api";
 import { SIMULATION_OPTIONS } from "@/lib/api";
 import { fmtMoney, fmtPct } from "@/lib/format";
 import PlotChart from "@/components/plot-chart";
+import {
+  Badge,
+  Button,
+  EmptyState,
+  Field,
+  Icon,
+  NumInput,
+  Panel,
+  Segmented,
+  Slider,
+  StatTile,
+  Table,
+  TD,
+  TH,
+  THead,
+  TR,
+} from "@/components/ui";
 
-function Slider({
-  label,
-  value,
-  min,
-  max,
-  step,
-  onChange,
-  format,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  onChange: (v: number) => void;
-  format: (v: number) => string;
-}) {
-  return (
-    <label className="block text-sm text-slate-300">
-      <span className="mb-1.5 flex items-baseline justify-between">
-        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-          {label}
-        </span>
-        <span className="font-mono text-sm text-slate-100">{format(value)}</span>
-      </span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full accent-amber-500"
-      />
-    </label>
-  );
-}
-
-function MoneyInput({
-  label,
-  value,
-  onChange,
-  step = 10000,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  step?: number;
-}) {
-  return (
-    <label className="block text-sm text-slate-300">
-      <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
-        {label}
-      </span>
-      <input
-        type="number"
-        min={0}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(Math.max(0, parseFloat(e.target.value) || 0))}
-        className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-1.5 font-mono text-sm text-slate-100"
-      />
-    </label>
-  );
-}
-
-function Tile({
-  label,
-  value,
-  tone = "text-slate-100",
-  sub,
-}: {
-  label: string;
-  value: string;
-  tone?: string;
-  sub?: string;
-}) {
-  return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className={`mt-1 font-mono text-2xl font-semibold ${tone}`}>{value}</div>
-      {sub && <div className="mt-1 text-xs text-slate-500">{sub}</div>}
-    </div>
-  );
-}
+const QUANTILE_KEYS = ["p5", "p25", "median", "p75", "p95", "mean"] as const;
 
 export default function RetirementWorkspace() {
   const [form, setForm] = useState<RetirementRequest>({
@@ -140,12 +73,12 @@ export default function RetirementWorkspace() {
   }
 
   const survivalTone = !result
-    ? ""
+    ? "default"
     : result.survival_rate >= 0.85
-      ? "text-emerald-400"
+      ? "jade"
       : result.survival_rate >= 0.7
-        ? "text-amber-300"
-        : "text-rose-400";
+        ? "gold"
+        : "cinnabar";
   const survivalLabel = !result
     ? ""
     : result.survival_rate >= 0.85
@@ -157,161 +90,171 @@ export default function RetirementWorkspace() {
   return (
     <div className="flex flex-col gap-8">
       {/* ------------------------------ 参数表单 ------------------------------ */}
-      <div className="space-y-5 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-        <div className="grid gap-5 md:grid-cols-3">
-          <Slider label="当前年龄" value={form.current_age} min={18} max={80} step={1}
-            onChange={(v) => set("current_age", v)} format={(v) => `${v} 岁`} />
-          <Slider label="退休年龄" value={form.retirement_age} min={19} max={90} step={1}
-            onChange={(v) => set("retirement_age", v)} format={(v) => `${v} 岁`} />
-          <Slider label="预期寿命" value={form.life_expectancy} min={30} max={110} step={1}
-            onChange={(v) => set("life_expectancy", v)} format={(v) => `${v} 岁`} />
-        </div>
+      <Panel>
+        <div className="flex flex-col gap-6">
+          <div className="grid gap-5 md:grid-cols-3">
+            <Slider label="当前年龄" value={form.current_age} min={18} max={80} step={1}
+              onChange={(v) => set("current_age", v)} format={(v) => `${v} 岁`} />
+            <Slider label="退休年龄" value={form.retirement_age} min={19} max={90} step={1}
+              onChange={(v) => set("retirement_age", v)} format={(v) => `${v} 岁`} />
+            <Slider label="预期寿命" value={form.life_expectancy} min={30} max={110} step={1}
+              onChange={(v) => set("life_expectancy", v)} format={(v) => `${v} 岁`} />
+          </div>
 
-        <div className="grid gap-5 md:grid-cols-3">
-          <MoneyInput label="当前储蓄" value={form.current_savings}
-            onChange={(v) => set("current_savings", v)} />
-          <MoneyInput label="年度储蓄" value={form.annual_savings}
-            onChange={(v) => set("annual_savings", v)} />
-          <MoneyInput label="退休后期望年收入" value={form.desired_annual_income}
-            onChange={(v) => set("desired_annual_income", v)} />
-        </div>
+          <div className="grid gap-5 md:grid-cols-3">
+            <Field label="当前储蓄">
+              <NumInput min={0} step={10000} value={form.current_savings}
+                onChange={(e) => set("current_savings", Math.max(0, parseFloat(e.target.value) || 0))} />
+            </Field>
+            <Field label="年度储蓄">
+              <NumInput min={0} step={10000} value={form.annual_savings}
+                onChange={(e) => set("annual_savings", Math.max(0, parseFloat(e.target.value) || 0))} />
+            </Field>
+            <Field label="退休后期望年收入">
+              <NumInput min={0} step={10000} value={form.desired_annual_income}
+                onChange={(e) => set("desired_annual_income", Math.max(0, parseFloat(e.target.value) || 0))} />
+            </Field>
+          </div>
 
-        <div className="grid gap-5 md:grid-cols-4">
-          <Slider label="预期年化收益" value={form.expected_return} min={0.02} max={0.15} step={0.005}
-            onChange={(v) => set("expected_return", v)} format={(v) => fmtPct(v, 1)} />
-          <Slider label="年化波动率" value={form.volatility} min={0.05} max={0.3} step={0.01}
-            onChange={(v) => set("volatility", v)} format={(v) => fmtPct(v, 0)} />
-          <Slider label="通胀率" value={form.inflation_rate} min={0} max={0.08} step={0.005}
-            onChange={(v) => set("inflation_rate", v)} format={(v) => fmtPct(v, 1)} />
-          <div className="text-sm text-slate-300">
-            <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">
-              模拟次数
-            </span>
-            <div className="flex overflow-hidden rounded-lg border border-slate-700">
-              {SIMULATION_OPTIONS.map((o) => (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => set("n_simulations", o.value)}
-                  className={`flex-1 px-2 py-1.5 text-xs font-medium transition-colors ${
-                    form.n_simulations === o.value
-                      ? "bg-slate-700 text-slate-100"
-                      : "text-slate-500 hover:text-slate-300"
-                  }`}
-                >
-                  {o.label}
-                </button>
-              ))}
+          <div className="grid gap-5 md:grid-cols-4">
+            <Slider label="预期年化收益" value={form.expected_return} min={0.02} max={0.15} step={0.005}
+              onChange={(v) => set("expected_return", v)} format={(v) => fmtPct(v, 1)} />
+            <Slider label="年化波动率" value={form.volatility} min={0.05} max={0.3} step={0.01}
+              onChange={(v) => set("volatility", v)} format={(v) => fmtPct(v, 0)} />
+            <Slider label="通胀率" value={form.inflation_rate} min={0} max={0.08} step={0.005}
+              onChange={(v) => set("inflation_rate", v)} format={(v) => fmtPct(v, 1)} />
+            <div>
+              <span className="mb-2 block text-xs text-mist-400">模拟次数</span>
+              <Segmented
+                size="sm"
+                options={SIMULATION_OPTIONS}
+                value={form.n_simulations}
+                onChange={(v) => set("n_simulations", v)}
+              />
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-4 pt-1">
-          <button
-            type="button"
-            onClick={run}
-            disabled={loading || !agesValid}
-            className="rounded-lg bg-amber-500 px-6 py-2.5 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {loading ? "模拟计算中…" : "运行模拟"}
-          </button>
-          {!agesValid && (
-            <span className="text-sm text-amber-300">
-              需满足：当前年龄 &lt; 退休年龄 &lt; 预期寿命
-            </span>
-          )}
-          {error && <span className="text-sm text-rose-400">⚠ {error}</span>}
+          <div className="flex flex-wrap items-center gap-4 border-t border-white/[0.05] pt-5">
+            <Button
+              variant="primary"
+              icon="sparkle"
+              onClick={run}
+              disabled={loading || !agesValid}
+            >
+              {loading ? "模拟计算中…" : "运行模拟"}
+            </Button>
+            {!agesValid && (
+              <span className="inline-flex items-center gap-1.5 text-sm text-cinnabar-300">
+                <Icon name="warning" size={14} />
+                需满足：当前年龄 &lt; 退休年龄 &lt; 预期寿命
+              </span>
+            )}
+            {error && (
+              <span className="inline-flex items-center gap-1.5 text-sm text-cinnabar-300">
+                <Icon name="warning" size={14} />
+                {error}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
+      </Panel>
 
       {/* ------------------------------ 结果区 ------------------------------ */}
-      {result && (
+      {result ? (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Tile label="计划存活率" value={fmtPct(result.survival_rate, 1)} tone={survivalTone} sub={survivalLabel} />
-            <Tile label="退休时中位资产" value={fmtMoney(result.terminal_at_retirement.median)} />
-            <Tile label="积累期" value={`${result.accumulation_years} 年`} />
-            <Tile label="支取期" value={`${result.distribution_years} 年`} />
+            <StatTile label="计划存活率" value={fmtPct(result.survival_rate, 1)}
+              tone={survivalTone} hint={survivalLabel} />
+            <StatTile label="退休时中位资产" value={fmtMoney(result.terminal_at_retirement.median)} />
+            <StatTile label="积累期" value={`${result.accumulation_years} 年`} />
+            <StatTile label="支取期" value={`${result.distribution_years} 年`} />
           </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-2">
+          <Panel pad={false} innerClassName="p-2">
             <PlotChart figure={result.accumulation_chart} height={480} />
-          </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-2">
+          </Panel>
+          <Panel pad={false} innerClassName="p-2">
             <PlotChart figure={result.distribution_chart} height={480} />
-          </div>
+          </Panel>
 
           <div>
-            <h3 className="mb-3 text-sm font-semibold text-slate-200">资金枯竭分析</h3>
-            <div className="grid grid-cols-3 gap-3">
-              <Tile label="从未耗尽" value={fmtPct(result.depletion.never_depleted_pct, 1)} tone="text-emerald-400" />
-              <Tile label="10 年内耗尽" value={fmtPct(result.depletion.depleted_within_10y_pct, 1)}
-                tone={result.depletion.depleted_within_10y_pct > 0.1 ? "text-rose-400" : "text-slate-100"} />
-              <Tile label="中位耗尽年份"
+            <h3 className="mb-3 text-sm font-semibold text-mist-200">资金枯竭分析</h3>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <StatTile label="从未耗尽" value={fmtPct(result.depletion.never_depleted_pct, 1)} tone="jade" />
+              <StatTile label="10 年内耗尽" value={fmtPct(result.depletion.depleted_within_10y_pct, 1)}
+                tone={result.depletion.depleted_within_10y_pct > 0.1 ? "cinnabar" : "default"} />
+              <StatTile label="中位耗尽年份"
                 value={result.depletion.median_depletion_year !== null ? `第 ${result.depletion.median_depletion_year.toFixed(0)} 年` : "—"} />
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-slate-800">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="bg-slate-900 text-xs uppercase tracking-wide text-slate-400">
-                <tr>
-                  <th className="px-4 py-3 font-medium">退休时资产分位数</th>
-                  {(["p5", "p25", "median", "p75", "p95", "mean"] as const).map((k) => (
-                    <th key={k} className="px-4 py-3 text-right font-medium">
-                      {k === "mean" ? "均值" : k === "median" ? "P50" : k.toUpperCase()}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="bg-slate-900/40">
-                <tr className="text-slate-300">
-                  <td className="px-4 py-3 font-medium text-slate-100">终值分布</td>
-                  {(["p5", "p25", "median", "p75", "p95", "mean"] as const).map((k) => (
-                    <td key={k} className="px-4 py-3 text-right font-mono">
-                      {fmtMoney(result.terminal_at_retirement[k])}
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <THead>
+              <tr>
+                <TH>退休时资产分位数</TH>
+                {QUANTILE_KEYS.map((k) => (
+                  <TH key={k} className="text-right">
+                    {k === "mean" ? "均值" : k === "median" ? "P50" : k.toUpperCase()}
+                  </TH>
+                ))}
+              </tr>
+            </THead>
+            <tbody>
+              <TR>
+                <TD className="font-medium text-mist-100">终值分布</TD>
+                {QUANTILE_KEYS.map((k) => (
+                  <TD key={k} className="text-right">
+                    {fmtMoney(result.terminal_at_retirement[k])}
+                  </TD>
+                ))}
+              </TR>
+            </tbody>
+          </Table>
 
           <div>
-            <h3 className="mb-3 text-sm font-semibold text-slate-200">
-              敏感性分析 <span className="font-normal text-slate-500">— 年度储蓄如何影响存活率</span>
+            <h3 className="mb-3 text-sm font-semibold text-mist-200">
+              敏感性分析 <span className="font-normal text-mist-500">— 年度储蓄如何影响存活率</span>
             </h3>
-            <div className="overflow-x-auto rounded-xl border border-slate-800">
-              <table className="w-full min-w-[640px] text-left text-sm">
-                <thead className="bg-slate-900 text-xs uppercase tracking-wide text-slate-400">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">年度储蓄</th>
-                    <th className="px-4 py-3 text-right font-medium">存活率</th>
-                    <th className="px-4 py-3 text-right font-medium">退休时中位资产</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800 bg-slate-900/40">
-                  {result.sensitivity.map((row) => (
-                    <tr key={row.annual_savings} className={row.is_current ? "text-amber-300" : "text-slate-300"}>
-                      <td className="px-4 py-2.5 font-mono">
+            <Table>
+              <THead>
+                <tr>
+                  <TH>年度储蓄</TH>
+                  <TH className="text-right">存活率</TH>
+                  <TH className="text-right">退休时中位资产</TH>
+                </tr>
+              </THead>
+              <tbody>
+                {result.sensitivity.map((row) => (
+                  <TR key={row.annual_savings}
+                    className={row.is_current ? "bg-gold-500/[0.06] hover:bg-gold-500/[0.08]" : undefined}>
+                    <TD className={row.is_current ? "border-l-2 border-l-gold-400/70 text-gold-300" : "border-l-2 border-l-transparent"}>
+                      <span className="inline-flex items-center gap-2">
                         {fmtMoney(row.annual_savings)}
-                        {row.is_current && <span className="ml-2 text-xs">⬅ 当前</span>}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-mono">{fmtPct(row.survival_rate, 1)}</td>
-                      <td className="px-4 py-2.5 text-right font-mono">{fmtMoney(row.median_at_retirement)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        {row.is_current && <Badge tone="gold">当前</Badge>}
+                      </span>
+                    </TD>
+                    <TD className="text-right">{fmtPct(row.survival_rate, 1)}</TD>
+                    <TD className="text-right">{fmtMoney(row.median_at_retirement)}</TD>
+                  </TR>
+                ))}
+              </tbody>
+            </Table>
           </div>
 
-          <p className="text-xs text-slate-600">
+          <p className="text-xs text-mist-600">
             参数：{fmtPct(result.params.expected_return, 1)} 预期收益 · {fmtPct(result.params.volatility, 0)} 波动 ·{" "}
             {fmtPct(result.params.inflation_rate, 1)} 通胀 · {result.params.n_simulations.toLocaleString()} 次模拟 ·
             seed={result.params.seed}（结果可复现）
           </p>
         </>
+      ) : (
+        <Panel pad={false}>
+          <EmptyState
+            icon="target"
+            title="设定参数并运行模拟"
+            hint="默认 10,000 条几何布朗运动路径，覆盖积累期与支取期全程，输出存活率、资产分布与储蓄敏感性。"
+          />
+        </Panel>
       )}
     </div>
   );

@@ -1,18 +1,19 @@
 import { getHealth } from "@/lib/api";
+import { Badge } from "./ui/chip";
 
-/** API status chip shown at the bottom of the sidebar. */
+/** API 状态徽章，显示在侧边栏底部。 */
 export default async function HealthBadge() {
   const health = await getHealth();
   if (!health) {
     return (
-      <span className="inline-block rounded-full bg-rose-900/60 px-3 py-1 text-xs font-medium text-rose-300">
+      <Badge tone="cinnabar" dot>
         API 离线
-      </span>
+      </Badge>
     );
   }
   return (
-    <span className="inline-block rounded-full bg-emerald-900/60 px-3 py-1 text-xs font-medium text-emerald-300">
+    <Badge tone="jade" dot>
       API 在线 · v{health.version}
-    </span>
+    </Badge>
   );
 }

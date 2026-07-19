@@ -1,18 +1,188 @@
 @import "tailwindcss";
 
-:root {
-  --background: #0b1120;
-  --foreground: #e2e8f0;
+/*
+ * AI WealthPilot — 「墨金私行」设计令牌
+ * Obsidian Private Bank: 墨黑曜石底 + 香槟金强调 + 编辑级衬线排版
+ */
+
+@theme {
+  /* ── Ink 曜石灰阶（背景层级） ─────────────────────────────── */
+  --color-ink-950: #08090c; /* 页面底色 */
+  --color-ink-900: #0e1014; /* 主面板 */
+  --color-ink-850: #13161c; /* 抬升面 */
+  --color-ink-800: #1a1e26; /* 悬浮/内嵌 */
+  --color-ink-700: #262c38; /* 强边框 */
+
+  /* ── Gold 香槟金（品牌强调） ──────────────────────────────── */
+  --color-gold-200: #f0e2c0;
+  --color-gold-300: #e4cf9d;
+  --color-gold-400: #d5b878;
+  --color-gold-500: #c9a45c; /* 主强调 */
+  --color-gold-600: #a8823f;
+  --color-gold-700: #7d612f;
+
+  /* ── Mist 暖雾中性（文本） ────────────────────────────────── */
+  --color-mist-100: #edebe4; /* 主文本 */
+  --color-mist-200: #d6d3ca;
+  --color-mist-300: #b8b5ab;
+  --color-mist-400: #94918a; /* 次文本 */
+  --color-mist-500: #6f6d67; /* 弱文本 */
+  --color-mist-600: #4c4b46; /* 极弱/标签 */
+
+  /* ── 语义色 ───────────────────────────────────────────────── */
+  --color-jade-300: #7fe0bd;
+  --color-jade-400: #4fd0a0; /* 涨 / 成功 */
+  --color-jade-500: #2bb584;
+  --color-cinnabar-300: #ffa190;
+  --color-cinnabar-400: #f27b66; /* 跌 / 风险 */
+  --color-cinnabar-500: #e05c45;
+  --color-steel-300: #a9c8e2;
+  --color-steel-400: #7fa8cc; /* 信息 */
+  --color-steel-500: #5d87ad;
+
+  /* ── 字体 ─────────────────────────────────────────────────── */
+  --font-sans: var(--font-geist-sans), "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-mono: var(--font-plex-mono), var(--font-geist-mono), "PingFang SC",
+    "Microsoft YaHei", monospace;
+  --font-display: var(--font-fraunces), "Songti SC", "Noto Serif SC", "STSong",
+    "SimSun", serif;
+
+  /* ── 动效 ─────────────────────────────────────────────────── */
+  --ease-luxe: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-silk: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-fade-up: fade-up 0.7s var(--ease-luxe) both;
+  --animate-fade-in: fade-in 0.5s var(--ease-luxe) both;
+  --animate-blink: blink 1.1s steps(2, start) infinite;
+  --animate-shimmer: shimmer 1.8s linear infinite;
+  --animate-pulse-dot: pulse-dot 2s var(--ease-luxe) infinite;
+  --animate-marquee: marquee 42s linear infinite;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: -200% 0;
+    }
+    to {
+      background-position: 200% 0;
+    }
+  }
+  @keyframes pulse-dot {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.45;
+      transform: scale(0.82);
+    }
+  }
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ── 基底 ─────────────────────────────────────────────────────── */
+:root {
+  --background: var(--color-ink-950);
+  --foreground: var(--color-mist-100);
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+  font-feature-settings: "ss01", "cv11";
+  text-rendering: optimizeLegibility;
+}
+
+/* 顶部金色穹顶光晕 —— 固定层，不随滚动重绘 */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse 90% 55% at 50% -18%,
+      rgb(201 164 92 / 0.13),
+      transparent 62%
+    ),
+    radial-gradient(
+      ellipse 55% 40% at 88% -8%,
+      rgb(201 164 92 / 0.07),
+      transparent 60%
+    );
+}
+
+/* 胶片噪点 —— 固定层，营造纸面/物理质感 */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+  opacity: 0.032;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+::selection {
+  background: rgb(201 164 92 / 0.28);
+  color: var(--color-mist-100);
+}
+
+/* 细滚动条，融入曜石底 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-700) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-ink-700);
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 数字默认等宽对齐 */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }

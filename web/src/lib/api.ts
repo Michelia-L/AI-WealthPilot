@@ -587,6 +587,11 @@ export const getAdvisorReports = (clientName?: string) =>
     `/api/advisor/reports${clientName ? `?client_name=${encodeURIComponent(clientName)}` : ""}`
   );
 
+export const getAdvisorReport = (reportId: string) =>
+  getJson<ReportDetailResponse>(
+    `/api/advisor/reports/${encodeURIComponent(reportId)}`
+  );
+
 // ---------------------------------------------------------------------------
 // IPS workflow (Phase 4b — async generation tasks)
 // ---------------------------------------------------------------------------
@@ -609,6 +614,75 @@ export interface IpsDetailResponse {
   document_id: string;
   markdown: string;
   metadata: Record<string, unknown>;
+  client_name: string;
+  version: string;
+  risk_level: string;
+  status: string;
+  revision_rounds: number;
+  saved_at: string;
 }
 
 export const getIpsDocuments = () => getJson<IpsListResponse>("/api/ips");
+
+export const getIpsDocument = (documentId: string) =>
+  getJson<IpsDetailResponse>(`/api/ips/${encodeURIComponent(documentId)}`);
+
+// ---------------------------------------------------------------------------
+// Portfolio monitoring (Phase P10 — SAA drift & rebalancing)
+// ---------------------------------------------------------------------------
+
+export interface PortfolioMetrics {
+  expected_return: number | null;
+  volatility: number | null;
+  sharpe: number | null;
+}
+
+export interface HoldingMetrics {
+  expected_return: number;
+  volatility: number;
+  sharpe: number;
+  max_drawdown: number;
+  var_95: number;
+  cvar_95: number;
+}
+
+export type BandStatus = "within" | "above" | "below" | "unknown";
+
+export interface MonitoringHolding {
+  key: string | null;
+  name: string;
+  ticker: string | null;
+  target_weight: number;
+  min_weight: number;
+  max_weight: number;
+  drifted_weight: number | null;
+  drift_pp: number | null;
+  band_status: BandStatus;
+  period_return: number | null;
+  metrics: HoldingMetrics | null;
+}
+
+export interface RebalanceTrade {
+  key: string | null;
+  name: string;
+  action: "buy" | "sell";
+  weight_pp: number;
+}
+
+export interface MonitoringResponse {
+  document_id: string;
+  client_name: string;
+  saved_at: string;
+  as_of: string;
+  cme_cache_status: string;
+  portfolio: PortfolioMetrics;
+  drifted_portfolio: PortfolioMetrics;
+  holdings: MonitoringHolding[];
+  rebalance: { needed: boolean; trades: RebalanceTrade[] };
+  notes: string[];
+}
+
+export const getMonitoring = (documentId: string) =>
+  getJson<MonitoringResponse>(
+    `/api/monitoring/${encodeURIComponent(documentId)}`
+  );

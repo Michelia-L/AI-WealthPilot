@@ -1,17 +1,14 @@
 import { getQuotes, type Quote } from "@/lib/api";
-import {
-  formatAssetChange,
-  formatAssetPrice,
-  fmtUtc,
-} from "@/lib/format";
+import { cx } from "@/lib/cx";
+import { formatAssetChange, formatAssetPrice, fmtUtc } from "@/lib/format";
 import { ApiOffline } from "@/components/api-offline";
 
 function TrendPill({ quote }: { quote: Quote }) {
   const { change, change_pct, currency, symbol, ticker, price } = quote;
   if (change === null || change_pct === null) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-800/40 px-2.5 py-0.5 font-mono text-xs text-slate-400">
-        • NO DATA
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 font-mono text-xs text-mist-500">
+        — NO DATA
       </span>
     );
   }
@@ -19,14 +16,17 @@ function TrendPill({ quote }: { quote: Quote }) {
   const up = change > 0;
   const flat = change === 0;
   const cls = flat
-    ? "border-slate-700 bg-slate-800/40 text-slate-400"
+    ? "border-white/10 bg-white/[0.04] text-mist-400"
     : up
-      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-      : "border-rose-500/30 bg-rose-500/10 text-rose-400";
+      ? "border-jade-500/30 bg-jade-500/10 text-jade-400"
+      : "border-cinnabar-500/30 bg-cinnabar-500/10 text-cinnabar-400";
   const icon = flat ? "•" : up ? "▲" : "▼";
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-xs ${cls}`}
+      className={cx(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-xs",
+        cls
+      )}
     >
       <span>{icon}</span>
       <span>
@@ -59,25 +59,31 @@ export async function QuotesSection({ tickers }: { tickers: string[] }) {
   return (
     <section>
       <div className="mb-4 flex items-baseline justify-between">
-        <h2 className="text-lg font-semibold text-slate-100">
-          市场速览 <span className="text-sm font-normal text-slate-400">Market Snapshot</span>
+        <h2 className="font-display text-xl text-mist-100">
+          市场速览{" "}
+          <span className="font-sans text-sm font-normal text-mist-500">
+            Market Snapshot
+          </span>
         </h2>
-        <span className="text-xs text-slate-500">{fmtUtc(data.as_of)}</span>
+        <span className="tnum text-xs text-mist-500">{fmtUtc(data.as_of)}</span>
       </div>
 
       {categories.map((category) => (
-        <div key={category} className="mb-6">
-          <div className="mb-3 border-b border-slate-800/80 pb-1 text-xs font-semibold uppercase tracking-widest text-slate-500">
+        <div key={category} className="mb-7">
+          <div className="mb-3 border-b border-white/[0.07] pb-1.5 text-[11px] font-semibold tracking-[0.18em] text-mist-500 uppercase">
             {category}
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {byCategory.get(category)!.map((q) => (
               <div
                 key={q.ticker}
-                className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 transition-colors hover:border-slate-700"
+                className="rounded-xl border border-white/[0.06] bg-ink-900/70 p-4 transition-all duration-300 ease-luxe hover:border-gold-500/25 hover:bg-ink-900"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <span className="truncate text-sm font-medium text-slate-200" title={q.name}>
+                  <span
+                    className="truncate text-sm font-medium text-mist-200"
+                    title={q.name}
+                  >
                     {q.name}
                   </span>
                   <span
@@ -91,7 +97,7 @@ export async function QuotesSection({ tickers }: { tickers: string[] }) {
                     {q.ticker}
                   </span>
                 </div>
-                <div className="mt-2 font-mono text-xl font-semibold text-slate-50">
+                <div className="tnum mt-2 font-mono text-xl font-semibold text-mist-100">
                   {formatAssetPrice(q.price, q.currency, q.symbol, q.ticker)}
                 </div>
                 <div className="mt-2">

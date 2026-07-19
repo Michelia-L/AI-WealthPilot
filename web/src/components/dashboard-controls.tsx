@@ -3,6 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { DEFAULT_PERIOD, PERIOD_OPTIONS } from "@/lib/api";
+import { cx } from "@/lib/cx";
+import { Chip } from "./ui/chip";
+import Segmented from "./ui/segmented";
 
 interface DashboardControlsProps {
   categories: string[];
@@ -33,7 +36,7 @@ export default function DashboardControls({
     }
     const qs = params.toString();
     startTransition(() => {
-      router.push(qs ? `/?${qs}` : "/", { scroll: false });
+      router.push(qs ? `/market?${qs}` : "/market", { scroll: false });
     });
   }
 
@@ -51,52 +54,37 @@ export default function DashboardControls({
 
   return (
     <div
-      className={`flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 transition-opacity ${
-        pending ? "opacity-60" : ""
-      }`}
+      className={cx(
+        "flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-white/[0.06] bg-ink-900/70 px-4 py-3 transition-opacity duration-300",
+        pending && "opacity-60"
+      )}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <span className="text-[11px] font-medium tracking-[0.14em] text-mist-500 uppercase">
           资产类别
         </span>
-        {categories.map((c) => {
-          const active = selectedCategories.includes(c);
-          return (
-            <button
-              key={c}
-              onClick={() => toggleCategory(c)}
-              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                active
-                  ? "border-amber-500/50 bg-amber-500/10 text-amber-300"
-                  : "border-slate-700 bg-transparent text-slate-500 hover:border-slate-600 hover:text-slate-300"
-              }`}
-            >
-              {c}
-            </button>
-          );
-        })}
+        {categories.map((c) => (
+          <Chip
+            key={c}
+            selected={selectedCategories.includes(c)}
+            onClick={() => toggleCategory(c)}
+          >
+            {c}
+          </Chip>
+        ))}
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+      <div className="ml-auto flex items-center gap-3">
+        <span className="text-[11px] font-medium tracking-[0.14em] text-mist-500 uppercase">
           视窗
         </span>
-        <div className="flex overflow-hidden rounded-lg border border-slate-700">
-          {PERIOD_OPTIONS.map((p) => (
-            <button
-              key={p.value}
-              onClick={() => navigate(selectedCategories, p.value)}
-              className={`px-3 py-1 text-xs font-medium transition-colors ${
-                period === p.value
-                  ? "bg-slate-700 text-slate-100"
-                  : "bg-transparent text-slate-500 hover:text-slate-300"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-        <span className="ml-2 text-xs text-slate-500">
+        <Segmented
+          size="sm"
+          options={PERIOD_OPTIONS}
+          value={period}
+          onChange={(v) => navigate(selectedCategories, v)}
+        />
+        <span className="text-xs text-mist-500">
           {pending ? "刷新中…" : `${assetCount} 个资产`}
         </span>
       </div>

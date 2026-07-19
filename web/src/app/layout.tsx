@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fraunces, Geist, Geist_Mono, IBM_Plex_Mono } from "next/font/google";
 import { Suspense } from "react";
 import "./globals.css";
-import NavSidebar from "@/components/nav-sidebar";
+import AppShell from "@/components/app-shell";
+import { ClientProvider } from "@/components/client-context";
 import HealthBadge from "@/components/health-badge";
+import { getProfiles } from "@/lib/api";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,49 +17,55 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+/** 展示衬线 —— 编辑级标题（拉丁部分；中文走 Songti/Noto Serif 栈） */
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  axes: ["opsz"],
+});
+
+/** 数字/表格等宽 */
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
 export const metadata: Metadata = {
-  title: "AI WealthPilot",
+  title: "AI WealthPilot · 私人财富管理工作站",
   description:
-    "AI-assisted private wealth management — quantitative portfolio engine and advisor agents.",
+    "AI 辅助的私人财富管理工作站 —— 量化组合引擎、资本市场预期与顾问智能体。",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const profilesData = await getProfiles();
+
   return (
     <html
       lang="zh-CN"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
-        <div className="flex min-h-screen">
-          <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-slate-800 bg-slate-950/60 px-4 py-6">
-            <div className="mb-8 px-2">
-              <div className="text-lg font-bold tracking-tight text-slate-50">
-                AI WealthPilot
-              </div>
-              <div className="mt-0.5 text-xs text-slate-500">
-                Intelligent Wealth Management
-              </div>
-            </div>
-
-            <NavSidebar />
-
-            <div className="mt-auto px-2">
+        <ClientProvider>
+          <AppShell
+            profiles={profilesData?.profiles ?? []}
+            healthBadge={
               <Suspense
                 fallback={
-                  <span className="inline-block h-6 w-24 animate-pulse rounded-full bg-slate-800" />
+                  <span className="inline-block h-6 w-24 animate-pulse rounded-full bg-ink-800" />
                 }
               >
                 <HealthBadge />
               </Suspense>
-            </div>
-          </aside>
-
-          <main className="min-w-0 flex-1">{children}</main>
-        </div>
+            }
+          >
+            {children}
+          </AppShell>
+        </ClientProvider>
       </body>
     </html>
   );

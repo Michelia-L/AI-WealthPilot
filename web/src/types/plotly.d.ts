@@ -3,7 +3,7 @@
  * Only the surface we actually use is declared.
  */
 declare module "plotly.js-dist-min" {
-  export interface PlotlyHTMLElement extends HTMLElement {}
+  export type PlotlyHTMLElement = HTMLElement;
 
   export interface PlotlyStatic {
     react(

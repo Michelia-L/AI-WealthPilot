@@ -4,13 +4,17 @@ import { useMemo, useState } from "react";
 import type { AnalyticsResponse, PlotlyFigure } from "@/lib/api";
 import { fmtPct } from "@/lib/format";
 import PlotChart from "@/components/plot-chart";
+import Panel from "./ui/panel";
+import Tabs from "./ui/tabs";
+import Toggle from "./ui/toggle";
+import { Table, THead, TH, TR, TD } from "./ui/table";
 
 type TabKey = "price" | "correlation" | "stats";
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: "price", label: "📈 价格走势" },
-  { key: "correlation", label: "🕸️ 资产相关性" },
-  { key: "stats", label: "📊 风险统计" },
+  { key: "price", label: "价格走势" },
+  { key: "correlation", label: "资产相关性" },
+  { key: "stats", label: "风险统计" },
 ];
 
 /** Decode plotly.py's base64 typed-array encoding ({bdata, dtype}). */
@@ -109,128 +113,102 @@ export default function AnalyticsTabs({
   return (
     <section>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1 rounded-lg border border-slate-800 bg-slate-900/60 p-1">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
-                tab === t.key
-                  ? "bg-slate-700 text-slate-100"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
+        <Tabs
+          tabs={TABS}
+          active={tab}
+          onChange={(k) => setTab(k as TabKey)}
+          className="border-b-0"
+        />
         {tab === "price" && (
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
-            <button
-              role="switch"
-              aria-checked={normalize}
-              onClick={() => setNormalize((v) => !v)}
-              className={`relative h-5 w-9 rounded-full transition-colors ${
-                normalize ? "bg-amber-500" : "bg-slate-700"
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-                  normalize ? "translate-x-4" : "translate-x-0.5"
-                }`}
-              />
-            </button>
-            基准归一化（Base = 100）
-          </label>
+          <Toggle
+            checked={normalize}
+            onChange={setNormalize}
+            label="基准归一化（Base = 100）"
+          />
         )}
       </div>
 
       {tab === "price" && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-2">
+        <Panel pad={false} innerClassName="p-2">
           <PlotChart figure={priceFigure} height={540} />
-        </div>
+        </Panel>
       )}
 
       {tab === "correlation" && (
         <div className="grid gap-4 lg:grid-cols-[3fr_1fr]">
-          <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-2">
+          <Panel pad={false} innerClassName="p-2">
             {analytics.correlation_chart ? (
               <PlotChart figure={analytics.correlation_chart} height={540} />
             ) : (
-              <p className="p-6 text-sm text-slate-400">
+              <p className="p-6 text-sm text-mist-400">
                 至少需要 2 个资产才能计算相关性矩阵。
               </p>
             )}
-          </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 text-sm text-slate-300">
-            <h3 className="mb-3 font-semibold text-slate-100">🔍 解读</h3>
-            <p className="mb-2 font-medium">分散化分析</p>
-            <ul className="space-y-2 text-slate-400">
+          </Panel>
+          <Panel innerClassName="text-sm">
+            <h3 className="font-display mb-4 text-base text-mist-100">解读</h3>
+            <p className="mb-2 font-medium text-mist-200">分散化分析</p>
+            <ul className="space-y-2.5 text-mist-400">
               <li>
-                <span className="font-semibold text-rose-400">红 (+1.0)</span>
+                <span className="font-semibold text-cinnabar-400">
+                  红 (+1.0)
+                </span>
                 ：高度正相关，资产同涨同跌。
               </li>
               <li>
-                <span className="font-semibold text-sky-400">蓝 (−1.0)</span>
+                <span className="font-semibold text-steel-400">蓝 (−1.0)</span>
                 ：高度负相关，优秀的对冲组合。
               </li>
               <li>
-                <span className="font-semibold text-slate-200">白 (0.0)</span>
+                <span className="font-semibold text-mist-200">白 (0.0)</span>
                 ：不相关，纯粹的分散化收益。
               </li>
             </ul>
-            <p className="mt-4 text-xs text-slate-500">
+            <p className="mt-4 border-t border-white/[0.06] pt-3 text-xs leading-5 text-mist-500">
               提示：用低相关性的资产构建组合，可以最大化夏普比率。
             </p>
-          </div>
+          </Panel>
         </div>
       )}
 
       {tab === "stats" && (
-        <div className="overflow-x-auto rounded-xl border border-slate-800">
-          <table className="w-full min-w-[820px] text-left text-sm">
-            <thead className="bg-slate-900 text-xs uppercase tracking-wide text-slate-400">
+        <Panel pad={false} innerClassName="overflow-hidden">
+          <Table className="min-w-[820px]">
+            <THead>
               <tr>
-                <th className="px-4 py-3 font-medium">资产</th>
-                <th className="px-4 py-3 text-right font-medium">年化收益</th>
-                <th className="px-4 py-3 text-right font-medium">年化波动</th>
-                <th className="px-4 py-3 text-right font-medium">夏普</th>
-                <th className="px-4 py-3 text-right font-medium">最大回撤</th>
-                <th className="px-4 py-3 text-right font-medium">
-                  日 VaR (95%)
-                </th>
+                <TH>资产</TH>
+                <TH className="text-right">年化收益</TH>
+                <TH className="text-right">年化波动</TH>
+                <TH className="text-right">夏普</TH>
+                <TH className="text-right">最大回撤</TH>
+                <TH className="text-right">日 VaR (95%)</TH>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+            </THead>
+            <tbody>
               {analytics.stats.map((s) => (
-                <tr key={s.ticker} className="text-slate-300">
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-slate-100">{s.name}</div>
-                    <div className="font-mono text-xs text-slate-500">
+                <TR key={s.ticker}>
+                  <TD>
+                    <div className="font-medium text-mist-100">{s.name}</div>
+                    <div className="font-mono text-xs text-mist-500">
                       {s.ticker}
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
+                  </TD>
+                  <TD className="text-right font-mono">
                     {fmtPct(s.ann_return)}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
+                  </TD>
+                  <TD className="text-right font-mono">
                     {fmtPct(s.ann_volatility)}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    {s.sharpe.toFixed(2)}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono text-rose-400">
+                  </TD>
+                  <TD className="text-right font-mono">{s.sharpe.toFixed(2)}</TD>
+                  <TD className="text-right font-mono text-cinnabar-400">
                     {fmtPct(s.max_drawdown)}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    {fmtPct(s.var_95)}
-                  </td>
-                </tr>
+                  </TD>
+                  <TD className="text-right font-mono">{fmtPct(s.var_95)}</TD>
+                </TR>
               ))}
             </tbody>
-          </table>
-        </div>
+          </Table>
+        </Panel>
       )}
     </section>
   );
