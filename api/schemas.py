@@ -190,6 +190,12 @@ class OptimizeResponse(BaseModel):
     bl: Optional[BLInsight] = None
 
 
+class PortfolioTaskCreatedResponse(BaseModel):
+    """202 body for POST /portfolio/optimize/async (Phase 5c)."""
+
+    task_id: str
+
+
 # ---------------------------------------------------------------------------
 # Retirement planning (two-phase Monte Carlo)
 # ---------------------------------------------------------------------------
@@ -363,6 +369,36 @@ class QuestionnaireResponse(BaseModel):
 
     ability: list[QuestionnaireQuestion]
     willingness: list[QuestionnaireQuestion]
+
+
+class BiasItem(BaseModel):
+    """One detected behavioral bias (src BehavioralBias dataclass)."""
+
+    bias_type: str
+    name: str = Field(description="Bilingual 'English / 中文' label")
+    description: str
+    severity: str = Field(description="high / medium / low")
+    recommendation: str
+
+
+class ProfileCompareEntry(BaseModel):
+    """One profile's column in the comparison, plus its biases."""
+
+    id: int
+    name: str
+    financial_summary: dict[str, Any] = Field(
+        description="src financial_summary: income/net_worth/savings/risk…"
+    )
+    bias_count: int
+    biases: list[BiasItem]
+
+
+class ProfileCompareResponse(BaseModel):
+    """src compare_profiles result keyed back to SQLite profile ids."""
+
+    comparison_date: str
+    insights: list[str] = Field(description="Bilingual analytical insights")
+    profiles: list[ProfileCompareEntry]
 
 
 # ---------------------------------------------------------------------------

@@ -11,6 +11,7 @@ import type {
 } from "@/lib/api";
 import { OPTIMIZER_PERIOD_OPTIONS } from "@/lib/api";
 import { fmtPct } from "@/lib/format";
+import { readSseStream } from "@/lib/sse";
 import PlotChart from "@/components/plot-chart";
 
 const DEFAULT_ASSETS = ["US_EQUITY", "INTL_EQUITY", "US_BOND", "GOLD"];
@@ -115,6 +116,7 @@ export default function OptimizerWorkspace({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<OptimizeResponse | null>(null);
+  const [progressLabel, setProgressLabel] = useState<string | null>(null);
 
   function toggleAsset(key: string) {
     setAssets((prev) => {
@@ -143,51 +145,97 @@ export default function OptimizerWorkspace({
     setViews((prev) => prev.map((v, j) => (j === i ? { ...v, ...patch } : v)));
   }
 
+  function buildBody(): OptimizeRequest {
+    const body: OptimizeRequest = {
+      assets,
+      period,
+      method,
+      mode,
+      allow_short: allowShort,
+      n_simulations: nSim,
+      risk_free_rate: rfAuto ? null : parseFloat(rfManual || "0") / 100,
+    };
+    if (method === "black-litterman") {
+      body.bl = {
+        tau: parseFloat(blTau) || 0.025,
+        delta: parseFloat(blDelta) || 2.5,
+        market_weights: equalWeights
+          ? null
+          : Object.fromEntries(
+              assets.map((k) => [
+                k,
+                (parseFloat(marketWeights[k] ?? "0") || 0) / 100,
+              ])
+            ),
+        views,
+      };
+    }
+    return body;
+  }
+
+  /** Resampled MVO path: async task + SSE progress (minute-level compute). */
+  async function runAsync(body: OptimizeRequest): Promise<OptimizeResponse> {
+    const res = await fetch("/api/portfolio/optimize/async", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(
+        typeof data.detail === "string" ? data.detail : `创建任务失败（HTTP ${res.status}）`
+      );
+    }
+
+    const eventsRes = await fetch(`/api/portfolio/tasks/${data.task_id}/events`);
+    if (!eventsRes.ok || !eventsRes.body) {
+      const err = await eventsRes.json().catch(() => null);
+      throw new Error(err && typeof err.detail === "string" ? err.detail : "无法接收任务进度");
+    }
+    let finalResult: OptimizeResponse | null = null;
+    let streamError: string | null = null;
+    await readSseStream(eventsRes.body, (event) => {
+      if (event.type === "node") {
+        setProgressLabel(String(event.label ?? ""));
+      } else if (event.type === "done") {
+        finalResult = event.result as OptimizeResponse;
+      } else if (event.type === "error") {
+        streamError = String(event.message ?? "优化失败");
+      }
+    });
+    if (streamError) throw new Error(streamError);
+    if (!finalResult) throw new Error("任务流意外结束（服务可能已重启，请重试）");
+    return finalResult;
+  }
+
   async function run() {
     setLoading(true);
     setError(null);
+    setProgressLabel(null);
     try {
-      const body: OptimizeRequest = {
-        assets,
-        period,
-        method,
-        mode,
-        allow_short: allowShort,
-        n_simulations: nSim,
-        risk_free_rate: rfAuto ? null : parseFloat(rfManual || "0") / 100,
-      };
-      if (method === "black-litterman") {
-        body.bl = {
-          tau: parseFloat(blTau) || 0.025,
-          delta: parseFloat(blDelta) || 2.5,
-          market_weights: equalWeights
-            ? null
-            : Object.fromEntries(
-                assets.map((k) => [
-                  k,
-                  (parseFloat(marketWeights[k] ?? "0") || 0) / 100,
-                ])
-              ),
-          views,
-        };
+      const body = buildBody();
+      if (method === "resampled") {
+        setResult(await runAsync(body));
+      } else {
+        const res = await fetch("/api/portfolio/optimize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(
+            typeof data.detail === "string" ? data.detail : `请求失败（HTTP ${res.status}）`
+          );
+        }
+        setResult(data as OptimizeResponse);
       }
-      const res = await fetch("/api/portfolio/optimize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(
-          typeof data.detail === "string" ? data.detail : `请求失败（HTTP ${res.status}）`
-        );
-      }
-      setResult(data as OptimizeResponse);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setResult(null);
     } finally {
       setLoading(false);
+      setProgressLabel(null);
     }
   }
 
@@ -463,9 +511,10 @@ export default function OptimizerWorkspace({
           </button>
           {loading && (
             <span className="text-xs text-slate-500">
-              {method === "resampled"
-                ? "重采样需数百次求解，可能需要数十秒…"
-                : "正在获取行情并求解…"}
+              {progressLabel ??
+                (method === "resampled"
+                  ? "重采样任务已创建，等待进度…"
+                  : "正在获取行情并求解…")}
             </span>
           )}
           {error && <span className="text-sm text-rose-400">⚠ {error}</span>}

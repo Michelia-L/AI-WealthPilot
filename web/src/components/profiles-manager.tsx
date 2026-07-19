@@ -3,7 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type {
+  BiasItem,
   InvestmentGoalInput,
+  ProfileCompareResponse,
   ProfileDetailResponse,
   ProfilePayload,
   ProfileSummary,
@@ -58,6 +60,39 @@ const RISK_LEVELS = [
   "Moderately Aggressive / 成长型",
   "Aggressive / 进取型",
 ];
+
+const MAX_COMPARE = 6; // mirrors the API cap
+
+const SEVERITY_TONES: Record<string, string> = {
+  high: "bg-rose-900/60 text-rose-300",
+  medium: "bg-amber-900/60 text-amber-300",
+  low: "bg-emerald-900/60 text-emerald-300",
+};
+
+function severityChip(severity: string) {
+  const tone = SEVERITY_TONES[severity] ?? "bg-slate-800 text-slate-400";
+  return (
+    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${tone}`}>
+      {severity}
+    </span>
+  );
+}
+
+/** One detected behavioral bias: bilingual name/description + recommendation. */
+function BiasCard({ bias }: { bias: BiasItem }) {
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold text-slate-200">{bias.name}</span>
+        {severityChip(bias.severity)}
+      </div>
+      <p className="mt-1.5 text-xs leading-relaxed text-slate-400">{bias.description}</p>
+      <p className="mt-1.5 text-xs leading-relaxed text-sky-300/80">
+        💡 {bias.recommendation}
+      </p>
+    </div>
+  );
+}
 
 function riskChip(level: string) {
   const idx = RISK_LEVELS.indexOf(level);
@@ -253,6 +288,35 @@ export default function ProfilesManager({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [comparing, setComparing] = useState(false);
+  const [compareResult, setCompareResult] = useState<ProfileCompareResponse | null>(null);
+
+  function toggleSelect(id: number) {
+    setSelected((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= MAX_COMPARE) return prev; // API caps at MAX_COMPARE
+      return [...prev, id];
+    });
+  }
+
+  async function runCompare() {
+    setComparing(true);
+    setError(null);
+    setCompareResult(null);
+    try {
+      const res = await fetch(`/api/profiles/compare?ids=${selected.join(",")}`);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(typeof data.detail === "string" ? data.detail : "对比失败");
+      }
+      setCompareResult(data as ProfileCompareResponse);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setComparing(false);
+    }
+  }
 
   const set = <K extends keyof ProfilePayload>(key: K, value: ProfilePayload[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -593,7 +657,7 @@ export default function ProfilesManager({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={startCreate}
@@ -609,6 +673,17 @@ export default function ProfilesManager({
         >
           📥 从 JSON 导入
         </button>
+        <button
+          type="button"
+          onClick={runCompare}
+          disabled={comparing || selected.length < 2}
+          className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-400 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {comparing ? "对比中…" : `🔍 对比所选（${selected.length}）`}
+        </button>
+        {selected.length > 0 && selected.length < 2 && (
+          <span className="text-xs text-slate-600">再选 1 个即可对比（最多 {MAX_COMPARE} 个）</span>
+        )}
         {notice && <span className="text-sm text-emerald-400">{notice}</span>}
         {error && <span className="text-sm text-rose-400">⚠ {error}</span>}
       </div>
@@ -626,6 +701,7 @@ export default function ProfilesManager({
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="bg-slate-900 text-xs uppercase tracking-wide text-slate-400">
               <tr>
+                <th className="w-10 px-4 py-3" aria-label="选择" />
                 <th className="px-4 py-3 font-medium">姓名</th>
                 <th className="px-4 py-3 text-right font-medium">年龄</th>
                 <th className="px-4 py-3 font-medium">风险等级</th>
@@ -636,6 +712,15 @@ export default function ProfilesManager({
             <tbody className="divide-y divide-slate-800 bg-slate-900/40">
               {initialProfiles.map((p) => (
                 <tr key={p.id} className="text-slate-300">
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(p.id)}
+                      onChange={() => toggleSelect(p.id)}
+                      aria-label={`选择 ${p.name} 参与对比`}
+                      className="h-4 w-4 accent-amber-500"
+                    />
+                  </td>
                   <td className="px-4 py-3 font-medium text-slate-100">{p.name}</td>
                   <td className="px-4 py-3 text-right font-mono">{p.age}</td>
                   <td className="px-4 py-3">{riskChip(p.risk_level)}</td>
@@ -665,6 +750,110 @@ export default function ProfilesManager({
             </tbody>
           </table>
         </div>
+      )}
+
+      {compareResult && (
+        <section className="space-y-5 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-200">
+              画像对比{" "}
+              <span className="font-normal text-slate-500">
+                — {compareResult.profiles.map((p) => p.name).join(" vs ")} ·{" "}
+                {fmtLocal(compareResult.comparison_date)}
+              </span>
+            </h3>
+            <button
+              type="button"
+              onClick={() => setCompareResult(null)}
+              className="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:text-slate-200"
+            >
+              关闭
+            </button>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-800">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead className="bg-slate-900 text-xs uppercase tracking-wide text-slate-400">
+                <tr>
+                  <th className="px-4 py-3 font-medium">客户</th>
+                  <th className="px-4 py-3 text-right font-medium">风险评分</th>
+                  <th className="px-4 py-3 font-medium">风险等级</th>
+                  <th className="px-4 py-3 text-right font-medium">净资产</th>
+                  <th className="px-4 py-3 text-right font-medium">年收入</th>
+                  <th className="px-4 py-3 text-right font-medium">储蓄率</th>
+                  <th className="px-4 py-3 text-right font-medium">应急基金</th>
+                  <th className="px-4 py-3 text-right font-medium">偏差数</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+                {compareResult.profiles.map((p) => {
+                  const s = p.financial_summary;
+                  return (
+                    <tr key={p.id} className="text-slate-300">
+                      <td className="px-4 py-3 font-medium text-slate-100">{p.name}</td>
+                      <td className="px-4 py-3 text-right font-mono">
+                        {s.risk_score > 0 ? s.risk_score.toFixed(1) : "—"}
+                      </td>
+                      <td className="px-4 py-3">{riskChip(s.risk_level)}</td>
+                      <td className="px-4 py-3 text-right font-mono">{fmtMoney(s.net_worth)}</td>
+                      <td className="px-4 py-3 text-right font-mono">{fmtMoney(s.annual_income)}</td>
+                      <td className="px-4 py-3 text-right font-mono">{fmtPct(s.savings_rate, 1)}</td>
+                      <td className="px-4 py-3 text-right font-mono text-xs">
+                        {s.emergency_fund_months} 个月
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono">
+                        {p.bias_count > 0 ? (
+                          <span className="text-amber-300">{p.bias_count}</span>
+                        ) : (
+                          <span className="text-emerald-400">0</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {compareResult.insights.length > 0 && (
+            <div>
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                关键洞察
+              </h4>
+              <ul className="space-y-1.5">
+                {compareResult.insights.map((insight, i) => (
+                  <li key={i} className="text-xs leading-relaxed text-slate-400">
+                    <span className="mr-1.5 text-amber-400">▸</span>
+                    {insight}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              行为偏差分析
+            </h4>
+            {compareResult.profiles.map((p) => (
+              <div key={p.id}>
+                <div className="mb-2 flex items-baseline gap-2">
+                  <span className="text-sm font-medium text-slate-200">{p.name}</span>
+                  {p.bias_count === 0 && (
+                    <span className="text-xs text-emerald-400">✓ 未检测到行为偏差</span>
+                  )}
+                </div>
+                {p.bias_count > 0 && (
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {p.biases.map((b) => (
+                      <BiasCard key={b.bias_type} bias={b} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

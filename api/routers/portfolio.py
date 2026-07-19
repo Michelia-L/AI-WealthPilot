@@ -6,17 +6,20 @@ engines in src.portfolio.optimizer, mirroring the call sequence of the
 Streamlit optimizer page. Returns portfolio metrics plus Plotly figures
 (efficient frontier + CAL, allocation pie) ready for plotly.js.
 
-These are heavy synchronous computations (frontier = dozens of SLSQP solves;
-resampled adds n_simulations × n_points). Acceptable for a local tool with
-a loading state — Phase 4 will move long runs to background jobs.
+POST /api/portfolio/optimize/async runs the same computation as a background
+task (Phase 5c) with SSE progress on GET /api/portfolio/tasks/{id}/events —
+the resampled method is minute-level (n_simulations × n_points SLSQP solves)
+and would otherwise hold an HTTP request open the whole time.
 """
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
 from api.cache import TTLCache
 from api.routers.market import _fig_json
@@ -28,7 +31,9 @@ from api.schemas import (
     OptimizeRequest,
     OptimizeResponse,
     PortfolioResult,
+    PortfolioTaskCreatedResponse,
 )
+from api.tasks import BackgroundTask, TaskRegistry, stream_task_events
 from src.config import DEFAULT_ASSET_CLASSES
 from src.data.market_data import (
     compute_returns,
@@ -228,9 +233,23 @@ def _run_bl(
     summary="Run portfolio optimization (MVO / Resampled / Black-Litterman)",
 )
 def optimize(req: OptimizeRequest) -> OptimizeResponse:
+    keys, returns, rf = _prepare_optimize(req)
+    return _solve_optimize(req, keys, returns, rf)
+
+
+def _prepare_optimize(req: OptimizeRequest) -> tuple[list[str], pd.DataFrame, float]:
+    """Resolve asset keys, fetch returns (TTL-cached) and the risk-free rate."""
     keys = _resolve_asset_keys(req.assets)
     returns = _fetch_returns(keys, req.period)
-    req.risk_free_rate = _effective_risk_free_rate(req.risk_free_rate)
+    rf = _effective_risk_free_rate(req.risk_free_rate)
+    return keys, returns, rf
+
+
+def _solve_optimize(
+    req: OptimizeRequest, keys: list[str], returns: pd.DataFrame, rf: float
+) -> OptimizeResponse:
+    """The CPU-heavy half: optimize, build charts, assemble the response."""
+    req.risk_free_rate = rf
 
     if req.method == "black-litterman":
         optimizer, selected, max_sharpe, min_vol, frontier, random_ports, bl_extra = (
@@ -285,4 +304,69 @@ def optimize(req: OptimizeRequest) -> OptimizeResponse:
         allocation_chart=_fig_json(allocation_fig),
         asset_stats=asset_stats,
         bl=bl_extra if isinstance(bl_extra, BLInsight) else None,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Async optimization tasks (Phase 5c — resampled MVO is minute-level)
+# ---------------------------------------------------------------------------
+
+registry = TaskRegistry()
+
+
+async def _run_optimize_task(task: BackgroundTask, req: OptimizeRequest) -> None:
+    """Fetch data, then optimize in an executor (CPU-heavy) with progress events."""
+    try:
+        loop = asyncio.get_running_loop()
+        await task.queue.put({"type": "node", "node": "fetch", "label": "获取行情数据"})
+        keys, returns, rf = await loop.run_in_executor(None, _prepare_optimize, req)
+        label = (
+            f"重采样优化计算中（{req.n_simulations} 次模拟，通常需要数分钟）"
+            if req.method == "resampled"
+            else "组合优化计算中"
+        )
+        await task.queue.put({"type": "node", "node": "solve", "label": label})
+        result = await loop.run_in_executor(None, _solve_optimize, req, keys, returns, rf)
+        task.status = "completed"
+        await task.queue.put({"type": "done", "result": result.model_dump(mode="json")})
+    except HTTPException as e:
+        task.status = "failed"
+        await task.queue.put({"type": "error", "message": str(e.detail)})
+    except Exception as e:
+        task.status = "failed"
+        await task.queue.put({"type": "error", "message": f"优化失败: {e}"})
+
+
+@router.post(
+    "/optimize/async",
+    response_model=PortfolioTaskCreatedResponse,
+    status_code=202,
+    summary="Create an async optimization task; poll /tasks/{id}/events (SSE)",
+)
+async def optimize_async(req: OptimizeRequest) -> PortfolioTaskCreatedResponse:
+    # Validate everything that doesn't need market data up front, so bad
+    # requests fail fast with 422 instead of surfacing on the event stream.
+    _resolve_asset_keys(req.assets)
+    if req.method == "black-litterman" and not (req.bl and req.bl.views):
+        raise HTTPException(
+            status_code=422,
+            detail="Black-Litterman requires at least one investor view "
+            "(bl.views must be non-empty).",
+        )
+    task = registry.create(
+        "optimize", method=req.method, n_simulations=req.n_simulations
+    )
+    asyncio.create_task(_run_optimize_task(task, req))
+    return PortfolioTaskCreatedResponse(task_id=task.task_id)
+
+
+@router.get("/tasks/{task_id}/events")
+async def optimize_task_events(task_id: str) -> StreamingResponse:
+    task = registry.get(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="任务不存在（可能已随服务重启清除）")
+    return StreamingResponse(
+        stream_task_events(task),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

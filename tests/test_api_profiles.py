@@ -236,6 +236,78 @@ def test_invalid_answer_keys_ignored(client):
     assert resp.json()["derived"]["tolerance_level"] == ""
 
 
+# ---------------------------------------------------------------------------
+# Profile comparison + behavioral biases (Phase 5c)
+# ---------------------------------------------------------------------------
+
+
+def _create(client, **overrides) -> int:
+    resp = client.post("/api/profiles", json=sample_payload(**overrides))
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+def test_compare_profiles_with_biases(client):
+    alice = _create(
+        client,
+        name="Alice",
+        risk_scores={"ability_score": 4.5, "willingness_score": 4.0},
+    )
+    bob = _create(
+        client,
+        name="Bob",
+        risk_scores={"ability_score": 4.5, "willingness_score": 1.5},
+        financial={
+            "annual_income": 80000,
+            "annual_expenses": 70000,
+            "investable_assets": 100000,
+            "total_liabilities": 0,
+            "emergency_fund_months": 6.0,
+        },
+    )
+
+    resp = client.get(f"/api/profiles/compare?ids={alice},{bob}")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert [p["name"] for p in body["profiles"]] == ["Alice", "Bob"]
+    alice_entry, bob_entry = body["profiles"]
+    assert alice_entry["id"] == alice
+    assert alice_entry["financial_summary"]["net_worth"] == 200000
+    assert alice_entry["financial_summary"]["risk_level"] == "Moderately Aggressive / 成长型"
+    assert alice_entry["bias_count"] == 0
+
+    # Bob: willingness 1.5 vs ability 4.5 → loss aversion + risk mismatch.
+    assert bob_entry["bias_count"] == 2
+    bias_types = {b["bias_type"] for b in bob_entry["biases"]}
+    assert bias_types == {"loss_aversion", "risk_mismatch"}
+    assert all(b["severity"] in ("high", "medium", "low") for b in bob_entry["biases"])
+
+    assert body["insights"]  # risk/net-worth divergence produces insights
+    assert body["comparison_date"]
+
+
+def test_compare_validation(client):
+    a = _create(client, name="Alice")
+    b = _create(client, name="Bob")
+
+    assert client.get(f"/api/profiles/compare?ids={a}").status_code == 422
+    assert client.get("/api/profiles/compare?ids=x,y").status_code == 422
+    assert client.get(f"/api/profiles/compare?ids={a},999").status_code == 404
+
+    # Above the 6-profile cap.
+    more = [_create(client, name=f"P{i}") for i in range(6)]
+    assert client.get(f"/api/profiles/compare?ids={a},{b},{','.join(map(str, more))}").status_code == 422
+
+
+def test_compare_rejects_duplicate_names(client):
+    a = _create(client, name="Same Name")
+    b = _create(client, name="Same Name")
+    resp = client.get(f"/api/profiles/compare?ids={a},{b}")
+    assert resp.status_code == 422
+    assert "重名" in resp.json()["detail"]
+
+
 def _write_legacy_profile(profiles_dir, name, created_at, **extra):
     data = sample_payload(name=name)
     # Convert the API payload back to the legacy asdict(ClientProfile) shape.

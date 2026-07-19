@@ -17,6 +17,9 @@ from api.db import ProfileRecord, get_session
 from api.migrate_profiles import import_json_profiles
 from api.profile_convert import build_derived, payload_to_data, profile_from_data
 from api.schemas import (
+    BiasItem,
+    ProfileCompareEntry,
+    ProfileCompareResponse,
     ProfileDetailResponse,
     ProfileImportResponse,
     ProfileListResponse,
@@ -26,7 +29,12 @@ from api.schemas import (
     QuestionnaireQuestion,
     QuestionnaireResponse,
 )
-from src.agents.profiler import RISK_ABILITY_QUESTIONS, RISK_WILLINGNESS_QUESTIONS
+from src.agents.profiler import (
+    RISK_ABILITY_QUESTIONS,
+    RISK_WILLINGNESS_QUESTIONS,
+    compare_profiles,
+    identify_behavioral_biases,
+)
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
 
@@ -121,6 +129,63 @@ def get_questionnaire() -> QuestionnaireResponse:
         willingness=_build_track(RISK_WILLINGNESS_QUESTIONS),
     )
 
+
+MAX_COMPARE_PROFILES = 6
+
+
+# NOTE: declared before /{profile_id} for the same routing-order reason as
+# /questionnaire above.
+@router.get("/compare", response_model=ProfileCompareResponse)
+def compare_profile_set(
+    ids: str, session: Session = Depends(get_session)
+) -> ProfileCompareResponse:
+    """Compare 2–6 profiles (src compare_profiles) with per-profile biases.
+
+    src keys its comparison dicts by client name, so duplicate names would
+    silently overwrite each other — reject them with 422 instead.
+    """
+    try:
+        id_list = [int(x) for x in ids.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(status_code=422, detail="ids 必须为逗号分隔的整数")
+    id_list = list(dict.fromkeys(id_list))  # dedupe, preserve order
+    if len(id_list) < 2:
+        raise HTTPException(status_code=422, detail="至少需要 2 个画像才能进行对比")
+    if len(id_list) > MAX_COMPARE_PROFILES:
+        raise HTTPException(
+            status_code=422, detail=f"一次最多对比 {MAX_COMPARE_PROFILES} 个画像"
+        )
+
+    records = [session.get(ProfileRecord, i) for i in id_list]
+    missing = [i for i, r in zip(id_list, records) if r is None]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"画像不存在（id={missing}）")
+    # Past the 404 guard every record exists.
+    profiles = [profile_from_data(r.data) for r in records if r is not None]
+    names = [p.name for p in profiles]
+    if len(set(names)) != len(names):
+        raise HTTPException(
+            status_code=422, detail="所选画像存在重名，对比结果会互相覆盖；请改名后再试"
+        )
+
+    comparison = compare_profiles(profiles)
+    return ProfileCompareResponse(
+        comparison_date=comparison.comparison_date,
+        insights=comparison.insights,
+        profiles=[
+            ProfileCompareEntry(
+                id=record.id,
+                name=profile.name,
+                financial_summary=comparison.financial_summary[profile.name],
+                bias_count=comparison.bias_count_comparison[profile.name],
+                biases=[
+                    BiasItem(**vars(b)) for b in identify_behavioral_biases(profile)
+                ],
+            )
+            for record, profile in zip(records, profiles)
+            if record is not None
+        ],
+    )
 
 @router.get("/{profile_id}", response_model=ProfileDetailResponse)
 def get_profile(

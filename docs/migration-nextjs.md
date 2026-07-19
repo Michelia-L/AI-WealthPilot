@@ -1,6 +1,6 @@
 # Next.js 迁移计划 / Migration Plan
 
-> Status: **Phase 5b complete** (2026-07-18) — 功能补齐（风险问卷迁移 + IPS PDF 导出）。
+> Status: **Phase 5c complete** (2026-07-19) — 体验债清偿（resampled-MVO 异步化 + 画像对比/行为偏差页）。
 
 ## 目标
 
@@ -32,7 +32,7 @@ src/    Python 量化核心（优化器、CME、Agents）— 零改动，Streaml
 | 4b | IPS 工作流异步任务化（进程内队列 + 进度推送） | ✅ 2026-07-18 |
 | 5a | 部署打磨：镜像瘦身（requirements-api 分离）、compose 健康检查、首启自动迁移、.dockerignore 审计 | ✅ 2026-07-18 |
 | 5b | 功能补齐：风险问卷迁移（9 题双轨制 + 自动算分）、IPS PDF 导出 | ✅ 2026-07-18 |
-| 5c | 体验债：resampled-MVO 异步任务化、画像对比/行为偏差页 | ⬜ |
+| 5c | 体验债：resampled-MVO 异步任务化、画像对比/行为偏差页 | ✅ 2026-07-19 |
 | 6 | 退役 Streamlit（删除 `src/views/`、`app.py`、streamlit 依赖） | ⬜ |
 
 ## Milestone 1 交付内容
@@ -140,9 +140,9 @@ pytest tests/
 
 **已知限制：** 风险问卷 UI（9 题双轨制）后续单独迁移，当前以手动评分代替；画像对比（compare_profiles）与行为偏差分析随 Phase 4 顾问工作流接入。
 
-## 下一步（Phase 5c 切入点）
+## 下一步（Phase 6 切入点）
 
-1. **5c**：resampled-MVO 分钟级计算接入 4b 任务框架（队列复用泛化）；画像对比（compare_profiles）与行为偏差分析页面；
+1. **6**：退役 Streamlit——删除 `src/views/`、`src/app.py` 与 streamlit 依赖（`requirements.txt` 与 `requirements-api.txt` 合一）；删除前确认 Streamlit 独有入口无残留引用（旧 JSON 画像导入工具可保留）。
 2. 公网认证按产品定位（个人/小团队、本地优先）继续后置。
 
 ## Phase 4a 交付内容（2026-07-18）
@@ -208,3 +208,19 @@ pytest tests/
 - Web：`proxyFile()` 二进制直通代理（`proxyGet` 的 `res.json()` 会毁文件流）；文档库表格与 markdown 查看页各加下载按钮。
 
 验证：442 测试通过（新增问卷端点/算分优先级/部分作答平均/无效答案键/PDF 导出 5 项）；`next build` 通过；容器内端到端冒烟（问卷端点、PDF 真实字节流、字体落位）见提交记录。
+
+## Phase 5c 交付内容（2026-07-19）
+
+**任务框架泛化 + resampled-MVO 异步化：**
+
+- `api/tasks.py` — 4b IPS 任务框架泛化为共享模块：`BackgroundTask`（kind + meta 字典）/ `TaskRegistry` / `sse()` / `stream_task_events()`；ips.py 重构复用（行为不变，4b 测试原样通过）。
+- `POST /api/portfolio/optimize/async` — 202 创建优化任务。不需要行情数据的校验（资产 keys、BL 观点非空）同步前置，坏请求立即 422 而非流落事件流；计算拆为 `_prepare_optimize`（取数，IO）+ `_solve_optimize`（求解 + 图表，CPU），两段经 `run_in_executor` 运行，节点事件 `fetch` → `solve` → `done`（携带完整 OptimizeResponse JSON）/ `error`（HTTPException detail 原样透传）。
+- `GET /api/portfolio/tasks/{id}/events` — SSE 进度流（复用泛化 drain）。
+- 前端 optimizer 页：`method=resampled` 走异步流（任务创建 → SSE → 节点标签实时显示），mvo/BL 保留同步快速路径；结果渲染完全复用。
+
+**画像对比 + 行为偏差：**
+
+- `GET /api/profiles/compare?ids=1,2,…`（2–6 个）— src `compare_profiles` + 逐画像 `identify_behavioral_biases`。src 对比字典按客户名键控，重名会互相覆盖 → 422 拒绝；任一 id 缺失 → 404。
+- `/profiles` 页列表加勾选列（上限 6）→「对比所选」→ 对比区块：指标对照表（风险评分/等级/净资产/收入/储蓄率/应急基金/偏差数）、src 双语洞察、逐画像偏差卡片（严重度 chip + 双语描述与建议）。
+
+验证：450 测试通过（新增异步任务生命周期/前置 422/错误事件/404 五项，对比偏差/校验/重名三项）；容器内真实重采样任务经 web 代理跑通（50 次模拟，sharpe 1.094，weight_std 齐全）；问卷作答创建画像 → 派生分数正确（4.4/1.75 → 稳健型）→ 双画像对比返回损失厌恶/风险错配偏差与 4 条洞察；6 页 0 降级面板。

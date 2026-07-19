@@ -12,10 +12,8 @@ persisted to the src/ JSON store (shared with Streamlit) on success.
 import asyncio
 import json
 import tempfile
-import uuid
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -30,6 +28,7 @@ from api.schemas import (
     IpsListResponse,
     IpsTaskCreatedResponse,
 )
+from api.tasks import BackgroundTask, TaskRegistry, stream_task_events
 from src.agents import ips_storage, ips_workflow
 from src.agents.advisor import is_api_configured
 
@@ -49,40 +48,10 @@ NODE_LABELS: dict[str, str] = {
 }
 
 
-@dataclass
-class IpsTask:
-    task_id: str
-    profile_id: int
-    client_name: str
-    queue: asyncio.Queue = field(default_factory=asyncio.Queue)
-    status: str = "running"  # running / completed / failed
+registry = TaskRegistry()
 
 
-class IpsTaskRegistry:
-    """Process-local task registry (single-user deployment; no persistence)."""
-
-    def __init__(self) -> None:
-        self._tasks: dict[str, IpsTask] = {}
-
-    def create(self, profile_id: int, client_name: str) -> IpsTask:
-        task = IpsTask(
-            task_id=uuid.uuid4().hex[:12], profile_id=profile_id, client_name=client_name
-        )
-        self._tasks[task.task_id] = task
-        return task
-
-    def get(self, task_id: str) -> Optional[IpsTask]:
-        return self._tasks.get(task_id)
-
-
-registry = IpsTaskRegistry()
-
-
-def _sse(payload: dict[str, Any]) -> str:
-    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-
-
-async def _run_ips_task(task: IpsTask, profile_data: dict, max_revisions: int) -> None:
+async def _run_ips_task(task: BackgroundTask, profile_data: dict, max_revisions: int) -> None:
     """Background coroutine: stream the workflow, push node events, save result."""
     try:
         template = ips_workflow.load_ips_template()
@@ -126,7 +95,7 @@ async def _run_ips_task(task: IpsTask, profile_data: dict, max_revisions: int) -
         filepath = ips_storage.save_ips(
             ips_dict=state["final_ips"],
             audit_trail_dict=state.get("audit_trail") or {},
-            client_name=task.client_name,
+            client_name=task.meta["client_name"],
         )
         task.status = "completed"
         await task.queue.put(
@@ -156,7 +125,9 @@ async def generate_ips(
     if record is None:
         raise HTTPException(status_code=404, detail=f"画像不存在（id={payload.profile_id}）")
 
-    task = registry.create(profile_id=payload.profile_id, client_name=record.name)
+    task = registry.create(
+        "ips", profile_id=payload.profile_id, client_name=record.name
+    )
     asyncio.create_task(_run_ips_task(task, record.data, payload.max_revisions))
     return IpsTaskCreatedResponse(task_id=task.task_id, profile_id=payload.profile_id)
 
@@ -167,15 +138,8 @@ async def task_events(task_id: str) -> StreamingResponse:
     if task is None:
         raise HTTPException(status_code=404, detail="任务不存在（可能已随服务重启清除）")
 
-    async def stream():
-        while True:
-            event = await task.queue.get()
-            yield _sse(event)
-            if event.get("type") in ("done", "error"):
-                break
-
     return StreamingResponse(
-        stream(),
+        stream_task_events(task),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

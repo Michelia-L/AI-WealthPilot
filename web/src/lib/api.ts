@@ -488,6 +488,42 @@ export interface QuestionnaireResponse {
 export const getQuestionnaire = () =>
   getJson<QuestionnaireResponse>("/api/profiles/questionnaire");
 
+// ---------------------------------------------------------------------------
+// Profile comparison + behavioral biases (Phase 5c)
+// ---------------------------------------------------------------------------
+
+export interface BiasItem {
+  bias_type: string;
+  name: string; // bilingual "English / 中文"
+  description: string;
+  severity: string; // high / medium / low
+  recommendation: string;
+}
+
+export interface ProfileFinancialSummary {
+  annual_income: number;
+  net_worth: number;
+  annual_savings: number;
+  savings_rate: number;
+  emergency_fund_months: number;
+  risk_score: number;
+  risk_level: string;
+}
+
+export interface ProfileCompareEntry {
+  id: number;
+  name: string;
+  financial_summary: ProfileFinancialSummary;
+  bias_count: number;
+  biases: BiasItem[];
+}
+
+export interface ProfileCompareResponse {
+  comparison_date: string;
+  insights: string[];
+  profiles: ProfileCompareEntry[];
+}
+
 /**
  * Client mirror of src compute_*_score for live preview: average the option
  * scores of the answered questions only. Returns 0 when nothing is answered
