@@ -260,7 +260,7 @@ AI-WealthPilot/
 │   ├── migrate_profiles.py       # Legacy JSON profile importer (first-boot auto-seed)
 │   └── Dockerfile                # API image (context = repo root, runtime requirements.txt)
 ├── web/                          # [Next.js Frontend]
-│   ├── src/app/                  # App Router pages (dashboard, optimizer, retirement, profiles, advisor, ips)
+│   ├── src/app/                  # App Router pages (overview, market, optimizer, retirement, profiles, advisor, ips, deliverables, monitoring)
 │   ├── src/components/           # Workspace components, Plotly wrapper, Markdown renderer
 │   ├── src/lib/                  # Typed API client, SSE helpers, same-origin proxy
 │   └── Dockerfile                # Web image (standalone output)

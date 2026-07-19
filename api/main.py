@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import api  # noqa: F401
 from api.db import init_db
 from api.migrate_profiles import maybe_auto_import
-from api.routers import advisor, cme, ips, market, portfolio, profiles, retirement
+from api.routers import advisor, cme, ips, market, monitoring, portfolio, profiles, retirement
 from api.schemas import HealthResponse
 from src.config import APP_NAME, APP_VERSION
 
@@ -54,6 +54,7 @@ def create_app() -> FastAPI:
 
     app.include_router(market.router, prefix="/api")
     app.include_router(cme.router, prefix="/api")
+    app.include_router(monitoring.router, prefix="/api")
     app.include_router(portfolio.router, prefix="/api")
     app.include_router(retirement.router, prefix="/api")
     app.include_router(profiles.router, prefix="/api")
