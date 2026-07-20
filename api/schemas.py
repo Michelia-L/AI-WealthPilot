@@ -150,6 +150,11 @@ class OptimizeRequest(BaseModel):
     allow_short: bool = False
     n_simulations: int = Field(default=200, ge=50, le=2000)
     bl: Optional[BLConfigInput] = None
+    profile_id: Optional[int] = Field(
+        default=None,
+        description="Client profile id; applies the profile's risk-level group "
+        "caps to the selected portfolio (classic MVO only)",
+    )
 
 
 class PortfolioResult(BaseModel):
@@ -178,6 +183,15 @@ class BLInsight(BaseModel):
     posterior_returns: dict[str, float]
 
 
+class RiskConstraintsInfo(BaseModel):
+    """Risk-level group caps resolved from a client profile, when applied."""
+
+    profile_id: int
+    profile_name: str
+    risk_level: str
+    caps: dict[str, float]
+
+
 class OptimizeResponse(BaseModel):
     as_of: datetime
     params: dict[str, Any] = Field(description="Effective parameters used")
@@ -188,6 +202,7 @@ class OptimizeResponse(BaseModel):
     allocation_chart: dict[str, Any]
     asset_stats: list[AssetStat]
     bl: Optional[BLInsight] = None
+    risk_constraints: Optional[RiskConstraintsInfo] = None
 
 
 class PortfolioTaskCreatedResponse(BaseModel):

@@ -212,6 +212,7 @@ class PortfolioOptimizer:
         self,
         allow_short: bool = False,
         mean_override: Optional[np.ndarray] = None,
+        group_constraints: Optional[dict] = None,
     ) -> dict:
         """Find maximum Sharpe ratio portfolio (tangency portfolio).
 
@@ -220,6 +221,12 @@ class PortfolioOptimizer:
             mean_override: Optional expected-return vector overriding
                 ``self.mean_returns`` (used by the resampled-MVO path to avoid
                 mutating instance state, #1). Defaults to None.
+            group_constraints: Optional per-group min/max weight limits in the
+                same shape as ``optimize_with_asset_class_constraints``'
+                asset_classes (e.g. {'equity': {'assets': ['US Equities
+                (S&P 500)'], 'min': 0.0, 'max': 0.15}}). Each group adds two
+                SLSQP inequality constraints. Defaults to None, which keeps
+                the unconstrained behavior.
 
         Returns:
             Dict with 'weights', 'return', 'volatility', 'sharpe', 'success'.
@@ -228,6 +235,27 @@ class PortfolioOptimizer:
         init_weights = np.ones(n) / n
         bounds = ((-1, 1) if allow_short else (0, 1),) * n
         constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1}]
+
+        if group_constraints:
+            for class_config in group_constraints.values():
+                assets = class_config["assets"]
+                if isinstance(assets[0], str):
+                    indices = [self.asset_names.index(a) for a in assets]
+                else:
+                    indices = list(assets)
+                min_weight = class_config.get("min", 0.0)
+                max_weight = class_config.get("max", 1.0)
+                # Bind loop variables as defaults so each lambda captures its
+                # own indices/bounds (same pattern as
+                # optimize_with_asset_class_constraints).
+                constraints.append({
+                    "type": "ineq",
+                    "fun": lambda w, idx=indices, m=min_weight: sum(w[i] for i in idx) - m,
+                })
+                constraints.append({
+                    "type": "ineq",
+                    "fun": lambda w, idx=indices, m=max_weight: m - sum(w[i] for i in idx),
+                })
 
         def neg_sharpe(w):
             ret, vol, _ = self.portfolio_performance(w, mean_override)

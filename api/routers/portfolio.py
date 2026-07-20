@@ -18,10 +18,12 @@ from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from sqlmodel import Session
 
 from api.cache import TTLCache
+from api.db import ProfileRecord, get_session
 from api.routers.market import _fig_json
 from api.schemas import (
     AssetClassInfo,
@@ -32,6 +34,7 @@ from api.schemas import (
     OptimizeResponse,
     PortfolioResult,
     PortfolioTaskCreatedResponse,
+    RiskConstraintsInfo,
 )
 from api.tasks import BackgroundTask, TaskRegistry, stream_task_events
 from src.config import DEFAULT_ASSET_CLASSES
@@ -41,6 +44,7 @@ from src.data.market_data import (
     fetch_risk_free_rate,
 )
 from src.portfolio.optimizer import BlackLittermanOptimizer, PortfolioOptimizer
+from src.portfolio.risk_constraints import build_group_constraints, caps_for_tolerance
 from src.portfolio.views import ViewInput
 from src.visualization.charts import plot_allocation_pie, plot_efficient_frontier
 
@@ -90,16 +94,30 @@ def _fetch_returns(keys: list[str], period: str) -> pd.DataFrame:
     """Daily simple returns with columns renamed to asset display names."""
     tickers = [DEFAULT_ASSET_CLASSES[k]["ticker"] for k in keys]
     cache_key = f"prices:{period}|{','.join(sorted(tickers))}"
-    prices = _prices_cache.get_or_set(
-        cache_key,
-        PRICES_TTL_SECONDS,
-        lambda: fetch_price_history(tickers, period=period),
-    )
-    if prices.empty:
-        raise HTTPException(
-            status_code=502,
-            detail="No price data returned from the market data provider.",
-        )
+
+    def _load() -> pd.DataFrame:
+        prices = fetch_price_history(tickers, period=period)
+        if prices.empty:
+            raise HTTPException(
+                status_code=502,
+                detail="No price data returned from the market data provider.",
+            )
+        # Reject instruments whose series came back missing or all-NaN — the
+        # failure is transient upstream, and caching such a frame would
+        # poison every request for the whole TTL window.
+        bad = [
+            t
+            for t in tickers
+            if t not in prices.columns or prices[t].dropna().empty
+        ]
+        if bad:
+            raise HTTPException(
+                status_code=502,
+                detail=f"行情数据获取失败（{', '.join(bad)}），请稍后重试。",
+            )
+        return prices
+
+    prices = _prices_cache.get_or_set(cache_key, PRICES_TTL_SECONDS, _load)
     # fetch_price_history preserves the requested ticker order in columns
     prices = prices[tickers]
     prices.columns = [DEFAULT_ASSET_CLASSES[k]["name"] for k in keys]
@@ -129,11 +147,46 @@ def _result_payload(result: dict, asset_names: list[str]) -> PortfolioResult:
     )
 
 
+def _resolve_risk_constraints(
+    req: OptimizeRequest, session: Session
+) -> Optional[RiskConstraintsInfo]:
+    """Resolve a request's profile_id into risk-level group caps (fail fast).
+
+    Returns None when no profile_id is given. Raises 404 for a missing
+    profile, 422 when the stored tolerance label is unknown or the method
+    is not classic MVO. Pure metadata — safe to resolve before handing the
+    request to a background executor (no session use off the event loop).
+    """
+    if req.profile_id is None:
+        return None
+    record = session.get(ProfileRecord, req.profile_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"画像不存在（id={req.profile_id}）")
+    tolerance_level = (record.data.get("risk_profile") or {}).get("tolerance_level") or ""
+    try:
+        caps = caps_for_tolerance(tolerance_level)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    if req.method != "mvo":
+        raise HTTPException(status_code=422, detail="风险约束当前仅支持经典 MVO 方法")
+    return RiskConstraintsInfo(
+        profile_id=record.id,
+        profile_name=record.name,
+        risk_level=tolerance_level,
+        caps=caps,
+    )
+
+
 def _run_mvo(
-    returns: pd.DataFrame, req: OptimizeRequest
+    returns: pd.DataFrame, req: OptimizeRequest, group_constraints: Optional[dict] = None
 ) -> tuple[PortfolioOptimizer, dict, dict, dict, pd.DataFrame, pd.DataFrame, dict]:
     """Traditional or Resampled (Michaud) MVO. Returns (optimizer, selected,
-    max_sharpe, min_vol, frontier, random_portfolios, params_echo)."""
+    max_sharpe, min_vol, frontier, random_portfolios, params_echo).
+
+    When group_constraints is given (classic MVO only), the selected
+    portfolio honors those per-group min/max limits while the max_sharpe /
+    min_vol control portfolios stay unconstrained as a cost reference.
+    """
     optimizer = PortfolioOptimizer(returns, risk_free_rate=req.risk_free_rate)
     max_sharpe = optimizer.maximize_sharpe(allow_short=req.allow_short)
     min_vol = optimizer.minimize_volatility(allow_short=req.allow_short)
@@ -153,7 +206,17 @@ def _run_mvo(
             allow_short=req.allow_short,
         )
     else:
-        selected = max_sharpe if req.mode == "max-sharpe" else min_vol
+        if group_constraints:
+            if req.mode == "max-sharpe":
+                selected = optimizer.maximize_sharpe(
+                    allow_short=req.allow_short, group_constraints=group_constraints
+                )
+            else:
+                selected = optimizer.optimize_with_asset_class_constraints(
+                    group_constraints, allow_short=req.allow_short
+                )
+        else:
+            selected = max_sharpe if req.mode == "max-sharpe" else min_vol
         frontier = optimizer.efficient_frontier(
             n_points=FRONTIER_POINTS, allow_short=req.allow_short
         )
@@ -232,9 +295,10 @@ def _run_bl(
     response_model=OptimizeResponse,
     summary="Run portfolio optimization (MVO / Resampled / Black-Litterman)",
 )
-def optimize(req: OptimizeRequest) -> OptimizeResponse:
+def optimize(req: OptimizeRequest, session: Session = Depends(get_session)) -> OptimizeResponse:
+    risk_info = _resolve_risk_constraints(req, session)
     keys, returns, rf = _prepare_optimize(req)
-    return _solve_optimize(req, keys, returns, rf)
+    return _solve_optimize(req, keys, returns, rf, risk_info)
 
 
 def _prepare_optimize(req: OptimizeRequest) -> tuple[list[str], pd.DataFrame, float]:
@@ -246,10 +310,20 @@ def _prepare_optimize(req: OptimizeRequest) -> tuple[list[str], pd.DataFrame, fl
 
 
 def _solve_optimize(
-    req: OptimizeRequest, keys: list[str], returns: pd.DataFrame, rf: float
+    req: OptimizeRequest,
+    keys: list[str],
+    returns: pd.DataFrame,
+    rf: float,
+    risk_constraints: Optional[RiskConstraintsInfo] = None,
 ) -> OptimizeResponse:
     """The CPU-heavy half: optimize, build charts, assemble the response."""
     req.risk_free_rate = rf
+
+    # Risk caps apply to classic MVO only; groups absent from the selected
+    # universe yield no constraint, in which case nothing is reported.
+    group_constraints = None
+    if risk_constraints is not None and req.method == "mvo":
+        group_constraints = build_group_constraints(risk_constraints.caps, keys)
 
     if req.method == "black-litterman":
         optimizer, selected, max_sharpe, min_vol, frontier, random_ports, bl_extra = (
@@ -257,7 +331,16 @@ def _solve_optimize(
         )
     else:
         optimizer, selected, max_sharpe, min_vol, frontier, random_ports, bl_extra = (
-            _run_mvo(returns, req)
+            _run_mvo(returns, req, group_constraints)
+        )
+
+    # Every frontier point failing to solve yields an empty/malformed frame;
+    # surface a clean 422 instead of a downstream KeyError.
+    if frontier.empty or "volatility" not in frontier.columns:
+        raise HTTPException(
+            status_code=422,
+            detail="有效前沿求解失败：当前资产组合在该历史窗口下无法构成有效前沿，"
+            "请调整资产选择或历史窗口。",
         )
 
     asset_names = list(returns.columns)
@@ -304,6 +387,7 @@ def _solve_optimize(
         allocation_chart=_fig_json(allocation_fig),
         asset_stats=asset_stats,
         bl=bl_extra if isinstance(bl_extra, BLInsight) else None,
+        risk_constraints=risk_constraints if group_constraints else None,
     )
 
 
@@ -314,8 +398,16 @@ def _solve_optimize(
 registry = TaskRegistry()
 
 
-async def _run_optimize_task(task: BackgroundTask, req: OptimizeRequest) -> None:
-    """Fetch data, then optimize in an executor (CPU-heavy) with progress events."""
+async def _run_optimize_task(
+    task: BackgroundTask,
+    req: OptimizeRequest,
+    risk_constraints: Optional[RiskConstraintsInfo] = None,
+) -> None:
+    """Fetch data, then optimize in an executor (CPU-heavy) with progress events.
+
+    risk_constraints is resolved in the endpoint (DB access) before the task
+    is created, so the executor threads never touch a session.
+    """
     try:
         loop = asyncio.get_running_loop()
         await task.queue.put({"type": "node", "node": "fetch", "label": "获取行情数据"})
@@ -326,7 +418,9 @@ async def _run_optimize_task(task: BackgroundTask, req: OptimizeRequest) -> None
             else "组合优化计算中"
         )
         await task.queue.put({"type": "node", "node": "solve", "label": label})
-        result = await loop.run_in_executor(None, _solve_optimize, req, keys, returns, rf)
+        result = await loop.run_in_executor(
+            None, _solve_optimize, req, keys, returns, rf, risk_constraints
+        )
         task.status = "completed"
         await task.queue.put({"type": "done", "result": result.model_dump(mode="json")})
     except HTTPException as e:
@@ -343,7 +437,9 @@ async def _run_optimize_task(task: BackgroundTask, req: OptimizeRequest) -> None
     status_code=202,
     summary="Create an async optimization task; poll /tasks/{id}/events (SSE)",
 )
-async def optimize_async(req: OptimizeRequest) -> PortfolioTaskCreatedResponse:
+async def optimize_async(
+    req: OptimizeRequest, session: Session = Depends(get_session)
+) -> PortfolioTaskCreatedResponse:
     # Validate everything that doesn't need market data up front, so bad
     # requests fail fast with 422 instead of surfacing on the event stream.
     _resolve_asset_keys(req.assets)
@@ -353,10 +449,12 @@ async def optimize_async(req: OptimizeRequest) -> PortfolioTaskCreatedResponse:
             detail="Black-Litterman requires at least one investor view "
             "(bl.views must be non-empty).",
         )
+    # Profile lookup + cap resolution happen here, not in the executor.
+    risk_info = _resolve_risk_constraints(req, session)
     task = registry.create(
         "optimize", method=req.method, n_simulations=req.n_simulations
     )
-    asyncio.create_task(_run_optimize_task(task, req))
+    asyncio.create_task(_run_optimize_task(task, req, risk_info))
     return PortfolioTaskCreatedResponse(task_id=task.task_id)
 
 

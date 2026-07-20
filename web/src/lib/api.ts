@@ -200,6 +200,8 @@ export interface OptimizeRequest {
   allow_short: boolean;
   n_simulations: number;
   bl?: BLConfigInput | null;
+  /** 提供时按该客户的风险等级注入资产组权重上限（仅经典 MVO）。 */
+  profile_id?: number | null;
 }
 
 export interface PortfolioResult {
@@ -224,6 +226,14 @@ export interface BLInsight {
   posterior_returns: Record<string, number>;
 }
 
+/** 按客户风险等级应用的资产组权重上限（method=mvo 时生效）。 */
+export interface RiskConstraintsInfo {
+  profile_id: number;
+  profile_name: string;
+  risk_level: string;
+  caps: Record<string, number>;
+}
+
 export interface OptimizeResponse {
   as_of: string;
   params: {
@@ -243,6 +253,7 @@ export interface OptimizeResponse {
   allocation_chart: PlotlyFigure;
   asset_stats: AssetStat[];
   bl: BLInsight | null;
+  risk_constraints?: RiskConstraintsInfo | null;
 }
 
 export const OPTIMIZER_PERIOD_OPTIONS = [

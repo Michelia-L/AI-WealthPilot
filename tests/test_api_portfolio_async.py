@@ -44,7 +44,7 @@ def fake_optimize(monkeypatch):
     )
     monkeypatch.setattr(
         "api.routers.portfolio._solve_optimize",
-        lambda req, keys, returns, rf: _dummy_result(0.6),
+        lambda req, keys, returns, rf, risk_constraints=None: _dummy_result(0.6),
     )
 
 

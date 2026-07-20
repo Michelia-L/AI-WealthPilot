@@ -11,6 +11,7 @@ import type {
 } from "@/lib/api";
 import { OPTIMIZER_PERIOD_OPTIONS } from "@/lib/api";
 import { readSseStream } from "@/lib/sse";
+import { useClient } from "./client-context";
 import Button from "./ui/button";
 import Icon from "./ui/icon";
 import Panel from "./ui/panel";
@@ -66,6 +67,10 @@ export default function OptimizerWorkspace({
   const [result, setResult] = useState<OptimizeResponse | null>(null);
   const [progressLabel, setProgressLabel] = useState<string | null>(null);
 
+  // 全局客户上下文：选中客户后可把其风险等级注入为权重约束
+  const { clientId, clientName } = useClient();
+  const [applyRisk, setApplyRisk] = useState(true);
+
   function toggleAsset(key: string) {
     setAssets((prev) => {
       if (prev.includes(key)) {
@@ -100,6 +105,9 @@ export default function OptimizerWorkspace({
             ),
         views,
       };
+    }
+    if (method === "mvo" && applyRisk && clientId !== null) {
+      body.profile_id = clientId;
     }
     return body;
   }
@@ -260,6 +268,30 @@ export default function OptimizerWorkspace({
               onChange={setNSim}
               className="w-56"
             />
+          )}
+          {clientId !== null ? (
+            <span className="flex items-center gap-2.5">
+              <span
+                className={
+                  method !== "mvo" ? "pointer-events-none opacity-50" : ""
+                }
+              >
+                <Toggle
+                  checked={applyRisk}
+                  onChange={setApplyRisk}
+                  label={`客户风险约束（${clientName}）`}
+                />
+              </span>
+              {method !== "mvo" && (
+                <span className="text-[11px] text-mist-600">
+                  仅传统 MVO 生效
+                </span>
+              )}
+            </span>
+          ) : (
+            <span className="text-[11px] text-mist-600">
+              在侧边栏选择客户后，可将其风险等级注入为权重约束
+            </span>
           )}
         </div>
 

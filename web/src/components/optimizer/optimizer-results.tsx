@@ -2,9 +2,18 @@ import type { OptimizeResponse } from "@/lib/api";
 import { cx } from "@/lib/cx";
 import { fmtPct } from "@/lib/format";
 import PlotChart from "@/components/plot-chart";
+import { Badge } from "../ui/chip";
+import Icon from "../ui/icon";
 import Panel from "../ui/panel";
 import StatTile from "../ui/stat";
 import { Table, THead, TH, TR, TD } from "../ui/table";
+
+const GROUP_LABEL: Record<string, string> = {
+  equity: "权益",
+  bond: "固收",
+  alternative: "另类",
+  cash: "现金",
+};
 
 /**
  * 优化结果区 —— 关键指标瓷贴、有效前沿/配置图、权重表（含 BL 均衡/后验
@@ -20,9 +29,28 @@ export default function OptimizerResults({
     (a, b) =>
       Math.abs(selectedWeightOf(b.name)) - Math.abs(selectedWeightOf(a.name))
   );
+  const rc = result.risk_constraints;
 
   return (
     <>
+      {rc && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-gold-500/25 bg-gold-500/[0.06] px-4 py-2.5 text-xs text-mist-300">
+          <Icon name="shield" size={13} className="shrink-0 text-gold-400" />
+          <span>
+            已按 <span className="font-medium text-mist-100">{rc.profile_name}</span>{" "}
+            的风险等级（{rc.risk_level}）注入权重约束
+          </span>
+          {Object.entries(rc.caps).map(([g, cap]) => (
+            <Badge key={g} tone="gold">
+              {GROUP_LABEL[g] ?? g} ≤ {fmtPct(cap, 0)}
+            </Badge>
+          ))}
+          <span className="text-mist-500">
+            对照组（最大夏普 / 最小波动）未施加约束
+          </span>
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-3">
         <StatTile
           label="年化收益"
