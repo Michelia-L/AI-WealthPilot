@@ -19,7 +19,7 @@
 
   ⭐ If you like this project, star it on GitHub — it helps a lot!
 
-  [Overview](#overview) • [Key Features](#key-features) • [System Architecture](#system-architecture) • [Financial Mathematics](#financial-mathematics) • [Directory Structure](#directory-structure) • [Getting Started](#getting-started) • [Running Tests](#running-tests) • [Running Demos](#running-demos) • [Disclaimer](#disclaimer)
+  [Overview](#overview) • [Interface](#interface) • [Key Features](#key-features) • [System Architecture](#system-architecture) • [Financial Mathematics](#financial-mathematics) • [Directory Structure](#directory-structure) • [Getting Started](#getting-started) • [Running Tests](#running-tests) • [Running Demos](#running-demos) • [Disclaimer](#disclaimer)
 
 </div>
 
@@ -33,6 +33,18 @@ The system couples a **Modern Portfolio Theory (MPT)** optimization solver with 
 
 > [!TIP]
 > You can run the entire quantitative optimization and market dashboard offline using standard public data. Configuring a DeepSeek API key enables the AI Advisor Agent to generate streaming advisory proposals.
+
+---
+
+## Interface
+
+The workspace follows the complete private-banking advisor workflow: **overview cockpit → market → client hub → AI advisor → IPS → deliverables → portfolio monitoring**, wrapped in a bespoke "Obsidian Private Bank" design system.
+
+| Overview Cockpit | Market Dashboard |
+| --- | --- |
+| ![Overview cockpit](docs/images/screenshots/overview.png) | ![Market dashboard](docs/images/screenshots/market.png) |
+| **Client Hub** | **Portfolio Monitoring** |
+| ![Client hub](docs/images/screenshots/hub.png) | ![Portfolio monitoring](docs/images/screenshots/monitoring.png) |
 
 ---
 
@@ -64,8 +76,8 @@ The system couples a **Modern Portfolio Theory (MPT)** optimization solver with 
   Employs LLMs (`DeepSeek V4 Pro`) to analyze client metrics, identify behavioral finance biases — including **loss aversion**, **overconfidence**, **ability-willingness mismatch**, **leverage risk**, and **inadequate safety net** — and generate personalized wealth advisor proposals.
 - 📄 **Enhanced Multi-Format Document Export**  
   Supports seamless export of AI advisor recommendations to standalone HTML (styled with inline CSS), Markdown, and raw JSON documents.
-- 📊 **Obsidian & Gold Dark Terminal UI**  
-  Dark obsidian/amber financial terminal built with **Next.js + Tailwind**, streaming LLM tokens and task progress over SSE, with Plotly charts rendered server-side and shipped to plotly.js as JSON.
+- 📊 **"Obsidian Private Bank" Design System**  
+  A bespoke dark editorial design system — obsidian ink with champagne gold accents, Fraunces serif display type, double-bezel panels, thin-line iconography, and a full component kit on **Next.js + Tailwind v4**. LLM tokens and task progress stream over SSE; Plotly charts are rendered server-side, shipped as JSON, and re-themed client-side to match.
 
 ---
 

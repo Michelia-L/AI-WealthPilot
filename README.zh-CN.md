@@ -36,6 +36,16 @@
 
 ---
 
+## 界面一览
+
+| 总览驾驶舱 | 市场仪表盘 |
+| --- | --- |
+| ![总览驾驶舱](docs/images/screenshots/overview.png) | ![市场仪表盘](docs/images/screenshots/market.png) |
+| **客户枢纽** | **组合监控** |
+| ![客户枢纽](docs/images/screenshots/hub.png) | ![组合监控](docs/images/screenshots/monitoring.png) |
+
+---
+
 ## 核心功能
 
 - 🎓 **业界标准风险评估框架**  
@@ -64,8 +74,8 @@
   基于先进大语言模型 (`DeepSeek V4 Pro`) 深度分析客户多维指标，识别其可能存在的行为金融偏差——包括**损失厌恶**、**过度自信**、**能力-意愿错配**、**杠杆风险**和**安全网不足**——生成专业、合规的流式理财建议书。
 - 📄 **多格式高级文档导出**  
   支持将 AI 顾问建议书无缝转换为独立的、带有精美内嵌 CSS 样式的 HTML 文档、Markdown 以及原生 JSON，便于跨平台分发和打印。
-- 📊 **黑曜石暗金金融终端 UI**  
-  基于 **Next.js + Tailwind** 打造的黑曜石/琥珀暗色金融终端，LLM token 与任务进度经 SSE 实时推送，Plotly 图表由服务端渲染并以 JSON 直送 plotly.js，力求呈现专业金融终端的视觉风格。
+- 📊 **「墨金私行」设计系统**  
+  自研深色编辑风设计系统——曜石灰 × 香槟金、Fraunces 衬线展示字体、双层 bezel 面板、细线图标体系，基于 **Next.js + Tailwind v4** 的完整组件库。工作台覆盖完整顾问工作流：总览驾驶舱 → 市场 → 客户枢纽 → AI 顾问 → IPS → 交付物中心 → 组合监控（SAA 漂移与复衡）。LLM token 与任务进度经 SSE 实时推送，Plotly 图表服务端渲染、前端再套主题。
 
 ---
 
