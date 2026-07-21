@@ -20,6 +20,7 @@ from api.db import init_db
 from api.migrate_profiles import maybe_auto_import
 from api.routers import advisor, cme, ips, market, monitoring, portfolio, profiles, retirement
 from api.schemas import HealthResponse
+from api.tasks import reconcile_interrupted_tasks
 from src.config import APP_NAME, APP_VERSION
 
 # The Next.js dev server runs on :3000. Extra origins can be injected via
@@ -32,6 +33,7 @@ def create_app() -> FastAPI:
     async def lifespan(app: FastAPI):
         init_db()  # create SQLite tables on first boot (idempotent)
         maybe_auto_import()  # first boot: seed DB from legacy JSON if empty
+        reconcile_interrupted_tasks()  # fail task rows cut off by a previous shutdown
         yield
 
     app = FastAPI(

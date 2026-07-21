@@ -42,6 +42,11 @@ def client(tmp_path, monkeypatch):
     # The lifespan hook would otherwise create/seed the real data/wealthpilot.db.
     monkeypatch.setattr("api.main.init_db", lambda: None)
     monkeypatch.setattr("api.main.maybe_auto_import", lambda: None)
+    # ... and query the real DB for interrupted background tasks on boot.
+    monkeypatch.setattr("api.main.reconcile_interrupted_tasks", lambda: 0)
+    # Task persistence (api/tasks.py) resolves api.db.engine directly instead
+    # of the get_session dependency — point it at the same tmp database.
+    monkeypatch.setattr("api.db.engine", engine)
 
     app = create_app()
 

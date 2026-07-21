@@ -3,10 +3,12 @@ IPS generation — async tasks with SSE progress (Phase 4b).
 
 POST /generate spawns an in-process asyncio task that runs the src/
 LangGraph workflow. Node completions (via ``astream(stream_mode="updates")``)
-become progress events on a per-task asyncio.Queue; GET /tasks/{id}/events
-drains that queue as SSE. Per the migration plan there is no Celery/Redis:
-tasks are process-local and lost on restart, and the generated IPS is
-persisted to the src/ JSON store (shared with Streamlit) on success.
+become progress events published on a per-task asyncio.Queue; GET
+/tasks/{id}/events drains that queue as SSE. Per the migration plan there is
+no Celery/Redis: tasks execute in-process, but every event is written through
+to a TaskRecord row (api/tasks.py) so a finished task's stream can be
+replayed after a restart, and the generated IPS is persisted to the src/
+JSON store (shared with Streamlit) on success.
 """
 
 import asyncio
@@ -28,7 +30,11 @@ from api.schemas import (
     IpsListResponse,
     IpsTaskCreatedResponse,
 )
-from api.tasks import BackgroundTask, TaskRegistry, stream_task_events
+from api.tasks import (
+    BackgroundTask,
+    TaskRegistry,
+    task_events_stream,
+)
 from src.agents import ips_storage, ips_workflow
 from src.agents.advisor import is_api_configured
 
@@ -66,7 +72,7 @@ async def _run_ips_task(task: BackgroundTask, profile_data: dict, max_revisions:
         final_state: dict = {}
         async for chunk in app.astream(initial_state, config=config, stream_mode="updates"):
             for node_name in chunk:
-                await task.queue.put(
+                await task.publish(
                     {
                         "type": "node",
                         "node": node_name,
@@ -84,7 +90,7 @@ async def _run_ips_task(task: BackgroundTask, profile_data: dict, max_revisions:
         error_message = state.get("error_message", "")
         if state.get("final_ips") is None:
             task.status = "failed"
-            await task.queue.put(
+            await task.publish(
                 {
                     "type": "error",
                     "message": error_message or "工作流未产出 IPS（可能被升级人工处理）",
@@ -98,7 +104,7 @@ async def _run_ips_task(task: BackgroundTask, profile_data: dict, max_revisions:
             client_name=task.meta["client_name"],
         )
         task.status = "completed"
-        await task.queue.put(
+        await task.publish(
             {
                 "type": "done",
                 "success": True,
@@ -109,7 +115,7 @@ async def _run_ips_task(task: BackgroundTask, profile_data: dict, max_revisions:
         )
     except Exception as e:
         task.status = "failed"
-        await task.queue.put({"type": "error", "message": f"IPS 生成失败: {e}"})
+        await task.publish({"type": "error", "message": f"IPS 生成失败: {e}"})
 
 
 @router.post("/generate", response_model=IpsTaskCreatedResponse, status_code=202)
@@ -134,12 +140,12 @@ async def generate_ips(
 
 @router.get("/tasks/{task_id}/events")
 async def task_events(task_id: str) -> StreamingResponse:
-    task = registry.get(task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="任务不存在（可能已随服务重启清除）")
+    stream = task_events_stream(registry, task_id)
+    if stream is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
 
     return StreamingResponse(
-        stream_task_events(task),
+        stream,
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
