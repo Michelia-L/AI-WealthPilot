@@ -7,13 +7,26 @@ export const metadata = {
   title: "组合优化器 · AI WealthPilot",
 };
 
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
 /**
  * Portfolio Optimizer page. The workspace is a client component — form
  * state is inherently interactive, and the run button POSTs through the
  * same-origin proxy route.
+ * ?assets=KEY1,KEY2（如从监控页联动跳入）预填资产选择。
  */
-export default async function OptimizerPage() {
+export default async function OptimizerPage({ searchParams }: PageProps) {
+  const sp = await searchParams;
   const assetClasses = await getAssetClasses();
+
+  const initialAssets =
+    assetClasses && typeof sp.assets === "string"
+      ? sp.assets
+          .split(",")
+          .filter((k) => k in assetClasses.asset_classes)
+      : undefined;
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
@@ -24,7 +37,12 @@ export default async function OptimizerPage() {
       />
 
       {assetClasses ? (
-        <OptimizerWorkspace assetClasses={assetClasses.asset_classes} />
+        <OptimizerWorkspace
+          assetClasses={assetClasses.asset_classes}
+          initialAssets={
+            initialAssets && initialAssets.length >= 2 ? initialAssets : undefined
+          }
+        />
       ) : (
         <ApiOffline resource="优化资产宇宙" />
       )}

@@ -40,12 +40,17 @@ const MODE_OPTIONS: { value: OptimizeMode; label: string }[] = [
 
 export default function OptimizerWorkspace({
   assetClasses,
+  initialAssets,
 }: {
   assetClasses: Record<string, AssetClassInfo>;
+  /** URL 深链（如监控页 SAA 联动）预填的资产选择。 */
+  initialAssets?: string[];
 }) {
   const allKeys = Object.keys(assetClasses);
 
-  const [assets, setAssets] = useState<string[]>(DEFAULT_ASSETS);
+  const [assets, setAssets] = useState<string[]>(
+    initialAssets && initialAssets.length >= 2 ? initialAssets : DEFAULT_ASSETS
+  );
   const [period, setPeriod] = useState("5y");
   const [method, setMethod] = useState<OptimizeMethod>("mvo");
   const [mode, setMode] = useState<OptimizeMode>("max-sharpe");
