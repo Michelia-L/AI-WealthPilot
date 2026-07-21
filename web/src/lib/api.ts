@@ -267,6 +267,24 @@ export const OPTIMIZER_PERIOD_OPTIONS = [
 export const getAssetClasses = () =>
   getJson<AssetClassesResponse>("/api/portfolio/asset-classes");
 
+/** Personalized allocation from the risk-score-driven recommender (P12). */
+export interface RecommendationResponse {
+  profile_id: number;
+  profile_name: string;
+  risk_level: string;
+  as_of: string;
+  allocation: Record<string, number>;
+  expected_return: number;
+  expected_volatility: number;
+  sharpe_ratio: number;
+  rationale: string;
+}
+
+export const getRecommendation = (profileId: number) =>
+  getJson<RecommendationResponse>(
+    `/api/portfolio/recommendation?profile_id=${profileId}`
+  );
+
 // ---------------------------------------------------------------------------
 // Retirement planning
 // ---------------------------------------------------------------------------

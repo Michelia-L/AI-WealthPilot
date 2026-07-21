@@ -568,3 +568,27 @@ class MonitoringResponse(BaseModel):
     holdings: list[MonitoringHolding]
     rebalance: MonitoringRebalance
     notes: list[str] = Field(default_factory=list)
+
+
+class RebalanceAdviceRequest(BaseModel):
+    """Request body for POST /monitoring/advice (SSE rebalancing advice)."""
+
+    document_id: str = Field(description="IPS document id (filename stem)")
+    profile_id: Optional[int] = Field(
+        default=None,
+        description="Optional SQLite profile id; personalizes the advice",
+    )
+
+
+class RecommendationResponse(BaseModel):
+    """Personalized allocation from src portfolio_recommender (P12)."""
+
+    profile_id: int
+    profile_name: str
+    risk_level: str
+    as_of: datetime
+    allocation: dict[str, float]
+    expected_return: float
+    expected_volatility: float
+    sharpe_ratio: float
+    rationale: str

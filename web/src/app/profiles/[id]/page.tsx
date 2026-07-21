@@ -1,13 +1,16 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import {
   MARITAL_STATUS_OPTIONS,
   TAX_STATUS_OPTIONS,
   getAdvisorReports,
   getIpsDocuments,
   getProfile,
+  getRecommendation,
 } from "@/lib/api";
 import { fmtLocal, fmtMoney, fmtPct } from "@/lib/format";
 import { ApiOffline } from "@/components/api-offline";
+import Markdown from "@/components/markdown";
 import HubActions from "@/components/profiles/hub-actions";
 import { RiskBadge } from "@/components/profiles/shared";
 import {
@@ -17,6 +20,7 @@ import {
   Icon,
   Panel,
   SectionHeader,
+  Skeleton,
   StatTile,
   type BadgeTone,
 } from "@/components/ui";
@@ -81,6 +85,69 @@ function ScoreBar({ label, score }: { label: string; score: number }) {
 
 interface PageProps {
   params: Promise<{ id: string }>;
+}
+
+/** 推荐配置区块 —— 基于风险分数的目标波动率组合（服务端流式渲染）。 */
+async function RecommendationSection({ profileId }: { profileId: number }) {
+  const rec = await getRecommendation(profileId);
+  if (!rec) return null;
+
+  const entries = Object.entries(rec.allocation)
+    .filter(([, w]) => w > 0.001)
+    .sort((a, b) => b[1] - a[1]);
+  const maxW = entries[0]?.[1] ?? 1;
+
+  return (
+    <Panel>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="flex items-center gap-2 text-sm font-medium text-mist-200">
+          <Icon name="pie" size={15} className="text-gold-400" />
+          推荐配置
+        </h3>
+        <Badge tone="gold">{rec.risk_level}</Badge>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+        <div>
+          <div className="mb-4 grid grid-cols-3 gap-3">
+            <StatTile
+              label="预期收益"
+              value={fmtPct(rec.expected_return)}
+              tone="jade"
+            />
+            <StatTile label="预期波动" value={fmtPct(rec.expected_volatility)} />
+            <StatTile
+              label="夏普比率"
+              value={rec.sharpe_ratio.toFixed(2)}
+              tone="gold"
+            />
+          </div>
+          <div className="space-y-2.5">
+            {entries.map(([name, w]) => (
+              <div key={name} className="grid grid-cols-[130px_1fr_48px] items-center gap-3">
+                <span className="truncate text-xs text-mist-400" title={name}>
+                  {name}
+                </span>
+                <div className="h-1.5 overflow-hidden rounded-full bg-ink-700/60">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-gold-600 to-gold-400"
+                    style={{ width: `${(w / maxW) * 100}%` }}
+                  />
+                </div>
+                <span className="tnum text-right font-mono text-xs text-mist-200">
+                  {fmtPct(w, 1)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="border-t border-white/[0.06] pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
+          <Markdown>{rec.rationale}</Markdown>
+        </div>
+      </div>
+    </Panel>
+  );
 }
 
 /**
@@ -306,6 +373,11 @@ export default async function ClientHubPage({ params }: PageProps) {
           )}
         </Panel>
       </div>
+
+      {/* 推荐配置（P12，风险分数 → 目标波动率的个性化配置） */}
+      <Suspense fallback={<Skeleton className="h-56 rounded-[1.4rem]" />}>
+        <RecommendationSection profileId={id} />
+      </Suspense>
 
       {/* 交付物 */}
       <Panel innerClassName="flex flex-col">

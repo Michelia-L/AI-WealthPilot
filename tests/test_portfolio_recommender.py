@@ -261,6 +261,23 @@ class TestPortfolioRecommendation:
         assert rec.expected_return > 0
         assert len(rec.suggested_allocation) > 0
 
+    def test_volatility_lands_near_target(self, moderate_profile, sample_returns):
+        """The solved portfolio must sit at the target volatility, not at the
+        GMV point — the mapping is a constraint, not documentation."""
+        rec = recommend_portfolio(moderate_profile, sample_returns)
+        target = _get_target_volatility(moderate_profile.risk_profile.final_score)
+        assert rec.expected_volatility <= target * 1.05
+        # Actually invested toward the target, not parked in the safest corner.
+        assert rec.expected_volatility > target * 0.5
+
+    def test_conservative_less_volatile_than_moderate(
+        self, conservative_profile, moderate_profile, sample_returns
+    ):
+        """Risk-targeting makes allocations monotonic in the risk score."""
+        conservative_rec = recommend_portfolio(conservative_profile, sample_returns)
+        moderate_rec = recommend_portfolio(moderate_profile, sample_returns)
+        assert conservative_rec.expected_volatility < moderate_rec.expected_volatility
+
 
 # ============================================================
 # Test Recommendation Text Formatting

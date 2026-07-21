@@ -97,6 +97,49 @@ def _get_target_volatility(risk_score: float) -> float:
 
 # Core Recommendation Function
 
+def _solve_at_target_volatility(
+    optimizer: PortfolioOptimizer,
+    target_vol: float,
+    iterations: int = 40,
+) -> dict:
+    """Find the efficient portfolio whose volatility best matches ``target_vol``.
+
+    The efficient frontier is monotonic above the GMV return (higher target
+    return → higher volatility), so binary-searching ``target_return`` on the
+    min-volatility solver lands on the frontier point at the volatility
+    target — this is what makes the risk-score → volatility mapping an actual
+    constraint rather than a documentation-only value.
+
+    Args:
+        optimizer: PortfolioOptimizer built on the returns universe.
+        target_vol: Annualized volatility target (e.g. 0.10 for 10%).
+        iterations: Binary-search depth.
+
+    Returns:
+        Optimizer result dict ('weights', 'return', 'volatility', 'sharpe',
+        'success'). Falls back to the GMV portfolio when even it exceeds the
+        target (universe cannot de-risk far enough).
+    """
+    gmv = optimizer.minimize_volatility()
+    if not gmv.get("success", False) or gmv["volatility"] >= target_vol:
+        return gmv
+
+    lo, hi = gmv["return"], float(optimizer.mean_returns.max())
+    best = gmv
+    for _ in range(iterations):
+        mid = (lo + hi) / 2
+        res = optimizer.minimize_volatility(target_return=mid)
+        if not res.get("success", False):
+            hi = mid
+            continue
+        if res["volatility"] <= target_vol:
+            best = res
+            lo = mid
+        else:
+            hi = mid
+    return best
+
+
 def recommend_portfolio(
     profile: ClientProfile,
     returns_data: pd.DataFrame,
@@ -122,8 +165,8 @@ def recommend_portfolio(
     # Step 3: Initialize optimizer
     optimizer = PortfolioOptimizer(returns_data, risk_free_rate)
 
-    # Step 4: Find optimal portfolio at target volatility
-    result = optimizer.minimize_volatility()
+    # Step 4: Solve the efficient portfolio at the target volatility
+    result = _solve_at_target_volatility(optimizer, target_volatility)
 
     # Step 5: If target return is specified in goals, try to achieve it
     if profile.goals:

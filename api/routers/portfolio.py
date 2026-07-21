@@ -24,6 +24,7 @@ from sqlmodel import Session
 
 from api.cache import TTLCache
 from api.db import ProfileRecord, get_session
+from api.profile_convert import profile_from_data
 from api.routers.market import _fig_json
 from api.schemas import (
     AssetClassInfo,
@@ -34,9 +35,15 @@ from api.schemas import (
     OptimizeResponse,
     PortfolioResult,
     PortfolioTaskCreatedResponse,
+    RecommendationResponse,
     RiskConstraintsInfo,
 )
-from api.tasks import BackgroundTask, TaskRegistry, stream_task_events
+from api.tasks import (
+    BackgroundTask,
+    TaskRegistry,
+    task_events_stream,
+)
+from src.agents.portfolio_recommender import recommend_portfolio
 from src.config import DEFAULT_ASSET_CLASSES
 from src.data.market_data import (
     compute_returns,
@@ -70,6 +77,38 @@ def get_asset_classes() -> AssetClassesResponse:
         asset_classes={
             key: AssetClassInfo(**info) for key, info in DEFAULT_ASSET_CLASSES.items()
         }
+    )
+
+
+@router.get(
+    "/recommendation",
+    response_model=RecommendationResponse,
+    summary="Personalized allocation for a client profile (P12)",
+)
+def get_recommendation(
+    profile_id: int, session: Session = Depends(get_session)
+) -> RecommendationResponse:
+    """Risk-score-driven allocation from src portfolio_recommender: the
+    profile's final score maps to a target volatility, and the MVO engine
+    solves the min-volatility portfolio (goal-aware) on the full universe."""
+    record = session.get(ProfileRecord, profile_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"画像不存在（id={profile_id}）")
+    profile = profile_from_data(record.data)
+
+    returns = _fetch_returns(list(DEFAULT_ASSET_CLASSES.keys()), "5y")
+    rf = _effective_risk_free_rate(None)
+    rec = recommend_portfolio(profile, returns, rf)
+    return RecommendationResponse(
+        profile_id=profile_id,
+        profile_name=profile.name,
+        risk_level=rec.risk_level,
+        as_of=datetime.now(timezone.utc),
+        allocation={k: float(v) for k, v in rec.suggested_allocation.items()},
+        expected_return=float(rec.expected_return),
+        expected_volatility=float(rec.expected_volatility),
+        sharpe_ratio=float(rec.sharpe_ratio),
+        rationale=rec.rationale,
     )
 
 
@@ -410,25 +449,25 @@ async def _run_optimize_task(
     """
     try:
         loop = asyncio.get_running_loop()
-        await task.queue.put({"type": "node", "node": "fetch", "label": "获取行情数据"})
+        await task.publish({"type": "node", "node": "fetch", "label": "获取行情数据"})
         keys, returns, rf = await loop.run_in_executor(None, _prepare_optimize, req)
         label = (
             f"重采样优化计算中（{req.n_simulations} 次模拟，通常需要数分钟）"
             if req.method == "resampled"
             else "组合优化计算中"
         )
-        await task.queue.put({"type": "node", "node": "solve", "label": label})
+        await task.publish({"type": "node", "node": "solve", "label": label})
         result = await loop.run_in_executor(
             None, _solve_optimize, req, keys, returns, rf, risk_constraints
         )
         task.status = "completed"
-        await task.queue.put({"type": "done", "result": result.model_dump(mode="json")})
+        await task.publish({"type": "done", "result": result.model_dump(mode="json")})
     except HTTPException as e:
         task.status = "failed"
-        await task.queue.put({"type": "error", "message": str(e.detail)})
+        await task.publish({"type": "error", "message": str(e.detail)})
     except Exception as e:
         task.status = "failed"
-        await task.queue.put({"type": "error", "message": f"优化失败: {e}"})
+        await task.publish({"type": "error", "message": f"优化失败: {e}"})
 
 
 @router.post(
@@ -460,11 +499,11 @@ async def optimize_async(
 
 @router.get("/tasks/{task_id}/events")
 async def optimize_task_events(task_id: str) -> StreamingResponse:
-    task = registry.get(task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="任务不存在（可能已随服务重启清除）")
+    stream = task_events_stream(registry, task_id)
+    if stream is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
     return StreamingResponse(
-        stream_task_events(task),
+        stream,
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
