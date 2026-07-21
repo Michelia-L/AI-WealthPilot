@@ -147,7 +147,7 @@ const KIND_META: Record<Deliverable["kind"], { icon: IconName; label: string }> 
 
 function DeliverablesCard({ items }: { items: Deliverable[] | null }) {
   return (
-    <Panel className="h-full lg:col-span-2" innerClassName="flex h-full flex-col">
+    <Panel className="h-full" innerClassName="flex h-full flex-col">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="flex items-center gap-2 text-sm font-medium text-mist-200">
           <Icon name="briefcase" size={15} className="text-gold-400" />
@@ -321,7 +321,9 @@ export default async function OverviewPage() {
         <Reveal>
           <ClientsCard profiles={profilesData?.profiles ?? null} />
         </Reveal>
-        <DeliverablesCard items={deliverables} />
+        <Reveal delay={60} className="lg:col-span-2">
+          <DeliverablesCard items={deliverables} />
+        </Reveal>
       </div>
 
       {/* 模块入口 */}
