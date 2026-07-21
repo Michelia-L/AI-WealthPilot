@@ -3,8 +3,10 @@ import { fmtLocal, fmtPct } from "@/lib/format";
 import { cx } from "@/lib/cx";
 import { ApiOffline } from "@/components/api-offline";
 import MonitoringSelector from "@/components/monitoring-selector";
+import RebalanceAdvice from "@/components/rebalance-advice";
 import {
   Badge,
+  ButtonLink,
   EmptyState,
   Icon,
   Panel,
@@ -29,6 +31,16 @@ const BAND_META: Record<
   above: { label: "超上限", tone: "cinnabar" },
   below: { label: "低于下限", tone: "gold" },
   unknown: { label: "无数据", tone: "mist" },
+};
+
+/** IPS 资产配置键 → 优化器资产宇宙键（EWH 港股在优化器宇宙中无代理，跳过）。 */
+const OPTIMIZER_KEY_MAP: Record<string, string> = {
+  domestic_equity: "CHINA_EQUITY",
+  international_equity_dm: "INTL_EQUITY",
+  fixed_income: "US_BOND",
+  alternative_gold: "GOLD",
+  alternative_reit: "REIT",
+  cash: "CASH",
 };
 
 function signedPp(value: number | null): string {
@@ -140,6 +152,26 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
             <span className="tnum">计算时点 {fmtLocal(data.as_of)}</span>
             <span>·</span>
             <span>CME 缓存：{data.cme_cache_status}</span>
+            {(() => {
+              const optimizerKeys = [
+                ...new Set(
+                  data.holdings
+                    .map((h) => (h.key ? OPTIMIZER_KEY_MAP[h.key] : undefined))
+                    .filter((k): k is string => Boolean(k))
+                ),
+              ];
+              return optimizerKeys.length >= 2 ? (
+                <span className="ml-auto">
+                  <ButtonLink
+                    href={`/optimizer?assets=${optimizerKeys.join(",")}`}
+                    size="sm"
+                    icon="pie"
+                  >
+                    在优化器中分析
+                  </ButtonLink>
+                </span>
+              ) : null;
+            })()}
           </div>
 
           {/* 组合指标：目标口径 vs 漂移口径 */}
@@ -265,6 +297,9 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
               </div>
             )}
           </Panel>
+
+          {/* AI 调仓建议（SSE 流式） */}
+          <RebalanceAdvice documentId={data.document_id} />
 
           {/* 单资产指标 */}
           <Panel pad={false} innerClassName="overflow-hidden">
