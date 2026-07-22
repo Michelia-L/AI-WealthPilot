@@ -26,6 +26,17 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
+      # IPS PDF tests render CJK text — without a CJK-capable font fpdf2
+      # raises on non-latin-1 characters. Mirror api/Dockerfile: WenQuanYi
+      # Micro Hei linked into the path _find_cjk_font probes.
+      - name: Install CJK font for PDF tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-wqy-microhei
+          sudo mkdir -p /usr/share/fonts/truetype/noto
+          sudo ln -sf /usr/share/fonts/truetype/wqy/wqy-microhei.ttc \
+            /usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc
+
       - name: Run test suite
         run: python -m pytest -q
 
