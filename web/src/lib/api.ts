@@ -715,3 +715,53 @@ export const getMonitoring = (documentId: string) =>
   getJson<MonitoringResponse>(
     `/api/monitoring/${encodeURIComponent(documentId)}`
   );
+
+// ---------------------------------------------------------------------------
+// Backtest & stress test (P13)
+// ---------------------------------------------------------------------------
+
+export interface BacktestMetrics {
+  total_return: number;
+  cagr: number;
+  ann_volatility: number;
+  /** 零波动时数学上无定义，为 null */
+  sharpe: number | null;
+  max_drawdown: number;
+  max_drawdown_peak: string | null;
+  max_drawdown_trough: string | null;
+  best_day: number;
+  worst_day: number;
+}
+
+export interface BacktestYearlyRow {
+  year: number;
+  portfolio: number;
+  benchmark: number;
+}
+
+export interface BacktestStressRow {
+  scenario: string;
+  window: string;
+  portfolio_return: number;
+  benchmark_return: number;
+}
+
+export interface BacktestResponse {
+  document_id: string;
+  client_name: string;
+  period: string;
+  as_of: string;
+  weights: Record<string, number>;
+  metrics: BacktestMetrics;
+  benchmark: { name: string; metrics: BacktestMetrics };
+  yearly: BacktestYearlyRow[];
+  equity_chart: PlotlyFigure;
+  drawdown_chart: PlotlyFigure;
+  stress: BacktestStressRow[];
+  notes: string[];
+}
+
+export const getBacktest = (documentId: string, period: string) =>
+  getJson<BacktestResponse>(
+    `/api/monitoring/${encodeURIComponent(documentId)}/backtest?period=${encodeURIComponent(period)}`
+  );

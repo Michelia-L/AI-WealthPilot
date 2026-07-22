@@ -1,7 +1,9 @@
 import { getIpsDocuments, getMonitoring, type MonitoringHolding } from "@/lib/api";
 import { fmtLocal, fmtPct } from "@/lib/format";
 import { cx } from "@/lib/cx";
+import { Suspense } from "react";
 import { ApiOffline } from "@/components/api-offline";
+import BacktestSection from "@/components/backtest-section";
 import MonitoringSelector from "@/components/monitoring-selector";
 import RebalanceAdvice from "@/components/rebalance-advice";
 import {
@@ -11,6 +13,7 @@ import {
   Icon,
   Panel,
   SectionHeader,
+  Skeleton,
   StatTile,
   Table,
   TD,
@@ -102,6 +105,10 @@ interface PageProps {
 export default async function MonitoringPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const docId = typeof sp.doc === "string" ? sp.doc : "";
+  const btPeriod =
+    typeof sp.bt === "string" && ["3y", "5y", "10y"].includes(sp.bt)
+      ? sp.bt
+      : "5y";
 
   const documents = (await getIpsDocuments())?.documents ?? null;
 
@@ -364,6 +371,13 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
               </tbody>
             </Table>
           </Panel>
+
+          {/* 历史回测（P13） */}
+          <Suspense
+            fallback={<Skeleton className="h-[420px] rounded-[1.4rem]" />}
+          >
+            <BacktestSection documentId={docId} period={btPeriod} />
+          </Suspense>
 
           {/* 说明 */}
           {data.notes.length > 0 && (
