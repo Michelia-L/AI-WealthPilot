@@ -15,7 +15,7 @@ SAMPLE_DATA_DIR = DATA_DIR / "sample"
 
 # Application Settings
 APP_NAME = "AI WealthPilot"
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.4.0"
 APP_ENV = os.getenv("APP_ENV", "development")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 

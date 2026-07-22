@@ -15,7 +15,7 @@
   [![LangGraph](https://img.shields.io/badge/Agent-LangGraph-9f1239?style=flat-square&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
   [![PydanticAI](https://img.shields.io/badge/Framework-Pydantic--AI-0284c7?style=flat-square)](https://ai.pydantic.dev/)
   [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-  [![Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=flat-square)](https://github.com/Michelia-L/AI-WealthPilot/actions)
+  [![Build](https://github.com/Michelia-L/AI-WealthPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/Michelia-L/AI-WealthPilot/actions/workflows/ci.yml)
 
   ⭐ If you like this project, star it on GitHub — it helps a lot!
 
@@ -66,6 +66,8 @@ The workspace follows the complete private-banking advisor workflow: **overview 
   Simulates 10,000 asset paths using discrete-time **Geometric Brownian Motion (GBM)** with a **Jensen's Inequality Volatility Drag Adjustment** across two phases: Accumulation (savings injection) and Distribution (retirement withdrawals).
 - 🛡️ **Tail Risk Assessment**  
   Computes downside risk metrics, including **Sortino Ratio** (penalizing only downside volatility), daily **Value at Risk (VaR)**, and **Conditional VaR (CVaR / Expected Shortfall)** via historical simulation.
+- ⏪ **Backtesting & Stress Testing**  
+  Replays any IPS strategic allocation through history with monthly rebalancing, benchmarked against a 60/40 portfolio — CAGR, volatility, Sharpe, max drawdown with peak/trough dates, calendar-year returns, and fixed-window crisis replays (2008 GFC, 2020 COVID, 2022 rate shock).
 - 👥 **Multi-Client Profile Comparison**  
   Allows side-by-side comparison of different client portfolios and profiles, generating structured JSON comparative reports with automated behavioral finance and financial metrics insights.
 - 🕸️ **LangGraph Multi-Agent IPS Pipeline (Generate-Review-Revise)**  

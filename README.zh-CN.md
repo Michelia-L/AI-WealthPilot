@@ -15,7 +15,7 @@
   [![LangGraph](https://img.shields.io/badge/Agent-LangGraph-9f1239?style=flat-square&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
   [![PydanticAI](https://img.shields.io/badge/Framework-Pydantic--AI-0284c7?style=flat-square)](https://ai.pydantic.dev/)
   [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-  [![Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=flat-square)](https://github.com/Michelia-L/AI-WealthPilot/actions)
+  [![Build](https://github.com/Michelia-L/AI-WealthPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/Michelia-L/AI-WealthPilot/actions/workflows/ci.yml)
 
   ⭐ 如果你喜欢这个项目，请在 GitHub 上点个 Star！这对我很有帮助！
 
@@ -64,6 +64,8 @@
   基于离散时间**几何布朗运动 (GBM)** 随机过程，并引入 **Jensen 不等式对数正态修正 (波动率拖累修正)** 进行 10,000 条财富路径模拟，真实还原“退休前积累”与“退休后提取”的双阶段演化。
 - 🛡️ **精细化尾部风险度量**  
   提供只惩罚下行波动的 **Sortino Ratio (索提诺比率)**，并基于历史模拟法提供高精度的日度 **VaR (在险价值)** 与 **CVaR (条件在险价值/预期亏损)** 评估，特别适用于非对称、肥尾分布资产。
+- ⏪ **历史回测与压力测试**  
+  将任意 IPS 战略配置（SAA）以月初再平衡方式放入历史行情回放，对照 60/40 股债基准输出年化收益、波动率、夏普、含峰值/谷底日期的最大回撤与分年度收益，并内置 2008 金融危机、2020 新冠、2022 加息冲击三个危机情景的固定窗口复盘。
 - 👥 **多客户画像对比分析系统**  
   支持多客户画像的横向对比与全景洞察，自动计算风险偏好、储蓄率、行为偏差等维度的差异，并生成结构化的对比 JSON 报告与分析洞察。
 - 🕸️ **LangGraph 多智能体闭环 IPS 工作流（生成-审查-修订）**  
