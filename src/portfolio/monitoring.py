@@ -150,6 +150,78 @@ def compute_monitoring(document_id: str) -> dict:
     }
 
 
+def resolve_saa_weights(document_id: str) -> dict:
+    """
+    Resolve a stored IPS document's SAA into normalized ticker weights.
+
+    Shared SAA parsing entry point: reuses the same document lookup, keyword
+    mapping, cash plug and weight normalization as compute_monitoring, so
+    consumers (e.g. the P13 backtest engine) never duplicate those rules.
+    Holdings that cannot be mapped to a proxy ticker are dropped here; the
+    caller is expected to renormalize over the remaining weights.
+
+    Args:
+        document_id: IPS document stem (filename without .json).
+
+    Returns:
+        Dict with keys:
+            client_name: str
+            weights: {ticker: normalized target weight} (mapped holdings only)
+            names: {ticker: SAA asset class display name}
+            notes: list[str] — Chinese parsing caveats
+
+    Raises:
+        KeyError: If the IPS document does not exist.
+        ValueError: If the document has no strategic allocation (SAA).
+    """
+    filepath = _find_ips_file(document_id)
+    if filepath is None:
+        raise KeyError(f"IPS document not found: {document_id}")
+
+    record = ips_storage.load_ips(filepath)
+    ips = record.get("ips", {})
+    meta = record.get("metadata", {})
+    saa = ips.get("investment_guidelines", {}).get("strategic_allocation") or []
+    if not saa:
+        raise ValueError(
+            "IPS 文档缺少战略性资产配置（strategic_allocation），无法解析组合权重。"
+        )
+
+    notes: list[str] = []
+    holdings = _build_holdings(saa, notes)
+    _normalize_weights(holdings, notes)
+
+    weights: dict[str, float] = {}
+    names: dict[str, str] = {}
+    dropped: list[str] = []
+    merged: set[str] = set()
+    for h in holdings:
+        if not h["ticker"]:
+            dropped.append(h["name"])
+            continue
+        if h["ticker"] in weights:
+            weights[h["ticker"]] += h["target_weight"]
+            if h["ticker"] not in merged:
+                merged.add(h["ticker"])
+                notes.append(
+                    f"SAA 中多条资产类别映射到同一代理 {h['ticker']}，权重已合并。"
+                )
+        else:
+            weights[h["ticker"]] = h["target_weight"]
+            names[h["ticker"]] = h["name"]
+    if dropped:
+        notes.append(
+            f"以下资产无法映射到行情代理，已从权重解析结果中剔除：{'、'.join(dropped)}。"
+        )
+
+    return {
+        "client_name": meta.get("client_name") or ips.get("client_name", "Unknown"),
+        "weights": weights,
+        "names": names,
+        "notes": notes,
+    }
+
+
 # IPS Document Loading
 
 def _find_ips_file(document_id: str) -> Optional[Path]:

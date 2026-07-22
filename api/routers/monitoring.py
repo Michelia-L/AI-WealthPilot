@@ -17,16 +17,24 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
+from api.cache import TTLCache
 from api.db import ProfileRecord, get_session
 from api.profile_convert import profile_from_data
-from api.schemas import MonitoringResponse, RebalanceAdviceRequest
+from api.routers.market import _fig_json
+from api.schemas import BacktestResponse, MonitoringResponse, RebalanceAdviceRequest
 from src.agents.profiler import ClientProfile
 from src.agents.rebalance_advisor import (
     AdvisorReport,
     generate_rebalance_advice_stream,
     is_api_configured,
 )
-from src.portfolio.monitoring import compute_monitoring
+from src.portfolio.backtest import (
+    VALID_PERIODS as BACKTEST_PERIODS,
+    InsufficientDataError,
+    run_backtest,
+)
+from src.portfolio.monitoring import compute_monitoring, resolve_saa_weights
+from src.visualization.charts import plot_backtest_equity, plot_drawdown
 
 router = APIRouter(prefix="/monitoring", tags=["monitoring"])
 
@@ -53,6 +61,68 @@ def get_monitoring(document_id: str) -> MonitoringResponse:
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     return MonitoringResponse(**result)
+
+
+# ---------------------------------------------------------------------------
+# Portfolio backtesting (P13 — src/portfolio/backtest.py)
+# ---------------------------------------------------------------------------
+
+_backtest_cache = TTLCache()
+BACKTEST_CACHE_TTL_SECONDS = 600  # NAV panels are stable intraday
+
+
+@router.get(
+    "/{document_id}/backtest",
+    response_model=BacktestResponse,
+    summary="Monthly-rebalanced backtest + stress tests for a stored IPS SAA",
+)
+def get_backtest(document_id: str, period: str = "5y") -> BacktestResponse:
+    if not _is_valid_document_id(document_id):
+        raise HTTPException(status_code=404, detail="IPS 文档不存在")
+    if period not in BACKTEST_PERIODS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"不支持的回测区间：{period}（可选：{'、'.join(BACKTEST_PERIODS)}）。",
+        )
+
+    def _compute() -> BacktestResponse:
+        try:
+            saa = resolve_saa_weights(document_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="IPS 文档不存在")
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+
+        try:
+            result = run_backtest(saa["weights"], period)
+        except InsufficientDataError as e:
+            raise HTTPException(status_code=502, detail=str(e))
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+
+        equity = result.pop("_equity")
+        drawdown = result.pop("_drawdown")
+        names = saa["names"]
+        return BacktestResponse(
+            document_id=document_id,
+            client_name=saa["client_name"],
+            period=result["period"],
+            as_of=result["as_of"],
+            weights={names.get(t, t): w for t, w in result["weights"].items()},
+            metrics=result["metrics"],
+            benchmark=result["benchmark"],
+            yearly=result["yearly"],
+            equity_chart=_fig_json(plot_backtest_equity(equity, result["benchmark"]["name"])),
+            drawdown_chart=_fig_json(
+                plot_drawdown(drawdown["portfolio"], drawdown["benchmark"])
+            ),
+            stress=result["stress"],
+            notes=saa["notes"] + result["notes"],
+        )
+
+    return _backtest_cache.get_or_set(
+        f"backtest:{document_id}:{period}", BACKTEST_CACHE_TTL_SECONDS, _compute
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -580,6 +580,62 @@ class RebalanceAdviceRequest(BaseModel):
     )
 
 
+# ---------------------------------------------------------------------------
+# Portfolio backtesting & stress testing (P13 — src/portfolio/backtest.py)
+# ---------------------------------------------------------------------------
+
+
+class BacktestMetrics(BaseModel):
+    """Risk/return metrics for one NAV series (portfolio or benchmark)."""
+
+    total_return: float
+    cagr: float
+    ann_volatility: float
+    sharpe: Optional[float] = Field(
+        default=None, description="Null when annualized volatility is zero"
+    )
+    max_drawdown: float
+    max_drawdown_peak: Optional[str] = None
+    max_drawdown_trough: Optional[str] = None
+    best_day: float
+    worst_day: float
+
+
+class BacktestBenchmark(BaseModel):
+    name: str = Field(description="e.g. '60% SPY / 40% AGG'")
+    metrics: BacktestMetrics
+
+
+class BacktestYearlyReturn(BaseModel):
+    year: int
+    portfolio: float
+    benchmark: float
+
+
+class BacktestStressResult(BaseModel):
+    scenario: str
+    window: str = Field(description="Fixed window, e.g. '2020-02-19~2020-03-23'")
+    portfolio_return: float
+    benchmark_return: float
+
+
+class BacktestResponse(BaseModel):
+    document_id: str
+    client_name: str
+    period: str
+    as_of: str = Field(description="Last trading day of the aligned price panel")
+    weights: dict[str, float] = Field(
+        description="Display name -> actual backtest weight (sparse assets dropped, renormalized)"
+    )
+    metrics: BacktestMetrics
+    benchmark: BacktestBenchmark
+    yearly: list[BacktestYearlyReturn] = Field(default_factory=list)
+    equity_chart: dict[str, Any] = Field(description="Plotly figure JSON")
+    drawdown_chart: dict[str, Any] = Field(description="Plotly figure JSON")
+    stress: list[BacktestStressResult] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
 class RecommendationResponse(BaseModel):
     """Personalized allocation from src portfolio_recommender (P12)."""
 

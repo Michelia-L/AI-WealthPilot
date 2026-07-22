@@ -372,3 +372,92 @@ def plot_price_history(
     )
 
     return fig
+
+
+def plot_backtest_equity(equity: pd.DataFrame, benchmark_name: str) -> go.Figure:
+    """
+    Portfolio vs benchmark NAV curves for the P13 backtest.
+
+    Args:
+        equity: DataFrame indexed by date with 'portfolio' (required) and
+            'benchmark' (optional) NAV columns, both rebased to 1.0.
+        benchmark_name: Legend label for the benchmark line.
+    """
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=equity.index,
+        y=equity["portfolio"],
+        mode="lines",
+        name="Portfolio",
+        line=dict(width=3, color=COLORS["primary"]),
+        connectgaps=True,
+    ))
+    if "benchmark" in equity.columns:
+        fig.add_trace(go.Scatter(
+            x=equity.index,
+            y=equity["benchmark"],
+            mode="lines",
+            name=benchmark_name,
+            line=dict(width=2, color=COLORS["text_muted"], dash="dot"),
+            connectgaps=True,
+        ))
+
+    fig.update_layout(
+        **CHART_LAYOUT,
+        title="Backtest — Portfolio vs Benchmark (NAV, base = 1.0)",
+        xaxis_title="Date",
+        yaxis_title="Net Asset Value",
+        hovermode="x unified",
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+    )
+
+    return fig
+
+
+def plot_drawdown(
+    drawdown: pd.Series,
+    benchmark_drawdown: Optional[pd.Series] = None,
+) -> go.Figure:
+    """
+    Underwater (drawdown) chart for the P13 backtest.
+
+    Args:
+        drawdown: Portfolio drawdown series (NAV / running-max - 1, <= 0),
+            indexed by date.
+        benchmark_drawdown: Optional benchmark drawdown series, overlaid as
+            a dashed line for comparison.
+    """
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=drawdown.index,
+        y=drawdown,
+        mode="lines",
+        name="Portfolio",
+        fill="tozeroy",
+        fillcolor="rgba(239, 68, 68, 0.15)",
+        line=dict(width=2, color=COLORS["danger"]),
+        connectgaps=True,
+    ))
+    if benchmark_drawdown is not None:
+        fig.add_trace(go.Scatter(
+            x=benchmark_drawdown.index,
+            y=benchmark_drawdown,
+            mode="lines",
+            name="Benchmark",
+            line=dict(width=1.5, color=COLORS["text_muted"], dash="dot"),
+            connectgaps=True,
+        ))
+
+    fig.update_layout(
+        **CHART_LAYOUT,
+        title="Drawdown",
+        xaxis_title="Date",
+        yaxis_title="Drawdown",
+        yaxis_tickformat=".0%",
+        hovermode="x unified",
+        legend=dict(yanchor="bottom", y=0.01, xanchor="left", x=0.01),
+    )
+
+    return fig
