@@ -13,6 +13,7 @@ and would otherwise hold an HTTP request open the whole time.
 """
 
 import asyncio
+import hashlib
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -33,6 +34,8 @@ from api.schemas import (
     BLInsight,
     OptimizeRequest,
     OptimizeResponse,
+    PortfolioBacktestRequest,
+    PortfolioBacktestResponse,
     PortfolioResult,
     PortfolioTaskCreatedResponse,
     RecommendationResponse,
@@ -50,18 +53,26 @@ from src.data.market_data import (
     fetch_price_history,
     fetch_risk_free_rate,
 )
+from src.portfolio.backtest import InsufficientDataError, run_backtest
 from src.portfolio.optimizer import BlackLittermanOptimizer, PortfolioOptimizer
 from src.portfolio.risk_constraints import build_group_constraints, caps_for_tolerance
 from src.portfolio.views import ViewInput
-from src.visualization.charts import plot_allocation_pie, plot_efficient_frontier
+from src.visualization.charts import (
+    plot_allocation_pie,
+    plot_backtest_equity,
+    plot_drawdown,
+    plot_efficient_frontier,
+)
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
 _prices_cache: TTLCache = TTLCache()
 _rf_cache: TTLCache = TTLCache()
+_backtest_cache: TTLCache = TTLCache()
 
 PRICES_TTL_SECONDS = 300
 RISK_FREE_RATE_TTL_SECONDS = 3600
+BACKTEST_TTL_SECONDS = 600
 FRONTIER_POINTS = 50
 RESAMPLED_FRONTIER_POINTS = 20
 RANDOM_PORTFOLIOS = 1000
@@ -110,6 +121,67 @@ def get_recommendation(
         sharpe_ratio=float(rec.sharpe_ratio),
         rationale=rec.rationale,
     )
+
+
+@router.post(
+    "/backtest",
+    response_model=PortfolioBacktestResponse,
+    summary="Backtest an arbitrary long-only weight map (optimizer results)",
+)
+def backtest_weights(req: PortfolioBacktestRequest) -> PortfolioBacktestResponse:
+    """Run the monthly-rebalanced backtest for a caller-supplied portfolio
+    (e.g. the optimizer's selected weights), benchmarked vs 60/40."""
+    if not req.weights or len(req.weights) > 30:
+        raise HTTPException(
+            status_code=422, detail="weights 需为 1–30 个 ticker 的权重映射。"
+        )
+    if any(v < -0.001 for v in req.weights.values()):
+        raise HTTPException(
+            status_code=422, detail="回测仅支持多头权重（不允许负权重）。"
+        )
+    total = sum(req.weights.values())
+    if not 0.5 <= total <= 1.5:
+        raise HTTPException(
+            status_code=422,
+            detail=f"权重合计异常（{total:.2f}），应在 0.5–1.5 之间。",
+        )
+
+    cache_key = (
+        "pbt:"
+        + hashlib.sha1(
+            sorted(req.weights.items()).__repr__().encode("utf-8")
+        ).hexdigest()[:12]
+        + f":{req.period}"
+    )
+
+    def _compute() -> PortfolioBacktestResponse:
+        try:
+            result = run_backtest(req.weights, req.period)
+        except InsufficientDataError as e:
+            raise HTTPException(status_code=502, detail=str(e))
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+
+        equity = result.pop("_equity")
+        drawdown = result.pop("_drawdown")
+        return PortfolioBacktestResponse(
+            period=result["period"],
+            as_of=result["as_of"],
+            weights=result["weights"],
+            metrics=result["metrics"],
+            benchmark=result["benchmark"],
+            yearly=result["yearly"],
+            equity_chart=_fig_json(
+                plot_backtest_equity(equity, result["benchmark"]["name"])
+            ),
+            drawdown_chart=_fig_json(
+                plot_drawdown(drawdown["portfolio"], drawdown["benchmark"])
+            ),
+            stress=result["stress"],
+            notes=result["notes"],
+        )
+
+    return _backtest_cache.get_or_set(cache_key, BACKTEST_TTL_SECONDS, _compute)
 
 
 def _resolve_asset_keys(requested: list[str]) -> list[str]:

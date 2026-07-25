@@ -765,3 +765,9 @@ export const getBacktest = (documentId: string, period: string) =>
   getJson<BacktestResponse>(
     `/api/monitoring/${encodeURIComponent(documentId)}/backtest?period=${encodeURIComponent(period)}`
   );
+
+/** 任意权重组合的回测响应（优化器回测联动）。 */
+export type PortfolioBacktestResponse = Omit<
+  BacktestResponse,
+  "document_id" | "client_name"
+>;

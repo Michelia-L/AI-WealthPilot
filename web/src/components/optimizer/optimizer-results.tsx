@@ -7,6 +7,7 @@ import Icon from "../ui/icon";
 import Panel from "../ui/panel";
 import StatTile from "../ui/stat";
 import { Table, THead, TH, TR, TD } from "../ui/table";
+import OptimizerBacktest from "./optimizer-backtest";
 
 const GROUP_LABEL: Record<string, string> = {
   equity: "权益",
@@ -189,6 +190,8 @@ export default function OptimizerResults({
           ? ` · ${result.params.n_simulations} 次重采样`
           : ""}
       </p>
+
+      <OptimizerBacktest result={result} />
     </>
   );
 }

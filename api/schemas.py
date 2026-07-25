@@ -648,3 +648,27 @@ class RecommendationResponse(BaseModel):
     expected_volatility: float
     sharpe_ratio: float
     rationale: str
+
+
+class PortfolioBacktestRequest(BaseModel):
+    """Backtest an arbitrary long-only weight map (e.g. an optimizer result)."""
+
+    weights: dict[str, float] = Field(
+        description="ticker -> target weight (renormalized defensively)"
+    )
+    period: str = Field(default="5y", description="1y / 3y / 5y / 10y")
+
+
+class PortfolioBacktestResponse(BaseModel):
+    period: str
+    as_of: str = Field(description="Last trading day of the aligned price panel")
+    weights: dict[str, float] = Field(
+        description="ticker -> actual backtest weight (sparse assets dropped, renormalized)"
+    )
+    metrics: BacktestMetrics
+    benchmark: BacktestBenchmark
+    yearly: list[BacktestYearlyReturn] = Field(default_factory=list)
+    equity_chart: dict[str, Any] = Field(description="Plotly figure JSON")
+    drawdown_chart: dict[str, Any] = Field(description="Plotly figure JSON")
+    stress: list[BacktestStressResult] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
