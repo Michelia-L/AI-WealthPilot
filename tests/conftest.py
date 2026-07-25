@@ -32,6 +32,8 @@ def isolate_storage_dirs(tmp_path, monkeypatch):
     # Never exercise the paid provider with the developer's real token from
     # .env — tests stub the provider explicitly when they need it.
     monkeypatch.setattr("src.data.tushare_provider.TUSHARE_TOKEN", "")
+    # The optional CN fallback tier is off by default; tests enable it.
+    monkeypatch.setattr("src.data.akshare_provider.is_available", lambda: False)
 
     return temp_profiles_dir, temp_reports_dir
 

@@ -13,7 +13,8 @@ from src.data import market_data, tushare_provider
 
 @pytest.fixture
 def cn_frame() -> pd.DataFrame:
-    dates = pd.bdate_range("2026-07-01", periods=5)
+    # Now-relative so the router's freshness guard never goes stale.
+    dates = pd.bdate_range(end=pd.Timestamp.now().normalize(), periods=5)
     return pd.DataFrame({"000300.SS": [4000.0, 4010.0, 4005.0, 4020.0, 4015.0]}, index=dates)
 
 

@@ -17,7 +17,7 @@ from typing import Optional
 
 # Import the asset universe definition, trading days constant, base currency, default risk-free rate, and FRED API Key from project config
 from src.config import ASSET_UNIVERSE, TRADING_DAYS_PER_YEAR, BASE_CURRENCY, DEFAULT_RISK_FREE_RATE, FRED_API_KEY, TUSHARE_TICKER_MAP
-from src.data import tushare_provider
+from src.data import akshare_provider, tushare_provider
 
 logger = logging.getLogger(__name__)
 
@@ -52,22 +52,74 @@ def fetch_price_history(
             _fetch_price_history_yf(rest, period, interval, base_currency, adjust_currency)
         )
     if routed:
-        try:
-            frames.append(tushare_provider.fetch_index_history(routed, period))
-        except Exception as e:
-            logger.warning(
-                "Tushare 获取 %s 失败（%s），回退 yfinance。", routed, e
-            )
-            frames.append(
-                _fetch_price_history_yf(
-                    routed, period, interval, base_currency, adjust_currency
-                )
-            )
+        frames.append(
+            _fetch_cn_routed(routed, period, interval, base_currency, adjust_currency)
+        )
     if not frames:
         return pd.DataFrame(columns=tickers)
 
     prices = pd.concat(frames, axis=1).reindex(columns=tickers)
     return prices.dropna(how="all")
+
+
+def _fetch_cn_routed(
+    tickers: list[str],
+    period: str,
+    interval: str,
+    base_currency: Optional[str],
+    adjust_currency: bool,
+) -> pd.DataFrame:
+    """CN routed tickers: Tushare Pro → akshare → yfinance, first success wins."""
+    errors = []
+    if tushare_provider.is_configured():
+        try:
+            frame = tushare_provider.fetch_index_history(tickers, period)
+            _assert_fresh(frame, tickers)
+            return frame
+        except Exception as e:
+            errors.append(f"tushare: {e}")
+    if akshare_provider.is_available():
+        try:
+            frame = akshare_provider.fetch_index_history(tickers, period)
+            _assert_fresh(frame, tickers)
+            return frame
+        except Exception as e:
+            errors.append(f"akshare: {e}")
+    logger.warning(
+        "CN 数据源均不可用（%s），回退 yfinance。",
+        "; ".join(errors) if errors else "无可用 provider",
+    )
+    return _fetch_price_history_yf(tickers, period, interval, base_currency, adjust_currency)
+
+
+# A provider frame whose latest price is older than this is treated as a
+# failure — scrape-based sources (akshare/sina) sometimes answer with a
+# silently week-stale snapshot instead of raising. Sized above the longest
+# CN holiday stretch to avoid false positives.
+MAX_STALENESS_DAYS = 12
+
+
+def _assert_fresh(panel: pd.DataFrame, tickers: list[str]) -> None:
+    """Reject provider frames whose newest price is too old (stale snapshot).
+
+    Raises:
+        ValueError: No valid data at all, or the latest trading date across
+            the routed columns is older than MAX_STALENESS_DAYS.
+    """
+    latest = None
+    for ticker in tickers:
+        if ticker not in panel.columns:
+            continue
+        series = panel[ticker].dropna()
+        if series.empty:
+            continue
+        date = pd.Timestamp(series.index[-1])
+        if latest is None or date > latest:
+            latest = date
+    if latest is None:
+        raise ValueError("无有效行情数据")
+    if (pd.Timestamp.now() - latest).days > MAX_STALENESS_DAYS:
+        raise ValueError(f"行情数据过旧（最近交易日 {latest.date()}）")
 
 
 def _fetch_price_history_yf(
