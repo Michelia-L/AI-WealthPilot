@@ -29,6 +29,10 @@ def isolate_storage_dirs(tmp_path, monkeypatch):
     monkeypatch.setattr("src.agents.report_storage.REPORTS_DIR", temp_reports_dir)
     monkeypatch.setattr("src.agents.ips_storage.IPS_DIR", temp_ips_dir)
 
+    # Never exercise the paid provider with the developer's real token from
+    # .env — tests stub the provider explicitly when they need it.
+    monkeypatch.setattr("src.data.tushare_provider.TUSHARE_TOKEN", "")
+
     return temp_profiles_dir, temp_reports_dir
 
 

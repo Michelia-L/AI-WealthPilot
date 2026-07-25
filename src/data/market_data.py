@@ -7,6 +7,7 @@ with optional cross-currency translation to a unified base currency.
 """
 
 import os
+import logging
 import requests
 import pandas as pd
 import yfinance as yf
@@ -15,7 +16,10 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 # Import the asset universe definition, trading days constant, base currency, default risk-free rate, and FRED API Key from project config
-from src.config import ASSET_UNIVERSE, TRADING_DAYS_PER_YEAR, BASE_CURRENCY, DEFAULT_RISK_FREE_RATE, FRED_API_KEY
+from src.config import ASSET_UNIVERSE, TRADING_DAYS_PER_YEAR, BASE_CURRENCY, DEFAULT_RISK_FREE_RATE, FRED_API_KEY, TUSHARE_TICKER_MAP
+from src.data import tushare_provider
+
+logger = logging.getLogger(__name__)
 
 
 def fetch_price_history(
@@ -25,10 +29,55 @@ def fetch_price_history(
     base_currency: Optional[str] = None,
     adjust_currency: bool = True,
 ) -> pd.DataFrame:
-    """Fetch adjusted close prices with optional currency translation to base currency."""
+    """Fetch adjusted close prices with optional currency translation.
+
+    Routing layer: tickers present in ``TUSHARE_TICKER_MAP`` are served by
+    Tushare Pro (daily bars only, when a token is configured) with yfinance
+    as the fallback; everything else goes to yfinance directly.
+    """
     # If no tickers specified, use the full asset universe from config
     if tickers is None:
         tickers = list(ASSET_UNIVERSE.keys())
+
+    routed = (
+        [t for t in tickers if t in TUSHARE_TICKER_MAP]
+        if interval == "1d" and tushare_provider.is_configured()
+        else []
+    )
+    rest = [t for t in tickers if t not in routed]
+
+    frames = []
+    if rest:
+        frames.append(
+            _fetch_price_history_yf(rest, period, interval, base_currency, adjust_currency)
+        )
+    if routed:
+        try:
+            frames.append(tushare_provider.fetch_index_history(routed, period))
+        except Exception as e:
+            logger.warning(
+                "Tushare 获取 %s 失败（%s），回退 yfinance。", routed, e
+            )
+            frames.append(
+                _fetch_price_history_yf(
+                    routed, period, interval, base_currency, adjust_currency
+                )
+            )
+    if not frames:
+        return pd.DataFrame(columns=tickers)
+
+    prices = pd.concat(frames, axis=1).reindex(columns=tickers)
+    return prices.dropna(how="all")
+
+
+def _fetch_price_history_yf(
+    tickers: list[str],
+    period: str = "5y",
+    interval: str = "1d",
+    base_currency: Optional[str] = None,
+    adjust_currency: bool = True,
+) -> pd.DataFrame:
+    """Fetch adjusted close prices with optional currency translation to base currency."""
 
     if base_currency is None:
         base_currency = BASE_CURRENCY

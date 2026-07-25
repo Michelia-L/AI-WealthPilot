@@ -99,6 +99,15 @@ CME_DATA_INTERVAL = "1d"          # Data frequency
 CME_CACHE_TTL_DAYS = 90            # Cache validity period (days)
 CME_CACHE_DIR = DATA_DIR / "cache" / "cme"  # Cache storage path
 
+# Tushare Pro data provider (paid CN backbone, P16)
+# yfinance ticker → tushare ts_code. Routed tickers are served by Tushare
+# Pro (daily bars); yfinance remains the fallback when Tushare is absent
+# or errors out.
+TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN", "")
+TUSHARE_TICKER_MAP = {
+    "000300.SS": "000300.SH",  # CSI 300 index
+}
+
 # IPS asset class → proxy ticker mapping
 IPS_ASSET_CLASS_TICKERS = {
     "domestic_equity": {

@@ -36,3 +36,4 @@ fpdf2>=2.8.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
 sqlmodel>=0.0.22  # SQLite persistence (client profiles, future user tables)
+tushare>=1.4
