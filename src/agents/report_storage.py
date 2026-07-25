@@ -634,6 +634,188 @@ def export_report_html(report: StoredReport) -> str:
     return html_template
 
 
+def export_report_pdf(report: StoredReport, output_path: Path) -> Path:
+    """Export a stored report to a letterhead-styled PDF (fpdf2).
+
+    Layout: letterhead (brand line, bilingual title, gold rule, metadata
+    block) -> body (the report's Markdown rendered with a lightweight
+    line-oriented renderer) -> footer (report id + bilingual disclaimer).
+
+    Markdown rendering trade-offs (deliberately simple):
+      - ATX headings (# .. ######) scale down in size by level.
+      - ``- ``/``* ``/numbered list items are indented with a bullet marker.
+      - Fenced code blocks and Markdown table rows render verbatim in a
+        monospace face (no table grid lines).
+      - Inline markers (``**bold**``, ``__bold__``, `` `code` ``) are stripped
+        rather than segment-rendered; links keep their anchor text only.
+
+    CJK handling reuses ips_storage's font probe: when a CJK font is found it
+    is registered for both regular and bold styles; otherwise we fall back to
+    Helvetica and sanitize every string to latin-1 with replacement (Chinese
+    glyphs become ``?`` but rendering never raises on a font-less host).
+
+    Args:
+        report: StoredReport instance to export.
+        output_path: Output PDF file path.
+
+    Returns:
+        Path: Path to the exported PDF file.
+    """
+    from fpdf import FPDF
+
+    # Reuse the IPS module's CJK font probe (Windows/macOS/Linux candidates).
+    from src.agents.ips_storage import _find_cjk_font
+
+    font_path = _find_cjk_font()
+    has_cjk = bool(font_path and Path(font_path).exists())
+
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    pdf.set_auto_page_break(auto=True, margin=22)
+    if has_cjk:
+        pdf.add_font("CJK", "", font_path)
+        pdf.add_font("CJK", "B", font_path)
+    family = "CJK" if has_cjk else "Helvetica"
+    # Courier has no CJK glyphs, so verbatim lines only get a monospace face
+    # on the latin-1 fallback path.
+    mono_family = "Courier" if not has_cjk else family
+
+    def _t(text: str) -> str:
+        """Sanitize text for the active font (graceful latin-1 degradation)."""
+        if has_cjk:
+            return text
+        return text.encode("latin-1", "replace").decode("latin-1")
+
+    def _strip_inline(text: str) -> str:
+        """Drop simple inline Markdown markers, keeping the visible text."""
+        text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)  # links -> anchor
+        return text.replace("**", "").replace("__", "").replace("`", "")
+
+    def _mc(height: float, text: str) -> None:
+        """multi_cell that returns the cursor to the left margin afterwards.
+
+        fpdf2's multi_cell leaves the x cursor at the right margin by
+        default; without new_x="LMARGIN" the next call would have zero
+        usable width and raise FPDFException.
+        """
+        pdf.multi_cell(0, height, text, new_x="LMARGIN", new_y="NEXT")
+
+    gold = (170, 124, 17)
+    ink = (28, 25, 23)
+    soft = (68, 64, 60)
+    grey = (120, 120, 120)
+
+    pdf.add_page()
+
+    # ── Letterhead ──
+    pdf.set_font(family, "B", 10)
+    pdf.set_text_color(*gold)
+    pdf.cell(0, 6, _t("AI WEALTHPILOT"))
+    pdf.ln(8)
+    pdf.set_font(family, "B", 18)
+    pdf.set_text_color(*ink)
+    _mc(9, _t("Investment Advisory Report / 投资咨询建议书"))
+    pdf.ln(1)
+    pdf.set_draw_color(*gold)
+    pdf.set_line_width(0.8)
+    pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
+    pdf.set_line_width(0.2)
+    pdf.ln(6)
+
+    # ── Metadata block ──
+    meta_rows = [
+        ("Client / 客户", report.client_name),
+        ("Generated / 生成时间", report.generated_at),
+        ("AI Model / AI 模型", report.model),
+        ("Token Usage / Token 用量", f"{report.total_tokens:,}"),
+    ]
+    for label, value in meta_rows:
+        pdf.set_font(family, "B", 9)
+        pdf.set_text_color(*gold)
+        pdf.cell(45, 6, _t(label))
+        pdf.set_font(family, "", 9)
+        pdf.set_text_color(*ink)
+        _mc(6, _t(str(value)))
+    pdf.ln(6)
+
+    # ── Body: line-oriented Markdown rendering ──
+    heading_sizes = {1: 16, 2: 14, 3: 12, 4: 11, 5: 10, 6: 10}
+    in_code_block = False
+    pdf.set_text_color(*soft)
+    for raw_line in report.content.splitlines():
+        line = raw_line.rstrip()
+        stripped = line.strip()
+
+        if stripped.startswith("```"):
+            in_code_block = not in_code_block
+            continue
+
+        # Verbatim rendering for fenced code and Markdown table rows.
+        if in_code_block or stripped.startswith("|"):
+            if not stripped:
+                continue
+            pdf.set_font(mono_family, "", 8.5)
+            pdf.set_text_color(*ink)
+            _mc(4.5, _t(line))
+            pdf.set_text_color(*soft)
+            continue
+
+        if not stripped:
+            pdf.ln(2.5)
+            continue
+
+        heading = re.match(r"^(#{1,6})\s+(.*)$", stripped)
+        if heading:
+            level = len(heading.group(1))
+            size = heading_sizes[level]
+            pdf.ln(2)
+            pdf.set_font(family, "B", size)
+            pdf.set_text_color(*ink)
+            _mc(size * 0.55 + 2, _t(_strip_inline(heading.group(2))))
+            pdf.set_text_color(*soft)
+            pdf.ln(1)
+            continue
+
+        if re.fullmatch(r"[-*_]{3,}", stripped):
+            pdf.set_draw_color(220, 220, 220)
+            pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
+            pdf.ln(3)
+            continue
+
+        item = re.match(r"^([-*+]|\d+[.)])\s+(.*)$", stripped)
+        if item:
+            marker = item.group(1) if item.group(1)[0].isdigit() else (
+                "•" if has_cjk else "-"
+            )
+            pdf.set_font(family, "", 10)
+            _mc(5, _t(f"    {marker} {_strip_inline(item.group(2))}"))
+            continue
+
+        pdf.set_font(family, "", 10)
+        _mc(5, _t(_strip_inline(stripped)))
+
+    # ── Footer: report id + bilingual disclaimer ──
+    pdf.ln(8)
+    pdf.set_draw_color(220, 220, 220)
+    pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
+    pdf.ln(4)
+    pdf.set_text_color(*grey)
+    pdf.set_font(family, "B", 8)
+    pdf.cell(0, 5, _t("AI WEALTHPILOT"))
+    pdf.ln(5)
+    pdf.set_font(family, "", 8)
+    pdf.cell(0, 5, _t(f"Report ID: {report.report_id}"))
+    pdf.ln(5)
+    _mc(4, _t("This report is for informational purposes only and does not "
+              "constitute financial advice."))
+    _mc(4, _t("本报告仅供参考，不构成投资建议。"))
+    pdf.set_text_color(0, 0, 0)
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(bytes(pdf.output()))
+    return output_path
+
+
 def export_report_to_file(
     report: StoredReport,
     output_path: Path,

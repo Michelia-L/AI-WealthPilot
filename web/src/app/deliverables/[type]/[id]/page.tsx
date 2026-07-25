@@ -78,10 +78,17 @@ export default async function DeliverableViewerPage({ params }: PageProps) {
             <div className="flex items-center gap-2">
               <Badge tone="gold">AI 建议书</Badge>
               <ButtonLink
-                href={`/api/advisor/reports/${encoded}/export?format=html`}
+                href={`/api/advisor/reports/${encoded}/pdf`}
                 icon="download"
               >
-                导出 HTML
+                下载 PDF
+              </ButtonLink>
+              <ButtonLink
+                href={`/api/advisor/reports/${encoded}/export?format=html`}
+                variant="ghost"
+                icon="download"
+              >
+                HTML
               </ButtonLink>
               <ButtonLink
                 href={`/api/advisor/reports/${encoded}/export?format=markdown`}

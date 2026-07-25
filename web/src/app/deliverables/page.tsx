@@ -76,6 +76,10 @@ export default async function DeliverablesPage({ searchParams }: PageProps) {
       viewHref: `/deliverables/advisor/${encodeURIComponent(r.report_id)}`,
       downloads: [
         {
+          label: "PDF",
+          href: `/api/advisor/reports/${encodeURIComponent(r.report_id)}/pdf`,
+        },
+        {
           label: "HTML",
           href: `/api/advisor/reports/${encodeURIComponent(r.report_id)}/export?format=html`,
         },

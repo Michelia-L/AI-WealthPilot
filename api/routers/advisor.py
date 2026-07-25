@@ -12,7 +12,9 @@ Reports the user chooses to keep are persisted through src/ report_storage
 """
 
 import json
+import tempfile
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any, Generator, Optional
 from urllib.parse import quote
 
@@ -179,6 +181,40 @@ def delete_report(report_id: str) -> None:
 _EXPORT_FORMATS = ("html", "markdown", "json")
 
 
+@router.get("/reports/{report_id}/pdf")
+def get_report_pdf(report_id: str) -> Response:
+    """Render a stored report as a downloadable PDF (src export_report_pdf).
+
+    Same pattern as the IPS pdf endpoint: the src builder writes to a file
+    path, so we render into a temp dir and stream the bytes back. Client
+    names may contain CJK, hence the RFC 5987 filename* in
+    Content-Disposition.
+    """
+    filepath = _find_report_file(report_id)
+    if filepath is None:
+        raise HTTPException(status_code=404, detail="报告不存在")
+    report = report_storage.load_report(filepath)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        pdf_path = report_storage.export_report_pdf(
+            report, Path(tmpdir) / "report.pdf"
+        )
+        pdf_bytes = pdf_path.read_bytes()
+    base = f"report_{sanitize_filename(report.client_name) or 'client'}_{report.report_id}"
+    # The plain filename= fallback travels in a latin-1 HTTP header, so fold
+    # non-ASCII (e.g. CJK client names) to '?'; the full UTF-8 name is
+    # carried by the RFC 5987 filename* parameter.
+    ascii_base = base.encode("ascii", "replace").decode("ascii")
+    disposition = (
+        f'attachment; filename="{ascii_base}.pdf"; '
+        f"filename*=UTF-8''{quote(base)}.pdf"
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": disposition},
+    )
+
+
 @router.get("/reports/{report_id}/export")
 def export_report_file(
     report_id: str,
@@ -216,8 +252,12 @@ def export_report_file(
         body = json.dumps(data, ensure_ascii=False, indent=2)
         media_type, ext = "application/json", "json"
 
+    # The plain filename= fallback travels in a latin-1 HTTP header, so fold
+    # non-ASCII (e.g. CJK client names) to '?'; the full UTF-8 name is
+    # carried by the RFC 5987 filename* parameter.
+    ascii_base = base.encode("ascii", "replace").decode("ascii")
     disposition = (
-        f'attachment; filename="{base}.{ext}"; '
+        f'attachment; filename="{ascii_base}.{ext}"; '
         f"filename*=UTF-8''{quote(base)}.{ext}"
     )
     return Response(
