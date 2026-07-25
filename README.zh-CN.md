@@ -75,7 +75,9 @@
 - 🤖 **AI 顾问 Agent**  
   基于先进大语言模型 (`DeepSeek V4 Pro`) 深度分析客户多维指标，识别其可能存在的行为金融偏差——包括**损失厌恶**、**过度自信**、**能力-意愿错配**、**杠杆风险**和**安全网不足**——生成专业、合规的流式理财建议书。
 - 📄 **多格式高级文档导出**  
-  支持将 AI 顾问建议书无缝转换为独立的、带有精美内嵌 CSS 样式的 HTML 文档、Markdown 以及原生 JSON，便于跨平台分发和打印。
+  支持将 AI 顾问建议书无缝转换为带 CJK 字体支持、信纸样式的 PDF 文档，以及独立的精美 HTML、Markdown 与原生 JSON 格式，便于跨平台分发和打印。
+- 🛰️ **多源行情数据主干**  
+  路由式行情数据层：映射的 A 股指数按 **Tushare Pro → akshare → yfinance** 顺序取首个成功源，美股/全球资产保持 yfinance 主干；内置**新鲜度守卫**识别静默陈旧的源快照，坏价格帧在进缓存前即被拒绝。
 - 📊 **「墨金私行」设计系统**  
   自研深色编辑风设计系统——曜石灰 × 香槟金、Fraunces 衬线展示字体、双层 bezel 面板、细线图标体系，基于 **Next.js + Tailwind v4** 的完整组件库。工作台覆盖完整顾问工作流：总览驾驶舱 → 市场 → 客户枢纽 → AI 顾问 → IPS → 交付物中心 → 组合监控（SAA 漂移与复衡）。LLM token 与任务进度经 SSE 实时推送，Plotly 图表服务端渲染、前端再套主题。
 
@@ -247,8 +249,13 @@ AI-WealthPilot/
 │   │   ├── cme_engine.py         # 资本市场预期 (CME) 引擎与无风险利率三级级联
 │   │   ├── cme_models.py         # CME Pydantic 数据模型（CMEReport, SAAValidationResult）
 │   │   └── cme_cache.py          # CME 预期数据缓存管理与本地持久化工具
+│   │   ├── backtest.py           # 月初再平衡回测引擎与危机情景压力测试
+│   │   ├── monitoring.py         # SAA 漂移监控与复衡信号
+│   │   └── risk_constraints.py   # 风险等级 → 资产组权重上限映射
 │   ├── data/                     # 【数据拉取模块】
-│   │   ├── market_data.py        # yfinance 异步行情拉取、多币种汇率转换与相关性矩阵计算
+│   │   ├── market_data.py        # 多源路由行情拉取、多币种汇率转换与相关性矩阵计算
+│   │   ├── tushare_provider.py   # Tushare Pro A 股指数主干（付费，可选）
+│   │   ├── akshare_provider.py   # akshare A 股降级源（免费，可选）
 │   │   └── implied_volatility.py # VIX/MOVE 隐含波动率拉取与贝叶斯混合代理映射器
 │   ├── visualization/            # 【图表渲染组件】
 │   │   └── charts.py             # Plotly 交互式专业图表
@@ -328,6 +335,8 @@ AI-WealthPilot/
    cp .env.example .env
    # 用文本编辑器打开 .env，在其中配置您的 DEEPSEEK_API_KEY 以启用 AI 顾问。
    # 您可在 DeepSeek 开放平台获取：https://platform.deepseek.com
+   # 可选：配置 TUSHARE_TOKEN，让沪深300 等映射指数走 Tushare Pro 付费主干
+   # （未配置时自动降级 akshare / yfinance）。
    ```
 
 3. **一键启动全栈**

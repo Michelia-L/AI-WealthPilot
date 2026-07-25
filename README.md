@@ -77,7 +77,9 @@ The workspace follows the complete private-banking advisor workflow: **overview 
 - 🤖 **AI Advisor Agent**  
   Employs LLMs (`DeepSeek V4 Pro`) to analyze client metrics, identify behavioral finance biases — including **loss aversion**, **overconfidence**, **ability-willingness mismatch**, **leverage risk**, and **inadequate safety net** — and generate personalized wealth advisor proposals.
 - 📄 **Enhanced Multi-Format Document Export**  
-  Supports seamless export of AI advisor recommendations to standalone HTML (styled with inline CSS), Markdown, and raw JSON documents.
+  Supports seamless export of AI advisor recommendations to standalone PDF (CJK-aware, letterhead-styled), HTML (styled with inline CSS), Markdown, and raw JSON documents.
+- 🛰️ **Multi-Provider Market Data Backbone**  
+  A routed market-data layer: mapped CN tickers are served by **Tushare Pro → akshare → yfinance** (first success wins), while US/global assets stay on yfinance. A **staleness guard** rejects silently outdated provider snapshots, and poisoned price frames never enter the TTL caches.
 - 📊 **"Obsidian Private Bank" Design System**  
   A bespoke dark editorial design system — obsidian ink with champagne gold accents, Fraunces serif display type, double-bezel panels, thin-line iconography, and a full component kit on **Next.js + Tailwind v4**. LLM tokens and task progress stream over SSE; Plotly charts are rendered server-side, shipped as JSON, and re-themed client-side to match.
 
@@ -250,9 +252,14 @@ AI-WealthPilot/
 │   │   ├── views.py              # Black-Litterman view encoding (P/Q/Omega, Idzorek confidence)
 │   │   ├── cme_engine.py         # Capital Market Expectations engine & risk-free rate cascade
 │   │   ├── cme_models.py         # CME Pydantic data models (CMEReport, SAAValidationResult)
-│   │   └── cme_cache.py          # CME cache management and local file persistence
+│   │   ├── cme_cache.py          # CME cache management and local file persistence
+│   │   ├── backtest.py           # Monthly-rebalanced backtest engine & crisis stress tests
+│   │   ├── monitoring.py         # SAA drift monitoring & rebalance signals
+│   │   └── risk_constraints.py   # Risk-level → group weight caps mapping
 │   ├── data/                     # [Data Pipeline]
-│   │   ├── market_data.py        # yfinance pipeline, multi-currency FX conversion & correlation calculations
+│   │   ├── market_data.py        # Routed multi-provider fetcher, FX conversion & correlation calculations
+│   │   ├── tushare_provider.py   # Tushare Pro CN index backbone (paid, optional)
+│   │   ├── akshare_provider.py   # akshare CN fallback tier (free, optional)
 │   │   └── implied_volatility.py # VIX/MOVE implied volatility fetcher & Bayesian blending proxy mapper
 │   ├── visualization/            # [Chart Renderer]
 │   │   └── charts.py             # Plotly interactive chart components
@@ -332,6 +339,8 @@ AI-WealthPilot/
    cp .env.example .env
    # Add your DEEPSEEK_API_KEY in the .env file to enable the AI Advisor.
    # Get your key at: https://platform.deepseek.com
+   # Optional: add TUSHARE_TOKEN to serve mapped CN indices from Tushare Pro
+   # (falls back to akshare/yfinance when unset).
    ```
 
 3. **Launch the Full Stack**
