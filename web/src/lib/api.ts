@@ -769,6 +769,15 @@ export interface BacktestStressRow {
   benchmark_return: number;
 }
 
+/** 费用拖累信息（Phase 18 — IPS TER 折日计入组合 NAV，基准为指数口径）。 */
+export interface BacktestFeeInfo {
+  annual_rate: number;
+  source: "ips_fee_schedule" | "manual" | "none";
+  gross_total_return: number;
+  net_total_return: number;
+  cumulative_impact_pp: number;
+}
+
 export interface BacktestResponse {
   document_id: string;
   client_name: string;
@@ -781,6 +790,7 @@ export interface BacktestResponse {
   equity_chart: PlotlyFigure;
   drawdown_chart: PlotlyFigure;
   stress: BacktestStressRow[];
+  fee: BacktestFeeInfo;
   notes: string[];
 }
 

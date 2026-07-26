@@ -31,12 +31,20 @@ export default function BacktestResults({
   bt: BacktestResponse | PortfolioBacktestResponse;
 }) {
   const bm = bt.benchmark;
+  const fee = bt.fee;
+  const hasFee = fee.annual_rate > 0;
+  const feeSourceLabel =
+    fee.source === "ips_fee_schedule"
+      ? "IPS 披露 TER"
+      : fee.source === "manual"
+        ? "手动费率"
+        : "";
 
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile
-          label="年化收益（回测）"
+          label={hasFee ? "年化收益（费后）" : "年化收益（回测）"}
           value={fmtPct(bt.metrics.cagr)}
           hint={`基准 ${fmtPct(bm.metrics.cagr)}`}
           tone="gold"
@@ -62,6 +70,23 @@ export default function BacktestResults({
           tone="cinnabar"
         />
       </div>
+
+      {hasFee && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-gold-700/30 bg-gold-500/[0.05] px-5 py-3">
+          <span className="flex items-center gap-2 text-xs font-medium text-gold-300">
+            <Icon name="banknote" size={13} />
+            费用拖累
+          </span>
+          <span className="text-xs text-mist-400">
+            年化 {fmtPct(fee.annual_rate)}（{feeSourceLabel}） · 区间累计
+            −{(fee.cumulative_impact_pp * 100).toFixed(1)}pp
+          </span>
+          <span className="tnum ml-auto font-mono text-[11px] text-mist-500">
+            费前 {fmtPct(fee.gross_total_return)} → 费后{" "}
+            {fmtPct(fee.net_total_return)}
+          </span>
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel pad={false} innerClassName="p-2">
