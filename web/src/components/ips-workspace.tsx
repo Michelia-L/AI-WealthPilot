@@ -66,6 +66,7 @@ export default function IpsWorkspace({
   } | null>(null);
 
   const configured = status?.configured ?? false;
+  const demo = status?.demo ?? false;
 
   // 全局客户上下文仅应用一次作为默认选中（render 期条件调整，React 官方模式）；
   // 此后以本页选择为准并回写上下文。
@@ -158,6 +159,16 @@ export default function IpsWorkspace({
             <Icon name="warning" size={16} className="mt-0.5 shrink-0 text-gold-400" />
             <span>
               DEEPSEEK_API_KEY 未配置 —— 请在项目根目录 .env 中设置并重启 API 服务后使用。
+            </span>
+          </div>
+        )}
+
+        {demo && (
+          <div className="mb-5 flex items-start gap-3 rounded-xl border border-steel-500/30 bg-steel-500/[0.06] px-4 py-3 text-sm text-mist-400">
+            <Icon name="info" size={16} className="mt-0.5 shrink-0 text-steel-400" />
+            <span>
+              演示模式 —— AI 生成内容为录制样例，用于功能预览；配置
+              DEEPSEEK_API_KEY 并关闭 DEMO_MODE 后体验真实生成。
             </span>
           </div>
         )}

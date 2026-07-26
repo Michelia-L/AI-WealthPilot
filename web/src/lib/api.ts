@@ -577,6 +577,8 @@ export function scoreFromAnswers(
 export interface AdvisorStatusResponse {
   configured: boolean;
   model: string;
+  /** 演示模式：LLM 端点回放录制样例而非真实生成。 */
+  demo: boolean;
 }
 
 export interface ReportSummary {

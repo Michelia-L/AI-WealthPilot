@@ -174,6 +174,7 @@ export default function AdvisorWorkspace({
   }
 
   const configured = status?.configured ?? false;
+  const demo = status?.demo ?? false;
   const displayContent = viewing ? viewing.content : text;
 
   return (
@@ -184,6 +185,17 @@ export default function AdvisorWorkspace({
           <Icon name="warning" size={16} className="mt-0.5 shrink-0 text-gold-400" />
           <p className="text-sm leading-6 text-gold-300">
             DEEPSEEK_API_KEY 未配置 —— 请在项目根目录 .env 中设置并重启 API 服务后使用。
+          </p>
+        </div>
+      )}
+
+      {/* ------------------------------ 演示模式提示 ------------------------------ */}
+      {demo && (
+        <div className="flex items-start gap-3 rounded-xl border border-steel-500/30 bg-steel-500/[0.06] px-4 py-3">
+          <Icon name="info" size={16} className="mt-0.5 shrink-0 text-steel-400" />
+          <p className="text-sm leading-6 text-mist-400">
+            演示模式 —— AI 生成内容为录制样例，用于功能预览；配置
+            DEEPSEEK_API_KEY 并关闭 DEMO_MODE 后体验真实生成。
           </p>
         </div>
       )}
