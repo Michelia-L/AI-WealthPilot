@@ -2,8 +2,10 @@ import Link from "next/link";
 import {
   getAdvisorReports,
   getIpsDocuments,
+  getMonitoringFleetStatus,
   getProfiles,
   getQuotes,
+  type MonitoringFleetResponse,
   type ProfileSummary,
   type Quote,
 } from "@/lib/api";
@@ -48,6 +50,85 @@ function PulseTape({ quotes }: { quotes: Quote[] | null }) {
           <PulseItem key={`${q.ticker}-${i}`} quote={q} />
         ))}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 组合监控告警（Phase 17 — 越带亮灯，懒触发日检）
+// ---------------------------------------------------------------------------
+
+function MonitoringBanner({ fleet }: { fleet: MonitoringFleetResponse }) {
+  const { summary } = fleet;
+  const priceAsOf = fleet.price_as_of ?? "—";
+
+  if (summary.breach > 0) {
+    const worst = fleet.items
+      .filter((i) => i.status === "breach")
+      .sort(
+        (a, b) => (b.max_abs_drift_pp ?? 0) - (a.max_abs_drift_pp ?? 0)
+      );
+    const offenders = worst
+      .slice(0, 2)
+      .map(
+        (w) =>
+          `${w.client_name} 偏离 ${((w.max_abs_drift_pp ?? 0) * 100).toFixed(1)}pp`
+      )
+      .join(" · ");
+    return (
+      <Link
+        href={`/monitoring?doc=${encodeURIComponent(worst[0].document_id)}`}
+        className="group block"
+      >
+        <div className="flex items-center gap-4 rounded-2xl border border-cinnabar-500/30 bg-cinnabar-500/[0.06] px-5 py-3.5 transition-colors duration-500 ease-luxe hover:border-cinnabar-500/50">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cinnabar-500/30 bg-cinnabar-500/10 text-cinnabar-400">
+            <Icon name="warning" size={16} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-mist-100">
+              {summary.breach} 个组合偏离政策区间
+              <span className="ml-2 text-xs text-mist-500">{offenders}</span>
+            </p>
+            <p className="mt-0.5 text-xs text-mist-500">
+              建议评估复衡 · 行情截至 {priceAsOf}
+            </p>
+          </div>
+          <Icon
+            name="arrowRight"
+            size={15}
+            className="shrink-0 text-cinnabar-400/70 transition-transform duration-500 ease-luxe group-hover:translate-x-0.5"
+          />
+        </div>
+      </Link>
+    );
+  }
+
+  if (summary.ok > 0) {
+    return (
+      <div className="flex items-center gap-3 rounded-2xl border border-jade-500/20 bg-jade-500/[0.04] px-5 py-2.5">
+        <Icon name="shield" size={14} className="shrink-0 text-jade-400" />
+        <p className="text-xs text-mist-400">
+          组合监控正常 · {summary.ok} 个组合均在政策区间内
+          {summary.unknown > 0 && (
+            <span className="text-mist-600">
+              （{summary.unknown} 个暂无法检测）
+            </span>
+          )}
+        </p>
+        <span className="tnum ml-auto shrink-0 font-mono text-[11px] text-mist-600">
+          行情截至 {priceAsOf}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-ink-900/70 px-5 py-2.5">
+      <Icon name="info" size={14} className="shrink-0 text-mist-500" />
+      <p className="text-xs text-mist-500">
+        组合监控数据暂不可用
+        {fleet.items[0]?.note ? `：${fleet.items[0].note}` : ""}
+      </p>
     </div>
   );
 }
@@ -253,12 +334,14 @@ function ModuleCard({ mod, index }: { mod: (typeof MODULES)[number]; index: numb
 // ---------------------------------------------------------------------------
 
 export default async function OverviewPage() {
-  const [quotes, profilesData, reportsData, ipsData] = await Promise.all([
-    getQuotes(),
-    getProfiles(),
-    getAdvisorReports(),
-    getIpsDocuments(),
-  ]);
+  const [quotes, profilesData, reportsData, ipsData, fleetData] =
+    await Promise.all([
+      getQuotes(),
+      getProfiles(),
+      getAdvisorReports(),
+      getIpsDocuments(),
+      getMonitoringFleetStatus(),
+    ]);
 
   const deliverables: Deliverable[] | null =
     reportsData === null && ipsData === null
@@ -315,6 +398,13 @@ export default async function OverviewPage() {
 
       {/* 市场脉搏 */}
       <PulseTape quotes={quotes?.quotes ?? null} />
+
+      {/* 组合监控告警 */}
+      {fleetData !== null && fleetData.summary.total > 0 && (
+        <Reveal>
+          <MonitoringBanner fleet={fleetData} />
+        </Reveal>
+      )}
 
       {/* 客户与交付物 */}
       <div className="grid gap-4 lg:grid-cols-3">

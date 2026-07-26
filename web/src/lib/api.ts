@@ -716,6 +716,29 @@ export const getMonitoring = (documentId: string) =>
     `/api/monitoring/${encodeURIComponent(documentId)}`
   );
 
+/** Fleet-wide drift status (Phase 17 — overview alert light). */
+export type FleetStatus = "ok" | "breach" | "unknown";
+
+export interface MonitoringFleetItem {
+  document_id: string;
+  client_name: string;
+  saved_at: string;
+  status: FleetStatus;
+  out_of_band: number;
+  max_abs_drift_pp: number | null;
+  note: string | null;
+}
+
+export interface MonitoringFleetResponse {
+  as_of: string;
+  price_as_of: string | null;
+  items: MonitoringFleetItem[];
+  summary: { total: number; breach: number; ok: number; unknown: number };
+}
+
+export const getMonitoringFleetStatus = () =>
+  getJson<MonitoringFleetResponse>("/api/monitoring/status");
+
 // ---------------------------------------------------------------------------
 // Backtest & stress test (P13)
 // ---------------------------------------------------------------------------
