@@ -29,6 +29,7 @@ from api.schemas import (
     RebalanceAdviceRequest,
 )
 from src.agents.profiler import ClientProfile
+from src.agents.demo_mode import demo_rebalance_stream, is_demo_mode
 from src.agents.rebalance_advisor import (
     AdvisorReport,
     generate_rebalance_advice_stream,
@@ -223,7 +224,13 @@ def _advice_event_stream(
     holder: list[AdvisorReport] = []
 
     def _run() -> Generator[str, None, None]:
-        report = yield from generate_rebalance_advice_stream(monitoring, profile)
+        # Demo mode (P20): replay the recorded fixture instead of the LLM.
+        stream = (
+            demo_rebalance_stream(monitoring, profile)
+            if is_demo_mode()
+            else generate_rebalance_advice_stream(monitoring, profile)
+        )
+        report = yield from stream
         holder.append(report)
 
     try:
@@ -257,10 +264,11 @@ def _advice_event_stream(
 def stream_rebalance_advice(
     payload: RebalanceAdviceRequest, session: Session = Depends(get_session)
 ) -> StreamingResponse:
-    if not is_api_configured():
+    if not is_api_configured() and not is_demo_mode():
         raise HTTPException(
             status_code=503,
-            detail="DEEPSEEK_API_KEY 未配置，请在 api 服务的 .env 中设置后重启。",
+            detail="DEEPSEEK_API_KEY 未配置，请在 api 服务的 .env 中设置后重启；"
+            "或设置 DEMO_MODE=1 进入演示模式。",
         )
     if not _is_valid_document_id(payload.document_id):
         raise HTTPException(status_code=404, detail="IPS 文档不存在")

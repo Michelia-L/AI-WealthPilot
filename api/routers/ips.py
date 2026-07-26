@@ -37,6 +37,7 @@ from api.tasks import (
 )
 from src.agents import ips_storage, ips_workflow
 from src.agents.advisor import is_api_configured
+from src.agents.demo_mode import is_demo_mode, run_demo_ips_task
 
 router = APIRouter(prefix="/ips", tags=["ips"])
 
@@ -122,10 +123,11 @@ async def _run_ips_task(task: BackgroundTask, profile_data: dict, max_revisions:
 async def generate_ips(
     payload: IpsGenerateRequest, session: Session = Depends(get_session)
 ) -> IpsTaskCreatedResponse:
-    if not is_api_configured():
+    if not is_api_configured() and not is_demo_mode():
         raise HTTPException(
             status_code=503,
-            detail="DEEPSEEK_API_KEY 未配置，请在 api 服务的 .env 中设置后重启。",
+            detail="DEEPSEEK_API_KEY 未配置，请在 api 服务的 .env 中设置后重启；"
+            "或设置 DEMO_MODE=1 进入演示模式。",
         )
     record = session.get(ProfileRecord, payload.profile_id)
     if record is None:
@@ -134,7 +136,9 @@ async def generate_ips(
     task = registry.create(
         "ips", profile_id=payload.profile_id, client_name=record.name
     )
-    asyncio.create_task(_run_ips_task(task, record.data, payload.max_revisions))
+    # Demo mode (P20): replay the recorded fixture workflow instead of LangGraph.
+    runner = run_demo_ips_task if is_demo_mode() else _run_ips_task
+    asyncio.create_task(runner(task, record.data, payload.max_revisions))
     return IpsTaskCreatedResponse(task_id=task.task_id, profile_id=payload.profile_id)
 
 

@@ -38,6 +38,7 @@ from src.agents.advisor import (
     generate_advice_stream,
     is_api_configured,
 )
+from src.agents.demo_mode import demo_advice_stream, is_demo_mode
 from src.config import DEEPSEEK_MODEL
 from src.utils import sanitize_filename
 
@@ -54,7 +55,13 @@ def _event_stream(record: ProfileRecord) -> Generator[str, None, None]:
     holder: list[AdvisorReport] = []
 
     def _run() -> Generator[str, None, None]:
-        report = yield from generate_advice_stream(profile)
+        # Demo mode (P20): replay the recorded fixture instead of the LLM.
+        stream = (
+            demo_advice_stream(profile)
+            if is_demo_mode()
+            else generate_advice_stream(profile)
+        )
+        report = yield from stream
         holder.append(report)
 
     try:
@@ -83,17 +90,22 @@ def _event_stream(record: ProfileRecord) -> Generator[str, None, None]:
 
 @router.get("/status", response_model=AdvisorStatusResponse)
 def advisor_status() -> AdvisorStatusResponse:
-    return AdvisorStatusResponse(configured=is_api_configured(), model=DEEPSEEK_MODEL)
+    return AdvisorStatusResponse(
+        configured=is_api_configured() or is_demo_mode(),
+        model=DEEPSEEK_MODEL,
+        demo=is_demo_mode(),
+    )
 
 
 @router.post("/report/stream")
 def stream_report(
     payload: AdvisorStreamRequest, session: Session = Depends(get_session)
 ) -> StreamingResponse:
-    if not is_api_configured():
+    if not is_api_configured() and not is_demo_mode():
         raise HTTPException(
             status_code=503,
-            detail="DEEPSEEK_API_KEY 未配置，请在 api 服务的 .env 中设置后重启。",
+            detail="DEEPSEEK_API_KEY 未配置，请在 api 服务的 .env 中设置后重启；"
+            "或设置 DEMO_MODE=1 进入演示模式。",
         )
     record = session.get(ProfileRecord, payload.profile_id)
     if record is None:

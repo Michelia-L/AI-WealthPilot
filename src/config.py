@@ -15,7 +15,7 @@ SAMPLE_DATA_DIR = DATA_DIR / "sample"
 
 # Application Settings
 APP_NAME = "AI WealthPilot"
-APP_VERSION = "0.7.0"
+APP_VERSION = "0.8.0"
 APP_ENV = os.getenv("APP_ENV", "development")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
@@ -91,6 +91,12 @@ DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEEPSEEK_MODEL = "deepseek-v4-pro"
 DEEPSEEK_MAX_TOKENS = 128000
 DEEPSEEK_TEMPERATURE = 0.3
+
+# Demo Mode (P20): replay recorded fixtures for all LLM-powered features.
+# Lets anyone clone the repo and experience the full AI advisor / IPS flow
+# without a DeepSeek API key. Set DEMO_MODE=1 to force fixture replay even
+# when a key is configured. Read dynamically via src.agents.demo_mode.
+DEMO_MODE = os.getenv("DEMO_MODE", "").strip().lower() in ("1", "true", "yes", "on")
 
 # CME (Capital Market Expectations) Configuration
 CME_LOOKBACK_YEARS = 5           # Historical data lookback

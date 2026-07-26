@@ -34,6 +34,9 @@ def isolate_storage_dirs(tmp_path, monkeypatch):
     monkeypatch.setattr("src.data.tushare_provider.TUSHARE_TOKEN", "")
     # The optional CN fallback tier is off by default; tests enable it.
     monkeypatch.setattr("src.data.akshare_provider.is_available", lambda: False)
+    # Demo mode (P20) is opt-in per test; a developer .env with DEMO_MODE=1
+    # must not flip the whole suite onto the fixture-replay path.
+    monkeypatch.setattr("src.config.DEMO_MODE", False)
 
     return temp_profiles_dir, temp_reports_dir
 

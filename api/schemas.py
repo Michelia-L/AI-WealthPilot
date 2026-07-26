@@ -425,8 +425,13 @@ class ProfileCompareResponse(BaseModel):
 
 
 class AdvisorStatusResponse(BaseModel):
-    configured: bool = Field(description="Whether DEEPSEEK_API_KEY is set")
+    configured: bool = Field(
+        description="Whether LLM features are usable (API key set or demo mode on)"
+    )
     model: str
+    demo: bool = Field(
+        default=False, description="Whether demo mode (fixture replay) is active"
+    )
 
 
 class AdvisorStreamRequest(BaseModel):
