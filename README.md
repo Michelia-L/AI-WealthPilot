@@ -75,7 +75,7 @@ The workspace follows the complete private-banking advisor workflow: **overview 
 - ⧉ **Bayesian Black-Litterman Optimization Engine**  
   Combines market-implied equilibrium returns (derived via reverse CAPM based on asset capitalization weights) with subjective investor views (supporting both absolute and relative directional views). This Bayesian combination effectively mitigates traditional MVO's severe sensitivity to historical parameter estimation errors.
 - 🤖 **AI Advisor Agent**  
-  Employs LLMs (`DeepSeek V4 Pro`) to analyze client metrics, identify behavioral finance biases — including **loss aversion**, **overconfidence**, **ability-willingness mismatch**, **leverage risk**, and **inadequate safety net** — and generate personalized wealth advisor proposals.
+  Employs LLMs (`DeepSeek V4 Pro`) to analyze client metrics, identify behavioral finance biases — including **loss aversion**, **overconfidence**, **ability-willingness mismatch**, **leverage risk**, and **inadequate safety net** — and generate personalized wealth advisor proposals. Streams the model's reasoning chain live while it thinks, and accepts any OpenAI-compatible endpoint (DeepSeek, Qwen, OpenAI, local vLLM/Ollama) configured from the in-app Settings page.
 - 📄 **Enhanced Multi-Format Document Export**  
   Supports seamless export of AI advisor recommendations to standalone PDF (CJK-aware, letterhead-styled), HTML (styled with inline CSS), Markdown, and raw JSON documents.
 - 🛰️ **Multi-Provider Market Data Backbone**  
@@ -344,6 +344,12 @@ AI-WealthPilot/
    # No DeepSeek key? Set DEMO_MODE=1 to replay recorded sample outputs
    # (advisor report, IPS workflow, rebalancing advice) so every page works.
    ```
+
+   You can also configure any OpenAI-compatible endpoint (DeepSeek, Qwen,
+   OpenAI, local vLLM/Ollama, …) from the in-app **Settings** page after
+   launch — it takes effect immediately and overrides the env defaults.
+   Keys are stored in plaintext in the local SQLite (`data/wealthpilot.db`)
+   and never leave your machine.
 
 3. **Launch the Full Stack**
    ```bash

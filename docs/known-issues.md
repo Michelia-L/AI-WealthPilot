@@ -57,7 +57,7 @@
 
 ## FR-001 · AI 生成过程实时显示思维链
 
-**提出日期**：2026-07-26　**状态**：已记录，待排期　**优先级**：中（体验增强）
+**提出日期**：2026-07-26　**状态**：已实现（2026-07-26，v0.9.0）　**优先级**：中（体验增强）
 
 ### 需求
 
@@ -74,11 +74,18 @@ AI 顾问/调仓建议等流式生成等待数十秒，期间只看着正文逐�
 - 与 FR-002 联动：自定义端点模型不一定支持 reasoning_content，协议按可选字段设计。
 - 演示模式 fixture 可补一份 reasoning 样例流，保持演示路径一致。
 
+### 实现记录（2026-07-26）
+
+- **后端**：`generate_advice_stream` / `generate_rebalance_advice_stream` 改为产出事件 dict——`delta.reasoning_content` → `{"type":"reasoning","text":...}`，`delta.content` → `{"type":"token",...}`；`stream_options={"include_usage": True}` 捕获用量，`done` 事件新增 `reasoning_tokens`（无推理为 0）。路由对旧式字符串产出宽容包装，存量测试缝不动。`stream_advice()` 适配新协议（仅透传正文）。IPS 流水线按设计不含。
+- **演示模式**：新增共享 fixture `demo_fixtures/advisor_reasoning.txt`（林晓兰场景思维链），两条 demo 流先回放 reasoning 事件再回放正文，done 带虚构 reasoning_tokens。
+- **前端**：新组件 `web/src/components/reasoning-section.tsx`（弱化样式流式渲染、生成中自动展开/结束自动折叠、可手动开关、显示思考 tokens），接入 AI 顾问与调仓建议；无推理内容的模型不渲染（优雅降级）。
+- **已验证**：真实 DeepSeek 端到端——思维链实时流入「思考过程」区，596 pytest 全绿。
+
 ---
 
 ## FR-002 · 设置页：自定义 OpenAI 兼容端点与模型
 
-**提出日期**：2026-07-26　**状态**：已记录，待排期　**优先级**：中高（解锁多模型生态）
+**提出日期**：2026-07-26　**状态**：已实现（2026-07-26，v0.9.0）　**优先级**：中高（解锁多模型生态）
 
 ### 需求
 
@@ -100,3 +107,11 @@ AI 顾问/调仓建议等流式生成等待数十秒，期间只看着正文逐�
 - 完成后 FR-001 的 reasoning 显示按目标模型能力自动生效/降级。
 - 演示模式不受影响（DEMO_MODE 仍优先生效）。
 - 注意 IPS 流水线的 PydanticAI 模型构造点与 advisor 的 OpenAI client 构造点不同，二者都要走 `get_llm_config()`，避免只改一半。
+
+### 实现记录（2026-07-26）
+
+- **存储**：`api/db.py` 新增 `app_settings` KV 表（create_all 幂等，零迁移）。
+- **解析器**：`src/agents/llm_config.py` `get_llm_config()` 调用时解析，DB > env 逐字段回退；四个 LLM 消费点全部改走它（advisor `_get_client`/`is_api_configured`、rebalance、IPS `_get_model`、IPS 审计元数据）；DeepSeek 专属 `thinking:disabled` extra_body 仅对 deepseek 端点附加。
+- **端点**：`GET/PUT /api/settings/llm`（key 脱敏 `sk-****1234`）、`POST /api/settings/llm/models`（10s 超时，连接/认证/其他错误映射中文 502）。
+- **前端**：`/settings` 页（当前配置卡 + 端点/Key/模型表单 + 拉取模型列表 + 保存/清除）+ 侧边栏「设置」条目 + 同源代理路由。
+- **已验证**：真实 DeepSeek `/models` 拉取 → 保存（db 源）→ 清除（回退 env）全链路 PASS；586+10 pytest 全绿。
