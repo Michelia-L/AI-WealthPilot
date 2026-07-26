@@ -46,6 +46,9 @@ class Quote(BaseModel):
     currency: str = "USD"
     symbol: str = ""
     color: str = "#D4AF37"
+    # ~1 trading month of daily closes for the card sparkline; empty when the
+    # history fetch failed (the card then hides the sparkline).
+    spark: list[float] = Field(default_factory=list)
 
 
 class QuotesResponse(BaseModel):

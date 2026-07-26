@@ -85,6 +85,27 @@ def _with_display_meta(record: dict) -> dict:
     }
 
 
+def _attach_sparks(records: list[dict], tickers: list[str]) -> list[dict]:
+    """Attach a ~1mo daily-close sparkline to each quote record.
+
+    One batched history fetch; per-ticker defensive — any failure yields an
+    empty spark list so the card simply hides its sparkline.
+    """
+    sparks: dict[str, list[float]] = {t: [] for t in tickers}
+    try:
+        hist = fetch_price_history(
+            tickers=tickers, period="1mo", interval="1d", adjust_currency=False
+        )
+    except Exception:
+        hist = None
+    if hist is not None and not hist.empty:
+        for t in tickers:
+            if t in hist.columns:
+                closes = [float(v) for v in hist[t].dropna().tolist()]
+                sparks[t] = closes[-22:]  # ~1 trading month
+    return [{**r, "spark": sparks.get(r.get("ticker", ""), [])} for r in records]
+
+
 def _sanitize(obj: Any) -> Any:
     """Recursively replace NaN/Inf floats with None for strict-JSON safety."""
     if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
@@ -177,7 +198,10 @@ def get_quotes(tickers: Optional[str] = Query(None)) -> QuotesResponse:
     records = _quotes_cache.get_or_set(
         cache_key,
         QUOTES_TTL_SECONDS,
-        lambda: [_with_display_meta(r) for r in _clean_records(get_latest_quotes(selected))],
+        lambda: _attach_sparks(
+            [_with_display_meta(r) for r in _clean_records(get_latest_quotes(selected))],
+            selected,
+        ),
     )
     return QuotesResponse(
         as_of=datetime.now(timezone.utc),
