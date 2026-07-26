@@ -7,6 +7,11 @@ event is mirrored to a ``TaskRecord`` row (api/db.py) so a finished task's
 SSE stream can be replayed after a server restart. Rows left 'running' by a
 shutdown are reconciled to 'failed' on boot (``reconcile_interrupted_tasks``).
 
+Every event carries a per-task ``seq`` counter, so the stream of a RUNNING
+task is reconnectable: a consumer that disconnected mid-task first replays
+the persisted log, then resumes the live queue, skipping queued events at or
+below the max replayed seq — the full sequence, no gaps, no duplicates.
+
 All DB access opens a short session per call and resolves ``api.db.engine``
 dynamically (tests redirect it to a tmp-path SQLite). Persistence failures
 are logged and swallowed — they must never interrupt the task itself.
@@ -37,15 +42,20 @@ class BackgroundTask:
     queue: asyncio.Queue = field(default_factory=asyncio.Queue)
     status: str = "running"  # running / completed / failed
     meta: dict[str, Any] = field(default_factory=dict)
+    _seq: int = 0  # per-task event counter, stamped by publish()
 
     async def publish(self, event: dict[str, Any]) -> None:
         """Write the event through to the DB record, then to the live queue.
 
-        Persistence runs first so a terminal done/error event is already
-        durable by the time the SSE drain can observe it.
+        The event is stamped with ``seq`` (counting from 1) so reconnecting
+        SSE consumers can dedupe the persisted replay against the live
+        queue. Persistence runs first so a terminal done/error event is
+        already durable by the time the SSE drain can observe it.
         """
-        _persist_event(self.task_id, event)
-        await self.queue.put(event)
+        self._seq += 1
+        sequenced = {"seq": self._seq, **event}
+        _persist_event(self.task_id, sequenced)
+        await self.queue.put(sequenced)
 
 
 class TaskRegistry:
@@ -102,6 +112,24 @@ def _persist_event(task_id: str, event: dict[str, Any]) -> None:
         logger.exception("Failed to persist event for task %s", task_id)
 
 
+def _read_persisted_events(task_id: str) -> list[dict[str, Any]]:
+    """Raw persisted event log for a task; [] when unknown or unreadable.
+
+    Unlike ``load_task_events`` this never appends the synthetic
+    'interrupted' error event — the caller is streaming a task that is still
+    running in this process, so the row's 'running' status is expected.
+    """
+    try:
+        with Session(db.engine) as session:
+            record = session.get(db.TaskRecord, task_id)
+            if record is None:
+                return []
+            return list(json.loads(record.events_json))
+    except Exception:
+        logger.exception("Failed to load persisted events for task %s", task_id)
+        return []
+
+
 def load_task_events(task_id: str) -> Optional[list[dict[str, Any]]]:
     """Persisted event log for a task unknown to the in-memory registry.
 
@@ -149,9 +177,31 @@ def sse(payload: dict[str, Any]) -> str:
 
 
 async def stream_task_events(task: BackgroundTask) -> AsyncIterator[str]:
-    """Drain a task's queue as SSE until the terminal done/error event."""
+    """Stream a running task as SSE: persisted replay first, then live events.
+
+    Reconnect-safe. The persisted log is replayed in stored order (events
+    published before this consumer connected — including any an earlier
+    consumer already pulled off the live queue), then the live queue is
+    drained, skipping queued events whose seq is at or below the max
+    replayed seq. Events without a seq (persisted before seq existed) replay
+    normally and count as seq 0; seq-less queued events pass through
+    untouched.
+    """
+    max_seq = 0
+    for event in _read_persisted_events(task.task_id):
+        seq = event.get("seq")
+        if isinstance(seq, int):
+            max_seq = max(max_seq, seq)
+        yield sse(event)
+        if event.get("type") in ("done", "error"):
+            # The task finished between the registry check and this replay:
+            # every queued event was just replayed, so draining would hang.
+            return
     while True:
         event = await task.queue.get()
+        seq = event.get("seq")
+        if isinstance(seq, int) and seq <= max_seq:
+            continue  # already replayed from the store
         yield sse(event)
         if event.get("type") in ("done", "error"):
             break
@@ -166,12 +216,14 @@ async def replay_task_events(events: list[dict[str, Any]]) -> AsyncIterator[str]
 def task_events_stream(
     registry: TaskRegistry, task_id: str
 ) -> Optional[AsyncIterator[str]]:
-    """Live stream for running tasks; replay for terminal/persisted ones.
+    """Merged replay+live stream for running tasks; replay for terminal ones.
 
     Returns None when the task is unknown to both the registry and the
-    store. A terminal in-memory task replays from the store instead of the
-    live queue — that queue was drained by the first consumer and would
-    hang any subsequent one.
+    store. A running task yields its persisted log first, then live queue
+    events past the max replayed seq, so a reconnecting consumer sees the
+    full sequence with no gaps or duplicates. A terminal in-memory task
+    replays from the store instead of the live queue — that queue was
+    drained by the first consumer and would hang any subsequent one.
     """
     task = registry.get(task_id)
     if task is not None and task.status == "running":

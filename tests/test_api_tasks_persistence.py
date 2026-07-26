@@ -2,10 +2,13 @@
 
 Tasks execute in-process, but every published event is mirrored to a
 TaskRecord row: a finished task's stream must be replayable once the
-in-memory registry has lost it (server restart), rows left 'running' by a
-shutdown are reconciled to 'failed' on boot, and unknown task ids keep 404.
+in-memory registry has lost it (server restart), a RUNNING task's stream
+must survive a consumer disconnect (persisted replay + live tail, deduped
+by seq), rows left 'running' by a shutdown are reconciled to 'failed' on
+boot, and unknown task ids keep 404.
 """
 
+import asyncio
 import json
 
 import pytest
@@ -13,7 +16,7 @@ from sqlmodel import Session
 
 from api import db
 from api.db import TaskRecord
-from api.tasks import TaskRegistry, reconcile_interrupted_tasks
+from api.tasks import TaskRegistry, reconcile_interrupted_tasks, task_events_stream
 from tests.test_api_advisor import _parse_sse
 
 # Reuse the IPS fake-workflow fixture pattern (imported fixtures register in
@@ -124,3 +127,105 @@ def test_running_record_replays_with_trailing_error(client):
 def test_unknown_task_still_404(client):
     assert client.get("/api/ips/tasks/never-existed/events").status_code == 404
     assert client.get("/api/portfolio/tasks/never-existed/events").status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Reconnectable streams (seq-stamped DB replay + live tail)
+# ---------------------------------------------------------------------------
+
+
+def test_reconnecting_consumer_gets_full_stream(client):
+    """Mid-task disconnect: the second consumer of a RUNNING task must see
+    the complete ordered sequence — persisted replay, then the live tail —
+    with no gaps and no duplicates."""
+    registry = TaskRegistry()
+
+    async def scenario():
+        task = registry.create("ips", client_name="John Doe")
+        await task.publish({"type": "node", "node": "generate_cme", "label": "生成 CME"})
+        await task.publish({"type": "node", "node": "generate", "label": "生成 IPS 初稿"})
+
+        # First consumer connects, reads one event, then disconnects.
+        first = task_events_stream(registry, task.task_id)
+        first_events = _parse_sse(await first.__anext__())
+        await first.aclose()
+
+        # The task keeps publishing while no one is listening.
+        await task.publish({"type": "node", "node": "finalize", "label": "合规定稿"})
+
+        # Second consumer reconnects while the task is still running, then
+        # the task finishes (status flips before the terminal publish, as
+        # the routers do).
+        second = task_events_stream(registry, task.task_id)
+        task.status = "completed"
+        await task.publish({"type": "done", "success": True})
+        second_events = _parse_sse("".join([chunk async for chunk in second]))
+        return first_events, second_events
+
+    first_events, second_events = asyncio.run(scenario())
+
+    assert [e["type"] for e in first_events] == ["node"]
+    assert first_events[0]["seq"] == 1
+    # seq 1..4 exactly once, in order: 1-3 replayed from the DB, 4 live.
+    assert [e["seq"] for e in second_events] == [1, 2, 3, 4]
+    assert [e["type"] for e in second_events] == ["node", "node", "node", "done"]
+    assert [e["node"] for e in second_events[:3]] == [
+        "generate_cme",
+        "generate",
+        "finalize",
+    ]
+
+
+def test_reconnect_after_completion_replays_full_sequence(client):
+    """A consumer connecting after completion gets the whole log from the
+    DB — identical to what the live consumer saw, seq-stamped from 1."""
+    registry = TaskRegistry()
+
+    async def scenario():
+        task = registry.create("optimize", method="resampled")
+        live = task_events_stream(registry, task.task_id)  # still running
+        await task.publish({"type": "node", "node": "fetch", "label": "获取行情数据"})
+        await task.publish({"type": "node", "node": "solve", "label": "求解组合"})
+        task.status = "completed"
+        await task.publish({"type": "done", "result": {"ok": True}})
+        live_events = _parse_sse("".join([chunk async for chunk in live]))
+
+        # Reconnect after completion: terminal task → pure DB replay.
+        stream = task_events_stream(registry, task.task_id)
+        replayed = _parse_sse("".join([chunk async for chunk in stream]))
+        return live_events, replayed
+
+    live_events, replayed = asyncio.run(scenario())
+
+    assert [e["seq"] for e in live_events] == [1, 2, 3]
+    assert [e["type"] for e in live_events] == ["node", "node", "done"]
+    assert replayed == live_events
+
+
+def test_seqless_events_pass_through_untouched(client):
+    """Pre-seq events (rows/queue items written before seq existed) still
+    stream: replayed in stored order, counted as seq 0, never filtered."""
+    registry = TaskRegistry()
+
+    async def scenario():
+        task = registry.create("ips", client_name="John Doe")
+        # Simulate a pre-seq persisted row.
+        with Session(db.engine) as session:
+            record = session.get(TaskRecord, task.task_id)
+            record.events_json = json.dumps(
+                [{"type": "node", "node": "generate", "label": "生成 IPS 初稿"}],
+                ensure_ascii=False,
+            )
+            session.add(record)
+            session.commit()
+        await task.queue.put({"type": "node", "node": "finalize", "label": "合规定稿"})
+        await task.queue.put({"type": "done", "success": True})
+
+        stream = task_events_stream(registry, task.task_id)
+        return _parse_sse("".join([chunk async for chunk in stream]))
+
+    events = asyncio.run(scenario())
+
+    assert [e["type"] for e in events] == ["node", "node", "done"]
+    assert [e.get("node") for e in events[:2]] == ["generate", "finalize"]
+    assert all("seq" not in e for e in events)
