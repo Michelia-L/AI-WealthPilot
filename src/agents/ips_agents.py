@@ -28,7 +28,7 @@ from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
 
-from src.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
+from src.agents.llm_config import get_llm_config
 from src.agents.ips_models import IPSDocument, ReviewResult, ReviewDimension
 
 logger = logging.getLogger(__name__)
@@ -38,31 +38,31 @@ logger = logging.getLogger(__name__)
 
 def _get_model() -> OpenAIModel:
     """
-    Create PydanticAI model pointing to DeepSeek V4 Pro.
+    Create PydanticAI model from the resolved LLM config (FR-002).
 
     Uses OpenAIProvider with the OpenAI-compatible interface
     since DeepSeek's API follows the OpenAI chat completions protocol.
+    User-saved endpoint settings (app_settings table) override the
+    DeepSeek env defaults.
 
     Returns:
         Configured OpenAIModel instance.
 
     Raises:
-        ValueError: If DEEPSEEK_API_KEY is not set.
+        ValueError: If no API key is configured (DB or env).
     """
-    if not DEEPSEEK_API_KEY:
+    cfg = get_llm_config()
+    if not cfg.configured:
         raise ValueError(
             "DEEPSEEK_API_KEY is not configured. "
             "Please set it in your .env file."
         )
     provider = OpenAIProvider(
-        base_url=DEEPSEEK_BASE_URL,
-        api_key=DEEPSEEK_API_KEY,
+        base_url=cfg.base_url,
+        api_key=cfg.api_key,
     )
-    # DeepSeek V4 Pro thinking mode is incompatible with
-    # PydanticAI's tool_choice="required" for structured output.
-    # Must be disabled via extra_body.
     return OpenAIModel(
-        DEEPSEEK_MODEL,
+        cfg.model,
         provider=provider,
     )
 
@@ -257,15 +257,24 @@ _REVISER_SYSTEM_PROMPT = """你是一名资深 IPS 修订专家。
 
 # Shared Model Settings
 
-# DeepSeek V4 Pro defaults to "thinking mode" which rejects
-# tool_choice="required" (used by PydanticAI for structured output).
-# We explicitly disable thinking mode so function calling works.
-# max_tokens set to 32768 to accommodate full IPS with CME references.
-_MODEL_SETTINGS: ModelSettings = {
-    "temperature": 0.3,
-    "max_tokens": 32768,
-    "extra_body": {"thinking": {"type": "disabled"}},
-}
+def _get_model_settings() -> ModelSettings:
+    """Build model settings for the resolved endpoint.
+
+    DeepSeek V4 Pro defaults to "thinking mode" which rejects
+    tool_choice="required" (used by PydanticAI for structured output),
+    so thinking is explicitly disabled via extra_body — but ONLY for
+    DeepSeek endpoints: custom OpenAI-compatible endpoints (FR-002) may
+    reject the unknown field, so it is sent only when the effective
+    base_url points at DeepSeek. max_tokens is 32768 to accommodate a
+    full IPS with CME references.
+    """
+    settings: ModelSettings = {
+        "temperature": 0.3,
+        "max_tokens": 32768,
+    }
+    if "deepseek" in get_llm_config().base_url.lower():
+        settings["extra_body"] = {"thinking": {"type": "disabled"}}
+    return settings
 
 
 # Agent Factory Functions
@@ -285,7 +294,7 @@ def create_ips_generator_agent() -> Agent[None, IPSDocument]:
         model=_get_model(),
         output_type=IPSDocument,
         system_prompt=_GENERATOR_SYSTEM_PROMPT,
-        model_settings=_MODEL_SETTINGS,
+        model_settings=_get_model_settings(),
         retries=3,
     )
 
@@ -304,7 +313,7 @@ def create_suitability_reviewer() -> Agent[None, ReviewResult]:
         model=_get_model(),
         output_type=ReviewResult,
         system_prompt=_SUITABILITY_REVIEW_PROMPT,
-        model_settings=_MODEL_SETTINGS,
+        model_settings=_get_model_settings(),
         retries=3,
     )
 
@@ -323,7 +332,7 @@ def create_compliance_reviewer() -> Agent[None, ReviewResult]:
         model=_get_model(),
         output_type=ReviewResult,
         system_prompt=_COMPLIANCE_REVIEW_PROMPT,
-        model_settings=_MODEL_SETTINGS,
+        model_settings=_get_model_settings(),
         retries=3,
     )
 
@@ -342,7 +351,7 @@ def create_consistency_reviewer() -> Agent[None, ReviewResult]:
         model=_get_model(),
         output_type=ReviewResult,
         system_prompt=_CONSISTENCY_REVIEW_PROMPT,
-        model_settings=_MODEL_SETTINGS,
+        model_settings=_get_model_settings(),
         retries=3,
     )
 
@@ -361,7 +370,7 @@ def create_ips_reviser_agent() -> Agent[None, IPSDocument]:
         model=_get_model(),
         output_type=IPSDocument,
         system_prompt=_REVISER_SYSTEM_PROMPT,
-        model_settings=_MODEL_SETTINGS,
+        model_settings=_get_model_settings(),
         retries=3,
     )
 

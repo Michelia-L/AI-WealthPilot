@@ -160,22 +160,58 @@ def mock_openai_response():
     return mock_response
 
 
+def _make_stream_chunk(content=None, reasoning=None, usage=None):
+    """Build one mock streaming chunk with explicit (non-auto-Mock) fields.
+
+    Auto-created Mock attributes are truthy, so content/reasoning/usage must
+    be set explicitly to mimic real OpenAI chunk objects.
+    """
+    chunk = Mock()
+    if usage is not None:
+        # The terminal usage chunk carries no choices.
+        chunk.choices = []
+        chunk.usage = usage
+        return chunk
+    chunk.usage = None
+    chunk.choices = [Mock()]
+    chunk.choices[0].delta.content = content
+    chunk.choices[0].delta.reasoning_content = reasoning
+    return chunk
+
+
+def _make_usage_chunk(prompt=100, completion=50, reasoning_tokens=0):
+    """Build the terminal usage chunk (empty choices) for a mock stream."""
+    usage = Mock()
+    usage.prompt_tokens = prompt
+    usage.completion_tokens = completion
+    usage.total_tokens = prompt + completion
+    usage.completion_tokens_details = Mock()
+    usage.completion_tokens_details.reasoning_tokens = reasoning_tokens
+    return _make_stream_chunk(usage=usage)
+
+
+def _drain(gen):
+    """Consume a Generator[dict, None, AdvisorReport]; return (events, report)."""
+    events = []
+    try:
+        while True:
+            events.append(next(gen))
+    except StopIteration as stop:
+        return events, stop.value
+
+
 @pytest.fixture
 def mock_stream_chunks():
-    """Create mock streaming response chunks."""
-    chunks = []
+    """Create mock streaming response chunks (content-only, then usage)."""
     text_chunks = [
         "## 📋 Client Summary / 客户概况总结\nClient summary goes here.\n",
         "## 🎯 Investment Objectives Analysis / 投资目标分析\nGoal is feasible.\n",
         "## ⚖️ Risk Tolerance / 风险承受能力\nScore is aligned.\n",
         "## 📊 Recommended Asset Allocation / 建议资产配置\n## 💡 Implementation Strategy / 实施策略\n## ⚠️ Risk Disclosure / 风险披露"
     ]
-    for text in text_chunks:
-        chunk = Mock()
-        chunk.choices = [Mock()]
-        chunk.choices[0].delta.content = text
-        chunks.append(chunk)
-    return chunks
+    return [_make_stream_chunk(content=text) for text in text_chunks] + [
+        _make_usage_chunk()
+    ]
 
 
 # ============================================================
@@ -194,6 +230,7 @@ class TestAdvisorReport:
         assert report.prompt_tokens == 0
         assert report.completion_tokens == 0
         assert report.total_tokens == 0
+        assert report.reasoning_tokens == 0
         assert report.client_name == ""
         assert report.success is False
         assert report.error_message == ""
@@ -404,17 +441,17 @@ class TestPromptConstruction:
 class TestAPIConfiguration:
     """Tests for API configuration checks."""
 
-    @patch("src.agents.advisor.DEEPSEEK_API_KEY", "test-api-key")
+    @patch("src.config.DEEPSEEK_API_KEY", "test-api-key")
     def test_is_api_configured_true(self):
         """Test API is configured when key is set."""
         assert is_api_configured() is True
 
-    @patch("src.agents.advisor.DEEPSEEK_API_KEY", "")
+    @patch("src.config.DEEPSEEK_API_KEY", "")
     def test_is_api_configured_false_empty(self):
         """Test API is not configured when key is empty."""
         assert is_api_configured() is False
 
-    @patch("src.agents.advisor.DEEPSEEK_API_KEY", None)
+    @patch("src.config.DEEPSEEK_API_KEY", None)
     def test_is_api_configured_false_none(self):
         """Test API is not configured when key is None."""
         assert is_api_configured() is False
@@ -512,12 +549,76 @@ class TestStreamingGeneration:
         mock_get_client.return_value = mock_client
 
         # Generate streaming report
-        gen = generate_advice_stream(sample_profile)
-        chunks = list(gen)
+        events, report = _drain(generate_advice_stream(sample_profile))
 
-        # Verify chunks
-        assert len(chunks) == 4
-        assert chunks[0].startswith("## 📋 Client Summary")
+        # Verify events: 4 token dicts (the usage chunk yields nothing)
+        assert len(events) == 4
+        assert all(e["type"] == "token" for e in events)
+        assert events[0]["text"].startswith("## 📋 Client Summary")
+
+        # Verify usage captured from the terminal usage chunk
+        assert report.success is True
+        assert report.prompt_tokens == 100
+        assert report.completion_tokens == 50
+        assert report.total_tokens == 150
+        assert report.reasoning_tokens == 0
+
+    @patch("src.agents.advisor._get_client")
+    def test_generate_advice_stream_with_reasoning(self, mock_get_client, sample_profile):
+        """Reasoner chunks stream as reasoning events before token events."""
+        half = len(MOCK_REPORT_CONTENT) // 2
+        chunks = [
+            _make_stream_chunk(reasoning="先分析客户画像与风险评分。"),
+            _make_stream_chunk(reasoning="再测算教育金与养老目标。"),
+            _make_stream_chunk(content=MOCK_REPORT_CONTENT[:half]),
+            _make_stream_chunk(content=MOCK_REPORT_CONTENT[half:]),
+            _make_usage_chunk(prompt=100, completion=50, reasoning_tokens=42),
+        ]
+        mock_client = Mock()
+        mock_client.chat.completions.create.return_value = iter(chunks)
+        mock_get_client.return_value = mock_client
+
+        events, report = _drain(generate_advice_stream(sample_profile))
+
+        # Reasoning phase arrives first, then content tokens, in order.
+        assert [e["type"] for e in events] == ["reasoning", "reasoning", "token", "token"]
+        assert events[0]["text"] == "先分析客户画像与风险评分。"
+        assert events[1]["text"] == "再测算教育金与养老目标。"
+        assert "".join(e["text"] for e in events if e["type"] == "token") == MOCK_REPORT_CONTENT
+
+        # Usage (incl. reasoning_tokens) flows onto the returned report.
+        assert report.success is True
+        assert report.reasoning_tokens == 42
+        assert report.prompt_tokens == 100
+        assert report.completion_tokens == 50
+        assert report.total_tokens == 150
+
+        # The stream requests the terminal usage chunk.
+        call_args = mock_client.chat.completions.create.call_args
+        assert call_args.kwargs["stream_options"] == {"include_usage": True}
+
+    @patch("src.agents.advisor._get_client")
+    def test_generate_advice_stream_missing_reasoning_details(self, mock_get_client, sample_profile, mock_stream_chunks):
+        """Usage without completion_tokens_details leaves reasoning_tokens at 0."""
+        chunks = mock_stream_chunks[:-1] + [
+            _make_stream_chunk(
+                usage=Mock(
+                    prompt_tokens=10,
+                    completion_tokens=20,
+                    total_tokens=30,
+                    completion_tokens_details=None,
+                )
+            )
+        ]
+        mock_client = Mock()
+        mock_client.chat.completions.create.return_value = iter(chunks)
+        mock_get_client.return_value = mock_client
+
+        events, report = _drain(generate_advice_stream(sample_profile))
+
+        assert all(e["type"] == "token" for e in events)
+        assert report.reasoning_tokens == 0
+        assert report.total_tokens == 30
 
     @patch("src.agents.advisor._get_client")
     def test_stream_advice_wrapper(self, mock_get_client, sample_profile, mock_stream_chunks):
@@ -541,6 +642,26 @@ class TestStreamingGeneration:
         report = report_container[0]
         assert report.success is True
         assert report.content.startswith("## 📋 Client Summary")
+
+    @patch("src.agents.advisor._get_client")
+    def test_stream_advice_drops_reasoning(self, mock_get_client, sample_profile):
+        """The wrapper keeps its text-only contract: reasoning is dropped."""
+        chunks = [
+            _make_stream_chunk(reasoning="先分析客户画像。"),
+            _make_stream_chunk(content=MOCK_REPORT_CONTENT),
+            _make_usage_chunk(reasoning_tokens=7),
+        ]
+        mock_client = Mock()
+        mock_client.chat.completions.create.return_value = iter(chunks)
+        mock_get_client.return_value = mock_client
+
+        text_stream, report_container = stream_advice(sample_profile)
+        chunks = list(text_stream)
+
+        assert chunks == [MOCK_REPORT_CONTENT]
+        report = report_container[0]
+        assert report.success is True
+        assert report.reasoning_tokens == 7
 
     @patch("src.agents.advisor._get_client")
     def test_stream_advice_error_handling(self, mock_get_client, sample_profile):
@@ -609,7 +730,7 @@ class TestAdvisorIntegration:
         mock_get_client.return_value = mock_client
 
         # 1. Check API configuration
-        with patch("src.agents.advisor.DEEPSEEK_API_KEY", "test-key"):
+        with patch("src.config.DEEPSEEK_API_KEY", "test-key"):
             assert is_api_configured() is True
 
         # 2. Build prompt

@@ -23,6 +23,7 @@ const NAV_ITEMS: Array<{
   { href: "/ips", label: "IPS 生成", en: "IPS", icon: "scroll" },
   { href: "/deliverables", label: "交付物", en: "Deliverables", icon: "briefcase" },
   { href: "/monitoring", label: "组合监控", en: "Monitor", icon: "eye" },
+  { href: "/settings", label: "设置", en: "Settings", icon: "sliders" },
 ];
 
 function Brand() {

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { readSseStream } from "@/lib/sse";
 import { useClient } from "./client-context";
 import Markdown from "./markdown";
+import ReasoningSection from "./reasoning-section";
 import { Button, EmptyState, Icon, Panel } from "./ui";
 
 /**
@@ -13,6 +14,8 @@ import { Button, EmptyState, Icon, Panel } from "./ui";
 export default function RebalanceAdvice({ documentId }: { documentId: string }) {
   const { clientId } = useClient();
   const [text, setText] = useState("");
+  const [reasoning, setReasoning] = useState("");
+  const [reasoningTokens, setReasoningTokens] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [started, setStarted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +27,8 @@ export default function RebalanceAdvice({ documentId }: { documentId: string }) 
     setStarted(true);
     setError(null);
     setText("");
+    setReasoning("");
+    setReasoningTokens(null);
     setUsage(null);
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -45,7 +50,11 @@ export default function RebalanceAdvice({ documentId }: { documentId: string }) 
       await readSseStream(res.body, (event) => {
         if (event.type === "token") {
           setText((t) => t + String(event.text ?? ""));
+        } else if (event.type === "reasoning") {
+          setReasoning((r) => r + String(event.text ?? ""));
         } else if (event.type === "done") {
+          const rt = Number(event.reasoning_tokens ?? 0);
+          if (rt > 0) setReasoningTokens(rt);
           const total = Number(event.total_tokens ?? 0);
           if (total > 0) {
             setUsage(
@@ -104,6 +113,11 @@ export default function RebalanceAdvice({ documentId }: { documentId: string }) 
         </div>
       ) : (
         <div>
+          <ReasoningSection
+            text={reasoning}
+            streaming={busy}
+            reasoningTokens={reasoningTokens}
+          />
           {text ? (
             <>
               <Markdown>{text}</Markdown>

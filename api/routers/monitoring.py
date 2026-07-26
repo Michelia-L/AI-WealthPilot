@@ -6,8 +6,8 @@ the core raises KeyError (document missing) / ValueError (no SAA),
 which this router translates into 404 / 422.
 
 POST /advice streams an AI interpretation of the monitoring result as
-Server-Sent Events, reusing the advisor SSE protocol verbatim (token
-events, then a terminal done/error event).
+Server-Sent Events, reusing the advisor SSE protocol verbatim (reasoning
+and token events, then a terminal done/error event).
 """
 
 import json
@@ -220,7 +220,7 @@ def _sse(payload: dict[str, Any]) -> str:
 def _advice_event_stream(
     monitoring: dict, profile: Optional[ClientProfile]
 ) -> Generator[str, None, None]:
-    """Yield SSE lines: token events, then one terminal done/error event."""
+    """Yield SSE lines: reasoning/token events, then one terminal done/error event."""
     holder: list[AdvisorReport] = []
 
     def _run() -> Generator[str, None, None]:
@@ -234,8 +234,12 @@ def _advice_event_stream(
         holder.append(report)
 
     try:
-        for text in _run():
-            yield _sse({"type": "token", "text": text})
+        for event in _run():
+            # Generators yield reasoning/token event dicts; tolerate legacy
+            # plain-string streams by wrapping them as token events.
+            if not isinstance(event, dict):
+                event = {"type": "token", "text": event}
+            yield _sse(event)
     except Exception as e:  # defensive: src/ generator already swallows API errors
         yield _sse({"type": "error", "message": f"流式生成中断: {e}"})
         return
@@ -252,6 +256,7 @@ def _advice_event_stream(
             "prompt_tokens": report.prompt_tokens,
             "completion_tokens": report.completion_tokens,
             "total_tokens": report.total_tokens,
+            "reasoning_tokens": report.reasoning_tokens,
             "error_message": report.error_message,
         }
     )

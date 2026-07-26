@@ -12,6 +12,7 @@ import type {
 import { fmtLocal } from "@/lib/format";
 import { readSseStream } from "@/lib/sse";
 import Markdown from "@/components/markdown";
+import ReasoningSection from "@/components/reasoning-section";
 import { useClient } from "@/components/client-context";
 import {
   Button,
@@ -46,6 +47,7 @@ export default function AdvisorWorkspace({
   const [pickedId, setPickedId] = useState<number | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [text, setText] = useState("");
+  const [reasoning, setReasoning] = useState("");
   const [done, setDone] = useState<AdvisorDoneEvent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -71,6 +73,7 @@ export default function AdvisorWorkspace({
     if (selectedId === null) return;
     setStreaming(true);
     setText("");
+    setReasoning("");
     setDone(null);
     setError(null);
     setSaved(false);
@@ -97,6 +100,8 @@ export default function AdvisorWorkspace({
       await readSseStream(res.body, (event) => {
         if (event.type === "token") {
           setText((prev) => prev + String(event.text ?? ""));
+        } else if (event.type === "reasoning") {
+          setReasoning((prev) => prev + String(event.text ?? ""));
         } else if (event.type === "done") {
           setDone(event as unknown as AdvisorDoneEvent);
           if (!event.success) {
@@ -271,6 +276,13 @@ export default function AdvisorWorkspace({
 
       {/* ------------------------------ 报告正文 ------------------------------ */}
       <Panel innerClassName="flex min-h-72 flex-col">
+        {reasoning && (
+          <ReasoningSection
+            text={reasoning}
+            streaming={streaming}
+            reasoningTokens={done?.reasoning_tokens}
+          />
+        )}
         {displayContent ? (
           <>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -298,7 +310,11 @@ export default function AdvisorWorkspace({
                   <p className="tnum font-mono text-xs text-mist-500">
                     {done.total_tokens.toLocaleString()} tokens（输入{" "}
                     {done.prompt_tokens.toLocaleString()} / 输出{" "}
-                    {done.completion_tokens.toLocaleString()}）
+                    {done.completion_tokens.toLocaleString()}
+                    {done.reasoning_tokens
+                      ? ` · 思考 ${done.reasoning_tokens.toLocaleString()}`
+                      : ""}
+                    ）
                   </p>
                   {saved && (
                     <span className="flex items-center gap-1.5 text-xs text-jade-400">
@@ -345,10 +361,18 @@ export default function AdvisorWorkspace({
         ) : (
           <EmptyState
             icon="scroll"
-            title={streaming ? "DeepSeek 正在生成…" : "建议书将在此流式呈现"}
+            title={
+              streaming
+                ? reasoning
+                  ? "DeepSeek 正在思考…"
+                  : "DeepSeek 正在生成…"
+                : "建议书将在此流式呈现"
+            }
             hint={
               streaming
-                ? "首段文字即将抵达。"
+                ? reasoning
+                  ? "推理过程见上方「思考过程」，正文随后抵达。"
+                  : "首段文字即将抵达。"
                 : "选择客户后点击「生成建议书」，报告逐字输出，可一键存入报告库。"
             }
             className="flex-1 py-10"

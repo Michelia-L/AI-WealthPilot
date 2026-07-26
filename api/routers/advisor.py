@@ -2,8 +2,10 @@
 AI Advisor — streaming advisory reports (Phase 4a).
 
 POST /report/stream proxies the src/ streaming generator as Server-Sent
-Events: one ``token`` event per LLM chunk, then a terminal ``done`` event
-with the AdvisorReport metadata (validation result, token usage). The
+Events: ``reasoning`` events for reasoner-style thinking chunks and
+``token`` events for report content, then a terminal ``done`` event
+with the AdvisorReport metadata (validation result, token usage incl.
+reasoning_tokens). The
 sync OpenAI stream runs in Starlette's threadpool via StreamingResponse,
 so the event loop stays free.
 
@@ -39,7 +41,7 @@ from src.agents.advisor import (
     is_api_configured,
 )
 from src.agents.demo_mode import demo_advice_stream, is_demo_mode
-from src.config import DEEPSEEK_MODEL
+from src.agents.llm_config import get_llm_config
 from src.utils import sanitize_filename
 
 router = APIRouter(prefix="/advisor", tags=["advisor"])
@@ -50,7 +52,7 @@ def _sse(payload: dict[str, Any]) -> str:
 
 
 def _event_stream(record: ProfileRecord) -> Generator[str, None, None]:
-    """Yield SSE lines: token events, then one terminal done/error event."""
+    """Yield SSE lines: reasoning/token events, then one terminal done/error event."""
     profile = profile_from_data(record.data)
     holder: list[AdvisorReport] = []
 
@@ -65,8 +67,12 @@ def _event_stream(record: ProfileRecord) -> Generator[str, None, None]:
         holder.append(report)
 
     try:
-        for text in _run():
-            yield _sse({"type": "token", "text": text})
+        for event in _run():
+            # Generators yield reasoning/token event dicts; tolerate legacy
+            # plain-string streams by wrapping them as token events.
+            if not isinstance(event, dict):
+                event = {"type": "token", "text": event}
+            yield _sse(event)
     except Exception as e:  # defensive: src/ generator already swallows API errors
         yield _sse({"type": "error", "message": f"流式生成中断: {e}"})
         return
@@ -83,6 +89,7 @@ def _event_stream(record: ProfileRecord) -> Generator[str, None, None]:
             "prompt_tokens": report.prompt_tokens,
             "completion_tokens": report.completion_tokens,
             "total_tokens": report.total_tokens,
+            "reasoning_tokens": report.reasoning_tokens,
             "error_message": report.error_message,
         }
     )
@@ -92,7 +99,7 @@ def _event_stream(record: ProfileRecord) -> Generator[str, None, None]:
 def advisor_status() -> AdvisorStatusResponse:
     return AdvisorStatusResponse(
         configured=is_api_configured() or is_demo_mode(),
-        model=DEEPSEEK_MODEL,
+        model=get_llm_config().model,
         demo=is_demo_mode(),
     )
 

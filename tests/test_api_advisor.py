@@ -44,6 +44,29 @@ def configured(monkeypatch):
     monkeypatch.setattr("api.routers.advisor.generate_advice_stream", fake_stream)
 
 
+@pytest.fixture
+def configured_reasoning(monkeypatch):
+    """Stub a reasoning-capable streaming generator (event-dict protocol)."""
+    monkeypatch.setattr("api.routers.advisor.is_api_configured", lambda: True)
+
+    def fake_stream(profile):
+        yield {"type": "reasoning", "text": "先分析客户画像。"}
+        yield {"type": "reasoning", "text": "再测算投资目标。"}
+        yield {"type": "token", "text": f"Report body for {profile.name}."}
+        return AdvisorReport(
+            content="full content",
+            model="deepseek-reasoner",
+            client_name=profile.name,
+            success=True,
+            prompt_tokens=10,
+            completion_tokens=20,
+            total_tokens=30,
+            reasoning_tokens=12,
+        )
+
+    monkeypatch.setattr("api.routers.advisor.generate_advice_stream", fake_stream)
+
+
 def _create_profile(client) -> int:
     resp = client.post("/api/profiles", json=sample_payload())
     assert resp.status_code == 201
@@ -69,6 +92,28 @@ def test_stream_emits_tokens_then_done(client, configured):
     done = events[2]
     assert done["success"] is True
     assert done["total_tokens"] == 30
+    assert done["reasoning_tokens"] == 0  # string-yielding fake: no reasoning
+    assert done["error_message"] == ""
+
+
+def test_stream_emits_reasoning_then_tokens_then_done(client, configured_reasoning):
+    """Reasoning events stream before token events; done carries their usage."""
+    profile_id = _create_profile(client)
+
+    resp = client.post("/api/advisor/report/stream", json={"profile_id": profile_id})
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/event-stream")
+
+    events = _parse_sse(resp.text)
+    assert [e["type"] for e in events] == ["reasoning", "reasoning", "token", "done"]
+    assert events[0]["text"] == "先分析客户画像。"
+    assert events[1]["text"] == "再测算投资目标。"
+    assert events[2]["text"] == "Report body for John Doe."
+    done = events[3]
+    assert done["success"] is True
+    assert done["model"] == "deepseek-reasoner"
+    assert done["total_tokens"] == 30
+    assert done["reasoning_tokens"] == 12
     assert done["error_message"] == ""
 
 

@@ -13,12 +13,10 @@ from typing import Generator, Optional
 from openai import OpenAI
 
 from src.config import (
-    DEEPSEEK_API_KEY,
-    DEEPSEEK_BASE_URL,
-    DEEPSEEK_MODEL,
     DEEPSEEK_MAX_TOKENS,
     DEEPSEEK_TEMPERATURE,
 )
+from src.agents.llm_config import get_llm_config
 from src.agents.profiler import ClientProfile, format_ratio
 
 logger = logging.getLogger(__name__)
@@ -35,6 +33,7 @@ class AdvisorReport:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
+    reasoning_tokens: int = 0
     client_name: str = ""
     success: bool = False
     error_message: str = ""
@@ -294,27 +293,28 @@ def validate_report_content(content: str) -> tuple[bool, str]:
 
 
 def _get_client() -> OpenAI:
-    """Initialize an OpenAI-compatible client for DeepSeek."""
-    if not DEEPSEEK_API_KEY:
+    """Initialize an OpenAI-compatible client from the resolved LLM config."""
+    cfg = get_llm_config()
+    if not cfg.configured:
         raise ValueError(
             "DEEPSEEK_API_KEY is not configured. "
             "Please set it in your .env file."
         )
-    return OpenAI(api_key=DEEPSEEK_API_KEY, base_url=DEEPSEEK_BASE_URL)
+    return OpenAI(api_key=cfg.api_key, base_url=cfg.base_url)
 
 
 def is_api_configured() -> bool:
-    """Check if the DeepSeek API key is configured."""
-    return bool(DEEPSEEK_API_KEY)
+    """Check if an LLM API key is configured (DB settings override env)."""
+    return get_llm_config().configured
 
 
 
 
-def _create_initial_report(profile: ClientProfile) -> AdvisorReport:
+def _create_initial_report(profile: ClientProfile, model: str = "") -> AdvisorReport:
     """Create an initial AdvisorReport with metadata pre-filled."""
     return AdvisorReport(
         client_name=profile.name,
-        model=DEEPSEEK_MODEL,
+        model=model,
         generated_at=datetime.now().isoformat(),
     )
 
@@ -330,7 +330,8 @@ def _build_messages(profile: ClientProfile) -> list[dict]:
 
 def generate_advice(profile: ClientProfile) -> AdvisorReport:
     """Generate a complete advisory report (non-streaming)."""
-    report = _create_initial_report(profile)
+    cfg = get_llm_config()
+    report = _create_initial_report(profile, model=cfg.model)
 
     try:
         client = _get_client()
@@ -339,12 +340,12 @@ def generate_advice(profile: ClientProfile) -> AdvisorReport:
 
         logger.info(
             f"Generating advisory report for client: {profile.name} "
-            f"using model: {DEEPSEEK_MODEL}"
+            f"using model: {cfg.model}"
         )
 
 
         response = client.chat.completions.create(
-            model=DEEPSEEK_MODEL,
+            model=cfg.model,
             messages=messages,
             max_tokens=DEEPSEEK_MAX_TOKENS,
             temperature=DEEPSEEK_TEMPERATURE,
@@ -386,9 +387,17 @@ def generate_advice(profile: ClientProfile) -> AdvisorReport:
 
 def generate_advice_stream(
     profile: ClientProfile,
-) -> Generator[str, None, AdvisorReport]:
-    """Generate an advisory report with streaming output."""
-    report = _create_initial_report(profile)
+) -> Generator[dict, None, AdvisorReport]:
+    """Generate an advisory report with streaming output.
+
+    Yields event dicts in arrival order: ``{"type": "reasoning", "text": ...}``
+    for reasoner-style thinking chunks (``delta.reasoning_content``) and
+    ``{"type": "token", "text": ...}`` for report content chunks. Token usage
+    (including reasoning_tokens) is captured from the terminal usage chunk
+    requested via ``stream_options={"include_usage": True}``.
+    """
+    cfg = get_llm_config()
+    report = _create_initial_report(profile, model=cfg.model)
 
     try:
         client = _get_client()
@@ -401,19 +410,36 @@ def generate_advice_stream(
 
 
         stream = client.chat.completions.create(
-            model=DEEPSEEK_MODEL,
+            model=cfg.model,
             messages=messages,
             max_tokens=DEEPSEEK_MAX_TOKENS,
             temperature=DEEPSEEK_TEMPERATURE,
             stream=True,
+            stream_options={"include_usage": True},
         )
 
         full_content = []
         for chunk in stream:
-            if chunk.choices and chunk.choices[0].delta.content:
-                text = chunk.choices[0].delta.content
-                full_content.append(text)
-                yield text
+            if chunk.choices:
+                delta = chunk.choices[0].delta
+                # Plain chat models have no reasoning_content at all.
+                reasoning = getattr(delta, "reasoning_content", None)
+                if reasoning:
+                    yield {"type": "reasoning", "text": reasoning}
+                text = getattr(delta, "content", None)
+                if text:
+                    full_content.append(text)
+                    yield {"type": "token", "text": text}
+            # The terminal usage chunk carries no choices; read it separately.
+            usage = getattr(chunk, "usage", None)
+            if usage:
+                report.prompt_tokens = getattr(usage, "prompt_tokens", None) or 0
+                report.completion_tokens = getattr(usage, "completion_tokens", None) or 0
+                report.total_tokens = getattr(usage, "total_tokens", None) or 0
+                details = getattr(usage, "completion_tokens_details", None)
+                report.reasoning_tokens = (
+                    getattr(details, "reasoning_tokens", None) or 0
+                )
 
         report.content = "".join(full_content)
         is_valid, err_msg = validate_report_content(report.content)
@@ -440,11 +466,22 @@ def generate_advice_stream(
 
 
 def stream_advice(profile: ClientProfile) -> tuple[Generator[str, None, None], list]:
-    """Streamlit streaming wrapper returning (generator, report_container)."""
+    """Streamlit streaming wrapper returning (generator, report_container).
+
+    Keeps the plain text-stream contract: only token event text is yielded;
+    reasoning events are dropped.
+    """
     report_container = []
 
     def _stream():
-        report = yield from generate_advice_stream(profile)
-        report_container.append(report)
+        gen = generate_advice_stream(profile)
+        while True:
+            try:
+                event = next(gen)
+            except StopIteration as stop:
+                report_container.append(stop.value)
+                return
+            if event["type"] == "token":
+                yield event["text"]
 
     return _stream(), report_container

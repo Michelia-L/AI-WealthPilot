@@ -91,6 +91,23 @@ def _fake_stream(monitoring, profile=None):
     )
 
 
+def _fake_reasoning_stream(monitoring, profile=None):
+    """Reasoning event, then token events, then a successful AdvisorReport."""
+    yield {"type": "reasoning", "text": "先核对各资产类别的越带情况。"}
+    yield {"type": "token", "text": "## 1. 漂移诊断 / Drift Diagnosis\n"}
+    yield {"type": "token", "text": "Rebalancing advice."}
+    return AdvisorReport(
+        content="full content",
+        model="deepseek-reasoner",
+        client_name=monitoring["client_name"],
+        success=True,
+        prompt_tokens=10,
+        completion_tokens=20,
+        total_tokens=30,
+        reasoning_tokens=9,
+    )
+
+
 @pytest.fixture
 def configured(monkeypatch):
     """Pretend DEEPSEEK_API_KEY is set; stub the LLM stream and the engine."""
@@ -125,7 +142,27 @@ def test_advice_emits_tokens_then_done(client, configured):
     assert done["prompt_tokens"] == 10
     assert done["completion_tokens"] == 20
     assert done["total_tokens"] == 30
+    assert done["reasoning_tokens"] == 0  # string-yielding fake: no reasoning
     assert done["error_message"] == ""
+
+
+def test_advice_emits_reasoning_then_tokens(client, configured, monkeypatch):
+    """Dict-protocol streams pass reasoning events straight through."""
+    monkeypatch.setattr(
+        "api.routers.monitoring.generate_rebalance_advice_stream",
+        _fake_reasoning_stream,
+    )
+    resp = client.post("/api/monitoring/advice", json={"document_id": DOC_ID})
+    assert resp.status_code == 200
+
+    events = _parse_sse(resp.text)
+    assert [e["type"] for e in events] == ["reasoning", "token", "token", "done"]
+    assert events[0]["text"] == "先核对各资产类别的越带情况。"
+    done = events[-1]
+    assert done["success"] is True
+    assert done["model"] == "deepseek-reasoner"
+    assert done["total_tokens"] == 30
+    assert done["reasoning_tokens"] == 9
 
 
 def test_advice_document_not_found(client, configured, monkeypatch):

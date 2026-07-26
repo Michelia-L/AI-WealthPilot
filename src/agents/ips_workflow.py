@@ -39,6 +39,7 @@ from src.agents.ips_agents import (
     load_ips_template,
     load_compliance_checklist,
 )
+from src.agents.llm_config import get_llm_config
 from src.portfolio.cme_engine import compute_cme, format_cme_for_prompt
 from src.portfolio.cme_models import CMEReport, SAAValidationResult
 
@@ -747,7 +748,7 @@ async def finalize_node(state: IPSWorkflowState) -> dict[str, Any]:
         total_rounds=state.revision_count,
         final_status=final_status,
         generation_metadata={
-            "model": "deepseek-v4-pro",
+            "model": get_llm_config().model,
             "completed_at": datetime.now().isoformat(),
             "total_revision_rounds": state.revision_count,
             **cme_metadata,

@@ -38,6 +38,16 @@ def isolate_storage_dirs(tmp_path, monkeypatch):
     # must not flip the whole suite onto the fixture-replay path.
     monkeypatch.setattr("src.config.DEMO_MODE", False)
 
+    # LLM settings (app_settings table, FR-002) live in the app SQLite and
+    # are read via a dynamically-resolved api.db.engine — point it at a
+    # throwaway tmp DB so a developer's real data/wealthpilot.db can never
+    # leak saved endpoint settings into the suite.
+    engine = create_engine(
+        f"sqlite:///{tmp_path}/unit.db", connect_args={"check_same_thread": False}
+    )
+    SQLModel.metadata.create_all(engine)
+    monkeypatch.setattr("api.db.engine", engine)
+
     return temp_profiles_dir, temp_reports_dir
 
 

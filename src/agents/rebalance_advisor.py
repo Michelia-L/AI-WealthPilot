@@ -5,7 +5,8 @@ Serializes the quantitative monitoring result (src.portfolio.monitoring)
 into a structured prompt and streams a bilingual rebalancing advisory
 report. Mirrors the structure and defenses of advisor.py: user-provided
 free text is wrapped in XML tags (prompt-injection hardening), and the
-streaming generator yields text chunks while returning an AdvisorReport.
+streaming generator yields reasoning/token event dicts while returning an
+AdvisorReport.
 """
 
 import json
@@ -15,10 +16,10 @@ from typing import Generator, Optional
 
 from src.config import (
     DEEPSEEK_MAX_TOKENS,
-    DEEPSEEK_MODEL,
     DEEPSEEK_TEMPERATURE,
 )
 from src.agents.advisor import AdvisorReport, _get_client, is_api_configured
+from src.agents.llm_config import get_llm_config
 from src.agents.profiler import ClientProfile
 
 logger = logging.getLogger(__name__)
@@ -221,11 +222,19 @@ def validate_rebalance_content(content: str) -> tuple[bool, str]:
 def generate_rebalance_advice_stream(
     monitoring: dict,
     profile: Optional[ClientProfile] = None,
-) -> Generator[str, None, AdvisorReport]:
-    """Generate a rebalancing advisory report with streaming output."""
+) -> Generator[dict, None, AdvisorReport]:
+    """Generate a rebalancing advisory report with streaming output.
+
+    Yields event dicts in arrival order: ``{"type": "reasoning", "text": ...}``
+    for reasoner-style thinking chunks (``delta.reasoning_content``) and
+    ``{"type": "token", "text": ...}`` for report content chunks. Token usage
+    (including reasoning_tokens) is captured from the terminal usage chunk
+    requested via ``stream_options={"include_usage": True}``.
+    """
+    cfg = get_llm_config()
     report = AdvisorReport(
         client_name=str(monitoring.get("client_name") or ""),
-        model=DEEPSEEK_MODEL,
+        model=cfg.model,
         generated_at=datetime.now().isoformat(),
     )
 
@@ -242,19 +251,36 @@ def generate_rebalance_advice_stream(
         )
 
         stream = client.chat.completions.create(
-            model=DEEPSEEK_MODEL,
+            model=cfg.model,
             messages=messages,
             max_tokens=DEEPSEEK_MAX_TOKENS,
             temperature=DEEPSEEK_TEMPERATURE,
             stream=True,
+            stream_options={"include_usage": True},
         )
 
         full_content = []
         for chunk in stream:
-            if chunk.choices and chunk.choices[0].delta.content:
-                text = chunk.choices[0].delta.content
-                full_content.append(text)
-                yield text
+            if chunk.choices:
+                delta = chunk.choices[0].delta
+                # Plain chat models have no reasoning_content at all.
+                reasoning = getattr(delta, "reasoning_content", None)
+                if reasoning:
+                    yield {"type": "reasoning", "text": reasoning}
+                text = getattr(delta, "content", None)
+                if text:
+                    full_content.append(text)
+                    yield {"type": "token", "text": text}
+            # The terminal usage chunk carries no choices; read it separately.
+            usage = getattr(chunk, "usage", None)
+            if usage:
+                report.prompt_tokens = getattr(usage, "prompt_tokens", None) or 0
+                report.completion_tokens = getattr(usage, "completion_tokens", None) or 0
+                report.total_tokens = getattr(usage, "total_tokens", None) or 0
+                details = getattr(usage, "completion_tokens_details", None)
+                report.reasoning_tokens = (
+                    getattr(details, "reasoning_tokens", None) or 0
+                )
 
         report.content = "".join(full_content)
         is_valid, err_msg = validate_rebalance_content(report.content)

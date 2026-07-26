@@ -81,15 +81,21 @@ def _estimated_tokens(text: str) -> int:
     return max(1, int(len(text) / 1.5))
 
 
-def demo_advice_stream(profile: ClientProfile) -> Generator[str, None, AdvisorReport]:
-    """Replay the recorded advisory report fixture as a token stream.
+def demo_advice_stream(profile: ClientProfile) -> Generator[dict, None, AdvisorReport]:
+    """Replay the recorded advisory report fixture as an event stream.
 
-    Mirrors ``advisor.generate_advice_stream``: yields text chunks and
-    returns the terminal AdvisorReport via StopIteration.value, so callers
-    consume it with ``yield from`` exactly like the real generator.
+    Mirrors ``advisor.generate_advice_stream``: yields reasoning events from
+    the shared thinking-preamble fixture first, then token events for the
+    report body, and returns the terminal AdvisorReport via
+    StopIteration.value, so callers consume it with ``yield from`` exactly
+    like the real generator.
     """
+    reasoning = _load_fixture_text("advisor_reasoning.txt", profile.name)
     content = _load_fixture_text("advisor_report.md", profile.name)
-    yield from _iter_chunks(content)
+    for chunk in _iter_chunks(reasoning):
+        yield {"type": "reasoning", "text": chunk}
+    for chunk in _iter_chunks(content):
+        yield {"type": "token", "text": chunk}
     completion_tokens = _estimated_tokens(content)
     prompt_tokens = _estimated_tokens(profile.summary()) + 900  # system prompt overhead
     return AdvisorReport(
@@ -99,6 +105,7 @@ def demo_advice_stream(profile: ClientProfile) -> Generator[str, None, AdvisorRe
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         total_tokens=prompt_tokens + completion_tokens,
+        reasoning_tokens=_estimated_tokens(reasoning),
         client_name=profile.name,
         success=True,
         error_message="",
@@ -107,17 +114,23 @@ def demo_advice_stream(profile: ClientProfile) -> Generator[str, None, AdvisorRe
 
 def demo_rebalance_stream(
     monitoring: dict, profile: Optional[ClientProfile] = None
-) -> Generator[str, None, AdvisorReport]:
-    """Replay the recorded rebalancing advice fixture as a token stream.
+) -> Generator[dict, None, AdvisorReport]:
+    """Replay the recorded rebalancing advice fixture as an event stream.
 
     Mirrors ``rebalance_advisor.generate_rebalance_advice_stream`` (same
-    AdvisorReport dataclass, imported there from src.agents.advisor).
+    AdvisorReport dataclass, imported there from src.agents.advisor):
+    reasoning events from the shared thinking-preamble fixture first, then
+    token events for the report body.
     """
     client_name = str(
         monitoring.get("client_name") or (profile.name if profile else "")
     )
+    reasoning = _load_fixture_text("advisor_reasoning.txt", client_name)
     content = _load_fixture_text("rebalance_advice.md", client_name)
-    yield from _iter_chunks(content)
+    for chunk in _iter_chunks(reasoning):
+        yield {"type": "reasoning", "text": chunk}
+    for chunk in _iter_chunks(content):
+        yield {"type": "token", "text": chunk}
     completion_tokens = _estimated_tokens(content)
     prompt_tokens = _estimated_tokens(
         json.dumps(monitoring, ensure_ascii=False, default=str)
@@ -129,6 +142,7 @@ def demo_rebalance_stream(
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         total_tokens=prompt_tokens + completion_tokens,
+        reasoning_tokens=_estimated_tokens(reasoning),
         client_name=client_name,
         success=True,
         error_message="",

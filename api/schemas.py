@@ -746,3 +746,46 @@ class PortfolioBacktestResponse(BaseModel):
     stress: list[BacktestStressResult] = Field(default_factory=list)
     fee: BacktestFeeInfo
     notes: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# LLM Settings (FR-002 — user-configurable OpenAI-compatible endpoint)
+# ---------------------------------------------------------------------------
+
+
+class LlmSettingsResponse(BaseModel):
+    """Effective LLM endpoint settings (DB overrides env); key is masked."""
+
+    configured: bool = Field(
+        description="Whether an API key is available from DB settings or env"
+    )
+    model: str = Field(description="Effective model name")
+    base_url: str = Field(description="Effective OpenAI-compatible base URL")
+    source: str = Field(
+        description="Where the effective API key comes from: db / env / none"
+    )
+    api_key_masked: str = Field(
+        description="Masked API key (e.g. sk-****1234); empty when unset"
+    )
+    demo: bool = Field(
+        description="Demo mode (DEMO_MODE=1) replays fixtures instead of LLM calls"
+    )
+
+
+class LlmSettingsUpdateRequest(BaseModel):
+    """Save a custom LLM endpoint; empty api_key reverts to env defaults."""
+
+    base_url: str = ""
+    api_key: str = ""
+    model: str = ""
+
+
+class LlmModelsFetchRequest(BaseModel):
+    """Probe an OpenAI-compatible endpoint for its available model list."""
+
+    base_url: str = Field(min_length=1)
+    api_key: str = Field(min_length=1)
+
+
+class LlmModelsResponse(BaseModel):
+    models: list[str] = Field(description="Sorted model ids from GET /models")

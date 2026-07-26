@@ -21,7 +21,7 @@ from api import db
 from api.db import ProfileRecord, init_db
 from api.migrate_profiles import maybe_auto_import
 from api.profile_convert import tolerance_level
-from api.routers import advisor, cme, ips, market, monitoring, portfolio, profiles, retirement
+from api.routers import advisor, cme, ips, market, monitoring, portfolio, profiles, retirement, settings
 from api.schemas import HealthResponse
 from api.tasks import reconcile_interrupted_tasks
 from src.agents.demo_mode import is_demo_mode
@@ -149,6 +149,7 @@ def create_app() -> FastAPI:
     app.include_router(profiles.router, prefix="/api")
     app.include_router(advisor.router, prefix="/api")
     app.include_router(ips.router, prefix="/api")
+    app.include_router(settings.router, prefix="/api")
 
     @app.get("/api/health", response_model=HealthResponse, tags=["meta"])
     def health() -> HealthResponse:

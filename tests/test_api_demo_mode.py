@@ -40,7 +40,7 @@ EXPECTED_NODES = [
 @pytest.fixture
 def no_api_key(monkeypatch):
     """Guarantee the 'no DeepSeek key' precondition regardless of local .env."""
-    monkeypatch.setattr("src.agents.advisor.DEEPSEEK_API_KEY", "")
+    monkeypatch.setattr("src.config.DEEPSEEK_API_KEY", "")
 
 
 @pytest.fixture
@@ -62,13 +62,33 @@ def _create_profile(client, **overrides) -> int:
 
 
 def _collect(gen):
-    """Drain a Generator[str, None, AdvisorReport]; return (text, report)."""
-    chunks = []
+    """Drain a Generator[dict, None, AdvisorReport]; return (token_text, report).
+
+    Only token event text is joined (reasoning events are dropped), so the
+    result compares directly against report.content. Plain-string chunks are
+    tolerated as token text.
+    """
+    texts = []
     try:
         while True:
-            chunks.append(next(gen))
+            event = next(gen)
+            if isinstance(event, dict):
+                if event.get("type") == "token":
+                    texts.append(event["text"])
+            else:
+                texts.append(event)
     except StopIteration as stop:
-        return "".join(chunks), stop.value
+        return "".join(texts), stop.value
+
+
+def _collect_events(gen):
+    """Drain a Generator[dict, None, AdvisorReport]; return (events, report)."""
+    events = []
+    try:
+        while True:
+            events.append(next(gen))
+    except StopIteration as stop:
+        return events, stop.value
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +137,20 @@ def test_advisor_stream_demo_replays_fixture(client, demo_on):
     tokens = [e for e in events if e["type"] == "token"]
     assert len(tokens) > 5  # real chunk stream, not a single blob
 
+    # Demo mode replays a reasoning phase before the first content token.
+    reasoning = [e for e in events if e["type"] == "reasoning"]
+    assert len(reasoning) >= 1
+    first_token_idx = next(i for i, e in enumerate(events) if e["type"] == "token")
+    assert all(
+        i < first_token_idx
+        for i, e in enumerate(events)
+        if e["type"] == "reasoning"
+    )
+    # Client-name placeholder is substituted in the reasoning preamble too.
+    reasoning_text = "".join(e["text"] for e in reasoning)
+    assert "John Doe" in reasoning_text
+    assert DEMO_CLIENT_NAME not in reasoning_text
+
     text = "".join(e["text"] for e in tokens)
     assert "客户概况" in text  # fixture section headings survive the stream
     assert "资产配置" in text
@@ -129,6 +163,7 @@ def test_advisor_stream_demo_replays_fixture(client, demo_on):
     assert done["success"] is True
     assert "demo" in done["model"]
     assert done["total_tokens"] > 0
+    assert done["reasoning_tokens"] > 0
     assert done["error_message"] == ""
 
 
@@ -223,6 +258,17 @@ def test_monitoring_advice_demo_replays_fixture(client, demo_on, monkeypatch):
     events = _parse_sse(resp.text)
     tokens = [e for e in events if e["type"] == "token"]
     assert len(tokens) > 5
+
+    # Demo mode replays a reasoning phase before the first content token.
+    reasoning = [e for e in events if e["type"] == "reasoning"]
+    assert len(reasoning) >= 1
+    first_token_idx = next(i for i, e in enumerate(events) if e["type"] == "token")
+    assert all(
+        i < first_token_idx
+        for i, e in enumerate(events)
+        if e["type"] == "reasoning"
+    )
+
     text = "".join(e["text"] for e in tokens)
     assert "漂移诊断" in text  # rebalance fixture content
     assert "调衡建议" in text
@@ -232,6 +278,7 @@ def test_monitoring_advice_demo_replays_fixture(client, demo_on, monkeypatch):
     assert done["success"] is True
     assert "demo" in done["model"]
     assert done["total_tokens"] > 0
+    assert done["reasoning_tokens"] > 0
 
 
 def test_monitoring_advice_demo_document_not_found(client, demo_on, monkeypatch):
@@ -314,6 +361,20 @@ def test_demo_advice_stream_generator_contract():
     assert report.content == text
     assert report.total_tokens == report.prompt_tokens + report.completion_tokens
     assert report.completion_tokens > 0
+    assert report.reasoning_tokens > 0
+
+
+def test_demo_advice_stream_emits_reasoning_before_tokens():
+    """The reasoning preamble streams as reasoning events ahead of tokens."""
+    profile = profile_from_data(_demo_profile_data())
+    events, report = _collect_events(demo_mode.demo_advice_stream(profile))
+    types = [e["type"] for e in events]
+    assert "reasoning" in types
+    assert types.index("reasoning") < types.index("token")
+    reasoning_text = "".join(e["text"] for e in events if e["type"] == "reasoning")
+    assert reasoning_text.strip()
+    # The demo profile is 林晓兰 herself, so the fixture name stays as-is.
+    assert DEMO_CLIENT_NAME in reasoning_text
 
 
 def test_demo_rebalance_stream_generator_contract():
@@ -323,6 +384,21 @@ def test_demo_rebalance_stream_generator_contract():
     assert report.client_name == "王小明"
     assert "王小明" in text  # placeholder substituted from monitoring dict
     assert DEMO_CLIENT_NAME not in text
+    assert report.reasoning_tokens > 0
+
+
+def test_demo_rebalance_stream_emits_reasoning_before_tokens():
+    """The shared reasoning fixture precedes the rebalance token replay."""
+    monitoring = {"client_name": "王小明"}
+    events, report = _collect_events(
+        demo_mode.demo_rebalance_stream(monitoring, None)
+    )
+    types = [e["type"] for e in events]
+    assert "reasoning" in types
+    assert types.index("reasoning") < types.index("token")
+    reasoning_text = "".join(e["text"] for e in events if e["type"] == "reasoning")
+    assert "王小明" in reasoning_text  # placeholder substituted here too
+    assert DEMO_CLIENT_NAME not in reasoning_text
 
 
 # ---------------------------------------------------------------------------

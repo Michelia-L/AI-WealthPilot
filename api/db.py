@@ -76,6 +76,16 @@ class TaskRecord(SQLModel, table=True):
     finished_at: Optional[str] = None
 
 
+class AppSettingRecord(SQLModel, table=True):
+    """One app-setting row: key-value store (LLM config, feature flags…)."""
+
+    __tablename__ = "app_settings"
+
+    key: str = Field(primary_key=True)
+    value: str = ""
+    updated_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+
 def init_db() -> None:
     """Create tables that don't exist yet (idempotent)."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
