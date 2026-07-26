@@ -151,12 +151,17 @@ def backtest_weights(req: PortfolioBacktestRequest) -> PortfolioBacktestResponse
         + hashlib.sha1(
             sorted(req.weights.items()).__repr__().encode("utf-8")
         ).hexdigest()[:12]
-        + f":{req.period}"
+        + f":{req.period}:{req.annual_fee_rate}"
     )
 
     def _compute() -> PortfolioBacktestResponse:
         try:
-            result = run_backtest(req.weights, req.period)
+            result = run_backtest(
+                req.weights,
+                req.period,
+                annual_fee_rate=req.annual_fee_rate,
+                fee_source="manual",
+            )
         except InsufficientDataError as e:
             raise HTTPException(status_code=502, detail=str(e))
         except ValueError as e:
@@ -178,6 +183,7 @@ def backtest_weights(req: PortfolioBacktestRequest) -> PortfolioBacktestResponse
                 plot_drawdown(drawdown["portfolio"], drawdown["benchmark"])
             ),
             stress=result["stress"],
+            fee=result["fee"],
             notes=result["notes"],
         )
 

@@ -380,19 +380,33 @@ def plot_backtest_equity(equity: pd.DataFrame, benchmark_name: str) -> go.Figure
 
     Args:
         equity: DataFrame indexed by date with 'portfolio' (required) and
-            'benchmark' (optional) NAV columns, both rebased to 1.0.
+            'benchmark' (optional) NAV columns, both rebased to 1.0. When a
+            'portfolio_gross' column is present (P18 fee drag), the main
+            line is labeled "Portfolio (net)" and the gross NAV is overlaid
+            as a faint same-color ghost line.
         benchmark_name: Legend label for the benchmark line.
     """
     fig = go.Figure()
 
+    has_gross = "portfolio_gross" in equity.columns
     fig.add_trace(go.Scatter(
         x=equity.index,
         y=equity["portfolio"],
         mode="lines",
-        name="Portfolio",
+        name="Portfolio (net)" if has_gross else "Portfolio",
         line=dict(width=3, color=COLORS["primary"]),
         connectgaps=True,
     ))
+    if has_gross:
+        fig.add_trace(go.Scatter(
+            x=equity.index,
+            y=equity["portfolio_gross"],
+            mode="lines",
+            name="Portfolio (gross)",
+            line=dict(width=1.5, color=COLORS["primary"], dash="dashdot"),
+            opacity=0.45,
+            connectgaps=True,
+        ))
     if "benchmark" in equity.columns:
         fig.add_trace(go.Scatter(
             x=equity.index,

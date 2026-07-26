@@ -110,6 +110,42 @@ _backtest_cache = TTLCache()
 BACKTEST_CACHE_TTL_SECONDS = 600  # NAV panels are stable intraday
 
 
+def _resolve_annual_fee_rate(fee_schedule: dict) -> tuple[float, list[str]]:
+    """
+    Extract the annual fee-drag rate from an IPS fee_schedule block (P18).
+
+    Prefers the all-in total_expense_ratio (positive values only); falls
+    back to management + custody + transaction-cost components when the TER
+    is missing or non-positive. Returns (rate, Chinese notes); a missing or
+    all-zero disclosure yields rate 0. Out-of-range rates are NOT clipped
+    here — run_backtest owns the [0, 10%] plausibility cap.
+    """
+    def _num(key: str) -> float:
+        try:
+            return float(fee_schedule.get(key) or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    if not fee_schedule:
+        return 0.0, ["IPS 未包含费用披露，回测未计费用拖累。"]
+
+    ter = _num("total_expense_ratio")
+    if ter > 0:
+        return ter, []
+
+    components = (
+        _num("management_fee_rate")
+        + _num("custody_fee_rate")
+        + _num("transaction_cost_estimate")
+    )
+    if components > 0:
+        return components, [
+            f"IPS 费用披露缺少 total_expense_ratio，按管理费+托管费+交易成本"
+            f"合计 {components:.2%} 计入费用拖累。"
+        ]
+    return 0.0, ["IPS 未包含费用披露，回测未计费用拖累。"]
+
+
 @router.get(
     "/{document_id}/backtest",
     response_model=BacktestResponse,
@@ -132,8 +168,14 @@ def get_backtest(document_id: str, period: str = "5y") -> BacktestResponse:
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
 
+        fee_rate, fee_notes = _resolve_annual_fee_rate(saa["fee_schedule"])
         try:
-            result = run_backtest(saa["weights"], period)
+            result = run_backtest(
+                saa["weights"],
+                period,
+                annual_fee_rate=fee_rate,
+                fee_source="ips_fee_schedule",
+            )
         except InsufficientDataError as e:
             raise HTTPException(status_code=502, detail=str(e))
         except ValueError as e:
@@ -156,7 +198,8 @@ def get_backtest(document_id: str, period: str = "5y") -> BacktestResponse:
                 plot_drawdown(drawdown["portfolio"], drawdown["benchmark"])
             ),
             stress=result["stress"],
-            notes=saa["notes"] + result["notes"],
+            fee=result["fee"],
+            notes=saa["notes"] + fee_notes + result["notes"],
         )
 
     return _backtest_cache.get_or_set(

@@ -173,6 +173,8 @@ def resolve_saa_weights(document_id: str) -> dict:
             weights: {ticker: normalized target weight} (mapped holdings only)
             names: {ticker: SAA asset class display name}
             notes: list[str] — Chinese parsing caveats
+            fee_schedule: dict — the IPS fee disclosure block (P18), {}
+                when the document does not carry one
 
     Raises:
         KeyError: If the IPS document does not exist.
@@ -223,6 +225,7 @@ def resolve_saa_weights(document_id: str) -> dict:
         "weights": weights,
         "names": names,
         "notes": notes,
+        "fee_schedule": ips.get("fee_schedule") or {},
     }
 
 

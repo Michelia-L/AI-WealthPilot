@@ -15,6 +15,11 @@ Historical simulation for a target-weight portfolio:
     5. Compound calendar-year returns
     6. Run fixed historical stress windows (2020 COVID crash, 2022 rate
        shock, 2008 GFC) as buy-and-hold over each window
+    7. Optionally drag the portfolio NAV by an all-in annual fee rate
+       (P18): net_nav = gross_nav * (1 - fee) ** (t / 252). Portfolio
+       metrics, yearly returns and the drawdown curve switch to the
+       net-of-fee NAV; the benchmark always stays gross (index
+       convention) and stress windows are fee-free buy-and-hold.
 
 This module is pure computation. The FastAPI layer
 (api/routers/monitoring.py) translates ValueError into 422 and
@@ -42,6 +47,10 @@ MIN_OBSERVATIONS = 60
 
 TRADING_DAYS_PER_YEAR = 252
 
+# Plausibility cap for the all-in annual fee drag (P18); rates outside
+# [0, MAX_ANNUAL_FEE_RATE] are clipped with a Chinese note.
+MAX_ANNUAL_FEE_RATE = 0.10
+
 # Default benchmark: classic 60/40 stock/bond mix.
 DEFAULT_BENCHMARK: dict[str, float] = {"SPY": 0.6, "AGG": 0.4}
 
@@ -64,6 +73,8 @@ def run_backtest(
     period: str,
     benchmark_weights: Optional[dict[str, float]] = None,
     risk_free_rate: Optional[float] = None,
+    annual_fee_rate: float = 0.0,
+    fee_source: str = "manual",
 ) -> dict:
     """
     Backtest a target-weight portfolio against a benchmark.
@@ -75,11 +86,19 @@ def run_backtest(
         benchmark_weights: {ticker: weight}; defaults to 60% SPY / 40% AGG.
         risk_free_rate: Annualized decimal; None cascades FRED -> yfinance
             -> static fallback via fetch_risk_free_rate().
+        annual_fee_rate: All-in annual fee drag as a decimal (0.012 = 1.2%).
+            Clipped to [0, MAX_ANNUAL_FEE_RATE]; applied to the portfolio
+            NAV as a daily drag of (1 - fee) ** (1/252). The benchmark is
+            always reported gross (index convention).
+        fee_source: Provenance label echoed back in the "fee" block (e.g.
+            "manual", "ips_fee_schedule"); reported as "none" when the
+            cleaned rate is 0.
 
     Returns:
         Dict matching the BacktestResponse contract, plus two private keys
         (``_equity`` / ``_drawdown``) holding the raw pandas frames the API
-        layer turns into Plotly charts.
+        layer turns into Plotly charts. ``_equity`` gains a third column
+        ``portfolio_gross`` when a fee drag is applied.
 
     Raises:
         ValueError: Invalid period or degenerate weight maps.
@@ -96,6 +115,15 @@ def run_backtest(
         benchmark_weights if benchmark_weights is not None else DEFAULT_BENCHMARK,
         "基准",
     )
+
+    fee = float(annual_fee_rate)
+    if fee < 0.0 or fee > MAX_ANNUAL_FEE_RATE:
+        clipped = min(max(fee, 0.0), MAX_ANNUAL_FEE_RATE)
+        notes.append(
+            f"年化费用率 {fee:.2%} 超出 0–{MAX_ANNUAL_FEE_RATE:.0%} 的合理区间，"
+            f"已按 {clipped:.2%} 截断。"
+        )
+        fee = clipped
 
     rf = risk_free_rate if risk_free_rate is not None else fetch_risk_free_rate()
 
@@ -130,8 +158,41 @@ def run_backtest(
     if len(aligned) < 2:
         raise InsufficientDataError("对齐后的行情窗口过短，无法执行回测。")
 
-    port_nav = _simulate_nav(aligned, port)
+    port_nav_gross = _simulate_nav(aligned, port)
     bench_nav = _simulate_nav(aligned, bench)
+
+    # P18 fee drag: rebalancing logic is untouched — the gross NAV is simply
+    # scaled by a daily-compounded fee factor indexed by trading day.
+    if fee > 0.0:
+        drag = (1.0 - fee) ** (np.arange(len(aligned)) / TRADING_DAYS_PER_YEAR)
+        port_nav = pd.Series(
+            port_nav_gross.to_numpy(dtype=float) * drag,
+            index=port_nav_gross.index,
+        )
+    else:
+        port_nav = port_nav_gross
+
+    stress = _run_stress_scenarios(aligned, port, bench, notes)
+
+    if fee > 0.0:
+        source_label = {"ips_fee_schedule": "IPS 披露 TER", "manual": "手动费率"}.get(
+            fee_source, fee_source
+        )
+        notes.append(
+            f"已按年化费用率 {fee:.2%}（{source_label}）计入每日费用拖累"
+            f"（按 {TRADING_DAYS_PER_YEAR} 个交易日折算），组合指标为费后口径；"
+            "基准为指数口径未计费。"
+        )
+        notes.append("压力测试为短窗口买入持有情景，未计费用拖累。")
+    else:
+        notes.append("未计入费用拖累（费率为 0 或未披露），实际净值将低于回测值。")
+
+    gross_total_return = float(port_nav_gross.iloc[-1] / port_nav_gross.iloc[0] - 1.0)
+    net_total_return = float(port_nav.iloc[-1] / port_nav.iloc[0] - 1.0)
+
+    equity = pd.DataFrame({"portfolio": port_nav, "benchmark": bench_nav})
+    if fee > 0.0:
+        equity["portfolio_gross"] = port_nav_gross
 
     benchmark_name = " / ".join(f"{w:.0%} {t}" for t, w in bench.items())
 
@@ -145,10 +206,17 @@ def run_backtest(
             "metrics": _compute_metrics(bench_nav, rf),
         },
         "yearly": _yearly_returns(port_nav, bench_nav),
-        "stress": _run_stress_scenarios(aligned, port, bench, notes),
+        "stress": stress,
+        "fee": {
+            "annual_rate": fee,
+            "source": fee_source if fee > 0.0 else "none",
+            "gross_total_return": gross_total_return,
+            "net_total_return": net_total_return,
+            "cumulative_impact_pp": gross_total_return - net_total_return,
+        },
         "notes": notes,
         # Raw frames for the API layer to chart (popped before responding).
-        "_equity": pd.DataFrame({"portfolio": port_nav, "benchmark": bench_nav}),
+        "_equity": equity,
         "_drawdown": pd.DataFrame(
             {"portfolio": _drawdown_series(port_nav),
              "benchmark": _drawdown_series(bench_nav)}

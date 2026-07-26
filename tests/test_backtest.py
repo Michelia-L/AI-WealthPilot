@@ -221,3 +221,109 @@ def test_stress_window_buy_and_hold_values(monkeypatch):
     # The 2022 and 2008 windows are beyond the data range.
     assert any("2022" in n for n in result["notes"])
     assert any("2008" in n for n in result["notes"])
+
+
+# ---------------------------------------------------------------------------
+# Fee drag (P18)
+# ---------------------------------------------------------------------------
+
+
+def test_fee_drag_math_exact(monkeypatch):
+    """net NAV = gross NAV * (1-fee)^(t/252); every portfolio output goes net."""
+    n = 300
+    prices = (100.0 * (1.0005 ** np.arange(n))).tolist()
+    df = _frame({"AAA": prices}, "2024-01-01")
+    _stub(monkeypatch, df)
+    fee = 0.02
+
+    gross = run_backtest({"AAA": 1.0}, "1y", benchmark_weights={"AAA": 1.0})
+    result = run_backtest(
+        {"AAA": 1.0}, "1y", benchmark_weights={"AAA": 1.0},
+        annual_fee_rate=fee, fee_source="manual",
+    )
+
+    gross_tr = gross["metrics"]["total_return"]
+    expected_net_tr = (1.0 + gross_tr) * (1.0 - fee) ** ((n - 1) / 252) - 1.0
+    info = result["fee"]
+    assert info["annual_rate"] == fee
+    assert info["source"] == "manual"
+    assert info["gross_total_return"] == pytest.approx(gross_tr)
+    assert info["net_total_return"] == pytest.approx(expected_net_tr)
+    assert info["cumulative_impact_pp"] == pytest.approx(gross_tr - expected_net_tr)
+
+    # Positive drift: the fee drag makes net strictly worse than gross.
+    assert gross_tr > 0
+    assert info["net_total_return"] < info["gross_total_return"]
+
+    # Metrics, yearly compounding and the drawdown curve are all net-of-fee.
+    assert result["metrics"]["total_return"] == pytest.approx(expected_net_tr)
+    yearly_compound = float(
+        np.prod([1.0 + y["portfolio"] for y in result["yearly"]]) - 1.0
+    )
+    assert yearly_compound == pytest.approx(expected_net_tr)
+    nav = result["_equity"]["portfolio"]
+    dd = result["_drawdown"]["portfolio"]
+    assert dd.min() == pytest.approx(float((nav / nav.cummax() - 1.0).min()))
+
+    # The ghost column mirrors the no-fee NAV; the benchmark stays gross.
+    assert result["_equity"]["portfolio_gross"].iloc[-1] == pytest.approx(
+        gross["_equity"]["portfolio"].iloc[-1]
+    )
+    assert result["_equity"]["benchmark"].iloc[-1] == pytest.approx(
+        gross["_equity"]["benchmark"].iloc[-1]
+    )
+
+
+def test_fee_default_zero_matches_legacy(monkeypatch):
+    """fee=0 keeps the gross path: source 'none', no ghost column, caveat note."""
+    prices = (100.0 * (1.001 ** np.arange(80))).tolist()
+    df = _frame({"AAA": prices}, "2024-01-01")
+    _stub(monkeypatch, df)
+
+    result = run_backtest({"AAA": 1.0}, "1y", benchmark_weights={"AAA": 1.0})
+    info = result["fee"]
+    assert info["annual_rate"] == 0.0
+    assert info["source"] == "none"
+    assert info["gross_total_return"] == info["net_total_return"]
+    assert info["net_total_return"] == result["metrics"]["total_return"]
+    assert info["cumulative_impact_pp"] == 0.0
+    assert "portfolio_gross" not in result["_equity"].columns
+    assert any("未计入费用拖累" in n for n in result["notes"])
+
+
+def test_fee_rate_out_of_range_clipped(monkeypatch):
+    """Rates outside [0, 10%] are clipped with a Chinese note."""
+    prices = (100.0 * (1.001 ** np.arange(80))).tolist()
+    df = _frame({"AAA": prices}, "2024-01-01")
+    _stub(monkeypatch, df)
+
+    high = run_backtest(
+        {"AAA": 1.0}, "1y", benchmark_weights={"AAA": 1.0}, annual_fee_rate=0.5
+    )
+    assert high["fee"]["annual_rate"] == 0.10
+    assert high["fee"]["source"] == "manual"
+    assert any("截断" in n for n in high["notes"])
+
+    low = run_backtest(
+        {"AAA": 1.0}, "1y", benchmark_weights={"AAA": 1.0}, annual_fee_rate=-0.01
+    )
+    assert low["fee"]["annual_rate"] == 0.0
+    assert low["fee"]["source"] == "none"
+    assert any("截断" in n for n in low["notes"])
+
+
+def test_fee_notes_disclose_net_basis(monkeypatch):
+    """fee>0 notes: net-of-fee metrics basis + stress windows are fee-free."""
+    prices = (100.0 * (1.001 ** np.arange(80))).tolist()
+    df = _frame({"AAA": prices}, "2024-01-01")
+    _stub(monkeypatch, df)
+
+    result = run_backtest(
+        {"AAA": 1.0}, "1y", benchmark_weights={"AAA": 1.0},
+        annual_fee_rate=0.012, fee_source="ips_fee_schedule",
+    )
+    assert any(
+        "1.20%" in n and "IPS 披露 TER" in n and "费后" in n
+        for n in result["notes"]
+    )
+    assert any("压力测试" in n and "未计费用" in n for n in result["notes"])

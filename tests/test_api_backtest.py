@@ -18,14 +18,17 @@ import pytest
 # ---------------------------------------------------------------------------
 
 
-def _write_ips_doc(ips_dir, doc_id, saa, client_name="回测客户"):
+def _write_ips_doc(ips_dir, doc_id, saa, client_name="回测客户", fee_schedule=None):
     """Write a minimal IPS record (with SAA) into the tmp document store."""
+    ips = {
+        "client_name": client_name,
+        "version": "1.0",
+        "investment_guidelines": {"strategic_allocation": saa},
+    }
+    if fee_schedule is not None:
+        ips["fee_schedule"] = fee_schedule
     record = {
-        "ips": {
-            "client_name": client_name,
-            "version": "1.0",
-            "investment_guidelines": {"strategic_allocation": saa},
-        },
+        "ips": ips,
         "audit_trail": {"final_status": "approved", "total_rounds": 0},
         "metadata": {"client_name": client_name, "saved_at": "2026-06-01T09:30:00"},
     }
@@ -177,3 +180,109 @@ def test_backtest_insufficient_data_502(client, ips_dir, monkeypatch):
     resp = client.get(f"/api/monitoring/{doc_id}/backtest")
     assert resp.status_code == 502
     assert "无法执行回测" in resp.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# Fee drag from the IPS fee_schedule (P18)
+# ---------------------------------------------------------------------------
+
+
+def _saa_two_way():
+    return [
+        _saa_entry("国内权益（A股/沪深300）", 0.6, 0.5, 0.7),
+        _saa_entry("固定收益", 0.4, 0.3, 0.5),
+    ]
+
+
+def test_backtest_fee_from_total_expense_ratio(client, ips_dir, monkeypatch):
+    """A positive TER drives the fee drag; components are ignored."""
+    _stub_market(monkeypatch)
+    doc_id = _write_ips_doc(
+        ips_dir, "ips_bt_fee_ter_20260601_093000", _saa_two_way(),
+        fee_schedule={
+            "management_fee_rate": 0.008,
+            "custody_fee_rate": 0.001,
+            "transaction_cost_estimate": 0.003,
+            "total_expense_ratio": 0.015,
+        },
+    )
+
+    resp = client.get(f"/api/monitoring/{doc_id}/backtest?period=5y")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    fee = body["fee"]
+    assert fee["annual_rate"] == pytest.approx(0.015)
+    assert fee["source"] == "ips_fee_schedule"
+    assert fee["gross_total_return"] > fee["net_total_return"]
+    assert fee["cumulative_impact_pp"] == pytest.approx(
+        fee["gross_total_return"] - fee["net_total_return"]
+    )
+    # Portfolio metrics are net of fees.
+    assert body["metrics"]["total_return"] == pytest.approx(fee["net_total_return"])
+
+    # Net line + gross ghost + benchmark.
+    traces = body["equity_chart"]["data"]
+    assert len(traces) == 3
+    names = [t["name"] for t in traces]
+    assert "Portfolio (net)" in names
+    assert "Portfolio (gross)" in names
+
+    assert any("费后" in n and "1.50%" in n for n in body["notes"])
+    assert any("压力测试" in n and "未计费用" in n for n in body["notes"])
+
+
+def test_backtest_fee_components_fallback(client, ips_dir, monkeypatch):
+    """No TER: management + custody + transaction components are summed."""
+    _stub_market(monkeypatch)
+    doc_id = _write_ips_doc(
+        ips_dir, "ips_bt_fee_comp_20260601_093000", _saa_two_way(),
+        fee_schedule={
+            "management_fee_rate": 0.008,
+            "custody_fee_rate": 0.001,
+            "transaction_cost_estimate": 0.003,
+        },
+    )
+
+    resp = client.get(f"/api/monitoring/{doc_id}/backtest")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["fee"]["annual_rate"] == pytest.approx(0.008 + 0.001 + 0.003)
+    assert body["fee"]["source"] == "ips_fee_schedule"
+    assert any(
+        "缺少 total_expense_ratio" in n and "1.20%" in n for n in body["notes"]
+    )
+
+
+def test_backtest_fee_missing_schedule(client, ips_dir, monkeypatch):
+    """No fee_schedule at all: rate 0, source 'none', disclosure notes."""
+    _stub_market(monkeypatch)
+    doc_id = _write_ips_doc(
+        ips_dir, "ips_bt_fee_none_20260601_093000", _saa_two_way()
+    )
+
+    resp = client.get(f"/api/monitoring/{doc_id}/backtest")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["fee"]["annual_rate"] == 0.0
+    assert body["fee"]["source"] == "none"
+    assert body["fee"]["gross_total_return"] == body["fee"]["net_total_return"]
+    assert any("IPS 未包含费用披露" in n for n in body["notes"])
+    assert any("未计入费用拖累" in n for n in body["notes"])
+    assert len(body["equity_chart"]["data"]) == 2
+
+
+def test_backtest_fee_outlier_ter_clipped(client, ips_dir, monkeypatch):
+    """An out-of-range TER (50%) is clipped to the 10% cap with a note."""
+    _stub_market(monkeypatch)
+    doc_id = _write_ips_doc(
+        ips_dir, "ips_bt_fee_clip_20260601_093000", _saa_two_way(),
+        fee_schedule={"total_expense_ratio": 0.5},
+    )
+
+    resp = client.get(f"/api/monitoring/{doc_id}/backtest")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["fee"]["annual_rate"] == 0.10
+    assert body["fee"]["source"] == "ips_fee_schedule"
+    assert any("截断" in n for n in body["notes"])

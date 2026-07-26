@@ -659,6 +659,24 @@ class BacktestStressResult(BaseModel):
     benchmark_return: float
 
 
+class BacktestFeeInfo(BaseModel):
+    """Fee-drag disclosure for a backtest (P18): gross vs net of fees."""
+
+    annual_rate: float = Field(
+        description="Annual fee rate actually applied (clipped to [0, 0.10])"
+    )
+    source: str = Field(
+        description="Fee provenance (manual / ips_fee_schedule); 'none' when the rate is 0"
+    )
+    gross_total_return: float = Field(description="Portfolio total return before fees")
+    net_total_return: float = Field(
+        description="Portfolio total return after the daily fee drag"
+    )
+    cumulative_impact_pp: float = Field(
+        description="gross - net total return (NAV base 1.0)"
+    )
+
+
 class BacktestResponse(BaseModel):
     document_id: str
     client_name: str
@@ -673,6 +691,7 @@ class BacktestResponse(BaseModel):
     equity_chart: dict[str, Any] = Field(description="Plotly figure JSON")
     drawdown_chart: dict[str, Any] = Field(description="Plotly figure JSON")
     stress: list[BacktestStressResult] = Field(default_factory=list)
+    fee: BacktestFeeInfo
     notes: list[str] = Field(default_factory=list)
 
 
@@ -697,6 +716,12 @@ class PortfolioBacktestRequest(BaseModel):
         description="ticker -> target weight (renormalized defensively)"
     )
     period: str = Field(default="5y", description="1y / 3y / 5y / 10y")
+    annual_fee_rate: float = Field(
+        default=0.0,
+        ge=0,
+        le=0.10,
+        description="All-in annual fee drag as a decimal (0 = no fee)",
+    )
 
 
 class PortfolioBacktestResponse(BaseModel):
@@ -711,4 +736,5 @@ class PortfolioBacktestResponse(BaseModel):
     equity_chart: dict[str, Any] = Field(description="Plotly figure JSON")
     drawdown_chart: dict[str, Any] = Field(description="Plotly figure JSON")
     stress: list[BacktestStressResult] = Field(default_factory=list)
+    fee: BacktestFeeInfo
     notes: list[str] = Field(default_factory=list)
