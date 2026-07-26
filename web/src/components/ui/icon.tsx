@@ -36,7 +36,9 @@ export type IconName =
   | "briefcase"
   | "sliders"
   | "eye"
-  | "dot";
+  | "dot"
+  | "trendUp"
+  | "trendDown";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   gauge: (
@@ -201,6 +203,18 @@ const PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   dot: <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />,
+  trendUp: (
+    <>
+      <path d="M21.5 7.5l-8 8-4.5-4.5L2.5 17.5" />
+      <path d="M15.5 7.5h6v6" />
+    </>
+  ),
+  trendDown: (
+    <>
+      <path d="M21.5 16.5l-8-8-4.5 4.5L2.5 6.5" />
+      <path d="M15.5 16.5h6v-6" />
+    </>
+  ),
 };
 
 interface IconProps {

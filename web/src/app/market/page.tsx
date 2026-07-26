@@ -17,9 +17,9 @@ function SectionSkeleton({ rows = 4 }: { rows?: number }) {
   return (
     <div className="space-y-3">
       <Skeleton className="h-6 w-48" />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6">
         {Array.from({ length: rows }).map((_, i) => (
-          <Skeleton key={i} className="h-24 rounded-xl" />
+          <Skeleton key={i} className="h-40 rounded-xl" />
         ))}
       </div>
     </div>
@@ -68,7 +68,7 @@ export default async function MarketPage({ searchParams }: PageProps) {
   const universe = await getUniverse();
   if (!universe) {
     return (
-      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-8 px-6 py-10">
         <SectionHeader eyebrow="Market Dashboard" title="市场仪表盘" />
         <ApiOffline resource="资产宇宙元数据" />
       </div>
@@ -90,7 +90,7 @@ export default async function MarketPage({ searchParams }: PageProps) {
     .map(([ticker]) => ticker);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-6 py-10">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-10 px-6 py-10">
       <SectionHeader
         eyebrow="Global Markets Pulse"
         title="市场仪表盘"

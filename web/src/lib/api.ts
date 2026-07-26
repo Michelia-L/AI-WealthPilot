@@ -34,6 +34,8 @@ export interface Quote {
   currency: string;
   symbol: string;
   color: string;
+  /** ~1 个月日收盘价（卡片迷你走势线）；取数失败时为空数组。 */
+  spark: number[];
 }
 
 export interface QuotesResponse {
