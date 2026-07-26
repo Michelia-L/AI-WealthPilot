@@ -341,6 +341,8 @@ AI-WealthPilot/
    # Get your key at: https://platform.deepseek.com
    # Optional: add TUSHARE_TOKEN to serve mapped CN indices from Tushare Pro
    # (falls back to akshare/yfinance when unset).
+   # No DeepSeek key? Set DEMO_MODE=1 to replay recorded sample outputs
+   # (advisor report, IPS workflow, rebalancing advice) so every page works.
    ```
 
 3. **Launch the Full Stack**
