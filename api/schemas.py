@@ -580,6 +580,46 @@ class RebalanceAdviceRequest(BaseModel):
     )
 
 
+# Fleet-wide band-status aggregation (P17 — overview alert lamp)
+
+
+class MonitoringFleetItem(BaseModel):
+    """Band-status row for one stored IPS document."""
+
+    document_id: str
+    client_name: str
+    saved_at: str
+    status: Literal["ok", "breach", "unknown"]
+    out_of_band: int = Field(
+        description="Number of holdings above/below their policy band"
+    )
+    max_abs_drift_pp: Optional[float] = Field(
+        default=None,
+        description="Largest |drift_pp| among holdings with known drift",
+    )
+    note: Optional[str] = Field(
+        default=None, description="Chinese reason when status is 'unknown'"
+    )
+
+
+class MonitoringFleetSummary(BaseModel):
+    total: int
+    breach: int
+    ok: int
+    unknown: int
+
+
+class MonitoringFleetResponse(BaseModel):
+    as_of: str = Field(description="ISO date the check ran")
+    price_as_of: Optional[str] = Field(
+        default=None, description="Latest trading day in the shared price frame"
+    )
+    items: list[MonitoringFleetItem] = Field(
+        default_factory=list, description="Sorted by saved_at descending"
+    )
+    summary: MonitoringFleetSummary
+
+
 # ---------------------------------------------------------------------------
 # Portfolio backtesting & stress testing (P13 — src/portfolio/backtest.py)
 # ---------------------------------------------------------------------------

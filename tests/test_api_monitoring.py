@@ -4,14 +4,19 @@ API tests for portfolio monitoring & rebalancing (P10).
 The CME engine and market data layer are stubbed via monkeypatch — tests
 cover the monitoring math (weight normalization, drift, bands, rebalance
 trades) and the HTTP contract (200 / 404 / 422), not live data sources.
+
+The P17 section covers the fleet-wide band-status aggregation behind
+GET /monitoring/status (one shared price fetch, per-document degrade,
+daily TTL cache).
 """
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 
 import pandas as pd
 import pytest
 
+from api.routers import monitoring as monitoring_router
 from src.portfolio.cme_models import AssetClassCME, CMEReport
 
 SAVED_AT = "2026-06-01T09:30:00"
@@ -364,3 +369,203 @@ def test_unknown_asset_class(client, ips_dir, stub_cme, monkeypatch):
     assert body["drifted_portfolio"]["expected_return"] is None
     # Target portfolio still computed over the CME-mapped holding
     assert body["portfolio"]["expected_return"] is not None
+
+
+# ---------------------------------------------------------------------------
+# P17 — fleet-wide band status (GET /monitoring/status)
+# ---------------------------------------------------------------------------
+
+# 10 business days 2026-06-01 .. 2026-06-12; equity +80% over the full
+# window, bonds -10%.
+FLEET_PRICES = _prices({
+    "000300.SS": [100.0, 110.0, 120.0, 130.0, 140.0,
+                  150.0, 160.0, 170.0, 175.0, 180.0],
+    "AGG": [100.0, 99.0, 98.0, 97.0, 96.0,
+            95.0, 94.0, 93.0, 92.0, 90.0],
+})
+
+FLAT_PRICES = _prices({
+    "000300.SS": [100.0] * 10,
+    "AGG": [100.0] * 10,
+})
+
+
+def _counting_fetch(df, counter):
+    """Price stub that records how often the shared fetch ran."""
+    def fetch(tickers=None, period="5y", interval="1d",
+              base_currency=None, adjust_currency=True):
+        counter["calls"] += 1
+        return df
+    return fetch
+
+
+@pytest.fixture(autouse=True)
+def _reset_fleet_status_cache():
+    """The module-level fleet TTLCache must not leak results across tests."""
+    key = f"fleet-status:{date.today().isoformat()}"
+    monitoring_router._fleet_status_cache.invalidate(key)
+    yield
+    monitoring_router._fleet_status_cache.invalidate(key)
+
+
+def test_fleet_status_full_chain(client, ips_dir, monkeypatch):
+    """One breach doc + one ok doc; single shared fetch; saved_at desc."""
+    counter = {"calls": 0}
+    monkeypatch.setattr(
+        "src.portfolio.monitoring.fetch_price_history",
+        _counting_fetch(FLEET_PRICES, counter),
+    )
+    # Filename sorts after the ok doc, so a filename ordering would put the
+    # breach doc first — asserting the ok doc leads proves the saved_at sort.
+    _write_ips_doc(ips_dir, "ips_fleet_zbreach_20260601_093000", [
+        _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
+        _saa_entry("固定收益", 0.5, 0.4, 0.6),
+    ], saved_at="2026-06-01T09:30:00", client_name="越带客户")
+    _write_ips_doc(ips_dir, "ips_fleet_ok_20260610_093000", [
+        _saa_entry("国内权益（A股/沪深300）", 0.5, 0.3, 0.8),
+        _saa_entry("固定收益", 0.5, 0.2, 0.7),
+    ], saved_at="2026-06-10T09:30:00", client_name="正常客户")
+
+    resp = client.get("/api/monitoring/status")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["as_of"] == datetime.now().date().isoformat()
+    assert body["price_as_of"] == "2026-06-12"
+    assert body["summary"] == {"total": 2, "breach": 1, "ok": 1, "unknown": 0}
+    # One shared fetch for the union of tickers, not one per document
+    assert counter["calls"] == 1
+
+    ok_item, breach_item = body["items"]  # saved_at descending
+
+    assert ok_item["document_id"] == "ips_fleet_ok_20260610_093000"
+    assert ok_item["client_name"] == "正常客户"
+    assert ok_item["saved_at"] == "2026-06-10T09:30:00"
+    assert ok_item["status"] == "ok"
+    assert ok_item["out_of_band"] == 0
+    # Window 06-10 -> 06-12: equity 170->180, AGG 93->90
+    # drifted domestic = .5*(180/170) / (.5*(180/170) + .5*(90/93)) = 93/178
+    assert ok_item["max_abs_drift_pp"] == pytest.approx(93 / 178 - 0.5)
+    assert ok_item["note"] is None
+
+    assert breach_item["document_id"] == "ips_fleet_zbreach_20260601_093000"
+    assert breach_item["status"] == "breach"
+    assert breach_item["out_of_band"] == 2  # equity above, bonds below
+    assert breach_item["max_abs_drift_pp"] == pytest.approx(0.9 / 1.35 - 0.5)
+    assert breach_item["note"] is None
+
+
+def test_fleet_status_no_saa_degrades(client, ips_dir, monkeypatch):
+    """A doc without SAA turns unknown + note; the other doc is unaffected."""
+    monkeypatch.setattr(
+        "src.portfolio.monitoring.fetch_price_history",
+        _stub_fetch(FLAT_PRICES),
+    )
+    _write_ips_doc(ips_dir, "ips_fleet_nosaa_20260601_093000", [],
+                   saved_at="2026-06-01T09:30:00")
+    _write_ips_doc(ips_dir, "ips_fleet_flat_20260601_093000", [
+        _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
+        _saa_entry("固定收益", 0.5, 0.4, 0.6),
+    ], saved_at="2026-06-01T09:30:00")
+
+    resp = client.get("/api/monitoring/status")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["summary"] == {"total": 2, "breach": 0, "ok": 1, "unknown": 1}
+    items = {i["document_id"]: i for i in body["items"]}
+
+    nosaa = items["ips_fleet_nosaa_20260601_093000"]
+    assert nosaa["status"] == "unknown"
+    assert nosaa["out_of_band"] == 0
+    assert nosaa["max_abs_drift_pp"] is None
+    assert "战略性资产配置" in nosaa["note"]
+
+    flat = items["ips_fleet_flat_20260601_093000"]
+    assert flat["status"] == "ok"
+    assert flat["max_abs_drift_pp"] == pytest.approx(0.0)
+    assert flat["note"] is None
+
+
+def test_fleet_status_unparsable_doc_degrades(client, ips_dir, monkeypatch):
+    """A doc whose SAA weights cannot parse degrades alone (no 5xx)."""
+    monkeypatch.setattr(
+        "src.portfolio.monitoring.fetch_price_history",
+        _stub_fetch(FLAT_PRICES),
+    )
+    bad = _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6)
+    bad["target_weight"] = "not-a-number"
+    _write_ips_doc(ips_dir, "ips_fleet_broken_20260601_093000", [bad],
+                   saved_at="2026-06-01T09:30:00")
+    _write_ips_doc(ips_dir, "ips_fleet_flat_20260601_093000", [
+        _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
+        _saa_entry("固定收益", 0.5, 0.4, 0.6),
+    ], saved_at="2026-06-01T09:30:00")
+
+    resp = client.get("/api/monitoring/status")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["summary"] == {"total": 2, "breach": 0, "ok": 1, "unknown": 1}
+    broken = next(
+        i for i in body["items"]
+        if i["document_id"] == "ips_fleet_broken_20260601_093000"
+    )
+    assert broken["status"] == "unknown"
+    assert "解析失败" in broken["note"]
+
+
+def test_fleet_status_fetch_failure_all_unknown(client, ips_dir, monkeypatch):
+    """Price fetch raising degrades every doc to unknown; endpoint stays 200."""
+    def _raising_fetch(*args, **kwargs):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(
+        "src.portfolio.monitoring.fetch_price_history", _raising_fetch
+    )
+    for i in range(2):
+        _write_ips_doc(ips_dir, f"ips_fleet_doc{i}_20260601_093000", [
+            _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
+            _saa_entry("固定收益", 0.5, 0.4, 0.6),
+        ], saved_at="2026-06-01T09:30:00")
+
+    resp = client.get("/api/monitoring/status")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["price_as_of"] is None
+    assert body["summary"] == {"total": 2, "breach": 0, "ok": 0, "unknown": 2}
+    for item in body["items"]:
+        assert item["status"] == "unknown"
+        assert "行情数据获取失败" in item["note"]
+
+
+def test_fleet_status_cached_until_refresh(client, ips_dir, monkeypatch):
+    """Second call hits the daily cache; ?refresh=true recomputes."""
+    counter = {"calls": 0}
+    monkeypatch.setattr(
+        "src.portfolio.monitoring.fetch_price_history",
+        _counting_fetch(FLAT_PRICES, counter),
+    )
+    _write_ips_doc(ips_dir, "ips_fleet_flat_20260601_093000", [
+        _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
+        _saa_entry("固定收益", 0.5, 0.4, 0.6),
+    ], saved_at="2026-06-01T09:30:00")
+
+    assert client.get("/api/monitoring/status").status_code == 200
+    assert counter["calls"] == 1
+    assert client.get("/api/monitoring/status").status_code == 200
+    assert counter["calls"] == 1  # cache hit
+    assert client.get("/api/monitoring/status?refresh=true").status_code == 200
+    assert counter["calls"] == 2  # invalidated, recomputed
+    assert client.get("/api/monitoring/status").status_code == 200
+    assert counter["calls"] == 2
+
+
+def test_fleet_status_route_not_shadowed_by_document_id(client):
+    """/monitoring/status must not be captured by /{document_id} (->404)."""
+    resp = client.get("/api/monitoring/status")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["items"] == []
+    assert body["summary"] == {"total": 0, "breach": 0, "ok": 0, "unknown": 0}

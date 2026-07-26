@@ -17,6 +17,10 @@ This module is pure computation. The FastAPI layer
 status codes. All numbers are raw floats (0-1 decimals); dates are ISO
 strings; human-readable caveats are collected in ``notes`` (Chinese).
 
+``compute_fleet_status`` (P17) reuses the same SAA parsing and drift/band
+helpers for a lightweight all-documents band check (no CME alignment)
+backing the overview-page alert lamp.
+
 """
 
 import logging
@@ -418,6 +422,26 @@ def _choose_period(days: int) -> str:
     return "max"
 
 
+def _period_return_from_series(
+    series: pd.Series, cutoff: pd.Timestamp
+) -> tuple[Optional[float], int]:
+    """
+    Total return of one price series from cutoff to its latest observation.
+
+    The series is cleaned (NaNs dropped, timezone stripped) and sliced to
+    observations at/after cutoff. Returns (None, n) when fewer than 2
+    observations remain, so callers can note the exact window length.
+    """
+    series = series.dropna()
+    if getattr(series.index, "tz", None) is not None:
+        series = series.copy()
+        series.index = series.index.tz_localize(None)
+    window = series[series.index >= cutoff]
+    if len(window) < 2:
+        return None, len(window)
+    return float(window.iloc[-1] / window.iloc[0] - 1.0), len(window)
+
+
 def _compute_period_returns(
     holdings: list[dict],
     saved_date: Optional[date],
@@ -454,18 +478,14 @@ def _compute_period_returns(
         if t not in prices.columns:
             notes.append(f"ticker {t} 无行情数据，区间收益记为 null。")
             continue
-        series = prices[t].dropna()
-        if getattr(series.index, "tz", None) is not None:
-            series = series.copy()
-            series.index = series.index.tz_localize(None)
-        window = series[series.index >= cutoff]
-        if len(window) < 2:
+        ret, n_obs = _period_return_from_series(prices[t], cutoff)
+        if ret is None:
             notes.append(
                 f"ticker {t} 自 {saved_date.isoformat()} 以来的行情窗口太短"
-                f"（{len(window)} 个观测点），区间收益记为 null。"
+                f"（{n_obs} 个观测点），区间收益记为 null。"
             )
             continue
-        result[t] = float(window.iloc[-1] / window.iloc[0] - 1.0)
+        result[t] = ret
     return result
 
 
@@ -519,6 +539,192 @@ def _apply_bands(holdings: list[dict]) -> None:
             h["band_status"] = "below"
         else:
             h["band_status"] = "within"
+
+
+# Fleet-Wide Status Aggregation (P17 — overview alert lamp)
+
+def compute_fleet_status() -> dict:
+    """
+    Lightweight drift-band check across all stored IPS documents.
+
+    Powers the overview-page alert lamp: every saved IPS is parsed with the
+    exact same SAA mapping / normalization rules as compute_monitoring, but
+    only band status is derived — no CME alignment, no portfolio metrics,
+    no rebalance trades (compute_cme is deliberately never called here).
+
+    A single shared fetch_price_history call covers the union of all mapped
+    tickers over a period sized for the oldest saved_at; each document then
+    slices its own drift window (saved_at -> latest close) out of that frame.
+
+    Degradation rules (this function never raises):
+        - price fetch failure        -> every document 'unknown' + note
+        - missing SAA / parse error  -> that document 'unknown' + note
+        - window shorter than 2 obs  -> affected tickers 'unknown'
+
+    Returns:
+        Dict matching the api.schemas.MonitoringFleetResponse contract.
+    """
+    today = datetime.now().date()
+    entries = _parse_fleet_documents()
+
+    # One shared fetch for the union of tickers, sized for the oldest SAA.
+    tickers = sorted({
+        h["ticker"]
+        for e in entries if e["holdings"]
+        for h in e["holdings"] if h["ticker"]
+    })
+    saved_dates = [e["saved_date"] for e in entries if e["saved_date"] is not None]
+
+    prices: Optional[pd.DataFrame] = None
+    fetch_note: Optional[str] = None
+    if tickers and saved_dates:
+        elapsed_days = max((today - min(saved_dates)).days, 1)
+        try:
+            prices = fetch_price_history(
+                tickers=tickers,
+                period=_choose_period(elapsed_days),
+                interval="1d",
+                adjust_currency=False,
+            )
+        except Exception as e:
+            logger.warning("Fleet status price fetch failed: %s", e)
+            fetch_note = f"行情数据获取失败（{e}），漂移状态记为 unknown。"
+
+    price_as_of = None
+    if prices is not None and len(prices.index) > 0:
+        price_as_of = pd.Timestamp(prices.index.max()).date().isoformat()
+
+    items = [_fleet_item(e, prices, fetch_note) for e in entries]
+    items.sort(key=lambda item: item["saved_at"], reverse=True)
+
+    return {
+        "as_of": today.isoformat(),
+        "price_as_of": price_as_of,
+        "items": items,
+        "summary": {
+            "total": len(items),
+            "breach": sum(1 for i in items if i["status"] == "breach"),
+            "ok": sum(1 for i in items if i["status"] == "ok"),
+            "unknown": sum(1 for i in items if i["status"] == "unknown"),
+        },
+    }
+
+
+def _parse_fleet_documents() -> list[dict]:
+    """
+    Enumerate stored IPS documents and parse each SAA into holdings.
+
+    A document that fails to parse (corrupt payload, non-numeric weights,
+    ...) degrades to an entry with ``error`` set — it never aborts the
+    fleet run.
+    """
+    entries = []
+    for summary in ips_storage.list_ips_documents():
+        entry: dict = {
+            "document_id": Path(summary["filepath"]).stem,
+            "client_name": summary.get("client_name") or "Unknown",
+            "saved_at": summary.get("saved_at", "") or "",
+            "holdings": None,
+            "saved_date": None,
+            "notes": [],
+            "error": None,
+        }
+        try:
+            record = ips_storage.load_ips(Path(summary["filepath"]))
+            ips = record.get("ips", {})
+            meta = record.get("metadata", {})
+            entry["client_name"] = (
+                meta.get("client_name") or ips.get("client_name") or entry["client_name"]
+            )
+            entry["saved_at"] = meta.get("saved_at", "") or entry["saved_at"]
+            saa = ips.get("investment_guidelines", {}).get("strategic_allocation") or []
+            if not saa:
+                entry["error"] = (
+                    "IPS 文档缺少战略性资产配置（strategic_allocation），"
+                    "无法执行漂移检查。"
+                )
+            else:
+                holdings = _build_holdings(saa, entry["notes"])
+                _normalize_weights(holdings, entry["notes"])
+                entry["holdings"] = holdings
+                entry["saved_date"] = _parse_saved_date(
+                    entry["saved_at"], entry["notes"]
+                )
+        except Exception as e:
+            logger.warning(
+                "Fleet status: cannot parse IPS document %s: %s",
+                summary.get("filepath"), e,
+            )
+            entry["error"] = f"IPS 文档解析失败（{e}），漂移状态记为 unknown。"
+        entries.append(entry)
+    return entries
+
+
+def _fleet_item(
+    entry: dict,
+    prices: Optional[pd.DataFrame],
+    fetch_note: Optional[str],
+) -> dict:
+    """
+    Derive one document's fleet-status row from the shared price frame.
+
+    Status: 'breach' when any holding sits above/below its policy band,
+    'ok' when at least one holding has a known (within) band, otherwise
+    'unknown' with a Chinese note explaining why.
+    """
+    item = {
+        "document_id": entry["document_id"],
+        "client_name": entry["client_name"],
+        "saved_at": entry["saved_at"],
+        "status": "unknown",
+        "out_of_band": 0,
+        "max_abs_drift_pp": None,
+        "note": None,
+    }
+    if entry["error"] is not None:
+        item["note"] = entry["error"]
+        return item
+
+    holdings = entry["holdings"]
+    saved_date = entry["saved_date"]
+    if prices is not None and saved_date is not None:
+        cutoff = pd.Timestamp(saved_date)
+        period_returns: dict[str, Optional[float]] = {}
+        for t in sorted({h["ticker"] for h in holdings if h["ticker"]}):
+            if t not in prices.columns:
+                entry["notes"].append(f"ticker {t} 无行情数据，区间收益记为 null。")
+                period_returns[t] = None
+                continue
+            ret, n_obs = _period_return_from_series(prices[t], cutoff)
+            if ret is None:
+                entry["notes"].append(
+                    f"ticker {t} 自 {saved_date.isoformat()} 以来的行情窗口太短"
+                    f"（{n_obs} 个观测点），区间收益记为 null。"
+                )
+            period_returns[t] = ret
+        _apply_drift(holdings, period_returns, entry["notes"])
+        _apply_bands(holdings)
+
+        item["out_of_band"] = sum(
+            1 for h in holdings if h["band_status"] in ("above", "below")
+        )
+        known_drifts = [h["drift_pp"] for h in holdings if h["drift_pp"] is not None]
+        if known_drifts:
+            item["max_abs_drift_pp"] = float(max(abs(d) for d in known_drifts))
+
+        if item["out_of_band"]:
+            item["status"] = "breach"
+        elif any(h["band_status"] == "within" for h in holdings):
+            item["status"] = "ok"
+
+    if item["status"] == "unknown":
+        if fetch_note is not None:
+            item["note"] = fetch_note
+        elif entry["notes"]:
+            item["note"] = "；".join(entry["notes"])
+        else:
+            item["note"] = "行情数据不足，无法判定漂移状态。"
+    return item
 
 
 # Rebalancing

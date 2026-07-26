@@ -34,3 +34,8 @@ class TTLCache:
         with self._lock:
             self._entries[key] = (now, value)
         return value
+
+    def invalidate(self, key: str) -> None:
+        """Drop one cached entry (no-op when absent)."""
+        with self._lock:
+            self._entries.pop(key, None)

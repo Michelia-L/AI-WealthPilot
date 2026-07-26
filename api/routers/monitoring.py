@@ -11,6 +11,7 @@ events, then a terminal done/error event).
 """
 
 import json
+from datetime import date
 from typing import Any, Generator, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -21,7 +22,12 @@ from api.cache import TTLCache
 from api.db import ProfileRecord, get_session
 from api.profile_convert import profile_from_data
 from api.routers.market import _fig_json
-from api.schemas import BacktestResponse, MonitoringResponse, RebalanceAdviceRequest
+from api.schemas import (
+    BacktestResponse,
+    MonitoringFleetResponse,
+    MonitoringResponse,
+    RebalanceAdviceRequest,
+)
 from src.agents.profiler import ClientProfile
 from src.agents.rebalance_advisor import (
     AdvisorReport,
@@ -33,7 +39,11 @@ from src.portfolio.backtest import (
     InsufficientDataError,
     run_backtest,
 )
-from src.portfolio.monitoring import compute_monitoring, resolve_saa_weights
+from src.portfolio.monitoring import (
+    compute_fleet_status,
+    compute_monitoring,
+    resolve_saa_weights,
+)
 from src.visualization.charts import plot_backtest_equity, plot_drawdown
 
 router = APIRouter(prefix="/monitoring", tags=["monitoring"])
@@ -43,6 +53,35 @@ def _is_valid_document_id(document_id: str) -> bool:
     """Same charset rule as ips._find_ips_file (keeps lookups inside IPS_DIR)."""
     return bool(document_id) and all(
         c.isalnum() or c in "_-" for c in document_id
+    )
+
+
+# ---------------------------------------------------------------------------
+# Fleet-wide band status (P17 — overview alert lamp)
+# ---------------------------------------------------------------------------
+
+_fleet_status_cache = TTLCache()
+FLEET_STATUS_CACHE_TTL_SECONDS = 86400  # the date in the key expires it daily
+
+
+# NOTE: declared BEFORE /{document_id} — "status" satisfies the document_id
+# charset, so registering it later would let the path-parameter route
+# swallow it and return 404.
+@router.get(
+    "/status",
+    response_model=MonitoringFleetResponse,
+    summary="Band-status overview across all stored IPS documents",
+)
+def get_fleet_status(refresh: bool = False) -> MonitoringFleetResponse:
+    # Date inside the key: the first request of a new day misses the cache
+    # and recomputes — the lazy "daily auto re-check" semantic.
+    key = f"fleet-status:{date.today().isoformat()}"
+    if refresh:
+        _fleet_status_cache.invalidate(key)
+    return _fleet_status_cache.get_or_set(
+        key,
+        FLEET_STATUS_CACHE_TTL_SECONDS,
+        lambda: MonitoringFleetResponse(**compute_fleet_status()),
     )
 
 
