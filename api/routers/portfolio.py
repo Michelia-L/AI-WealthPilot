@@ -19,12 +19,13 @@ from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
 from api.cache import TTLCache
 from api.db import ProfileRecord, get_session
+from api.i18n import get_request_locale, msg
 from api.profile_convert import profile_from_data
 from api.routers.market import _fig_json
 from api.schemas import (
@@ -97,17 +98,22 @@ def get_asset_classes() -> AssetClassesResponse:
     summary="Personalized allocation for a client profile (P12)",
 )
 def get_recommendation(
-    profile_id: int, session: Session = Depends(get_session)
+    profile_id: int, request: Request, session: Session = Depends(get_session)
 ) -> RecommendationResponse:
     """Risk-score-driven allocation from src portfolio_recommender: the
     profile's final score maps to a target volatility, and the MVO engine
     solves the min-volatility portfolio (goal-aware) on the full universe."""
     record = session.get(ProfileRecord, profile_id)
     if record is None:
-        raise HTTPException(status_code=404, detail=f"画像不存在（id={profile_id}）")
+        raise HTTPException(
+            status_code=404,
+            detail=msg("common.profile_not_found", get_request_locale(request), id=profile_id),
+        )
     profile = profile_from_data(record.data)
 
-    returns = _fetch_returns(list(DEFAULT_ASSET_CLASSES.keys()), "5y")
+    returns = _fetch_returns(
+        list(DEFAULT_ASSET_CLASSES.keys()), "5y", get_request_locale(request)
+    )
     rf = _effective_risk_free_rate(None)
     rec = recommend_portfolio(profile, returns, rf)
     return RecommendationResponse(
@@ -128,22 +134,25 @@ def get_recommendation(
     response_model=PortfolioBacktestResponse,
     summary="Backtest an arbitrary long-only weight map (optimizer results)",
 )
-def backtest_weights(req: PortfolioBacktestRequest) -> PortfolioBacktestResponse:
+def backtest_weights(
+    req: PortfolioBacktestRequest, request: Request
+) -> PortfolioBacktestResponse:
     """Run the monthly-rebalanced backtest for a caller-supplied portfolio
     (e.g. the optimizer's selected weights), benchmarked vs 60/40."""
+    locale = get_request_locale(request)
     if not req.weights or len(req.weights) > 30:
         raise HTTPException(
-            status_code=422, detail="weights 需为 1–30 个 ticker 的权重映射。"
+            status_code=422, detail=msg("portfolio.invalid_weights", locale)
         )
     if any(v < -0.001 for v in req.weights.values()):
         raise HTTPException(
-            status_code=422, detail="回测仅支持多头权重（不允许负权重）。"
+            status_code=422, detail=msg("portfolio.long_only", locale)
         )
     total = sum(req.weights.values())
     if not 0.5 <= total <= 1.5:
         raise HTTPException(
             status_code=422,
-            detail=f"权重合计异常（{total:.2f}），应在 0.5–1.5 之间。",
+            detail=msg("portfolio.bad_weight_total", locale, total=total),
         )
 
     cache_key = (
@@ -207,7 +216,7 @@ def _resolve_asset_keys(requested: list[str]) -> list[str]:
     return keys
 
 
-def _fetch_returns(keys: list[str], period: str) -> pd.DataFrame:
+def _fetch_returns(keys: list[str], period: str, locale: str = "zh") -> pd.DataFrame:
     """Daily simple returns with columns renamed to asset display names."""
     tickers = [DEFAULT_ASSET_CLASSES[k]["ticker"] for k in keys]
     cache_key = f"prices:{period}|{','.join(sorted(tickers))}"
@@ -230,7 +239,7 @@ def _fetch_returns(keys: list[str], period: str) -> pd.DataFrame:
         if bad:
             raise HTTPException(
                 status_code=502,
-                detail=f"行情数据获取失败（{', '.join(bad)}），请稍后重试。",
+                detail=msg("portfolio.price_fetch_failed", locale, tickers=", ".join(bad)),
             )
         return prices
 
@@ -265,7 +274,7 @@ def _result_payload(result: dict, asset_names: list[str]) -> PortfolioResult:
 
 
 def _resolve_risk_constraints(
-    req: OptimizeRequest, session: Session
+    req: OptimizeRequest, session: Session, locale: str = "zh"
 ) -> Optional[RiskConstraintsInfo]:
     """Resolve a request's profile_id into risk-level group caps (fail fast).
 
@@ -278,14 +287,18 @@ def _resolve_risk_constraints(
         return None
     record = session.get(ProfileRecord, req.profile_id)
     if record is None:
-        raise HTTPException(status_code=404, detail=f"画像不存在（id={req.profile_id}）")
+        raise HTTPException(
+            status_code=404, detail=msg("common.profile_not_found", locale, id=req.profile_id)
+        )
     tolerance_level = (record.data.get("risk_profile") or {}).get("tolerance_level") or ""
     try:
         caps = caps_for_tolerance(tolerance_level)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     if req.method != "mvo":
-        raise HTTPException(status_code=422, detail="风险约束当前仅支持经典 MVO 方法")
+        raise HTTPException(
+            status_code=422, detail=msg("portfolio.risk_constraints_mvo_only", locale)
+        )
     return RiskConstraintsInfo(
         profile_id=record.id,
         profile_name=record.name,
@@ -412,16 +425,21 @@ def _run_bl(
     response_model=OptimizeResponse,
     summary="Run portfolio optimization (MVO / Resampled / Black-Litterman)",
 )
-def optimize(req: OptimizeRequest, session: Session = Depends(get_session)) -> OptimizeResponse:
-    risk_info = _resolve_risk_constraints(req, session)
-    keys, returns, rf = _prepare_optimize(req)
-    return _solve_optimize(req, keys, returns, rf, risk_info)
+def optimize(
+    req: OptimizeRequest, request: Request, session: Session = Depends(get_session)
+) -> OptimizeResponse:
+    locale = get_request_locale(request)
+    risk_info = _resolve_risk_constraints(req, session, locale)
+    keys, returns, rf = _prepare_optimize(req, locale)
+    return _solve_optimize(req, keys, returns, rf, risk_info, locale)
 
 
-def _prepare_optimize(req: OptimizeRequest) -> tuple[list[str], pd.DataFrame, float]:
+def _prepare_optimize(
+    req: OptimizeRequest, locale: str = "zh"
+) -> tuple[list[str], pd.DataFrame, float]:
     """Resolve asset keys, fetch returns (TTL-cached) and the risk-free rate."""
     keys = _resolve_asset_keys(req.assets)
-    returns = _fetch_returns(keys, req.period)
+    returns = _fetch_returns(keys, req.period, locale)
     rf = _effective_risk_free_rate(req.risk_free_rate)
     return keys, returns, rf
 
@@ -432,6 +450,7 @@ def _solve_optimize(
     returns: pd.DataFrame,
     rf: float,
     risk_constraints: Optional[RiskConstraintsInfo] = None,
+    locale: str = "zh",
 ) -> OptimizeResponse:
     """The CPU-heavy half: optimize, build charts, assemble the response."""
     req.risk_free_rate = rf
@@ -456,8 +475,7 @@ def _solve_optimize(
     if frontier.empty or "volatility" not in frontier.columns:
         raise HTTPException(
             status_code=422,
-            detail="有效前沿求解失败：当前资产组合在该历史窗口下无法构成有效前沿，"
-            "请调整资产选择或历史窗口。",
+            detail=msg("portfolio.frontier_failed", locale),
         )
 
     asset_names = list(returns.columns)
@@ -519,6 +537,7 @@ async def _run_optimize_task(
     task: BackgroundTask,
     req: OptimizeRequest,
     risk_constraints: Optional[RiskConstraintsInfo] = None,
+    locale: str = "zh",
 ) -> None:
     """Fetch data, then optimize in an executor (CPU-heavy) with progress events.
 
@@ -527,16 +546,18 @@ async def _run_optimize_task(
     """
     try:
         loop = asyncio.get_running_loop()
-        await task.publish({"type": "node", "node": "fetch", "label": "获取行情数据"})
-        keys, returns, rf = await loop.run_in_executor(None, _prepare_optimize, req)
+        await task.publish(
+            {"type": "node", "node": "fetch", "label": msg("portfolio.node_fetch", locale)}
+        )
+        keys, returns, rf = await loop.run_in_executor(None, _prepare_optimize, req, locale)
         label = (
-            f"重采样优化计算中（{req.n_simulations} 次模拟，通常需要数分钟）"
+            msg("portfolio.node_solve_resampled", locale, n_simulations=req.n_simulations)
             if req.method == "resampled"
-            else "组合优化计算中"
+            else msg("portfolio.node_solve", locale)
         )
         await task.publish({"type": "node", "node": "solve", "label": label})
         result = await loop.run_in_executor(
-            None, _solve_optimize, req, keys, returns, rf, risk_constraints
+            None, _solve_optimize, req, keys, returns, rf, risk_constraints, locale
         )
         task.status = "completed"
         await task.publish({"type": "done", "result": result.model_dump(mode="json")})
@@ -545,7 +566,9 @@ async def _run_optimize_task(
         await task.publish({"type": "error", "message": str(e.detail)})
     except Exception as e:
         task.status = "failed"
-        await task.publish({"type": "error", "message": f"优化失败: {e}"})
+        await task.publish(
+            {"type": "error", "message": msg("portfolio.optimize_failed", locale, error=e)}
+        )
 
 
 @router.post(
@@ -555,8 +578,9 @@ async def _run_optimize_task(
     summary="Create an async optimization task; poll /tasks/{id}/events (SSE)",
 )
 async def optimize_async(
-    req: OptimizeRequest, session: Session = Depends(get_session)
+    req: OptimizeRequest, request: Request, session: Session = Depends(get_session)
 ) -> PortfolioTaskCreatedResponse:
+    locale = get_request_locale(request)
     # Validate everything that doesn't need market data up front, so bad
     # requests fail fast with 422 instead of surfacing on the event stream.
     _resolve_asset_keys(req.assets)
@@ -567,19 +591,21 @@ async def optimize_async(
             "(bl.views must be non-empty).",
         )
     # Profile lookup + cap resolution happen here, not in the executor.
-    risk_info = _resolve_risk_constraints(req, session)
+    risk_info = _resolve_risk_constraints(req, session, locale)
     task = registry.create(
         "optimize", method=req.method, n_simulations=req.n_simulations
     )
-    asyncio.create_task(_run_optimize_task(task, req, risk_info))
+    asyncio.create_task(_run_optimize_task(task, req, risk_info, locale))
     return PortfolioTaskCreatedResponse(task_id=task.task_id)
 
 
 @router.get("/tasks/{task_id}/events")
-async def optimize_task_events(task_id: str) -> StreamingResponse:
-    stream = task_events_stream(registry, task_id)
+async def optimize_task_events(task_id: str, request: Request) -> StreamingResponse:
+    stream = task_events_stream(registry, task_id, get_request_locale(request))
     if stream is None:
-        raise HTTPException(status_code=404, detail="任务不存在")
+        raise HTTPException(
+            status_code=404, detail=msg("common.task_not_found", get_request_locale(request))
+        )
     return StreamingResponse(
         stream,
         media_type="text/event-stream",

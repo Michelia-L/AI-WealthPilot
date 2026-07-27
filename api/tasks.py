@@ -28,6 +28,7 @@ from typing import Any, AsyncIterator, Optional
 from sqlmodel import Session, select
 
 from api import db
+from api.i18n import msg
 
 logger = logging.getLogger(__name__)
 
@@ -130,12 +131,13 @@ def _read_persisted_events(task_id: str) -> list[dict[str, Any]]:
         return []
 
 
-def load_task_events(task_id: str) -> Optional[list[dict[str, Any]]]:
+def load_task_events(task_id: str, locale: str = "zh") -> Optional[list[dict[str, Any]]]:
     """Persisted event log for a task unknown to the in-memory registry.
 
     Returns None when no record exists (the caller maps that to 404). A row
     still marked 'running' — boot reconciliation should have failed it — is
-    replayed defensively with a synthetic trailing error event.
+    replayed defensively with a synthetic trailing error event (worded per
+    ``locale``; zh by default for direct non-request callers).
     """
     try:
         with Session(db.engine) as session:
@@ -151,7 +153,7 @@ def load_task_events(task_id: str) -> Optional[list[dict[str, Any]]]:
         events.append(
             {
                 "type": "error",
-                "message": "服务已重启，任务被中断（以上为重启前的进度回放）",
+                "message": msg("tasks.task_interrupted", locale),
             }
         )
     return events
@@ -214,7 +216,7 @@ async def replay_task_events(events: list[dict[str, Any]]) -> AsyncIterator[str]
 
 
 def task_events_stream(
-    registry: TaskRegistry, task_id: str
+    registry: TaskRegistry, task_id: str, locale: str = "zh"
 ) -> Optional[AsyncIterator[str]]:
     """Merged replay+live stream for running tasks; replay for terminal ones.
 
@@ -224,11 +226,12 @@ def task_events_stream(
     full sequence with no gaps or duplicates. A terminal in-memory task
     replays from the store instead of the live queue — that queue was
     drained by the first consumer and would hang any subsequent one.
+    ``locale`` only words the synthetic 'interrupted' replay event.
     """
     task = registry.get(task_id)
     if task is not None and task.status == "running":
         return stream_task_events(task)
-    events = load_task_events(task_id)
+    events = load_task_events(task_id, locale)
     if events is None:
         return None
     return replay_task_events(events)

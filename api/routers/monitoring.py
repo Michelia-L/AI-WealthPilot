@@ -14,12 +14,13 @@ import json
 from datetime import date
 from typing import Any, Generator, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
 from api.cache import TTLCache
 from api.db import ProfileRecord, get_session
+from api.i18n import get_request_locale, msg
 from api.profile_convert import profile_from_data
 from api.routers.market import _fig_json
 from api.schemas import (
@@ -73,16 +74,18 @@ FLEET_STATUS_CACHE_TTL_SECONDS = 86400  # the date in the key expires it daily
     response_model=MonitoringFleetResponse,
     summary="Band-status overview across all stored IPS documents",
 )
-def get_fleet_status(refresh: bool = False) -> MonitoringFleetResponse:
+def get_fleet_status(request: Request, refresh: bool = False) -> MonitoringFleetResponse:
+    locale = get_request_locale(request)
     # Date inside the key: the first request of a new day misses the cache
-    # and recomputes — the lazy "daily auto re-check" semantic.
-    key = f"fleet-status:{date.today().isoformat()}"
+    # and recomputes — the lazy "daily auto re-check" semantic. Locale is
+    # part of the key because fleet item notes are localized.
+    key = f"fleet-status:{date.today().isoformat()}:{locale}"
     if refresh:
         _fleet_status_cache.invalidate(key)
     return _fleet_status_cache.get_or_set(
         key,
         FLEET_STATUS_CACHE_TTL_SECONDS,
-        lambda: MonitoringFleetResponse(**compute_fleet_status()),
+        lambda: MonitoringFleetResponse(**compute_fleet_status(locale=locale)),
     )
 
 
@@ -91,13 +94,14 @@ def get_fleet_status(refresh: bool = False) -> MonitoringFleetResponse:
     response_model=MonitoringResponse,
     summary="Drift monitoring and rebalancing diagnostics for a stored IPS",
 )
-def get_monitoring(document_id: str) -> MonitoringResponse:
+def get_monitoring(document_id: str, request: Request) -> MonitoringResponse:
+    locale = get_request_locale(request)
     if not _is_valid_document_id(document_id):
-        raise HTTPException(status_code=404, detail="IPS 文档不存在")
+        raise HTTPException(status_code=404, detail=msg("common.ips_doc_not_found", locale))
     try:
-        result = compute_monitoring(document_id)
+        result = compute_monitoring(document_id, locale=locale)
     except KeyError:
-        raise HTTPException(status_code=404, detail="IPS 文档不存在")
+        raise HTTPException(status_code=404, detail=msg("common.ips_doc_not_found", locale))
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     return MonitoringResponse(**result)
@@ -111,15 +115,15 @@ _backtest_cache = TTLCache()
 BACKTEST_CACHE_TTL_SECONDS = 600  # NAV panels are stable intraday
 
 
-def _resolve_annual_fee_rate(fee_schedule: dict) -> tuple[float, list[str]]:
+def _resolve_annual_fee_rate(fee_schedule: dict, locale: str = "zh") -> tuple[float, list[str]]:
     """
     Extract the annual fee-drag rate from an IPS fee_schedule block (P18).
 
     Prefers the all-in total_expense_ratio (positive values only); falls
     back to management + custody + transaction-cost components when the TER
-    is missing or non-positive. Returns (rate, Chinese notes); a missing or
-    all-zero disclosure yields rate 0. Out-of-range rates are NOT clipped
-    here — run_backtest owns the [0, 10%] plausibility cap.
+    is missing or non-positive. Returns (rate, notes worded per ``locale``);
+    a missing or all-zero disclosure yields rate 0. Out-of-range rates are
+    NOT clipped here — run_backtest owns the [0, 10%] plausibility cap.
     """
     def _num(key: str) -> float:
         try:
@@ -128,7 +132,7 @@ def _resolve_annual_fee_rate(fee_schedule: dict) -> tuple[float, list[str]]:
             return 0.0
 
     if not fee_schedule:
-        return 0.0, ["IPS 未包含费用披露，回测未计费用拖累。"]
+        return 0.0, [msg("monitoring.fee_no_disclosure", locale)]
 
     ter = _num("total_expense_ratio")
     if ter > 0:
@@ -141,10 +145,9 @@ def _resolve_annual_fee_rate(fee_schedule: dict) -> tuple[float, list[str]]:
     )
     if components > 0:
         return components, [
-            f"IPS 费用披露缺少 total_expense_ratio，按管理费+托管费+交易成本"
-            f"合计 {components:.2%} 计入费用拖累。"
+            msg("monitoring.fee_ter_missing", locale, components=components)
         ]
-    return 0.0, ["IPS 未包含费用披露，回测未计费用拖累。"]
+    return 0.0, [msg("monitoring.fee_no_disclosure", locale)]
 
 
 @router.get(
@@ -152,24 +155,32 @@ def _resolve_annual_fee_rate(fee_schedule: dict) -> tuple[float, list[str]]:
     response_model=BacktestResponse,
     summary="Monthly-rebalanced backtest + stress tests for a stored IPS SAA",
 )
-def get_backtest(document_id: str, period: str = "5y") -> BacktestResponse:
+def get_backtest(
+    document_id: str, request: Request, period: str = "5y"
+) -> BacktestResponse:
+    locale = get_request_locale(request)
     if not _is_valid_document_id(document_id):
-        raise HTTPException(status_code=404, detail="IPS 文档不存在")
+        raise HTTPException(status_code=404, detail=msg("common.ips_doc_not_found", locale))
     if period not in BACKTEST_PERIODS:
         raise HTTPException(
             status_code=422,
-            detail=f"不支持的回测区间：{period}（可选：{'、'.join(BACKTEST_PERIODS)}）。",
+            detail=msg(
+                "monitoring.invalid_backtest_period",
+                locale,
+                period=period,
+                options="、".join(BACKTEST_PERIODS),
+            ),
         )
 
     def _compute() -> BacktestResponse:
         try:
-            saa = resolve_saa_weights(document_id)
+            saa = resolve_saa_weights(document_id, locale=locale)
         except KeyError:
-            raise HTTPException(status_code=404, detail="IPS 文档不存在")
+            raise HTTPException(status_code=404, detail=msg("common.ips_doc_not_found", locale))
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
 
-        fee_rate, fee_notes = _resolve_annual_fee_rate(saa["fee_schedule"])
+        fee_rate, fee_notes = _resolve_annual_fee_rate(saa["fee_schedule"], locale)
         try:
             result = run_backtest(
                 saa["weights"],
@@ -203,8 +214,9 @@ def get_backtest(document_id: str, period: str = "5y") -> BacktestResponse:
             notes=saa["notes"] + fee_notes + result["notes"],
         )
 
+    # Locale is part of the key because the notes payload is localized.
     return _backtest_cache.get_or_set(
-        f"backtest:{document_id}:{period}", BACKTEST_CACHE_TTL_SECONDS, _compute
+        f"backtest:{document_id}:{period}:{locale}", BACKTEST_CACHE_TTL_SECONDS, _compute
     )
 
 
@@ -218,7 +230,7 @@ def _sse(payload: dict[str, Any]) -> str:
 
 
 def _advice_event_stream(
-    monitoring: dict, profile: Optional[ClientProfile]
+    monitoring: dict, profile: Optional[ClientProfile], locale: str
 ) -> Generator[str, None, None]:
     """Yield SSE lines: reasoning/token events, then one terminal done/error event."""
     holder: list[AdvisorReport] = []
@@ -228,7 +240,7 @@ def _advice_event_stream(
         stream = (
             demo_rebalance_stream(monitoring, profile)
             if is_demo_mode()
-            else generate_rebalance_advice_stream(monitoring, profile)
+            else generate_rebalance_advice_stream(monitoring, profile, locale=locale)
         )
         report = yield from stream
         holder.append(report)
@@ -241,11 +253,11 @@ def _advice_event_stream(
                 event = {"type": "token", "text": event}
             yield _sse(event)
     except Exception as e:  # defensive: src/ generator already swallows API errors
-        yield _sse({"type": "error", "message": f"流式生成中断: {e}"})
+        yield _sse({"type": "error", "message": msg("common.stream_interrupted", locale, error=e)})
         return
 
     if not holder:
-        yield _sse({"type": "error", "message": "生成器未返回报告"})
+        yield _sse({"type": "error", "message": msg("common.no_report_generated", locale)})
         return
     report = holder[0]
     yield _sse(
@@ -267,20 +279,22 @@ def _advice_event_stream(
     summary="Stream AI rebalancing advice for a stored IPS (SSE)",
 )
 def stream_rebalance_advice(
-    payload: RebalanceAdviceRequest, session: Session = Depends(get_session)
+    payload: RebalanceAdviceRequest,
+    request: Request,
+    session: Session = Depends(get_session),
 ) -> StreamingResponse:
+    locale = get_request_locale(request)
     if not is_api_configured() and not is_demo_mode():
         raise HTTPException(
             status_code=503,
-            detail="DEEPSEEK_API_KEY 未配置，请在 api 服务的 .env 中设置后重启；"
-            "或设置 DEMO_MODE=1 进入演示模式。",
+            detail=msg("common.llm_not_configured", locale),
         )
     if not _is_valid_document_id(payload.document_id):
-        raise HTTPException(status_code=404, detail="IPS 文档不存在")
+        raise HTTPException(status_code=404, detail=msg("common.ips_doc_not_found", locale))
     try:
-        monitoring = compute_monitoring(payload.document_id)
+        monitoring = compute_monitoring(payload.document_id, locale=locale)
     except KeyError:
-        raise HTTPException(status_code=404, detail="IPS 文档不存在")
+        raise HTTPException(status_code=404, detail=msg("common.ips_doc_not_found", locale))
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
@@ -289,12 +303,13 @@ def stream_rebalance_advice(
         record = session.get(ProfileRecord, payload.profile_id)
         if record is None:
             raise HTTPException(
-                status_code=404, detail=f"画像不存在（id={payload.profile_id}）"
+                status_code=404,
+                detail=msg("common.profile_not_found", locale, id=payload.profile_id),
             )
         profile = profile_from_data(record.data)
 
     return StreamingResponse(
-        _advice_event_stream(monitoring, profile),
+        _advice_event_stream(monitoring, profile, locale),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

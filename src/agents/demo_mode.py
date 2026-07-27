@@ -40,7 +40,7 @@ DEMO_MODEL = "demo-fixture"
 NODE_DELAY_RANGE: tuple[float, float] = (0.6, 1.0)
 
 # Workflow node replay order — mirrors the real LangGraph happy path and
-# the keys of api.routers.ips.NODE_LABELS.
+# the keys of api.routers.ips._NODE_LABEL_KEYS.
 _DEMO_IPS_NODES: tuple[str, ...] = (
     "generate_cme",
     "generate",
@@ -149,23 +149,27 @@ def demo_rebalance_stream(
     )
 
 
-async def run_demo_ips_task(task, profile_data: dict, max_revisions: int) -> None:
+async def run_demo_ips_task(
+    task, profile_data: dict, max_revisions: int, locale: str = "zh"
+) -> None:
     """Replay the IPS workflow: node progress events, then save the fixture.
 
     Mirrors ``api.routers.ips._run_ips_task``'s event protocol (node → done
     /error), its write-through persistence (via task.publish), and its
     ips_storage JSON save — with zero LLM calls. ``profile_data`` and
     ``max_revisions`` are accepted for signature parity with the real
-    runner; the replay itself is fixture-driven.
+    runner; the replay itself is fixture-driven. Node labels and the error
+    message are worded per ``locale``.
     """
     try:
         # Lazy import: api.routers.ips imports this module at load time.
-        from api.routers.ips import NODE_LABELS
+        from api.i18n import msg
+        from api.routers.ips import node_label
 
         for node in _DEMO_IPS_NODES:
             await asyncio.sleep(random.uniform(*NODE_DELAY_RANGE))
             await task.publish(
-                {"type": "node", "node": node, "label": NODE_LABELS.get(node, node)}
+                {"type": "node", "node": node, "label": node_label(node, locale)}
             )
 
         record = json.loads(
@@ -199,4 +203,6 @@ async def run_demo_ips_task(task, profile_data: dict, max_revisions: int) -> Non
     except Exception as e:
         logger.exception("Demo IPS task failed")
         task.status = "failed"
-        await task.publish({"type": "error", "message": f"IPS 生成失败: {e}"})
+        await task.publish(
+            {"type": "error", "message": msg("ips.generation_failed", locale, error=e)}
+        )

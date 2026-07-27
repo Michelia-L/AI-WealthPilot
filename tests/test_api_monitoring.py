@@ -402,10 +402,16 @@ def _counting_fetch(df, counter):
 @pytest.fixture(autouse=True)
 def _reset_fleet_status_cache():
     """The module-level fleet TTLCache must not leak results across tests."""
-    key = f"fleet-status:{date.today().isoformat()}"
-    monitoring_router._fleet_status_cache.invalidate(key)
+    # P22: the cache key carries the request locale (zh via the client
+    # fixture, en for headerless/explicit-en requests).
+    keys = [
+        f"fleet-status:{date.today().isoformat()}:{locale}" for locale in ("zh", "en")
+    ]
+    for key in keys:
+        monitoring_router._fleet_status_cache.invalidate(key)
     yield
-    monitoring_router._fleet_status_cache.invalidate(key)
+    for key in keys:
+        monitoring_router._fleet_status_cache.invalidate(key)
 
 
 def test_fleet_status_full_chain(client, ips_dir, monkeypatch):

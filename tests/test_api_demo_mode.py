@@ -245,7 +245,7 @@ def test_ips_generate_demo_error_path(client, demo_on, monkeypatch):
 def test_monitoring_advice_demo_replays_fixture(client, demo_on, monkeypatch):
     monkeypatch.setattr(
         "api.routers.monitoring.compute_monitoring",
-        lambda document_id: {"client_name": DEMO_CLIENT_NAME, "document_id": document_id},
+        lambda document_id, locale="zh": {"client_name": DEMO_CLIENT_NAME, "document_id": document_id},
     )
     profile_id = _create_profile(client)
 
@@ -282,7 +282,7 @@ def test_monitoring_advice_demo_replays_fixture(client, demo_on, monkeypatch):
 
 
 def test_monitoring_advice_demo_document_not_found(client, demo_on, monkeypatch):
-    def _raise_keyerror(document_id):
+    def _raise_keyerror(document_id, locale="zh"):
         raise KeyError(document_id)
 
     monkeypatch.setattr(

@@ -28,7 +28,7 @@ def configured(monkeypatch):
     """Pretend DEEPSEEK_API_KEY is set and stub the streaming generator."""
     monkeypatch.setattr("api.routers.advisor.is_api_configured", lambda: True)
 
-    def fake_stream(profile):
+    def fake_stream(profile, locale="zh"):
         yield "## 1. Client Summary / 客户概况\n"
         yield f"Report body for {profile.name}."
         return AdvisorReport(
@@ -49,7 +49,7 @@ def configured_reasoning(monkeypatch):
     """Stub a reasoning-capable streaming generator (event-dict protocol)."""
     monkeypatch.setattr("api.routers.advisor.is_api_configured", lambda: True)
 
-    def fake_stream(profile):
+    def fake_stream(profile, locale="zh"):
         yield {"type": "reasoning", "text": "先分析客户画像。"}
         yield {"type": "reasoning", "text": "再测算投资目标。"}
         yield {"type": "token", "text": f"Report body for {profile.name}."}

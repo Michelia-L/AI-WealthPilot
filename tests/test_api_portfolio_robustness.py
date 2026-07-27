@@ -76,7 +76,7 @@ def test_unsolvable_frontier_returns_422(client, monkeypatch):
         columns=["US Equities (S&P 500)", "Bitcoin"],
     )
     monkeypatch.setattr(
-        "api.routers.portfolio._fetch_returns", lambda keys, period: returns
+        "api.routers.portfolio._fetch_returns", lambda keys, period, locale="zh": returns
     )
     # Every frontier point failing produces an empty frame in practice.
     monkeypatch.setattr(

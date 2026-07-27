@@ -40,11 +40,11 @@ def _dummy_result(weight: float) -> OptimizeResponse:
 def fake_optimize(monkeypatch):
     monkeypatch.setattr(
         "api.routers.portfolio._prepare_optimize",
-        lambda req: (["US_EQUITY", "US_BOND"], pd.DataFrame(), 0.045),
+        lambda req, locale="zh": (["US_EQUITY", "US_BOND"], pd.DataFrame(), 0.045),
     )
     monkeypatch.setattr(
         "api.routers.portfolio._solve_optimize",
-        lambda req, keys, returns, rf, risk_constraints=None: _dummy_result(0.6),
+        lambda req, keys, returns, rf, risk_constraints=None, locale="zh": _dummy_result(0.6),
     )
 
 
@@ -99,7 +99,7 @@ def test_async_eager_validation(client, fake_optimize):
 def test_async_http_error_becomes_error_event(client, monkeypatch):
     from fastapi import HTTPException
 
-    def boom(req):
+    def boom(req, locale="zh"):
         raise HTTPException(status_code=502, detail="No price data returned.")
 
     monkeypatch.setattr("api.routers.portfolio._prepare_optimize", boom)
@@ -114,7 +114,7 @@ def test_async_http_error_becomes_error_event(client, monkeypatch):
 def test_async_unexpected_error_becomes_error_event(client, monkeypatch):
     monkeypatch.setattr(
         "api.routers.portfolio._prepare_optimize",
-        lambda req: (_ for _ in ()).throw(RuntimeError("kaboom")),
+        lambda req, locale="zh": (_ for _ in ()).throw(RuntimeError("kaboom")),
     )
 
     task_id = client.post("/api/portfolio/optimize/async", json=_async_body()).json()["task_id"]

@@ -367,15 +367,32 @@ def _markdown_to_html(markdown_text: str) -> str:
     return _sanitize_html(rendered)
 
 
-def export_report_markdown(report: StoredReport) -> str:
+def export_report_markdown(report: StoredReport, locale: str = "zh") -> str:
     """Export a stored report to formatted Markdown.
 
     Args:
         report: StoredReport instance to export.
+        locale: Scaffolding language of the metadata header ("zh" keeps the
+            original bilingual header verbatim, "en" is English-only).
 
     Returns:
         str: Formatted Markdown string.
     """
+    if locale == "en":
+        metadata_header = f"""# Investment Advisory Report
+
+---
+
+**Client**: {report.client_name}
+**Generated**: {report.generated_at}
+**AI Model**: {report.model}
+**Token Usage**: {report.total_tokens:,}
+
+---
+
+"""
+        return metadata_header + report.content
+
     metadata_header = f"""# Investment Advisory Report / 投资咨询建议书
 
 ---
@@ -391,15 +408,43 @@ def export_report_markdown(report: StoredReport) -> str:
     return metadata_header + report.content
 
 
-def export_report_html(report: StoredReport) -> str:
+def export_report_html(report: StoredReport, locale: str = "zh") -> str:
     """Export a stored report to formatted HTML.
 
     Args:
         report: StoredReport instance to export.
+        locale: Scaffolding language of the letterhead chrome ("zh" keeps the
+            original bilingual labels verbatim, "en" is English-only).
 
     Returns:
         str: Complete HTML document string.
     """
+    # Locale-dependent document chrome (Phase 22); zh keeps the pre-i18n
+    # bilingual wording byte-for-byte.
+    if locale == "en":
+        lang = "en"
+        title_html = "Investment Advisory Report"
+        label_client = "Client"
+        label_generated = "Generated"
+        label_model = "AI Model"
+        label_tokens = "Token Usage"
+        footer_disclaimer = (
+            "<p>This report is for informational purposes only and does not "
+            "constitute financial advice.</p>"
+        )
+    else:
+        lang = "zh-CN"
+        title_html = "Investment Advisory Report<br>投资咨询建议书"
+        label_client = "Client / 客户"
+        label_generated = "Generated / 生成时间"
+        label_model = "AI Model / AI 模型"
+        label_tokens = "Token Usage / Token 用量"
+        footer_disclaimer = (
+            "<p>This report is for informational purposes only and does not "
+            "constitute financial advice.</p>\n"
+            "        <p>本报告仅供参考，不构成投资建议。</p>"
+        )
+
     # Convert content from Markdown to HTML
     content_html = _markdown_to_html(report.content)
 
@@ -411,7 +456,7 @@ def export_report_html(report: StoredReport) -> str:
     safe_generated_at = html.escape(report.generated_at)
 
     html_template = f"""<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="{lang}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -596,23 +641,23 @@ def export_report_html(report: StoredReport) -> str:
 <body>
     <header class="letterhead">
         <div class="brand">AI WealthPilot</div>
-        <h1>Investment Advisory Report<br>投资咨询建议书</h1>
+        <h1>{title_html}</h1>
         <div class="doc-sub">Private Wealth Management · Confidential</div>
         <div class="metadata">
             <div class="metadata-item">
-                <span class="metadata-label">Client / 客户</span>
+                <span class="metadata-label">{label_client}</span>
                 <span class="metadata-value">{safe_client_name}</span>
             </div>
             <div class="metadata-item">
-                <span class="metadata-label">Generated / 生成时间</span>
+                <span class="metadata-label">{label_generated}</span>
                 <span class="metadata-value">{safe_generated_at}</span>
             </div>
             <div class="metadata-item">
-                <span class="metadata-label">AI Model / AI 模型</span>
+                <span class="metadata-label">{label_model}</span>
                 <span class="metadata-value">{safe_model}</span>
             </div>
             <div class="metadata-item">
-                <span class="metadata-label">Token Usage / Token 用量</span>
+                <span class="metadata-label">{label_tokens}</span>
                 <span class="metadata-value">{report.total_tokens:,}</span>
             </div>
         </div>
@@ -625,8 +670,7 @@ def export_report_html(report: StoredReport) -> str:
     <footer class="footer">
         <div class="brand-line">AI WealthPilot</div>
         <p>Report ID: {safe_report_id}</p>
-        <p>This report is for informational purposes only and does not constitute financial advice.</p>
-        <p>本报告仅供参考，不构成投资建议。</p>
+        {footer_disclaimer}
     </footer>
 </body>
 </html>"""
@@ -634,12 +678,15 @@ def export_report_html(report: StoredReport) -> str:
     return html_template
 
 
-def export_report_pdf(report: StoredReport, output_path: Path) -> Path:
+def export_report_pdf(report: StoredReport, output_path: Path, locale: str = "zh") -> Path:
     """Export a stored report to a letterhead-styled PDF (fpdf2).
 
     Layout: letterhead (brand line, bilingual title, gold rule, metadata
     block) -> body (the report's Markdown rendered with a lightweight
     line-oriented renderer) -> footer (report id + bilingual disclaimer).
+
+    ``locale`` selects the letterhead chrome language ("zh" keeps the
+    original bilingual wording, "en" is English-only).
 
     Markdown rendering trade-offs (deliberately simple):
       - ATX headings (# .. ######) scale down in size by level.
@@ -657,6 +704,7 @@ def export_report_pdf(report: StoredReport, output_path: Path) -> Path:
     Args:
         report: StoredReport instance to export.
         output_path: Output PDF file path.
+        locale: Scaffolding language of the letterhead ("zh" / "en").
 
     Returns:
         Path: Path to the exported PDF file.
@@ -704,6 +752,34 @@ def export_report_pdf(report: StoredReport, output_path: Path) -> Path:
     soft = (68, 64, 60)
     grey = (120, 120, 120)
 
+    # Locale-dependent letterhead chrome (Phase 22); zh keeps the pre-i18n
+    # bilingual wording verbatim.
+    if locale == "en":
+        doc_title = "Investment Advisory Report"
+        meta_rows = [
+            ("Client", report.client_name),
+            ("Generated", report.generated_at),
+            ("AI Model", report.model),
+            ("Token Usage", f"{report.total_tokens:,}"),
+        ]
+        footer_disclaimers = [
+            "This report is for informational purposes only and does not "
+            "constitute financial advice.",
+        ]
+    else:
+        doc_title = "Investment Advisory Report / 投资咨询建议书"
+        meta_rows = [
+            ("Client / 客户", report.client_name),
+            ("Generated / 生成时间", report.generated_at),
+            ("AI Model / AI 模型", report.model),
+            ("Token Usage / Token 用量", f"{report.total_tokens:,}"),
+        ]
+        footer_disclaimers = [
+            "This report is for informational purposes only and does not "
+            "constitute financial advice.",
+            "本报告仅供参考，不构成投资建议。",
+        ]
+
     pdf.add_page()
 
     # ── Letterhead ──
@@ -713,7 +789,7 @@ def export_report_pdf(report: StoredReport, output_path: Path) -> Path:
     pdf.ln(8)
     pdf.set_font(family, "B", 18)
     pdf.set_text_color(*ink)
-    _mc(9, _t("Investment Advisory Report / 投资咨询建议书"))
+    _mc(9, _t(doc_title))
     pdf.ln(1)
     pdf.set_draw_color(*gold)
     pdf.set_line_width(0.8)
@@ -722,12 +798,6 @@ def export_report_pdf(report: StoredReport, output_path: Path) -> Path:
     pdf.ln(6)
 
     # ── Metadata block ──
-    meta_rows = [
-        ("Client / 客户", report.client_name),
-        ("Generated / 生成时间", report.generated_at),
-        ("AI Model / AI 模型", report.model),
-        ("Token Usage / Token 用量", f"{report.total_tokens:,}"),
-    ]
     for label, value in meta_rows:
         pdf.set_font(family, "B", 9)
         pdf.set_text_color(*gold)
@@ -793,7 +863,7 @@ def export_report_pdf(report: StoredReport, output_path: Path) -> Path:
         pdf.set_font(family, "", 10)
         _mc(5, _t(_strip_inline(stripped)))
 
-    # ── Footer: report id + bilingual disclaimer ──
+    # ── Footer: report id + disclaimer ──
     pdf.ln(8)
     pdf.set_draw_color(220, 220, 220)
     pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
@@ -805,9 +875,8 @@ def export_report_pdf(report: StoredReport, output_path: Path) -> Path:
     pdf.set_font(family, "", 8)
     pdf.cell(0, 5, _t(f"Report ID: {report.report_id}"))
     pdf.ln(5)
-    _mc(4, _t("This report is for informational purposes only and does not "
-              "constitute financial advice."))
-    _mc(4, _t("本报告仅供参考，不构成投资建议。"))
+    for disclaimer in footer_disclaimers:
+        _mc(4, _t(disclaimer))
     pdf.set_text_color(0, 0, 0)
 
     output_path = Path(output_path)
@@ -820,6 +889,7 @@ def export_report_to_file(
     report: StoredReport,
     output_path: Path,
     format: str = "markdown",
+    locale: str = "zh",
 ) -> Path:
     """Export a report to a standalone file.
 
@@ -827,6 +897,7 @@ def export_report_to_file(
         report: StoredReport instance to export.
         output_path: Path for the output file.
         format: Export format ('markdown', 'html', or 'json').
+        locale: Scaffolding language of the rendered document ("zh" / "en").
 
     Returns:
         Path: Path to the exported file.
@@ -835,11 +906,11 @@ def export_report_to_file(
         ValueError: If unsupported format is specified.
     """
     if format == "markdown":
-        content = export_report_markdown(report)
+        content = export_report_markdown(report, locale)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(content)
     elif format == "html":
-        content = export_report_html(report)
+        content = export_report_html(report, locale)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(content)
     elif format == "json":

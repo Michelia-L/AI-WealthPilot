@@ -20,11 +20,12 @@ from pathlib import Path
 from typing import Any, Generator, Optional
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from sqlmodel import Session
 
 from api.db import ProfileRecord, get_session
+from api.i18n import get_request_locale, msg
 from api.profile_convert import profile_from_data
 from api.schemas import (
     AdvisorStatusResponse,
@@ -51,7 +52,7 @@ def _sse(payload: dict[str, Any]) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-def _event_stream(record: ProfileRecord) -> Generator[str, None, None]:
+def _event_stream(record: ProfileRecord, locale: str) -> Generator[str, None, None]:
     """Yield SSE lines: reasoning/token events, then one terminal done/error event."""
     profile = profile_from_data(record.data)
     holder: list[AdvisorReport] = []
@@ -61,7 +62,7 @@ def _event_stream(record: ProfileRecord) -> Generator[str, None, None]:
         stream = (
             demo_advice_stream(profile)
             if is_demo_mode()
-            else generate_advice_stream(profile)
+            else generate_advice_stream(profile, locale=locale)
         )
         report = yield from stream
         holder.append(report)
@@ -74,11 +75,11 @@ def _event_stream(record: ProfileRecord) -> Generator[str, None, None]:
                 event = {"type": "token", "text": event}
             yield _sse(event)
     except Exception as e:  # defensive: src/ generator already swallows API errors
-        yield _sse({"type": "error", "message": f"流式生成中断: {e}"})
+        yield _sse({"type": "error", "message": msg("common.stream_interrupted", locale, error=e)})
         return
 
     if not holder:
-        yield _sse({"type": "error", "message": "生成器未返回报告"})
+        yield _sse({"type": "error", "message": msg("common.no_report_generated", locale)})
         return
     report = holder[0]
     yield _sse(
@@ -106,20 +107,24 @@ def advisor_status() -> AdvisorStatusResponse:
 
 @router.post("/report/stream")
 def stream_report(
-    payload: AdvisorStreamRequest, session: Session = Depends(get_session)
+    payload: AdvisorStreamRequest,
+    request: Request,
+    session: Session = Depends(get_session),
 ) -> StreamingResponse:
+    locale = get_request_locale(request)
     if not is_api_configured() and not is_demo_mode():
         raise HTTPException(
             status_code=503,
-            detail="DEEPSEEK_API_KEY 未配置，请在 api 服务的 .env 中设置后重启；"
-            "或设置 DEMO_MODE=1 进入演示模式。",
+            detail=msg("common.llm_not_configured", locale),
         )
     record = session.get(ProfileRecord, payload.profile_id)
     if record is None:
-        raise HTTPException(status_code=404, detail=f"画像不存在（id={payload.profile_id}）")
+        raise HTTPException(
+            status_code=404, detail=msg("common.profile_not_found", locale, id=payload.profile_id)
+        )
 
     return StreamingResponse(
-        _event_stream(record),
+        _event_stream(record, locale),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -171,10 +176,12 @@ def list_reports(
 
 
 @router.get("/reports/{report_id}", response_model=ReportDetailResponse)
-def get_report(report_id: str) -> ReportDetailResponse:
+def get_report(report_id: str, request: Request) -> ReportDetailResponse:
     filepath = _find_report_file(report_id)
     if filepath is None:
-        raise HTTPException(status_code=404, detail="报告不存在")
+        raise HTTPException(
+            status_code=404, detail=msg("common.report_not_found", get_request_locale(request))
+        )
     report = report_storage.load_report(filepath)
     return ReportDetailResponse(
         report_id=report.report_id,
@@ -191,17 +198,19 @@ def get_report(report_id: str) -> ReportDetailResponse:
 
 
 @router.delete("/reports/{report_id}", status_code=204)
-def delete_report(report_id: str) -> None:
+def delete_report(report_id: str, request: Request) -> None:
     filepath = _find_report_file(report_id)
     if filepath is None or not report_storage.delete_report(filepath):
-        raise HTTPException(status_code=404, detail="报告不存在")
+        raise HTTPException(
+            status_code=404, detail=msg("common.report_not_found", get_request_locale(request))
+        )
 
 
 _EXPORT_FORMATS = ("html", "markdown", "json")
 
 
 @router.get("/reports/{report_id}/pdf")
-def get_report_pdf(report_id: str) -> Response:
+def get_report_pdf(report_id: str, request: Request) -> Response:
     """Render a stored report as a downloadable PDF (src export_report_pdf).
 
     Same pattern as the IPS pdf endpoint: the src builder writes to a file
@@ -209,13 +218,16 @@ def get_report_pdf(report_id: str) -> Response:
     names may contain CJK, hence the RFC 5987 filename* in
     Content-Disposition.
     """
+    locale = get_request_locale(request)
     filepath = _find_report_file(report_id)
     if filepath is None:
-        raise HTTPException(status_code=404, detail="报告不存在")
+        raise HTTPException(
+            status_code=404, detail=msg("common.report_not_found", locale)
+        )
     report = report_storage.load_report(filepath)
     with tempfile.TemporaryDirectory() as tmpdir:
         pdf_path = report_storage.export_report_pdf(
-            report, Path(tmpdir) / "report.pdf"
+            report, Path(tmpdir) / "report.pdf", locale=locale
         )
         pdf_bytes = pdf_path.read_bytes()
     base = f"report_{sanitize_filename(report.client_name) or 'client'}_{report.report_id}"
@@ -237,6 +249,7 @@ def get_report_pdf(report_id: str) -> Response:
 @router.get("/reports/{report_id}/export")
 def export_report_file(
     report_id: str,
+    request: Request,
     format: str = Query(default="html"),
 ) -> Response:
     """Export a stored report as a downloadable file (html / markdown / json).
@@ -245,22 +258,25 @@ def export_report_file(
     standalone document); the JSON variant mirrors the stored record minus
     internal filepaths, which never leave the API surface.
     """
+    locale = get_request_locale(request)
     if format not in _EXPORT_FORMATS:
         raise HTTPException(
             status_code=422,
-            detail=f"format 必须是 {' / '.join(_EXPORT_FORMATS)}",
+            detail=msg(
+                "advisor.invalid_export_format", locale, formats=" / ".join(_EXPORT_FORMATS)
+            ),
         )
     filepath = _find_report_file(report_id)
     if filepath is None:
-        raise HTTPException(status_code=404, detail="报告不存在")
+        raise HTTPException(status_code=404, detail=msg("common.report_not_found", locale))
     report = report_storage.load_report(filepath)
 
     base = f"report_{sanitize_filename(report.client_name) or 'client'}_{report.report_id}"
     if format == "html":
-        body = report_storage.export_report_html(report)
+        body = report_storage.export_report_html(report, locale=locale)
         media_type, ext = "text/html", "html"
     elif format == "markdown":
-        body = report_storage.export_report_markdown(report)
+        body = report_storage.export_report_markdown(report, locale=locale)
         media_type, ext = "text/markdown", "md"
     else:
         data = {

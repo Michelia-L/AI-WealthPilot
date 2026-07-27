@@ -14,11 +14,12 @@ src/agents/llm_config.py.
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from openai import APIConnectionError, APITimeoutError, AuthenticationError, OpenAI
 from sqlmodel import Session
 
 from api.db import AppSettingRecord, get_session
+from api.i18n import get_request_locale, msg
 from api.schemas import (
     LlmModelsFetchRequest,
     LlmModelsResponse,
@@ -70,7 +71,9 @@ def get_llm_settings() -> LlmSettingsResponse:
 
 @router.put("/llm", response_model=LlmSettingsResponse)
 def put_llm_settings(
-    payload: LlmSettingsUpdateRequest, session: Session = Depends(get_session)
+    payload: LlmSettingsUpdateRequest,
+    request: Request,
+    session: Session = Depends(get_session),
 ) -> LlmSettingsResponse:
     base_url = payload.base_url.strip()
     api_key = payload.api_key.strip()
@@ -88,7 +91,7 @@ def put_llm_settings(
     if not base_url or not model:
         raise HTTPException(
             status_code=422,
-            detail="设置自定义端点时，base_url 与 model 均不能为空。",
+            detail=msg("settings.custom_endpoint_fields_required", get_request_locale(request)),
         )
 
     _upsert(session, KEY_BASE_URL, base_url)
@@ -108,7 +111,8 @@ def _fetch_models(base_url: str, api_key: str) -> list[str]:
 
 
 @router.post("/llm/models", response_model=LlmModelsResponse)
-def list_llm_models(payload: LlmModelsFetchRequest) -> LlmModelsResponse:
+def list_llm_models(payload: LlmModelsFetchRequest, request: Request) -> LlmModelsResponse:
+    locale = get_request_locale(request)
     try:
         return LlmModelsResponse(
             models=_fetch_models(payload.base_url, payload.api_key)
@@ -116,16 +120,16 @@ def list_llm_models(payload: LlmModelsFetchRequest) -> LlmModelsResponse:
     except (APIConnectionError, APITimeoutError) as e:
         raise HTTPException(
             status_code=502,
-            detail="无法连接到该端点，请检查地址与网络",
+            detail=msg("settings.endpoint_unreachable", locale),
         ) from e
     except AuthenticationError as e:
         raise HTTPException(
             status_code=502,
-            detail="端点认证失败，请检查 API Key",
+            detail=msg("settings.endpoint_auth_failed", locale),
         ) from e
     except Exception as e:
         text = str(e).strip()
         raise HTTPException(
             status_code=502,
-            detail=f"获取模型列表失败：{text[:200]}",
+            detail=msg("settings.models_fetch_failed", locale, error=text[:200]),
         ) from e

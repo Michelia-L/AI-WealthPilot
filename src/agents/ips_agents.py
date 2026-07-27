@@ -163,6 +163,69 @@ _GENERATOR_SYSTEM_PROMPT = """你是一名资深私人财富管理顾问，专�
   - KYC（了解你的客户）完成确认声明，确认已完成客户身份验证和投资适当性评估"""
 
 
+# English-only counterpart of _GENERATOR_SYSTEM_PROMPT (Phase 22): identical
+# analytical and structural requirements, but the IPS is written entirely in
+# English.
+_GENERATOR_SYSTEM_PROMPT_EN = """You are a senior private wealth management advisor specializing in writing Investment Policy Statements (IPS) for high-net-worth individual clients.
+
+## Your Task
+Based on the provided client profile data and the IPS structural template, generate a complete, professional-grade Investment Policy Statement, written entirely in English.
+
+## Core Principles
+1. **Strictly follow the standard IPS framework**: every standard section must be present (return objectives, risk tolerance, time horizon, liquidity, taxes, legal, unique circumstances, investment guidelines, monitoring & review)
+2. **Data-driven**: all analysis and recommendations must be grounded in the client's actual data — never fabricate figures
+3. **Dual-track risk tolerance**: strictly apply the "use the lower score" principle
+   - You MUST fill in the quantitative risk-anchor fields of `risk_tolerance`:
+     - `max_acceptable_annual_loss`: maximum acceptable annual loss by risk level (conservative: -5%, moderately_conservative: -10%, moderate: -15%, moderately_aggressive: -20%, aggressive: -30%)
+     - `target_volatility_min` / `target_volatility_max`: target volatility band (conservative: 4-8%, moderately_conservative: 8-12%, moderate: 10-15%, moderately_aggressive: 13-18%, aggressive: 16-25%)
+     - `var_tolerance_95`: annualized VaR tolerance at the 95% confidence level
+     - `max_drawdown_tolerance`: maximum drawdown tolerance
+4. **Quantitative precision**: return objectives must show an explicit mathematical derivation
+5. **Sound asset allocation**: the strategic asset allocation must be consistent with the client's risk level, time horizon, and liquidity needs
+6. **Compliance awareness**: include adequate risk disclosure and compliance statements
+7. **CME-driven asset allocation**:
+   - If CME data is provided, the strategic asset allocation (SAA) MUST reference the expected returns and volatilities from the CME
+   - The risk-free rate and inflation rate MUST use the values provided in the CME — do not assume your own
+   - The portfolio's expected return MUST be computed as the CME-weighted average of the asset-class expected returns, and compared against the IPS required return
+   - The risk disclosure MUST state that the CME is based on historical data and does not represent future performance
+   - The rationale for each asset-class allocation should cite CME data (e.g. Sharpe ratio, volatility, correlations)
+8. **Multi-goal return decomposition** (when the client has multiple investment goals):
+   - You MUST compute a separate required return for each goal in `goal_level_requirements`
+   - Derive each goal's required return with the TVM formula: r = (FV/PV)^(1/n) - 1, where FV = target amount, PV = allocated capital, n = years
+   - `required_nominal_return` should be the capital-weighted composite required return across all goals
+   - Higher-priority goals should receive capital first
+   - The `return_methodology` field MUST state the calculation method used (TVM / Annuity PMT / Gordon Growth Model, etc.)
+   - If any goal's required return exceeds the SAA's expected return range, the infeasibility risk MUST be flagged in return_objective_narrative
+9. **Multi-currency and FX management** (when cross-border assets or foreign-currency exposure exist):
+   - You MUST define the currency policy in the `currency_policy` field
+   - The base currency (`base_currency`) defaults to "CNY" (to match clients whose needs are CNY-denominated)
+   - You MUST assess the foreign-currency exposure ratio `foreign_exposure_pct` (e.g. the weighted sum of foreign-currency assets such as S&P 500, NASDAQ, BTC, and gold futures in the strategic allocation)
+   - You MUST specify a hedging strategy in `hedging_strategy` (e.g. "Unhedged" or "Partial hedge via forward contracts") with an explicit `hedging_ratio`
+   - Explain the FX fluctuation risk and its management strategy in detail in `currency_narrative`
+10. **Fee and cost disclosure** (an industry compliance must):
+   - You MUST complete the full fee disclosure in the `fee_schedule` field
+   - `management_fee_rate`: annualized investment management fee (typically 0.005-0.02, i.e. 0.5%-2%)
+   - `custody_fee_rate`: annualized custody fee (typically 0.001-0.003, i.e. 0.1%-0.3%)
+   - `transaction_cost_estimate`: estimated annualized transaction costs as a share of AUM (typically 0.001-0.005)
+   - `total_expense_ratio`: TER = management fee + custody fee + transaction costs; must be computed precisely
+   - `net_return_impact`: state the fee impact on net returns explicitly, in the form "gross return X% - TER Y% = net return Z%"
+   - `fee_narrative`: a complete fee disclosure narrative covering every fee component and its justification
+
+## Output Requirements
+- Write ALL narrative content in English
+- All figures must be precise; avoid vague wording
+- Asset allocations are expressed as percentages and the weights must sum to exactly 100%
+- Returns are expressed as decimals (e.g. 0.08 means 8%)
+
+## Constraints
+- Never guarantee specific returns or outcomes
+- If the required return exceeds what the client's risk tolerance can bear, state so explicitly
+- Consider the client's complete financial picture holistically
+- `compliance_statement` MUST contain the following compliance elements:
+  - A 24-hour cooling-off period notice (per the Measures for the Suitability Management of Securities and Futures Investors, applicable to products such as private funds)
+  - A KYC (Know Your Customer) completion confirmation, stating that client identity verification and investment suitability assessment have been completed"""
+
+
 _SUITABILITY_REVIEW_PROMPT = """你是一名专业的 IPS 适配性审查员，负责验证投资政策声明书（IPS）是否准确反映了客户的实际情况。
 
 ## 审查维度：适配性 (Suitability)
@@ -182,6 +245,28 @@ _SUITABILITY_REVIEW_PROMPT = """你是一名专业的 IPS 适配性审查员，�
 - 如果引用了行业准则或法规，必须在 regulation_reference 中注明
 - 只有在所有检查项均通过时，才将 passed 设为 true
 - 使用中文描述所有问题"""
+
+
+# English-only counterpart of _SUITABILITY_REVIEW_PROMPT (Phase 22).
+_SUITABILITY_REVIEW_PROMPT_EN = """You are a professional IPS suitability reviewer, responsible for verifying that an Investment Policy Statement (IPS) accurately reflects the client's actual situation.
+
+## Review Dimension: Suitability
+
+Check each of the following items:
+
+1. **Risk level match**: whether the risk level in the IPS matches the client's risk assessment results
+2. **Ability-willingness conflict handling**: if a conflict exists, whether the lower score was correctly used
+3. **Return objective feasibility**: whether the required return is within a reasonable range bearable by the client's risk level
+4. **Time horizon match**: whether the risk level of the asset allocation matches the time horizon
+5. **Liquidity adequacy**: whether the liquidity arrangements meet the client's needs
+6. **Emergency fund coverage**: whether sufficient emergency reserves are recommended
+7. **Goal priority reflection**: whether high-priority goals are adequately reflected in the allocation
+
+## Output Requirements
+- For every issue found, state the section it is in, the severity, a specific description, and a suggested fix
+- If you cite industry guidelines or regulations, note them in regulation_reference
+- Set passed to true only when every check item passes
+- Describe all issues in English"""
 
 
 _COMPLIANCE_REVIEW_PROMPT = """你是一名专业的 IPS 合规性审查员，负责验证投资政策声明书（IPS）是否符合监管要求和行业规范。
@@ -206,6 +291,29 @@ _COMPLIANCE_REVIEW_PROMPT = """你是一名专业的 IPS 合规性审查员，�
 - 使用中文描述所有问题"""
 
 
+# English-only counterpart of _COMPLIANCE_REVIEW_PROMPT (Phase 22).
+_COMPLIANCE_REVIEW_PROMPT_EN = """You are a professional IPS compliance reviewer, responsible for verifying that an Investment Policy Statement (IPS) meets regulatory requirements and industry standards.
+
+## Review Dimension: Compliance
+
+Check each of the following items:
+
+1. **Risk disclosure completeness**: whether a complete risk disclosure statement is included (market risk, model limitations, past performance does not represent future results)
+2. **Compliance statement presence**: whether a compliance statement is included
+3. **Weight constraint legality**: whether all asset-class weights sum to 100%
+4. **Prohibited instruments declaration**: whether the client's sector restrictions or ESG preferences are reflected in the prohibited-instruments list
+5. **Suitability principle**: whether the recommended investment instruments match the client's risk level
+6. **Legal constraint completeness**: whether the applicable laws and regulations are identified
+7. **Fee disclosure completeness**: whether the IPS contains a fee_schedule field that fully discloses the management fee rate, custody fee rate, estimated transaction costs, and TER (total expense ratio), and explains the fee impact on net returns
+8. **Cooling-off period notice**: whether compliance_statement includes a notice about the 24-hour cooling-off period after signing (applicable to products such as private funds, per the Measures for the Suitability Management of Securities and Futures Investors)
+9. **KYC completion confirmation**: whether compliance_statement includes a KYC confirmation that client identity verification and investment suitability assessment have been completed
+
+## Output Requirements
+- Compliance issues default to critical severity
+- You must cite the specific regulation or industry standard
+- Describe all issues in English"""
+
+
 _CONSISTENCY_REVIEW_PROMPT = """你是一名专业的 IPS 一致性审查员，负责验证投资政策声明书（IPS）各章节之间的内部逻辑一致性。
 
 ## 审查维度：一致性 (Consistency)
@@ -227,6 +335,30 @@ _CONSISTENCY_REVIEW_PROMPT = """你是一名专业的 IPS 一致性审查员，�
 ## 输出要求
 - 逻辑矛盾为 critical，表述不一致为 warning，措辞优化为 info
 - 使用中文描述所有问题"""
+
+
+# English-only counterpart of _CONSISTENCY_REVIEW_PROMPT (Phase 22).
+_CONSISTENCY_REVIEW_PROMPT_EN = """You are a professional IPS consistency reviewer, responsible for verifying the internal logical consistency across the sections of an Investment Policy Statement (IPS).
+
+## Review Dimension: Consistency
+
+Check each of the following items:
+
+1. **Risk level vs allocation consistency**: whether the stated risk level matches the actual risk level of the asset allocation
+   - Conservative: equities ≤ 30%
+   - Moderately conservative: equities ≤ 45%
+   - Moderate: equities ≤ 60%
+   - Moderately aggressive: equities ≤ 75%
+   - Aggressive: equities ≤ 90%
+2. **Return objective vs allocation consistency**: whether the allocation's expected return can cover the required return
+3. **Horizon vs allocation consistency**: whether the time horizon analysis is consistent with the allocation logic
+4. **Executive summary consistency**: whether the summary content matches each section
+5. **Unique circumstances vs guidelines consistency**: whether restrictions in the unique circumstances are reflected in the investment guidelines
+6. **Rebalancing strategy consistency**: whether the rebalancing policies in the investment guidelines and the monitoring section agree
+
+## Output Requirements
+- Logical contradictions are critical, inconsistent statements are warning, wording improvements are info
+- Describe all issues in English"""
 
 
 _REVISER_SYSTEM_PROMPT = """你是一名资深 IPS 修订专家。
@@ -255,6 +387,58 @@ _REVISER_SYSTEM_PROMPT = """你是一名资深 IPS 修订专家。
 - 使用中文撰写"""
 
 
+# English-only counterpart of _REVISER_SYSTEM_PROMPT (Phase 22).
+_REVISER_SYSTEM_PROMPT_EN = """You are a senior IPS revision specialist.
+
+## Your Task
+Precisely revise an Investment Policy Statement (IPS) based on the issues and suggestions raised by the review team. Write all content in English.
+
+## Revision Principles
+1. **Precise revision**: only fix the issues identified in the review; do not alter parts that have no issues
+2. **Maintain consistency**: when revising one section, keep its logic consistent with the other sections
+3. **Data accuracy**: recompute every revised figure to ensure mathematical correctness
+4. **Traceability**: every change should be traceable, and the revised content should be more accurate and professional
+
+## Numeric Change Propagation Rules (Critical)
+5. **Numeric consistency**: whenever you change any return, volatility, or weight figure, you MUST scan the whole document and update every place that references it:
+   - Changed SAA weights → update the weight descriptions in guideline_narrative and executive_summary
+   - Changed expected returns → update the return references in return_objective, executive_summary, and risk_disclosure
+   - Changed risk level → update the risk descriptions in risk_tolerance, executive_summary, and investment_guidelines
+   - Every figure in executive_summary must match the latest values in the corresponding sections
+6. **Cross-validation**: after revising, verify yourself that the key figures in executive_summary (returns, weights, risk level) exactly match the corresponding sections
+
+## Output Requirements
+- Output the complete revised IPS (not only the changed parts)
+- Ensure all weights still sum to 100%
+- Ensure consistency of figures such as returns
+- Write all content in English"""
+
+
+# Locale resolution for the five workflow system prompts (Phase 22). zh keeps
+# the pre-i18n prompts verbatim; en switches to the English-only variants.
+_SYSTEM_PROMPTS_ZH = {
+    "generator": _GENERATOR_SYSTEM_PROMPT,
+    "suitability": _SUITABILITY_REVIEW_PROMPT,
+    "compliance": _COMPLIANCE_REVIEW_PROMPT,
+    "consistency": _CONSISTENCY_REVIEW_PROMPT,
+    "reviser": _REVISER_SYSTEM_PROMPT,
+}
+
+_SYSTEM_PROMPTS_EN = {
+    "generator": _GENERATOR_SYSTEM_PROMPT_EN,
+    "suitability": _SUITABILITY_REVIEW_PROMPT_EN,
+    "compliance": _COMPLIANCE_REVIEW_PROMPT_EN,
+    "consistency": _CONSISTENCY_REVIEW_PROMPT_EN,
+    "reviser": _REVISER_SYSTEM_PROMPT_EN,
+}
+
+
+def get_system_prompt(role: str, locale: str = "zh") -> str:
+    """System prompt for an IPS workflow role in the report language."""
+    table = _SYSTEM_PROMPTS_EN if locale == "en" else _SYSTEM_PROMPTS_ZH
+    return table[role]
+
+
 # Shared Model Settings
 
 def _get_model_settings() -> ModelSettings:
@@ -279,7 +463,7 @@ def _get_model_settings() -> ModelSettings:
 
 # Agent Factory Functions
 
-def create_ips_generator_agent() -> Agent[None, IPSDocument]:
+def create_ips_generator_agent(locale: str = "zh") -> Agent[None, IPSDocument]:
     """
     Create the IPS generation agent.
 
@@ -287,24 +471,30 @@ def create_ips_generator_agent() -> Agent[None, IPSDocument]:
     user prompt) and the IPS template reference, then generates
     a complete, structured IPSDocument.
 
+    Args:
+        locale: Language of the generated IPS ("zh" or "en").
+
     Returns:
         PydanticAI Agent configured for IPS generation.
     """
     return Agent(
         model=_get_model(),
         output_type=IPSDocument,
-        system_prompt=_GENERATOR_SYSTEM_PROMPT,
+        system_prompt=get_system_prompt("generator", locale),
         model_settings=_get_model_settings(),
         retries=3,
     )
 
 
-def create_suitability_reviewer() -> Agent[None, ReviewResult]:
+def create_suitability_reviewer(locale: str = "zh") -> Agent[None, ReviewResult]:
     """
     Create the suitability review agent.
 
     Checks whether the IPS properly reflects the client's risk
     profile, return requirements, time horizon, and liquidity needs.
+
+    Args:
+        locale: Language the review findings are written in ("zh" or "en").
 
     Returns:
         PydanticAI Agent configured for suitability review.
@@ -312,18 +502,21 @@ def create_suitability_reviewer() -> Agent[None, ReviewResult]:
     return Agent(
         model=_get_model(),
         output_type=ReviewResult,
-        system_prompt=_SUITABILITY_REVIEW_PROMPT,
+        system_prompt=get_system_prompt("suitability", locale),
         model_settings=_get_model_settings(),
         retries=3,
     )
 
 
-def create_compliance_reviewer() -> Agent[None, ReviewResult]:
+def create_compliance_reviewer(locale: str = "zh") -> Agent[None, ReviewResult]:
     """
     Create the compliance review agent.
 
     Checks whether the IPS meets regulatory requirements including
     risk disclosure, compliance statements, and weight constraints.
+
+    Args:
+        locale: Language the review findings are written in ("zh" or "en").
 
     Returns:
         PydanticAI Agent configured for compliance review.
@@ -331,18 +524,21 @@ def create_compliance_reviewer() -> Agent[None, ReviewResult]:
     return Agent(
         model=_get_model(),
         output_type=ReviewResult,
-        system_prompt=_COMPLIANCE_REVIEW_PROMPT,
+        system_prompt=get_system_prompt("compliance", locale),
         model_settings=_get_model_settings(),
         retries=3,
     )
 
 
-def create_consistency_reviewer() -> Agent[None, ReviewResult]:
+def create_consistency_reviewer(locale: str = "zh") -> Agent[None, ReviewResult]:
     """
     Create the consistency review agent.
 
     Checks whether all IPS sections are internally consistent
     (e.g., risk level matches allocation, return matches allocation).
+
+    Args:
+        locale: Language the review findings are written in ("zh" or "en").
 
     Returns:
         PydanticAI Agent configured for consistency review.
@@ -350,18 +546,21 @@ def create_consistency_reviewer() -> Agent[None, ReviewResult]:
     return Agent(
         model=_get_model(),
         output_type=ReviewResult,
-        system_prompt=_CONSISTENCY_REVIEW_PROMPT,
+        system_prompt=get_system_prompt("consistency", locale),
         model_settings=_get_model_settings(),
         retries=3,
     )
 
 
-def create_ips_reviser_agent() -> Agent[None, IPSDocument]:
+def create_ips_reviser_agent(locale: str = "zh") -> Agent[None, IPSDocument]:
     """
     Create the IPS revision agent.
 
     Takes the current IPS draft and review issues as context,
     then produces a revised IPSDocument addressing all issues.
+
+    Args:
+        locale: Language of the revised IPS ("zh" or "en").
 
     Returns:
         PydanticAI Agent configured for IPS revision.
@@ -369,7 +568,7 @@ def create_ips_reviser_agent() -> Agent[None, IPSDocument]:
     return Agent(
         model=_get_model(),
         output_type=IPSDocument,
-        system_prompt=_REVISER_SYSTEM_PROMPT,
+        system_prompt=get_system_prompt("reviser", locale),
         model_settings=_get_model_settings(),
         retries=3,
     )
@@ -381,6 +580,7 @@ def build_generation_prompt(
     client_profile_json: str,
     ips_template: str,
     cme_text: str = "",
+    locale: str = "zh",
 ) -> str:
     """
     Build the user prompt for IPS generation.
@@ -393,10 +593,46 @@ def build_generation_prompt(
         client_profile_json: Serialized ClientProfile as JSON string.
         ips_template: Full text of the IPS structural template.
         cme_text: CME data formatted as LLM-readable text.
+        locale: Scaffolding language of the prompt ("zh" verbatim original,
+            "en" English-only).
 
     Returns:
         Formatted user prompt string.
     """
+    if locale == "en":
+        cme_section = ""
+        if cme_text:
+            cme_section = f"""
+
+═══════════════════════════════════════════
+CAPITAL MARKET EXPECTATIONS (CME) — Quantitative Engine Data
+═══════════════════════════════════════════
+
+{cme_text}
+
+"""
+
+        return f"""Based on the client profile data below, and referring to the IPS structural template and the Capital Market Expectations (CME) data, generate a complete Investment Policy Statement.
+
+═══════════════════════════════════════════
+CLIENT PROFILE DATA
+═══════════════════════════════════════════
+
+{client_profile_json}
+
+═══════════════════════════════════════════
+IPS STRUCTURAL TEMPLATE (REFERENCE)
+═══════════════════════════════════════════
+
+{ips_template}
+{cme_section}
+═══════════════════════════════════════════
+
+Generate the complete IPS strictly following the template structure, with substantive content in every section.
+Write all narrative content in English. Express returns as decimals (e.g. 0.08 means 8%).
+Asset allocation weights must sum to 1.0 (i.e. 100%).
+If CME data is provided, the SAA's expected returns and volatilities must be consistent with the CME."""
+
     cme_section = ""
     if cme_text:
         cme_section = f"""
@@ -436,6 +672,7 @@ def build_review_prompt(
     client_profile_json: str,
     dimension: ReviewDimension,
     checklist_items: Optional[list[dict]] = None,
+    locale: str = "zh",
 ) -> str:
     """
     Build the user prompt for IPS review.
@@ -445,10 +682,40 @@ def build_review_prompt(
         client_profile_json: Serialized ClientProfile as JSON string.
         dimension: Which review dimension to focus on.
         checklist_items: Optional checklist items for this dimension.
+        locale: Scaffolding language of the prompt ("zh" verbatim original,
+            "en" English-only).
 
     Returns:
         Formatted review prompt string.
     """
+    if locale == "en":
+        checklist_text = ""
+        if checklist_items:
+            checklist_text = "\n\n═══════════════════════════════════════════\n"
+            checklist_text += "COMPLIANCE CHECKLIST\n"
+            checklist_text += "═══════════════════════════════════════════\n\n"
+            for item in checklist_items:
+                checklist_text += (
+                    f"- [{item['id']}] {item['name']} ({item['severity']})\n"
+                    f"  Rule: {item['rule']}\n\n"
+                )
+
+        return f"""Review the following Investment Policy Statement (IPS) on the {dimension.value} dimension.
+
+═══════════════════════════════════════════
+IPS DOCUMENT UNDER REVIEW
+═══════════════════════════════════════════
+
+{ips_json}
+
+═══════════════════════════════════════════
+ORIGINAL CLIENT PROFILE DATA (for cross-checking)
+═══════════════════════════════════════════
+
+{client_profile_json}
+{checklist_text}
+Check each item and output a structured review result. The dimension field must be set to "{dimension.value}"."""
+
     checklist_text = ""
     if checklist_items:
         checklist_text = "\n\n═══════════════════════════════════════════\n"
@@ -480,6 +747,7 @@ def build_review_prompt(
 def build_revision_prompt(
     ips_json: str,
     review_issues_json: str,
+    locale: str = "zh",
 ) -> str:
     """
     Build the user prompt for IPS revision.
@@ -487,10 +755,33 @@ def build_revision_prompt(
     Args:
         ips_json: Serialized current IPSDocument as JSON string.
         review_issues_json: Serialized list of ReviewIssue as JSON string.
+        locale: Scaffolding language of the prompt ("zh" verbatim original,
+            "en" English-only).
 
     Returns:
         Formatted revision prompt string.
     """
+    if locale == "en":
+        return f"""Revise the following Investment Policy Statement (IPS) according to the review findings below.
+
+═══════════════════════════════════════════
+CURRENT IPS DOCUMENT
+═══════════════════════════════════════════
+
+{ips_json}
+
+═══════════════════════════════════════════
+ISSUES IDENTIFIED IN REVIEW
+═══════════════════════════════════════════
+
+{review_issues_json}
+
+═══════════════════════════════════════════
+
+Address every issue with precise revisions and output the complete revised IPS.
+Do not skip any issue; do not alter parts that have no issues.
+Ensure logical consistency across all sections after the revision."""
+
     return f"""请根据以下审查意见修订投资政策声明书（IPS）。
 
 ═══════════════════════════════════════════

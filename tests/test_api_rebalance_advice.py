@@ -75,7 +75,7 @@ FAKE_MONITORING = {
 }
 
 
-def _fake_stream(monitoring, profile=None):
+def _fake_stream(monitoring, profile=None, locale="zh"):
     """Two token chunks, then a successful AdvisorReport."""
     yield "## 1. 漂移诊断 / Drift Diagnosis\n"
     name = profile.name if profile is not None else monitoring["client_name"]
@@ -91,7 +91,7 @@ def _fake_stream(monitoring, profile=None):
     )
 
 
-def _fake_reasoning_stream(monitoring, profile=None):
+def _fake_reasoning_stream(monitoring, profile=None, locale="zh"):
     """Reasoning event, then token events, then a successful AdvisorReport."""
     yield {"type": "reasoning", "text": "先核对各资产类别的越带情况。"}
     yield {"type": "token", "text": "## 1. 漂移诊断 / Drift Diagnosis\n"}
@@ -117,7 +117,7 @@ def configured(monkeypatch):
     )
     monkeypatch.setattr(
         "api.routers.monitoring.compute_monitoring",
-        lambda document_id: dict(FAKE_MONITORING),
+        lambda document_id, locale="zh": dict(FAKE_MONITORING),
     )
 
 
@@ -166,7 +166,7 @@ def test_advice_emits_reasoning_then_tokens(client, configured, monkeypatch):
 
 
 def test_advice_document_not_found(client, configured, monkeypatch):
-    def _raise_keyerror(document_id):
+    def _raise_keyerror(document_id, locale="zh"):
         raise KeyError(document_id)
 
     monkeypatch.setattr(
@@ -186,7 +186,7 @@ def test_advice_invalid_document_id_charset(client, configured):
 
 
 def test_advice_missing_saa_returns_422(client, configured, monkeypatch):
-    def _raise_valueerror(document_id):
+    def _raise_valueerror(document_id, locale="zh"):
         raise ValueError("IPS 文档缺少战略性资产配置（strategic_allocation），无法执行组合监控。")
 
     monkeypatch.setattr(

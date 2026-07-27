@@ -51,9 +51,8 @@ def isolate_storage_dirs(tmp_path, monkeypatch):
     return temp_profiles_dir, temp_reports_dir
 
 
-@pytest.fixture
-def client(tmp_path, monkeypatch):
-    """API TestClient backed by an isolated tmp-path SQLite database."""
+def _make_client(tmp_path, monkeypatch) -> TestClient:
+    """Build a TestClient backed by an isolated tmp-path SQLite database."""
     engine = create_engine(
         f"sqlite:///{tmp_path}/test.db", connect_args={"check_same_thread": False}
     )
@@ -74,5 +73,24 @@ def client(tmp_path, monkeypatch):
             yield session
 
     app.dependency_overrides[get_session] = override_session
-    with TestClient(app) as test_client:
+    return TestClient(app)
+
+
+@pytest.fixture
+def client(tmp_path, monkeypatch):
+    """API TestClient backed by an isolated tmp-path SQLite database.
+
+    Sends ``X-Locale: zh`` (P22) so the pre-i18n Chinese assertions keep
+    exercising the localized message tables unchanged; per-request headers
+    still override it.
+    """
+    with _make_client(tmp_path, monkeypatch) as test_client:
+        test_client.headers["X-Locale"] = "zh"
+        yield test_client
+
+
+@pytest.fixture
+def bare_client(tmp_path, monkeypatch):
+    """Same as ``client`` but with no X-Locale header (API default: English)."""
+    with _make_client(tmp_path, monkeypatch) as test_client:
         yield test_client

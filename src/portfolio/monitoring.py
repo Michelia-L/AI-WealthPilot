@@ -15,7 +15,9 @@ Computes post-IPS portfolio monitoring diagnostics for a stored IPS document:
 This module is pure computation. The FastAPI layer
 (api/routers/monitoring.py) translates KeyError/ValueError into HTTP
 status codes. All numbers are raw floats (0-1 decimals); dates are ISO
-strings; human-readable caveats are collected in ``notes`` (Chinese).
+strings; human-readable caveats are collected in ``notes`` — bilingual
+via the ``locale`` parameter (Chinese by default, so direct callers keep
+the pre-i18n behavior).
 
 ``compute_fleet_status`` (P17) reuses the same SAA parsing and drift/band
 helpers for a lightweight all-documents band check (no CME alignment)
@@ -63,14 +65,120 @@ _SAA_KEYWORDS: list[tuple[str, str]] = [
 ]
 
 
+# Bilingual user-facing caveats (``notes`` lists and fleet-item ``note``
+# fields). zh keeps the pre-i18n wording verbatim; routers resolve the
+# request locale and pass it down, direct callers default to zh. Kept here
+# rather than in api/i18n.py because src/ must not import from the api/
+# transport shell.
+_NOTE_STRINGS: dict[str, dict[str, str]] = {
+    "missing_saa_monitoring": {
+        "zh": "IPS 文档缺少战略性资产配置（strategic_allocation），无法执行组合监控。",
+        "en": "The IPS document has no strategic asset allocation (strategic_allocation); portfolio monitoring cannot run.",
+    },
+    "missing_saa_weights": {
+        "zh": "IPS 文档缺少战略性资产配置（strategic_allocation），无法解析组合权重。",
+        "en": "The IPS document has no strategic asset allocation (strategic_allocation); portfolio weights cannot be resolved.",
+    },
+    "not_in_cme": {
+        "zh": "资产类别「{name}」（{ticker}）未包含在 CME 报告中，组合指标计算将其剔除。",
+        "en": "Asset class '{name}' ({ticker}) is not covered by the CME report and is excluded from the portfolio metrics.",
+    },
+    "drifted_metrics_null": {
+        "zh": "部分资产缺少区间行情数据，漂移口径的组合指标整体退化为 null。",
+        "en": "Some assets lack price data for the period; the drifted-weight portfolio metrics degrade to null.",
+    },
+    "merged_proxy": {
+        "zh": "SAA 中多条资产类别映射到同一代理 {ticker}，权重已合并。",
+        "en": "Multiple SAA asset classes map to the same proxy {ticker}; their weights were merged.",
+    },
+    "dropped_unmapped": {
+        "zh": "以下资产无法映射到行情代理，已从权重解析结果中剔除：{names}。",
+        "en": "The following assets cannot be mapped to a market proxy and were dropped from the resolved weights: {names}.",
+    },
+    "unmapped_asset": {
+        "zh": "资产类别「{name}」无法映射到已知代理，ticker 记为 null。",
+        "en": "Asset class '{name}' cannot be mapped to a known proxy; ticker set to null.",
+    },
+    "cash_plug_existing": {
+        "zh": "SAA 目标权重合计 {total:.1%}，差额 {deficit:.1%} 已并入现金等价物的 target/min/max。",
+        "en": "SAA target weights sum to {total:.1%}; the {deficit:.1%} gap was merged into the cash-equivalent target/min/max.",
+    },
+    "cash_plug_new": {
+        "zh": "SAA 目标权重合计 {total:.1%}，已补入现金等价物 holding（目标权重 {deficit:.1%}，政策区间按 [0, {deficit:.1%}] 处理）。",
+        "en": "SAA target weights sum to {total:.1%}; a cash-equivalent holding was added (target weight {deficit:.1%}, policy band treated as [0, {deficit:.1%}]).",
+    },
+    "rescaled": {
+        "zh": "SAA 目标权重合计 {total:.1%} 超过 100%，已按比例归一化（缩放系数 {scale:.4f}）。",
+        "en": "SAA target weights sum to {total:.1%} (over 100%); they were rescaled proportionally (factor {scale:.4f}).",
+    },
+    "missing_corr_pair": {
+        "zh": "相关性矩阵缺失资产对「{name_i} × {name_j}」，按 0 处理。",
+        "en": "Correlation matrix is missing the pair '{name_i} × {name_j}'; treated as 0.",
+    },
+    "saved_at_missing": {
+        "zh": "metadata.saved_at 缺失，无法计算区间收益与漂移。",
+        "en": "metadata.saved_at is missing; period returns and drift cannot be computed.",
+    },
+    "saved_at_unparseable": {
+        "zh": "metadata.saved_at（{saved_at!r}）无法解析为 ISO 日期，无法计算区间收益与漂移。",
+        "en": "metadata.saved_at ({saved_at!r}) cannot be parsed as an ISO date; period returns and drift cannot be computed.",
+    },
+    "fetch_failed_returns": {
+        "zh": "行情数据获取失败（{error}），区间收益记为 null。",
+        "en": "Failed to fetch market data ({error}); period returns recorded as null.",
+    },
+    "no_price_data": {
+        "zh": "ticker {ticker} 无行情数据，区间收益记为 null。",
+        "en": "No market data for ticker {ticker}; period return recorded as null.",
+    },
+    "window_too_short": {
+        "zh": "ticker {ticker} 自 {since} 以来的行情窗口太短（{n_obs} 个观测点），区间收益记为 null。",
+        "en": "Market data window for ticker {ticker} since {since} is too short ({n_obs} observations); period return recorded as null.",
+    },
+    "drift_missing_returns": {
+        "zh": "以下资产缺少区间收益，漂移归一化时按其权重不变（R=0）处理：{names}。",
+        "en": "The following assets have no period return and are treated as unchanged (R=0) in the drift normalization: {names}.",
+    },
+    "fleet_fetch_failed": {
+        "zh": "行情数据获取失败（{error}），漂移状态记为 unknown。",
+        "en": "Failed to fetch market data ({error}); drift status recorded as unknown.",
+    },
+    "fleet_missing_saa": {
+        "zh": "IPS 文档缺少战略性资产配置（strategic_allocation），无法执行漂移检查。",
+        "en": "The IPS document has no strategic asset allocation (strategic_allocation); the drift check cannot run.",
+    },
+    "fleet_parse_failed": {
+        "zh": "IPS 文档解析失败（{error}），漂移状态记为 unknown。",
+        "en": "Failed to parse the IPS document ({error}); drift status recorded as unknown.",
+    },
+    "fleet_insufficient_data": {
+        "zh": "行情数据不足，无法判定漂移状态。",
+        "en": "Insufficient market data to determine the drift status.",
+    },
+}
+
+
+def _t(key: str, locale: str, **fmt) -> str:
+    """Render one bilingual note; unknown locales fall back to Chinese."""
+    entry = _NOTE_STRINGS[key]
+    template = entry.get(locale) or entry["zh"]
+    return template.format(**fmt) if fmt else template
+
+
+def _list_sep(locale: str) -> str:
+    """List separator matching the note language (、 for zh, comma for en)."""
+    return "、" if locale == "zh" else ", "
+
+
 # Public Entry Point
 
-def compute_monitoring(document_id: str) -> dict:
+def compute_monitoring(document_id: str, locale: str = "zh") -> dict:
     """
     Compute drift monitoring and rebalancing diagnostics for a stored IPS.
 
     Args:
         document_id: IPS document stem (filename without .json).
+        locale: Language of the human-readable ``notes`` ("zh" / "en").
 
     Returns:
         Dict matching the api.schemas.MonitoringResponse contract.
@@ -88,11 +196,11 @@ def compute_monitoring(document_id: str) -> dict:
     meta = record.get("metadata", {})
     saa = ips.get("investment_guidelines", {}).get("strategic_allocation") or []
     if not saa:
-        raise ValueError("IPS 文档缺少战略性资产配置（strategic_allocation），无法执行组合监控。")
+        raise ValueError(_t("missing_saa_monitoring", locale))
 
     notes: list[str] = []
-    holdings = _build_holdings(saa, notes)
-    _normalize_weights(holdings, notes)
+    holdings = _build_holdings(saa, notes, locale)
+    _normalize_weights(holdings, notes, locale)
 
     # CME alignment (use the engine's own cache; never force a refresh here)
     report, cache_status = compute_cme()
@@ -100,10 +208,7 @@ def compute_monitoring(document_id: str) -> dict:
     for h in holdings:
         h["cme"] = cme_by_ticker.get(h["ticker"]) if h["ticker"] else None
         if h["ticker"] and h["cme"] is None:
-            notes.append(
-                f"资产类别「{h['name']}」（{h['ticker']}）未包含在 CME 报告中，"
-                "组合指标计算将其剔除。"
-            )
+            notes.append(_t("not_in_cme", locale, name=h["name"], ticker=h["ticker"]))
 
     rf = report.risk_free_rate
     corr = report.correlation_matrix
@@ -112,14 +217,14 @@ def compute_monitoring(document_id: str) -> dict:
     portfolio = _portfolio_metrics(
         [h["target_weight"] for h in holdings],
         [h["cme"] for h in holdings],
-        corr, rf, notes, noted_corr_pairs,
+        corr, rf, notes, noted_corr_pairs, locale,
     )
 
     # Market-value drift since the IPS was saved
     saved_at = meta.get("saved_at", "") or ""
-    saved_date = _parse_saved_date(saved_at, notes)
-    period_returns = _compute_period_returns(holdings, saved_date, notes)
-    _apply_drift(holdings, period_returns, notes)
+    saved_date = _parse_saved_date(saved_at, notes, locale)
+    period_returns = _compute_period_returns(holdings, saved_date, notes, locale)
+    _apply_drift(holdings, period_returns, notes, locale)
     _apply_bands(holdings)
 
     if any(h["drifted_weight"] is None for h in holdings):
@@ -130,12 +235,12 @@ def compute_monitoring(document_id: str) -> dict:
             "volatility": None,
             "sharpe": None,
         }
-        notes.append("部分资产缺少区间行情数据，漂移口径的组合指标整体退化为 null。")
+        notes.append(_t("drifted_metrics_null", locale))
     else:
         drifted_portfolio = _portfolio_metrics(
             [h["drifted_weight"] for h in holdings],
             [h["cme"] for h in holdings],
-            corr, rf, notes, noted_corr_pairs,
+            corr, rf, notes, noted_corr_pairs, locale,
         )
 
     rebalance = _compute_rebalance(holdings)
@@ -154,7 +259,7 @@ def compute_monitoring(document_id: str) -> dict:
     }
 
 
-def resolve_saa_weights(document_id: str) -> dict:
+def resolve_saa_weights(document_id: str, locale: str = "zh") -> dict:
     """
     Resolve a stored IPS document's SAA into normalized ticker weights.
 
@@ -166,13 +271,14 @@ def resolve_saa_weights(document_id: str) -> dict:
 
     Args:
         document_id: IPS document stem (filename without .json).
+        locale: Language of the parsing caveats ("zh" / "en").
 
     Returns:
         Dict with keys:
             client_name: str
             weights: {ticker: normalized target weight} (mapped holdings only)
             names: {ticker: SAA asset class display name}
-            notes: list[str] — Chinese parsing caveats
+            notes: list[str] — parsing caveats worded per ``locale``
             fee_schedule: dict — the IPS fee disclosure block (P18), {}
                 when the document does not carry one
 
@@ -189,13 +295,11 @@ def resolve_saa_weights(document_id: str) -> dict:
     meta = record.get("metadata", {})
     saa = ips.get("investment_guidelines", {}).get("strategic_allocation") or []
     if not saa:
-        raise ValueError(
-            "IPS 文档缺少战略性资产配置（strategic_allocation），无法解析组合权重。"
-        )
+        raise ValueError(_t("missing_saa_weights", locale))
 
     notes: list[str] = []
-    holdings = _build_holdings(saa, notes)
-    _normalize_weights(holdings, notes)
+    holdings = _build_holdings(saa, notes, locale)
+    _normalize_weights(holdings, notes, locale)
 
     weights: dict[str, float] = {}
     names: dict[str, str] = {}
@@ -209,15 +313,13 @@ def resolve_saa_weights(document_id: str) -> dict:
             weights[h["ticker"]] += h["target_weight"]
             if h["ticker"] not in merged:
                 merged.add(h["ticker"])
-                notes.append(
-                    f"SAA 中多条资产类别映射到同一代理 {h['ticker']}，权重已合并。"
-                )
+                notes.append(_t("merged_proxy", locale, ticker=h["ticker"]))
         else:
             weights[h["ticker"]] = h["target_weight"]
             names[h["ticker"]] = h["name"]
     if dropped:
         notes.append(
-            f"以下资产无法映射到行情代理，已从权重解析结果中剔除：{'、'.join(dropped)}。"
+            _t("dropped_unmapped", locale, names=_list_sep(locale).join(dropped))
         )
 
     return {
@@ -249,7 +351,7 @@ def _match_asset_class_key(name: str) -> Optional[str]:
     return None
 
 
-def _build_holdings(saa: list[dict], notes: list[str]) -> list[dict]:
+def _build_holdings(saa: list[dict], notes: list[str], locale: str = "zh") -> list[dict]:
     """Convert raw SAA entries into internal holding records."""
     holdings = []
     for entry in saa:
@@ -259,7 +361,7 @@ def _build_holdings(saa: list[dict], notes: list[str]) -> list[dict]:
         if key is not None:
             ticker = IPS_ASSET_CLASS_TICKERS.get(key, {}).get("ticker")
         else:
-            notes.append(f"资产类别「{name}」无法映射到已知代理，ticker 记为 null。")
+            notes.append(_t("unmapped_asset", locale, name=name))
         holdings.append({
             "key": key,
             "name": name,
@@ -276,7 +378,7 @@ def _build_holdings(saa: list[dict], notes: list[str]) -> list[dict]:
     return holdings
 
 
-def _normalize_weights(holdings: list[dict], notes: list[str]) -> None:
+def _normalize_weights(holdings: list[dict], notes: list[str], locale: str = "zh") -> None:
     """
     Normalize SAA target weights in place.
 
@@ -293,10 +395,7 @@ def _normalize_weights(holdings: list[dict], notes: list[str]) -> None:
             cash["target_weight"] += deficit
             cash["min_weight"] += deficit
             cash["max_weight"] += deficit
-            notes.append(
-                f"SAA 目标权重合计 {total:.1%}，差额 {deficit:.1%} "
-                "已并入现金等价物的 target/min/max。"
-            )
+            notes.append(_t("cash_plug_existing", locale, total=total, deficit=deficit))
         else:
             info = IPS_ASSET_CLASS_TICKERS["cash"]
             holdings.append({
@@ -313,20 +412,14 @@ def _normalize_weights(holdings: list[dict], notes: list[str]) -> None:
                 "band_status": "unknown",
                 "cme": None,
             })
-            notes.append(
-                f"SAA 目标权重合计 {total:.1%}，已补入现金等价物 holding"
-                f"（目标权重 {deficit:.1%}，政策区间按 [0, {deficit:.1%}] 处理）。"
-            )
+            notes.append(_t("cash_plug_new", locale, total=total, deficit=deficit))
     elif total > 1.001:
         scale = 1.0 / total
         for h in holdings:
             h["target_weight"] *= scale
             h["min_weight"] *= scale
             h["max_weight"] *= scale
-        notes.append(
-            f"SAA 目标权重合计 {total:.1%} 超过 100%，"
-            f"已按比例归一化（缩放系数 {scale:.4f}）。"
-        )
+        notes.append(_t("rescaled", locale, total=total, scale=scale))
 
 
 # Portfolio-Level Metrics (CME-based)
@@ -345,6 +438,7 @@ def _portfolio_metrics(
     risk_free_rate: float,
     notes: list[str],
     noted_corr_pairs: set[tuple[str, str]],
+    locale: str = "zh",
 ) -> dict:
     """
     Compute portfolio expected return, volatility and Sharpe for a weight set.
@@ -379,7 +473,7 @@ def _portfolio_metrics(
                 if pair not in noted_corr_pairs:
                     noted_corr_pairs.add(pair)
                     notes.append(
-                        f"相关性矩阵缺失资产对「{names[i]} × {names[j]}」，按 0 处理。"
+                        _t("missing_corr_pair", locale, name_i=names[i], name_j=names[j])
                     )
                 c = 0.0
             corr_mat[i, j] = corr_mat[j, i] = float(c)
@@ -399,18 +493,15 @@ def _portfolio_metrics(
 
 # Drift Measurement (market-value weights since saved_at)
 
-def _parse_saved_date(saved_at: str, notes: list[str]) -> Optional[date]:
+def _parse_saved_date(saved_at: str, notes: list[str], locale: str = "zh") -> Optional[date]:
     """Parse metadata.saved_at (ISO) into a date; None if unusable."""
     if not saved_at:
-        notes.append("metadata.saved_at 缺失，无法计算区间收益与漂移。")
+        notes.append(_t("saved_at_missing", locale))
         return None
     try:
         return datetime.fromisoformat(saved_at).date()
     except (ValueError, TypeError):
-        notes.append(
-            f"metadata.saved_at（{saved_at!r}）无法解析为 ISO 日期，"
-            "无法计算区间收益与漂移。"
-        )
+        notes.append(_t("saved_at_unparseable", locale, saved_at=saved_at))
         return None
 
 
@@ -449,6 +540,7 @@ def _compute_period_returns(
     holdings: list[dict],
     saved_date: Optional[date],
     notes: list[str],
+    locale: str = "zh",
 ) -> dict[str, Optional[float]]:
     """
     Fetch per-ticker total returns from saved_at to the latest close.
@@ -473,19 +565,18 @@ def _compute_period_returns(
         )
     except Exception as e:
         logger.warning("Price history fetch failed for monitoring: %s", e)
-        notes.append(f"行情数据获取失败（{e}），区间收益记为 null。")
+        notes.append(_t("fetch_failed_returns", locale, error=e))
         return result
 
     cutoff = pd.Timestamp(saved_date)
     for t in tickers:
         if t not in prices.columns:
-            notes.append(f"ticker {t} 无行情数据，区间收益记为 null。")
+            notes.append(_t("no_price_data", locale, ticker=t))
             continue
         ret, n_obs = _period_return_from_series(prices[t], cutoff)
         if ret is None:
             notes.append(
-                f"ticker {t} 自 {saved_date.isoformat()} 以来的行情窗口太短"
-                f"（{n_obs} 个观测点），区间收益记为 null。"
+                _t("window_too_short", locale, ticker=t, since=saved_date.isoformat(), n_obs=n_obs)
             )
             continue
         result[t] = ret
@@ -496,6 +587,7 @@ def _apply_drift(
     holdings: list[dict],
     period_returns: dict[str, Optional[float]],
     notes: list[str],
+    locale: str = "zh",
 ) -> None:
     """
     Compute drifted (market-value) weights in place.
@@ -512,8 +604,7 @@ def _apply_drift(
     missing = [h["name"] for h in holdings if h["period_return"] is None]
     if missing and len(missing) < len(holdings):
         notes.append(
-            f"以下资产缺少区间收益，漂移归一化时按其权重不变（R=0）处理："
-            f"{'、'.join(missing)}。"
+            _t("drift_missing_returns", locale, names=_list_sep(locale).join(missing))
         )
 
     factors = [
@@ -546,7 +637,7 @@ def _apply_bands(holdings: list[dict]) -> None:
 
 # Fleet-Wide Status Aggregation (P17 — overview alert lamp)
 
-def compute_fleet_status() -> dict:
+def compute_fleet_status(locale: str = "zh") -> dict:
     """
     Lightweight drift-band check across all stored IPS documents.
 
@@ -564,11 +655,14 @@ def compute_fleet_status() -> dict:
         - missing SAA / parse error  -> that document 'unknown' + note
         - window shorter than 2 obs  -> affected tickers 'unknown'
 
+    Args:
+        locale: Language of the per-item ``note`` fields ("zh" / "en").
+
     Returns:
         Dict matching the api.schemas.MonitoringFleetResponse contract.
     """
     today = datetime.now().date()
-    entries = _parse_fleet_documents()
+    entries = _parse_fleet_documents(locale)
 
     # One shared fetch for the union of tickers, sized for the oldest SAA.
     tickers = sorted({
@@ -591,13 +685,13 @@ def compute_fleet_status() -> dict:
             )
         except Exception as e:
             logger.warning("Fleet status price fetch failed: %s", e)
-            fetch_note = f"行情数据获取失败（{e}），漂移状态记为 unknown。"
+            fetch_note = _t("fleet_fetch_failed", locale, error=e)
 
     price_as_of = None
     if prices is not None and len(prices.index) > 0:
         price_as_of = pd.Timestamp(prices.index.max()).date().isoformat()
 
-    items = [_fleet_item(e, prices, fetch_note) for e in entries]
+    items = [_fleet_item(e, prices, fetch_note, locale) for e in entries]
     items.sort(key=lambda item: item["saved_at"], reverse=True)
 
     return {
@@ -613,7 +707,7 @@ def compute_fleet_status() -> dict:
     }
 
 
-def _parse_fleet_documents() -> list[dict]:
+def _parse_fleet_documents(locale: str = "zh") -> list[dict]:
     """
     Enumerate stored IPS documents and parse each SAA into holdings.
 
@@ -642,23 +736,20 @@ def _parse_fleet_documents() -> list[dict]:
             entry["saved_at"] = meta.get("saved_at", "") or entry["saved_at"]
             saa = ips.get("investment_guidelines", {}).get("strategic_allocation") or []
             if not saa:
-                entry["error"] = (
-                    "IPS 文档缺少战略性资产配置（strategic_allocation），"
-                    "无法执行漂移检查。"
-                )
+                entry["error"] = _t("fleet_missing_saa", locale)
             else:
-                holdings = _build_holdings(saa, entry["notes"])
-                _normalize_weights(holdings, entry["notes"])
+                holdings = _build_holdings(saa, entry["notes"], locale)
+                _normalize_weights(holdings, entry["notes"], locale)
                 entry["holdings"] = holdings
                 entry["saved_date"] = _parse_saved_date(
-                    entry["saved_at"], entry["notes"]
+                    entry["saved_at"], entry["notes"], locale
                 )
         except Exception as e:
             logger.warning(
                 "Fleet status: cannot parse IPS document %s: %s",
                 summary.get("filepath"), e,
             )
-            entry["error"] = f"IPS 文档解析失败（{e}），漂移状态记为 unknown。"
+            entry["error"] = _t("fleet_parse_failed", locale, error=e)
         entries.append(entry)
     return entries
 
@@ -667,13 +758,14 @@ def _fleet_item(
     entry: dict,
     prices: Optional[pd.DataFrame],
     fetch_note: Optional[str],
+    locale: str = "zh",
 ) -> dict:
     """
     Derive one document's fleet-status row from the shared price frame.
 
     Status: 'breach' when any holding sits above/below its policy band,
     'ok' when at least one holding has a known (within) band, otherwise
-    'unknown' with a Chinese note explaining why.
+    'unknown' with a note (worded per ``locale``) explaining why.
     """
     item = {
         "document_id": entry["document_id"],
@@ -695,17 +787,16 @@ def _fleet_item(
         period_returns: dict[str, Optional[float]] = {}
         for t in sorted({h["ticker"] for h in holdings if h["ticker"]}):
             if t not in prices.columns:
-                entry["notes"].append(f"ticker {t} 无行情数据，区间收益记为 null。")
+                entry["notes"].append(_t("no_price_data", locale, ticker=t))
                 period_returns[t] = None
                 continue
             ret, n_obs = _period_return_from_series(prices[t], cutoff)
             if ret is None:
                 entry["notes"].append(
-                    f"ticker {t} 自 {saved_date.isoformat()} 以来的行情窗口太短"
-                    f"（{n_obs} 个观测点），区间收益记为 null。"
+                    _t("window_too_short", locale, ticker=t, since=saved_date.isoformat(), n_obs=n_obs)
                 )
             period_returns[t] = ret
-        _apply_drift(holdings, period_returns, entry["notes"])
+        _apply_drift(holdings, period_returns, entry["notes"], locale)
         _apply_bands(holdings)
 
         item["out_of_band"] = sum(
@@ -724,9 +815,9 @@ def _fleet_item(
         if fetch_note is not None:
             item["note"] = fetch_note
         elif entry["notes"]:
-            item["note"] = "；".join(entry["notes"])
+            item["note"] = "；".join(entry["notes"]) if locale == "zh" else "; ".join(entry["notes"])
         else:
-            item["note"] = "行情数据不足，无法判定漂移状态。"
+            item["note"] = _t("fleet_insufficient_data", locale)
     return item
 
 

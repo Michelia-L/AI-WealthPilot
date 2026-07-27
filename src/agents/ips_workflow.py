@@ -127,8 +127,85 @@ class IPSWorkflowState(BaseModel):
         default="",
         description="Error message if workflow fails"
     )
+    locale: str = Field(
+        default="zh",
+        description="Language of the generated IPS and review findings (zh/en)"
+    )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+# Bilingual user-facing strings produced inside the workflow (SAA validation
+# findings and review error summaries — they surface through the audit trail
+# and the SSE error event). zh keeps the pre-i18n wording verbatim; routers
+# resolve the request locale into the workflow state, direct callers default
+# to zh. Kept here rather than in api/i18n.py because src/ must not import
+# from the api/ transport shell (same pattern as src/portfolio/monitoring).
+_SAA_STRINGS: dict[str, dict[str, str]] = {
+    "unmatched_desc": {
+        "zh": "以下 SAA 资产类别无法与 CME 数据匹配：{unmatched_desc}。未匹配权重合计 {unmatched_total:.1%}，组合层面的收益率和波动率验证不包含这些资产。",
+        "en": "The following SAA asset classes could not be matched to CME data: {unmatched_desc}. Their combined weight is {unmatched_total:.1%}; these assets are excluded from the portfolio-level return and volatility validation.",
+    },
+    "unmatched_suggestion": {
+        "zh": "确保 SAA 资产类别名称与 CME 提供的名称保持一致，或在 IPS 中说明未覆盖资产类别的预期假设来源。",
+        "en": "Align the SAA asset class names with those provided by the CME, or state in the IPS the source of the expected-return assumptions for the uncovered asset classes.",
+    },
+    "weight_sum_desc": {
+        "zh": "SAA 权重之和为 {total:.4f}（{total:.2%}），偏离 100% 达 {deviation:.2%}。",
+        "en": "The SAA weights sum to {total:.4f} ({total:.2%}), deviating from 100% by {deviation:.2%}.",
+    },
+    "weight_sum_suggestion": {
+        "zh": "调整各资产类别权重使其加总为 100%。",
+        "en": "Adjust the asset-class weights so they sum to 100%.",
+    },
+    "return_gap_critical_desc": {
+        "zh": "基于 CME 数据，SAA 的加权预期收益率为 {portfolio_return:.2%}，低于 IPS 声称的所需名义收益率 {required_return:.2%}，缺口 {gap:.2%}。当前配置无法支撑收益目标。",
+        "en": "Based on CME data, the SAA's weighted expected return is {portfolio_return:.2%}, below the IPS's stated required nominal return of {required_return:.2%} — a gap of {gap:.2%}. The current allocation cannot support the return objective.",
+    },
+    "return_gap_critical_suggestion": {
+        "zh": "建议：(a) 调整 SAA 提高权益配置比例以提升预期收益率；(b) 或下调收益目标至 CME 可支撑的 {portfolio_return:.2%} 附近；(c) 或通过补充措施（增加储蓄、延长期限）弥补缺口。",
+        "en": "Suggested actions: (a) adjust the SAA toward a higher equity allocation to raise the expected return; (b) or lower the return objective to around the {portfolio_return:.2%} the CME can support; (c) or close the gap through supplementary measures (higher savings, a longer horizon).",
+    },
+    "return_gap_warning_desc": {
+        "zh": "基于 CME 数据，SAA 加权预期收益率 {portfolio_return:.2%} 略低于所需收益率 {required_return:.2%}（缺口 {gap:.2%}）。需承担上行风险方可实现，应在 IPS 中明确说明。",
+        "en": "Based on CME data, the SAA's weighted expected return of {portfolio_return:.2%} is slightly below the required return of {required_return:.2%} (a gap of {gap:.2%}). Achieving it requires upside risk; this must be stated explicitly in the IPS.",
+    },
+    "return_gap_warning_suggestion": {
+        "zh": "在 return_objective 和 risk_disclosure 中明确说明收益目标处于 SAA 预期区间上端。",
+        "en": "State explicitly in return_objective and risk_disclosure that the return objective sits at the upper end of the SAA's expected range.",
+    },
+    "vol_above_desc": {
+        "zh": "基于 CME 协方差矩阵计算的组合年化波动率为 {portfolio_vol:.2%}，超出 {risk_level} 风险等级目标区间上限 {band_max:.0%}（含 20% 容差）。当前配置的风险水平超出客户承受范围。",
+        "en": "The portfolio's annualized volatility computed from the CME covariance matrix is {portfolio_vol:.2%}, above the {risk_level} risk-level target band ceiling of {band_max:.0%} (including a 20% tolerance). The allocation's risk level exceeds what the client can bear.",
+    },
+    "vol_above_suggestion": {
+        "zh": "降低权益类或高波动资产配置比例，或增加固定收益/现金配置以降低组合波动率。",
+        "en": "Reduce the allocation to equities or other high-volatility assets, or increase fixed-income/cash allocations to lower the portfolio volatility.",
+    },
+    "vol_below_desc": {
+        "zh": "基于 CME 协方差矩阵计算的组合年化波动率为 {portfolio_vol:.2%}，低于 {risk_level} 风险等级目标区间下限 {band_min:.0%}（含 20% 容差）。配置可能过于保守，难以达成收益目标。",
+        "en": "The portfolio's annualized volatility computed from the CME covariance matrix is {portfolio_vol:.2%}, below the {risk_level} risk-level target band floor of {band_min:.0%} (including a 20% tolerance). The allocation may be too conservative to achieve the return objective.",
+    },
+    "vol_below_suggestion": {
+        "zh": "可适度提高权益类配置以更充分利用风险预算。",
+        "en": "Consider a moderately higher equity allocation to make fuller use of the risk budget.",
+    },
+    "saa_summary": {
+        "zh": "SAA 量化验证发现 {n_issues} 个问题（含 {n_critical} 个 critical），详见 issues 列表。",
+        "en": "Quantitative SAA validation found {n_issues} issue(s) ({n_critical} critical); see the issues list for details.",
+    },
+    "review_error_summary": {
+        "zh": "审查过程出错: {error}",
+        "en": "The review process failed: {error}",
+    },
+}
+
+
+def _t(key: str, locale: str, **fmt) -> str:
+    """Render one bilingual workflow string; unknown locales fall back to zh."""
+    entry = _SAA_STRINGS[key]
+    template = entry.get(locale) or entry["zh"]
+    return template.format(**fmt) if fmt else template
 
 
 
@@ -200,11 +277,12 @@ async def generate_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
     state_updates: dict[str, Any] = {"status": "generating"}
 
     try:
-        agent = create_ips_generator_agent()
+        agent = create_ips_generator_agent(locale=state.locale)
         prompt = build_generation_prompt(
             client_profile_json=state.client_profile_json,
             ips_template=state.reference_template,
             cme_text=state.cme_text,
+            locale=state.locale,
         )
 
         result = await agent.run(prompt)
@@ -262,7 +340,7 @@ async def _run_review_node(
     logger.info("=== %s Review Node ===", dimension.value.title())
 
     try:
-        agent = _REVIEWER_FACTORIES[dimension]()
+        agent = _REVIEWER_FACTORIES[dimension](locale=state.locale)
 
         checklist_items = (
             state.checklist
@@ -277,6 +355,7 @@ async def _run_review_node(
             client_profile_json=state.client_profile_json,
             dimension=dimension,
             checklist_items=checklist_items,
+            locale=state.locale,
         )
 
         result = await agent.run(prompt)
@@ -302,7 +381,7 @@ async def _run_review_node(
             dimension=dimension,
             passed=False,
             issues=[],
-            summary=f"审查过程出错: {str(e)}"
+            summary=_t("review_error_summary", state.locale, error=e)
         ).model_dump()
         current_results = list(state.review_results)
         current_results.append(error_result)
@@ -329,7 +408,7 @@ async def revise_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
     logger.info("=== IPS Revision Node (round %d) ===", state.revision_count + 1)
 
     try:
-        agent = create_ips_reviser_agent()
+        agent = create_ips_reviser_agent(locale=state.locale)
 
         ips_json = json.dumps(state.ips_draft, ensure_ascii=False, indent=2)
         issues_json = json.dumps(state.all_review_issues, ensure_ascii=False, indent=2)
@@ -337,6 +416,7 @@ async def revise_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
         prompt = build_revision_prompt(
             ips_json=ips_json,
             review_issues_json=issues_json,
+            locale=state.locale,
         )
 
         result = await agent.run(prompt)
@@ -467,20 +547,17 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                     IssueSeverity.CRITICAL if unmatched_total >= 0.15
                     else IssueSeverity.WARNING
                 ),
-                description=(
-                    f"以下 SAA 资产类别无法与 CME 数据匹配："
-                    f"{unmatched_desc}。"
-                    f"未匹配权重合计 {unmatched_total:.1%}，"
-                    f"组合层面的收益率和波动率验证不包含这些资产。"
+                description=_t(
+                    "unmatched_desc",
+                    state.locale,
+                    unmatched_desc=unmatched_desc,
+                    unmatched_total=unmatched_total,
                 ),
                 regulation_reference=(
                     "All SAA asset classes must have "
                     "defensible CME assumptions."
                 ),
-                suggestion=(
-                    "确保 SAA 资产类别名称与 CME 提供的名称保持一致，"
-                    "或在 IPS 中说明未覆盖资产类别的预期假设来源。"
-                ),
+                suggestion=_t("unmatched_suggestion", state.locale),
             ))
             logger.warning(
                 "Unmatched SAA assets: %s (total weight: %.1f%%)",
@@ -493,12 +570,14 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                 section="investment_guidelines",
                 dimension=ReviewDimension.CONSISTENCY,
                 severity=IssueSeverity.CRITICAL,
-                description=(
-                    f"SAA 权重之和为 {total_weight:.4f}（{total_weight:.2%}），"
-                    f"偏离 100% 达 {abs(total_weight - 1.0):.2%}。"
+                description=_t(
+                    "weight_sum_desc",
+                    state.locale,
+                    total=total_weight,
+                    deviation=abs(total_weight - 1.0),
                 ),
                 regulation_reference="SAA weights must sum to 100%",
-                suggestion="调整各资产类别权重使其加总为 100%。",
+                suggestion=_t("weight_sum_suggestion", state.locale),
             ))
 
         # Validation 2: Portfolio expected return vs required return
@@ -517,19 +596,21 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                     section="return_objective / investment_guidelines",
                     dimension=ReviewDimension.SUITABILITY,
                     severity=IssueSeverity.CRITICAL,
-                    description=(
-                        f"基于 CME 数据，SAA 的加权预期收益率为 {portfolio_return:.2%}，"
-                        f"低于 IPS 声称的所需名义收益率 {required_return:.2%}，"
-                        f"缺口 {gap:.2%}。当前配置无法支撑收益目标。"
+                    description=_t(
+                        "return_gap_critical_desc",
+                        state.locale,
+                        portfolio_return=portfolio_return,
+                        required_return=required_return,
+                        gap=gap,
                     ),
                     regulation_reference=(
                         "Required return must be achievable within "
                         "the SAA's expected return range."
                     ),
-                    suggestion=(
-                        f"建议：(a) 调整 SAA 提高权益配置比例以提升预期收益率；"
-                        f"(b) 或下调收益目标至 CME 可支撑的 {portfolio_return:.2%} 附近；"
-                        f"(c) 或通过补充措施（增加储蓄、延长期限）弥补缺口。"
+                    suggestion=_t(
+                        "return_gap_critical_suggestion",
+                        state.locale,
+                        portfolio_return=portfolio_return,
                     ),
                 ))
             elif required_return > 0 and portfolio_return < required_return:
@@ -538,13 +619,15 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                     section="return_objective / investment_guidelines",
                     dimension=ReviewDimension.CONSISTENCY,
                     severity=IssueSeverity.WARNING,
-                    description=(
-                        f"基于 CME 数据，SAA 加权预期收益率 {portfolio_return:.2%} "
-                        f"略低于所需收益率 {required_return:.2%}（缺口 {gap:.2%}）。"
-                        f"需承担上行风险方可实现，应在 IPS 中明确说明。"
+                    description=_t(
+                        "return_gap_warning_desc",
+                        state.locale,
+                        portfolio_return=portfolio_return,
+                        required_return=required_return,
+                        gap=gap,
                     ),
                     regulation_reference="Return feasibility assessment",
-                    suggestion="在 return_objective 和 risk_disclosure 中明确说明收益目标处于 SAA 预期区间上端。",
+                    suggestion=_t("return_gap_warning_suggestion", state.locale),
                 ))
 
             n = len(matched_weights)
@@ -593,40 +676,35 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                         section="investment_guidelines",
                         dimension=ReviewDimension.CONSISTENCY,
                         severity=IssueSeverity.CRITICAL,
-                        description=(
-                            f"基于 CME 协方差矩阵计算的组合年化波动率"
-                            f"为 {portfolio_vol:.2%}，超出 {risk_level} "
-                            f"风险等级目标区间上限 {band[1]:.0%}"
-                            f"（含 20% 容差）。"
-                            f"当前配置的风险水平超出客户承受范围。"
+                        description=_t(
+                            "vol_above_desc",
+                            state.locale,
+                            portfolio_vol=portfolio_vol,
+                            risk_level=risk_level,
+                            band_max=band[1],
                         ),
                         regulation_reference=(
                             "Portfolio risk must be consistent "
                             "with stated risk tolerance level."
                         ),
-                        suggestion=(
-                            "降低权益类或高波动资产配置比例，"
-                            "或增加固定收益/现金配置以降低组合波动率。"
-                        ),
+                        suggestion=_t("vol_above_suggestion", state.locale),
                     ))
                 elif portfolio_vol < band[0] * 0.8:
                     saa_issues.append(ReviewIssue(
                         section="investment_guidelines",
                         dimension=ReviewDimension.CONSISTENCY,
                         severity=IssueSeverity.WARNING,
-                        description=(
-                            f"基于 CME 协方差矩阵计算的组合年化波动率"
-                            f"为 {portfolio_vol:.2%}，低于 {risk_level} "
-                            f"风险等级目标区间下限 {band[0]:.0%}"
-                            f"（含 20% 容差）。"
-                            f"配置可能过于保守，难以达成收益目标。"
+                        description=_t(
+                            "vol_below_desc",
+                            state.locale,
+                            portfolio_vol=portfolio_vol,
+                            risk_level=risk_level,
+                            band_min=band[0],
                         ),
                         regulation_reference=(
                             "Efficient use of risk budget"
                         ),
-                        suggestion=(
-                            "可适度提高权益类配置以更充分利用风险预算。"
-                        ),
+                        suggestion=_t("vol_below_suggestion", state.locale),
                     ))
 
             w_var = np.array(matched_vars)
@@ -676,10 +754,14 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                 dimension=ReviewDimension.CONSISTENCY,
                 passed=False,
                 issues=saa_issues,
-                summary=(
-                    f"SAA 量化验证发现 {len(saa_issues)} 个问题"
-                    f"（含 {sum(1 for i in saa_issues if i.severity == IssueSeverity.CRITICAL)} 个 critical），"
-                    "详见 issues 列表。"
+                summary=_t(
+                    "saa_summary",
+                    state.locale,
+                    n_issues=len(saa_issues),
+                    n_critical=sum(
+                        1 for i in saa_issues
+                        if i.severity == IssueSeverity.CRITICAL
+                    ),
                 ),
             ).model_dump())
 
@@ -861,9 +943,14 @@ async def generate_ips(
     client_profile_dict: dict,
     max_revisions: int = 3,
     thread_id: str = "default",
+    locale: str = "zh",
 ) -> dict:
-    """High-level API: generate a complete IPS with audit trail."""
-   
+    """High-level API: generate a complete IPS with audit trail.
+
+    ``locale`` selects the language of the generated IPS, review findings,
+    and SAA validation messages ("zh" / "en").
+    """
+
     # Load reference documents
     template = load_ips_template()
 
@@ -874,6 +961,7 @@ async def generate_ips(
         ),
         "reference_template": template,
         "max_revisions": max_revisions,
+        "locale": locale,
     }
 
     # Compile and run workflow

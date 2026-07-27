@@ -10,10 +10,11 @@ no business logic is reimplemented here.
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import Session, select
 
 from api.db import ProfileRecord, get_session
+from api.i18n import get_request_locale, msg
 from api.migrate_profiles import import_json_profiles
 from api.profile_convert import build_derived, payload_to_data, profile_from_data
 from api.schemas import (
@@ -50,10 +51,12 @@ def _detail(record: ProfileRecord) -> ProfileDetailResponse:
     )
 
 
-def _get_or_404(profile_id: int, session: Session) -> ProfileRecord:
+def _get_or_404(profile_id: int, session: Session, locale: str) -> ProfileRecord:
     record = session.get(ProfileRecord, profile_id)
     if record is None:
-        raise HTTPException(status_code=404, detail=f"画像不存在（id={profile_id}）")
+        raise HTTPException(
+            status_code=404, detail=msg("common.profile_not_found", locale, id=profile_id)
+        )
     return record
 
 
@@ -137,35 +140,39 @@ MAX_COMPARE_PROFILES = 6
 # /questionnaire above.
 @router.get("/compare", response_model=ProfileCompareResponse)
 def compare_profile_set(
-    ids: str, session: Session = Depends(get_session)
+    ids: str, request: Request, session: Session = Depends(get_session)
 ) -> ProfileCompareResponse:
     """Compare 2–6 profiles (src compare_profiles) with per-profile biases.
 
     src keys its comparison dicts by client name, so duplicate names would
     silently overwrite each other — reject them with 422 instead.
     """
+    locale = get_request_locale(request)
     try:
         id_list = [int(x) for x in ids.split(",") if x.strip()]
     except ValueError:
-        raise HTTPException(status_code=422, detail="ids 必须为逗号分隔的整数")
+        raise HTTPException(status_code=422, detail=msg("profiles.ids_not_integers", locale))
     id_list = list(dict.fromkeys(id_list))  # dedupe, preserve order
     if len(id_list) < 2:
-        raise HTTPException(status_code=422, detail="至少需要 2 个画像才能进行对比")
+        raise HTTPException(status_code=422, detail=msg("profiles.compare_min", locale))
     if len(id_list) > MAX_COMPARE_PROFILES:
         raise HTTPException(
-            status_code=422, detail=f"一次最多对比 {MAX_COMPARE_PROFILES} 个画像"
+            status_code=422,
+            detail=msg("profiles.compare_max", locale, max_count=MAX_COMPARE_PROFILES),
         )
 
     records = [session.get(ProfileRecord, i) for i in id_list]
     missing = [i for i, r in zip(id_list, records) if r is None]
     if missing:
-        raise HTTPException(status_code=404, detail=f"画像不存在（id={missing}）")
+        raise HTTPException(
+            status_code=404, detail=msg("common.profile_not_found", locale, id=missing)
+        )
     # Past the 404 guard every record exists.
     profiles = [profile_from_data(r.data) for r in records if r is not None]
     names = [p.name for p in profiles]
     if len(set(names)) != len(names):
         raise HTTPException(
-            status_code=422, detail="所选画像存在重名，对比结果会互相覆盖；请改名后再试"
+            status_code=422, detail=msg("profiles.compare_duplicate_names", locale)
         )
 
     comparison = compare_profiles(profiles)
@@ -189,18 +196,19 @@ def compare_profile_set(
 
 @router.get("/{profile_id}", response_model=ProfileDetailResponse)
 def get_profile(
-    profile_id: int, session: Session = Depends(get_session)
+    profile_id: int, request: Request, session: Session = Depends(get_session)
 ) -> ProfileDetailResponse:
-    return _detail(_get_or_404(profile_id, session))
+    return _detail(_get_or_404(profile_id, session, get_request_locale(request)))
 
 
 @router.put("/{profile_id}", response_model=ProfileDetailResponse)
 def update_profile(
     profile_id: int,
     payload: ProfilePayload,
+    request: Request,
     session: Session = Depends(get_session),
 ) -> ProfileDetailResponse:
-    record = _get_or_404(profile_id, session)
+    record = _get_or_404(profile_id, session, get_request_locale(request))
     data = payload_to_data(payload, created_at=record.created_at)
     record.name = payload.name
     record.age = payload.age
@@ -214,8 +222,10 @@ def update_profile(
 
 
 @router.delete("/{profile_id}", status_code=204)
-def delete_profile(profile_id: int, session: Session = Depends(get_session)) -> None:
-    session.delete(_get_or_404(profile_id, session))
+def delete_profile(
+    profile_id: int, request: Request, session: Session = Depends(get_session)
+) -> None:
+    session.delete(_get_or_404(profile_id, session, get_request_locale(request)))
     session.commit()
 
 

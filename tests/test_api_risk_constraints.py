@@ -54,7 +54,7 @@ def _fake_returns(stats: dict, n: int = 504, seed: int = 7) -> pd.DataFrame:
 
 def _patch_returns(monkeypatch, returns: pd.DataFrame) -> None:
     monkeypatch.setattr(
-        "api.routers.portfolio._fetch_returns", lambda keys, period: returns
+        "api.routers.portfolio._fetch_returns", lambda keys, period, locale="zh": returns
     )
 
 
