@@ -82,6 +82,8 @@ The workspace follows the complete private-banking advisor workflow: **overview 
   A routed market-data layer: mapped CN tickers are served by **Tushare Pro → akshare → yfinance** (first success wins), while US/global assets stay on yfinance. A **staleness guard** rejects silently outdated provider snapshots, and poisoned price frames never enter the TTL caches.
 - 📊 **"Obsidian Private Bank" Design System**  
   A bespoke dark editorial design system — obsidian ink with champagne gold accents, Fraunces serif display type, double-bezel panels, thin-line iconography, and a full component kit on **Next.js + Tailwind v4**. LLM tokens and task progress stream over SSE; Plotly charts are rendered server-side, shipped as JSON, and re-themed client-side to match.
+- 🌐 **Bilingual Interface & AI Output (EN/中文)**  
+  One-click language switch in the sidebar (cookie-persisted, English default for new visitors). UI copy lives in type-safe dictionaries (`web/src/lib/i18n/`), and everything the backend says follows the `X-Locale` header — API error messages, SSE progress labels, monitoring notes, and LLM-generated deliverables (advisor reports, IPS documents, rebalance advice) are produced in the selected language.
 
 ---
 

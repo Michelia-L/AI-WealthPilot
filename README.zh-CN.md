@@ -40,9 +40,9 @@
 
 | 总览驾驶舱 | 市场仪表盘 |
 | --- | --- |
-| ![总览驾驶舱](docs/images/screenshots/overview.png) | ![市场仪表盘](docs/images/screenshots/market.png) |
+| ![总览驾驶舱](docs/images/screenshots/overview-zh.png) | ![市场仪表盘](docs/images/screenshots/market-zh.png) |
 | **客户枢纽** | **组合监控** |
-| ![客户枢纽](docs/images/screenshots/hub.png) | ![组合监控](docs/images/screenshots/monitoring.png) |
+| ![客户枢纽](docs/images/screenshots/hub-zh.png) | ![组合监控](docs/images/screenshots/monitoring-zh.png) |
 
 ---
 
@@ -80,6 +80,8 @@
   路由式行情数据层：映射的 A 股指数按 **Tushare Pro → akshare → yfinance** 顺序取首个成功源，美股/全球资产保持 yfinance 主干；内置**新鲜度守卫**识别静默陈旧的源快照，坏价格帧在进缓存前即被拒绝。
 - 📊 **「墨金私行」设计系统**  
   自研深色编辑风设计系统——曜石灰 × 香槟金、Fraunces 衬线展示字体、双层 bezel 面板、细线图标体系，基于 **Next.js + Tailwind v4** 的完整组件库。工作台覆盖完整顾问工作流：总览驾驶舱 → 市场 → 客户枢纽 → AI 顾问 → IPS → 交付物中心 → 组合监控（SAA 漂移与复衡）。LLM token 与任务进度经 SSE 实时推送，Plotly 图表服务端渲染、前端再套主题。
+- 🌐 **中英文双语界面与 AI 产出**  
+  侧边栏一键切换界面语言（cookie 持久化，新访客默认英文）。UI 文案集中于类型安全字典（`web/src/lib/i18n/`），后端一切用户可见文案随 `X-Locale` 请求头切换——API 错误信息、SSE 进度标签、组合监控备注，以及 AI 生成的交付物（顾问报告、IPS 文档、复衡建议）均按所选语言产出。
 
 ---
 

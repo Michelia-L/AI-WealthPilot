@@ -115,3 +115,25 @@ AI 顾问/调仓建议等流式生成等待数十秒，期间只看着正文逐�
 - **端点**：`GET/PUT /api/settings/llm`（key 脱敏 `sk-****1234`）、`POST /api/settings/llm/models`（10s 超时，连接/认证/其他错误映射中文 502）。
 - **前端**：`/settings` 页（当前配置卡 + 端点/Key/模型表单 + 拉取模型列表 + 保存/清除）+ 侧边栏「设置」条目 + 同源代理路由。
 - **已验证**：真实 DeepSeek `/models` 拉取 → 保存（db 源）→ 清除（回退 env）全链路 PASS；586+10 pytest 全绿。
+
+---
+
+## Backlog
+
+### ~~P22-i18n-1 · RSC 数据层 `web/src/lib/api.ts` 未注入 `X-Locale`~~（已解决）
+
+**解决方式（2026-07-26）**：`getJson` 增加可选 `locale?: string` 参数并透传 `X-Locale` 头；`getMonitoring` / `getMonitoringFleetStatus` / `getBacktest` 三个受影响函数同步加参，三个 RSC 调用点（`app/page.tsx`、`app/monitoring/page.tsx`、`backtest-section.tsx`）自行 `getLocale()` 传入。zh cookie 用户的监控备注恢复中文。
+
+**为什么不自动读 cookie**：`lib/api.ts` 同时在客户端模块图（`dashboard-controls.tsx`、`retirement-workspace.tsx` 从它导入 `PERIOD_OPTIONS` / `SIMULATION_OPTIONS` 等运行时常量），任何对 `lib/i18n/server.ts`（`next/headers`）的引用——包括 `typeof window` 守卫的动态 `import()`——都会让 Turbopack 把 `next/headers` 打进客户端图，构建直接报错（实测日志佐证）。故 locale 只能由 RSC 调用方显式传入；**新增 RSC 数据函数如需本地化文案，遵循同样的"调用方传 locale"模式**。彻底解法是拆 server-only 数据层（约 15 个 import 改动），暂不必要。
+
+### P22-i18n-2 · 回测/BL 观点/风险约束的 src 异常文案仍仅中文
+
+step 3 按授权范围只双语化了路由静态文案、SSE 消息与监控（`src/portfolio/monitoring.py`）备注。以下经 `detail=str(e)` 透出的 src 异常仍为中文（en 请求的 422/502 会带中文）：
+
+- `src/portfolio/backtest.py`：`run_backtest` 的 6 条 `InsufficientDataError`/`ValueError`、约 10 条 `notes`、3 个压力测试情景名（"2020 新冠"等）与基准名"基准"。
+- `src/portfolio/views.py`：BL 观点校验 7 条 `ValueError`（经 `_run_bl` → 422）。
+- `src/portfolio/risk_constraints.py`：`caps_for_tolerance` 的"无法识别的风险等级"（经 `_resolve_risk_constraints` → 422）。
+
+修复方向：与 monitoring 相同的模式——函数加 `locale: str = "zh"` 参数、模块内双语表，路由透传；注意 `test_backtest.py`/`test_black_litterman.py` 有大量中文字面断言，靠默认值保持兼容。
+
+另外 LLM 相关产物按设计不随请求 locale 切换：IPS/报告文档（`src/agents/ips_storage.py`、`report_storage.py` 的 Markdown/PDF 渲染，约 250 条中文模板串）、LLM prompt（`ips_agents.py`、`advisor.py`、`rebalance_advisor.py`）、`src/agents/ips_workflow.py` 的 SAA 校验 error_message（约 15 条，会作为 SSE error message 透出）。如产品要求 en 用户全英文，需要单独立项（涉及文档生成语言策略，不只是传输层）。
