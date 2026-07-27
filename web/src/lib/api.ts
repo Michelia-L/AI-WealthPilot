@@ -127,9 +127,15 @@ export const PERIOD_OPTIONS = [
 export const DEFAULT_PERIOD = "1y";
 export const VALID_PERIODS: readonly string[] = PERIOD_OPTIONS.map((p) => p.value);
 
-async function getJson<T>(path: string): Promise<T | null> {
+async function getJson<T>(path: string, locale?: string): Promise<T | null> {
   try {
-    const res = await fetch(`${API_ORIGIN}${path}`, { cache: "no-store" });
+    // NOTE (P22): this module is in the client bundle too (dashboard-controls /
+    // retirement-workspace import runtime constants), so it cannot read the
+    // locale cookie via next/headers — RSC callers pass `locale` explicitly.
+    const res = await fetch(`${API_ORIGIN}${path}`, {
+      cache: "no-store",
+      headers: locale ? { "X-Locale": locale } : undefined,
+    });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
@@ -735,9 +741,10 @@ export interface MonitoringResponse {
   notes: string[];
 }
 
-export const getMonitoring = (documentId: string) =>
+export const getMonitoring = (documentId: string, locale?: string) =>
   getJson<MonitoringResponse>(
-    `/api/monitoring/${encodeURIComponent(documentId)}`
+    `/api/monitoring/${encodeURIComponent(documentId)}`,
+    locale
   );
 
 /** Fleet-wide drift status (Phase 17 — overview alert light). */
@@ -760,8 +767,8 @@ export interface MonitoringFleetResponse {
   summary: { total: number; breach: number; ok: number; unknown: number };
 }
 
-export const getMonitoringFleetStatus = () =>
-  getJson<MonitoringFleetResponse>("/api/monitoring/status");
+export const getMonitoringFleetStatus = (locale?: string) =>
+  getJson<MonitoringFleetResponse>("/api/monitoring/status", locale);
 
 // ---------------------------------------------------------------------------
 // Backtest & stress test (P13)
@@ -818,9 +825,10 @@ export interface BacktestResponse {
   notes: string[];
 }
 
-export const getBacktest = (documentId: string, period: string) =>
+export const getBacktest = (documentId: string, period: string, locale?: string) =>
   getJson<BacktestResponse>(
-    `/api/monitoring/${encodeURIComponent(documentId)}/backtest?period=${encodeURIComponent(period)}`
+    `/api/monitoring/${encodeURIComponent(documentId)}/backtest?period=${encodeURIComponent(period)}`,
+    locale
   );
 
 /** 任意权重组合的回测响应（优化器回测联动）。 */

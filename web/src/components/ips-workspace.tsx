@@ -18,6 +18,7 @@ import {
 } from "@/lib/task-resume";
 import Markdown from "@/components/markdown";
 import { useClient } from "@/components/client-context";
+import { useLocale, useT } from "@/components/locale-context";
 import Button from "@/components/ui/button";
 import { Badge } from "@/components/ui/chip";
 import EmptyState from "@/components/ui/empty";
@@ -56,6 +57,8 @@ export default function IpsWorkspace({
 }) {
   const router = useRouter();
   const { clientId, select } = useClient();
+  const t = useT();
+  const { locale } = useLocale();
   const [selectedId, setSelectedId] = useState<number | null>(profiles?.[0]?.id ?? null);
   const [maxRevisions, setMaxRevisions] = useState(3);
   const [running, setRunning] = useState(false);
@@ -92,6 +95,11 @@ export default function IpsWorkspace({
     if (p) select(p.id, p.name);
   }
 
+  /** risk_level 为 "English / 中文" 双语数据串，按当前语言取对应一半。 */
+  function riskLabel(riskLevel: string): string {
+    return riskLevel.split(" / ")[locale === "zh" ? 1 : 0] ?? riskLevel;
+  }
+
   // 当前事件流的取消句柄：切页卸载时断开（服务端任务独立运行，重挂载后凭
   // sessionStorage 里的 task_id 重连，后端会从持久化事件完整回放）。
   const streamAbort = useRef<AbortController | null>(null);
@@ -108,7 +116,7 @@ export default function IpsWorkspace({
       });
       clearActiveTask("ips");
     } else if (event.type === "error") {
-      setError(String(event.message ?? "生成失败"));
+      setError(String(event.message ?? t.ips.generateFailed));
       clearActiveTask("ips");
     }
   }
@@ -126,7 +134,7 @@ export default function IpsWorkspace({
         throw new TaskGoneError();
       }
       const err = await eventsRes.json().catch(() => null);
-      throw new Error(err && typeof err.detail === "string" ? err.detail : "无法接收任务进度");
+      throw new Error(err && typeof err.detail === "string" ? err.detail : t.ips.progressUnavailable);
     }
     onOpen?.();
     await readSseStream(eventsRes.body, applyTaskEvent);
@@ -183,7 +191,7 @@ export default function IpsWorkspace({
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(typeof data.detail === "string" ? data.detail : `创建任务失败（HTTP ${res.status}）`);
+        throw new Error(typeof data.detail === "string" ? data.detail : t.ips.createTaskFailed(res.status));
       }
 
       saveActiveTask("ips", String(data.task_id));
@@ -203,7 +211,7 @@ export default function IpsWorkspace({
     try {
       const res = await fetch(`/api/ips/${encodeURIComponent(doc.document_id)}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : "加载失败");
+      if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : t.ips.loadFailed);
       setViewing({
         documentId: doc.document_id,
         title: `${doc.client_name} · v${doc.version}`,
@@ -224,41 +232,36 @@ export default function IpsWorkspace({
         {!configured && (
           <div className="mb-5 flex items-start gap-3 rounded-xl border border-gold-500/25 bg-gold-500/[0.07] px-4 py-3 text-sm text-gold-300">
             <Icon name="warning" size={16} className="mt-0.5 shrink-0 text-gold-400" />
-            <span>
-              DEEPSEEK_API_KEY 未配置 —— 请在项目根目录 .env 中设置并重启 API 服务后使用。
-            </span>
+            <span>{t.ips.notConfigured}</span>
           </div>
         )}
 
         {demo && (
           <div className="mb-5 flex items-start gap-3 rounded-xl border border-steel-500/30 bg-steel-500/[0.06] px-4 py-3 text-sm text-mist-400">
             <Icon name="info" size={16} className="mt-0.5 shrink-0 text-steel-400" />
-            <span>
-              演示模式 —— AI 生成内容为录制样例，用于功能预览；配置
-              DEEPSEEK_API_KEY 并关闭 DEMO_MODE 后体验真实生成。
-            </span>
+            <span>{t.ips.demoMode}</span>
           </div>
         )}
 
         {profiles === null ? (
           <p className="flex items-center gap-2 text-sm text-cinnabar-400">
             <Icon name="warning" size={14} />
-            无法获取画像列表 —— 请确认 API 服务已启动。
+            {t.ips.profilesUnreachable}
           </p>
         ) : profiles.length === 0 ? (
           <p className="text-sm text-mist-400">
-            还没有客户画像。请先在
+            {t.ips.noProfilesPre}
             <Link
               href="/profiles"
               className="mx-1 text-gold-400 underline underline-offset-4 hover:text-gold-300"
             >
-              客户画像
+              {t.ips.noProfilesLink}
             </Link>
-            页面创建。
+            {t.ips.noProfilesPost}
           </p>
         ) : (
           <div className="flex flex-wrap items-end gap-x-8 gap-y-5">
-            <Field label="选择画像" className="min-w-64">
+            <Field label={t.ips.selectProfile} className="min-w-64">
               <Select
                 value={selectedId ?? ""}
                 onChange={(e) => handleSelectProfile(Number(e.target.value))}
@@ -266,13 +269,13 @@ export default function IpsWorkspace({
               >
                 {profiles.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name}（{p.age} 岁{p.risk_level ? ` · ${p.risk_level.split(" / ")[1] ?? p.risk_level}` : ""}）
+                    {t.ips.profileOption(p.name, p.age, p.risk_level ? riskLabel(p.risk_level) : null)}
                   </option>
                 ))}
               </Select>
             </Field>
 
-            <Field label="最大修订轮数">
+            <Field label={t.ips.maxRevisions}>
               <div className={running ? "pointer-events-none opacity-50" : undefined}>
                 <Segmented
                   options={REVISION_SEGMENT_OPTIONS}
@@ -288,11 +291,11 @@ export default function IpsWorkspace({
               onClick={generate}
               disabled={running || !configured || selectedId === null}
             >
-              {running ? "工作流运行中…" : "生成 IPS"}
+              {running ? t.ips.running : t.ips.generate}
             </Button>
 
             <p className="max-w-60 pb-1 text-xs leading-5 text-mist-600">
-              CME → 初稿 → 三维评审 → SAA 量化验证 → 修订/定稿（通常需要数分钟）
+              {t.ips.pipelineHint}
             </p>
           </div>
         )}
@@ -308,7 +311,7 @@ export default function IpsWorkspace({
       {/* ------------------------------ 进度时间线 ------------------------------ */}
       {(steps.length > 0 || running) && (
         <Panel>
-          <h3 className="mb-4 text-sm font-semibold text-mist-100">工作流进度</h3>
+          <h3 className="mb-4 text-sm font-semibold text-mist-100">{t.ips.progressTitle}</h3>
           <ol className="space-y-3">
             {steps.map((s, i) => (
               <li key={`${s.node}-${i}`} className="flex items-center gap-3 text-sm">
@@ -321,7 +324,7 @@ export default function IpsWorkspace({
                 <span className="flex w-3.5 items-center justify-center">
                   <span className="h-1.5 w-1.5 rounded-full bg-gold-400 animate-pulse-dot" />
                 </span>
-                <span className="text-gold-300">正在处理…</span>
+                <span className="text-gold-300">{t.ips.processing}</span>
               </li>
             )}
           </ol>
@@ -330,10 +333,10 @@ export default function IpsWorkspace({
             <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-3 rounded-xl border border-jade-500/25 bg-jade-500/[0.07] px-4 py-3">
               <Icon name="check" size={15} className="shrink-0 text-jade-400" />
               <p className="text-sm text-jade-300">
-                IPS 已生成并入库 · 文档{" "}
-                <span className="font-mono text-xs">{doneInfo.document_id}</span> ·
-                状态 {doneInfo.status}
-                {doneInfo.revision_count > 0 ? ` · 修订 ${doneInfo.revision_count} 轮` : ""}
+                {t.ips.donePre}{" "}
+                <span className="font-mono text-xs">{doneInfo.document_id}</span> ·{" "}
+                {t.ips.statusLabel} {doneInfo.status}
+                {doneInfo.revision_count > 0 ? t.ips.doneRevisions(doneInfo.revision_count) : ""}
               </p>
               <Button
                 size="sm"
@@ -352,7 +355,7 @@ export default function IpsWorkspace({
                   })
                 }
               >
-                立即查看
+                {t.ips.viewNow}
               </Button>
             </div>
           )}
@@ -367,24 +370,26 @@ export default function IpsWorkspace({
               <h3 className="font-display text-xl text-mist-100">{viewing.title}</h3>
               <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-mist-500">
                 <span>
-                  版本 <span className="font-mono text-mist-300">{viewing.version}</span>
+                  {t.ips.version}{" "}
+                  <span className="font-mono text-mist-300">{viewing.version}</span>
                 </span>
                 <Badge tone={viewing.status === "approved" ? "jade" : "gold"} dot>
                   {viewing.status || "unknown"}
                 </Badge>
                 <span>
-                  修订轮次 <span className="tnum text-mist-300">{viewing.revisionRounds}</span>
+                  {t.ips.revisionRounds}{" "}
+                  <span className="tnum text-mist-300">{viewing.revisionRounds}</span>
                 </span>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <a href={`/api/ips/${encodeURIComponent(viewing.documentId)}/pdf`}>
                 <Button variant="secondary" size="sm" trailingIcon="download">
-                  下载 PDF
+                  {t.ips.downloadPdf}
                 </Button>
               </a>
               <Button variant="ghost" size="sm" icon="x" onClick={() => setViewing(null)}>
-                关闭
+                {t.common.close}
               </Button>
             </div>
           </div>
@@ -395,15 +400,15 @@ export default function IpsWorkspace({
       {/* ------------------------------ 文档库 ------------------------------ */}
       <section>
         <div className="mb-4 flex items-baseline gap-3">
-          <h2 className="font-display text-xl text-mist-100">IPS 文档库</h2>
-          <span className="text-xs text-mist-500">本地 JSON 存储</span>
+          <h2 className="font-display text-xl text-mist-100">{t.ips.libraryTitle}</h2>
+          <span className="text-xs text-mist-500">{t.ips.libraryHint}</span>
         </div>
         {initialDocuments.length === 0 ? (
           <Panel pad={false}>
             <EmptyState
               icon="scroll"
-              title="暂无 IPS 文档"
-              hint="选择客户画像并运行上方工作流后，生成的 IPS 文档将保存在这里。"
+              title={t.ips.libraryEmptyTitle}
+              hint={t.ips.libraryEmptyHint}
             />
           </Panel>
         ) : (
@@ -411,13 +416,13 @@ export default function IpsWorkspace({
             <Table className="min-w-[760px]">
               <THead>
                 <tr>
-                  <TH>客户</TH>
-                  <TH>版本</TH>
-                  <TH>风险等级</TH>
-                  <TH>状态</TH>
-                  <TH className="text-right">修订轮数</TH>
-                  <TH>保存时间</TH>
-                  <TH className="text-right">操作</TH>
+                  <TH>{t.ips.thClient}</TH>
+                  <TH>{t.ips.version}</TH>
+                  <TH>{t.ips.thRisk}</TH>
+                  <TH>{t.ips.statusLabel}</TH>
+                  <TH className="text-right">{t.ips.thRevisions}</TH>
+                  <TH>{t.ips.thSaved}</TH>
+                  <TH className="text-right">{t.ips.thActions}</TH>
                 </tr>
               </THead>
               <tbody>
@@ -449,7 +454,7 @@ export default function IpsWorkspace({
                           icon="eye"
                           onClick={() => viewDocument(d)}
                         >
-                          查看
+                          {t.common.view}
                         </Button>
                         <a href={`/api/ips/${encodeURIComponent(d.document_id)}/pdf`}>
                           <Button variant="secondary" size="sm" trailingIcon="download">

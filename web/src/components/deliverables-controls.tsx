@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { cx } from "@/lib/cx";
+import { useT } from "@/components/locale-context";
 import Segmented from "./ui/segmented";
 import { Select } from "./ui/field";
 
@@ -25,6 +26,7 @@ export default function DeliverablesControls({
 }: DeliverablesControlsProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const t = useT();
 
   function navigate(nextClient: string, nextType: string) {
     const params = new URLSearchParams();
@@ -47,14 +49,14 @@ export default function DeliverablesControls({
     >
       <div className="flex items-center gap-3">
         <span className="text-[11px] font-medium tracking-[0.14em] text-mist-500 uppercase">
-          客户
+          {t.deliverables.filterClient}
         </span>
         <Select
           value={client}
           onChange={(e) => navigate(e.target.value, type)}
           className="w-44"
         >
-          <option value="">全部客户</option>
+          <option value="">{t.deliverables.allClients}</option>
           {clients.map((c) => (
             <option key={c} value={c}>
               {c}
@@ -65,20 +67,20 @@ export default function DeliverablesControls({
 
       <div className="ml-auto flex items-center gap-3">
         <span className="text-[11px] font-medium tracking-[0.14em] text-mist-500 uppercase">
-          类型
+          {t.deliverables.filterType}
         </span>
         <Segmented
           size="sm"
           options={[
-            { value: "all", label: "全部" },
-            { value: "advisor", label: "AI 建议书" },
-            { value: "ips", label: "IPS 文档" },
+            { value: "all", label: t.deliverables.typeAll },
+            { value: "advisor", label: t.deliverables.kindAdvisor },
+            { value: "ips", label: t.deliverables.typeIps },
           ]}
           value={type}
           onChange={(v) => navigate(client, v)}
         />
         <span className="text-xs text-mist-500">
-          {pending ? "刷新中…" : `${total} 份`}
+          {pending ? t.deliverables.refreshing : t.deliverables.countLabel(total)}
         </span>
       </div>
     </div>

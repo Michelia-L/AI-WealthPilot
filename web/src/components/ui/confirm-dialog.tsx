@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/locale-context";
 import Button from "./button";
 
 interface ConfirmDialogProps {
@@ -18,12 +19,13 @@ export default function ConfirmDialog({
   open,
   title,
   description,
-  confirmLabel = "确认",
-  cancelLabel = "取消",
+  confirmLabel,
+  cancelLabel,
   danger = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const t = useT();
   if (!open) return null;
   return (
     <div
@@ -42,14 +44,14 @@ export default function ConfirmDialog({
         )}
         <div className="mt-6 flex justify-end gap-3">
           <Button variant="ghost" size="sm" onClick={onCancel}>
-            {cancelLabel}
+            {cancelLabel ?? t.common.cancel}
           </Button>
           <Button
             variant={danger ? "danger" : "primary"}
             size="sm"
             onClick={onConfirm}
           >
-            {confirmLabel}
+            {confirmLabel ?? t.common.confirm}
           </Button>
         </div>
       </div>

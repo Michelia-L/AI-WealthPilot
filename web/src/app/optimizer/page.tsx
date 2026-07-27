@@ -1,11 +1,15 @@
+import type { Metadata } from "next";
 import { getAssetClasses } from "@/lib/api";
 import { ApiOffline } from "@/components/api-offline";
 import OptimizerWorkspace from "@/components/optimizer-workspace";
 import SectionHeader from "@/components/ui/section-header";
+import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
+import { altLocale } from "@/lib/i18n/locale";
 
-export const metadata = {
-  title: "组合优化器 · AI WealthPilot",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getDict();
+  return { title: `${t.optimizer.title} · AI WealthPilot` };
+}
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -20,6 +24,9 @@ interface PageProps {
 export default async function OptimizerPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const assetClasses = await getAssetClasses();
+  const locale = await getLocale();
+  const t = dictionaries[locale];
+  const alt = dictionaries[altLocale(locale)];
 
   const initialAssets =
     assetClasses && typeof sp.assets === "string"
@@ -31,9 +38,9 @@ export default async function OptimizerPage({ searchParams }: PageProps) {
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
       <SectionHeader
-        eyebrow="Portfolio Optimizer"
-        title="组合优化器"
-        description="均值-方差优化（MVO）、Michaud 重采样前沿与 Black-Litterman 贝叶斯配置，求解有效前沿上的最优资产组合。"
+        eyebrow={alt.optimizer.title}
+        title={t.optimizer.title}
+        description={t.optimizer.description}
       />
 
       {assetClasses ? (
@@ -44,7 +51,7 @@ export default async function OptimizerPage({ searchParams }: PageProps) {
           }
         />
       ) : (
-        <ApiOffline resource="优化资产宇宙" />
+        <ApiOffline resource={t.optimizer.assetUniverse} />
       )}
     </div>
   );

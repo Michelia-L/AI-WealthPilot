@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { readSseStream } from "@/lib/sse";
+import { useT } from "@/components/locale-context";
 import { useClient } from "./client-context";
 import Markdown from "./markdown";
 import ReasoningSection from "./reasoning-section";
@@ -13,6 +14,7 @@ import { Button, EmptyState, Icon, Panel } from "./ui";
  */
 export default function RebalanceAdvice({ documentId }: { documentId: string }) {
   const { clientId } = useClient();
+  const t = useT();
   const [text, setText] = useState("");
   const [reasoning, setReasoning] = useState("");
   const [reasoningTokens, setReasoningTokens] = useState<number | null>(null);
@@ -44,14 +46,14 @@ export default function RebalanceAdvice({ documentId }: { documentId: string }) 
         throw new Error(
           data && typeof data.detail === "string"
             ? data.detail
-            : `请求失败（HTTP ${res.status}）`
+            : t.monitoring.adviceRequestFailed(res.status)
         );
       }
       await readSseStream(res.body, (event) => {
         if (event.type === "token") {
-          setText((t) => t + String(event.text ?? ""));
+          setText((prev) => prev + String(event.text ?? ""));
         } else if (event.type === "reasoning") {
-          setReasoning((r) => r + String(event.text ?? ""));
+          setReasoning((prev) => prev + String(event.text ?? ""));
         } else if (event.type === "done") {
           const rt = Number(event.reasoning_tokens ?? 0);
           if (rt > 0) setReasoningTokens(rt);
@@ -62,7 +64,7 @@ export default function RebalanceAdvice({ documentId }: { documentId: string }) 
             );
           }
         } else if (event.type === "error") {
-          setError(String(event.message ?? "生成失败"));
+          setError(String(event.message ?? t.monitoring.adviceGenerateFailed));
         }
       });
     } catch (e) {
@@ -80,7 +82,7 @@ export default function RebalanceAdvice({ documentId }: { documentId: string }) 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h3 className="flex items-center gap-2 text-sm font-medium text-mist-200">
           <Icon name="sparkle" size={15} className="text-gold-400" />
-          AI 调仓建议
+          {t.monitoring.adviceTitle}
         </h3>
         <div className="flex items-center gap-2">
           {busy ? (
@@ -90,11 +92,13 @@ export default function RebalanceAdvice({ documentId }: { documentId: string }) 
               icon="x"
               onClick={() => abortRef.current?.abort()}
             >
-              停止
+              {t.monitoring.adviceStop}
             </Button>
           ) : (
             <Button size="sm" icon="sparkle" onClick={generate}>
-              {started ? "重新生成" : "生成调仓建议"}
+              {started
+                ? t.monitoring.adviceRegenerate
+                : t.monitoring.adviceGenerate}
             </Button>
           )}
         </div>
@@ -103,8 +107,8 @@ export default function RebalanceAdvice({ documentId }: { documentId: string }) 
       {!started ? (
         <EmptyState
           icon="sparkle"
-          title="让 AI 解读这份监控结果"
-          hint="基于漂移诊断与复衡交易，生成调仓逻辑、执行节奏与风险提示。已选客户时将结合其风险画像。"
+          title={t.monitoring.adviceEmptyTitle}
+          hint={t.monitoring.adviceEmptyHint}
         />
       ) : error ? (
         <div className="flex items-start gap-2.5 rounded-xl border border-cinnabar-500/25 bg-cinnabar-500/[0.08] px-4 py-3 text-sm text-cinnabar-300">
@@ -128,7 +132,7 @@ export default function RebalanceAdvice({ documentId }: { documentId: string }) 
           ) : (
             <div className="flex items-center gap-2 py-6 text-sm text-mist-500">
               <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-gold-400" />
-              DeepSeek 正在解读监控结果…
+              {t.monitoring.adviceStreaming}
             </div>
           )}
           {usage && !busy && (

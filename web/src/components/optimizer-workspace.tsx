@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   AssetClassInfo,
   BLViewInput,
@@ -18,6 +18,7 @@ import {
   saveActiveTask,
 } from "@/lib/task-resume";
 import { useClient } from "./client-context";
+import { useT } from "@/components/locale-context";
 import Button from "./ui/button";
 import Icon from "./ui/icon";
 import Panel from "./ui/panel";
@@ -33,17 +34,6 @@ import OptimizerResults from "./optimizer/optimizer-results";
 
 const DEFAULT_ASSETS = ["US_EQUITY", "INTL_EQUITY", "US_BOND", "GOLD"];
 
-const METHOD_OPTIONS: { value: OptimizeMethod; label: string }[] = [
-  { value: "mvo", label: "传统 MVO" },
-  { value: "resampled", label: "重采样 MVO" },
-  { value: "black-litterman", label: "Black-Litterman" },
-];
-
-const MODE_OPTIONS: { value: OptimizeMode; label: string }[] = [
-  { value: "max-sharpe", label: "最大夏普" },
-  { value: "min-vol", label: "最小波动" },
-];
-
 export default function OptimizerWorkspace({
   assetClasses,
   initialAssets,
@@ -52,7 +42,19 @@ export default function OptimizerWorkspace({
   /** URL 深链（如监控页 SAA 联动）预填的资产选择。 */
   initialAssets?: string[];
 }) {
+  const t = useT();
   const allKeys = Object.keys(assetClasses);
+
+  const METHOD_OPTIONS: { value: OptimizeMethod; label: string }[] = [
+    { value: "mvo", label: t.optimizer.methodMvo },
+    { value: "resampled", label: t.optimizer.methodResampled },
+    { value: "black-litterman", label: "Black-Litterman" },
+  ];
+
+  const MODE_OPTIONS: { value: OptimizeMode; label: string }[] = [
+    { value: "max-sharpe", label: t.optimizer.modeMaxSharpe },
+    { value: "min-vol", label: t.optimizer.modeMinVol },
+  ];
 
   const [assets, setAssets] = useState<string[]>(
     initialAssets && initialAssets.length >= 2 ? initialAssets : DEFAULT_ASSETS
@@ -128,43 +130,47 @@ export default function OptimizerWorkspace({
   const streamAbort = useRef<AbortController | null>(null);
 
   /** Open the task event stream and pump it; resolves with the final result. */
-  async function streamTaskEvents(
-    taskId: string,
-    signal: AbortSignal,
-    onOpen?: () => void
-  ): Promise<OptimizeResponse> {
-    const eventsRes = await fetch(`/api/portfolio/tasks/${taskId}/events`, {
-      signal,
-    });
-    if (!eventsRes.ok || !eventsRes.body) {
-      if (eventsRes.status === 404) {
-        clearActiveTask("portfolio");
-        throw new TaskGoneError();
+  const streamTaskEvents = useCallback(
+    async (
+      taskId: string,
+      signal: AbortSignal,
+      onOpen?: () => void
+    ): Promise<OptimizeResponse> => {
+      const eventsRes = await fetch(`/api/portfolio/tasks/${taskId}/events`, {
+        signal,
+      });
+      if (!eventsRes.ok || !eventsRes.body) {
+        if (eventsRes.status === 404) {
+          clearActiveTask("portfolio");
+          throw new TaskGoneError();
+        }
+        const err = await eventsRes.json().catch(() => null);
+        throw new Error(
+          err && typeof err.detail === "string"
+            ? err.detail
+            : t.optimizer.progressUnavailable
+        );
       }
-      const err = await eventsRes.json().catch(() => null);
-      throw new Error(
-        err && typeof err.detail === "string" ? err.detail : "无法接收任务进度"
-      );
-    }
-    onOpen?.();
-    let finalResult: OptimizeResponse | null = null;
-    let streamError: string | null = null;
-    await readSseStream(eventsRes.body, (event) => {
-      if (event.type === "node") {
-        setProgressLabel(String(event.label ?? ""));
-      } else if (event.type === "done") {
-        finalResult = event.result as OptimizeResponse;
-        clearActiveTask("portfolio");
-      } else if (event.type === "error") {
-        streamError = String(event.message ?? "优化失败");
-        clearActiveTask("portfolio");
-      }
-    });
-    if (streamError) throw new Error(streamError);
-    if (!finalResult)
-      throw new Error("任务流意外结束（服务可能已重启，请重试）");
-    return finalResult;
-  }
+      onOpen?.();
+      let finalResult: OptimizeResponse | null = null;
+      let streamError: string | null = null;
+      await readSseStream(eventsRes.body, (event) => {
+        if (event.type === "node") {
+          setProgressLabel(String(event.label ?? ""));
+        } else if (event.type === "done") {
+          finalResult = event.result as OptimizeResponse;
+          clearActiveTask("portfolio");
+        } else if (event.type === "error") {
+          streamError = String(event.message ?? t.optimizer.optimizeFailed);
+          clearActiveTask("portfolio");
+        }
+      });
+      if (streamError) throw new Error(streamError);
+      if (!finalResult) throw new Error(t.optimizer.streamEnded);
+      return finalResult;
+    },
+    [t]
+  );
 
   // 挂载时恢复未完成的任务（切页返回的场景）：重连事件流重建进度与结果。
   useEffect(() => {
@@ -192,7 +198,7 @@ export default function OptimizerWorkspace({
       }
     })();
     return () => controller.abort();
-  }, []);
+  }, [streamTaskEvents]);
 
   // 卸载时断开事件流（任务在服务端继续，句柄保留供重连）
   useEffect(() => () => streamAbort.current?.abort(), []);
@@ -213,7 +219,7 @@ export default function OptimizerWorkspace({
       throw new Error(
         typeof data.detail === "string"
           ? data.detail
-          : `创建任务失败（HTTP ${res.status}）`
+          : t.optimizer.createTaskFailed(res.status)
       );
     }
     saveActiveTask("portfolio", String(data.task_id));
@@ -242,7 +248,7 @@ export default function OptimizerWorkspace({
           throw new Error(
             typeof data.detail === "string"
               ? data.detail
-              : `请求失败（HTTP ${res.status}）`
+              : t.optimizer.requestFailed(res.status)
           );
         }
         setResult(data as OptimizeResponse);
@@ -263,7 +269,7 @@ export default function OptimizerWorkspace({
     <div className="flex flex-col gap-8">
       {/* ------------------------------ 参数表单 ------------------------------ */}
       <Panel innerClassName="space-y-6">
-        <Group label={`资产类别 · 已选 ${assets.length}（至少 2 个）`}>
+        <Group label={t.optimizer.assetClassesLabel(assets.length)}>
           <div className="flex flex-wrap gap-2">
             {allKeys.map((k) => (
               <Chip
@@ -278,7 +284,7 @@ export default function OptimizerWorkspace({
         </Group>
 
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-          <Group label="历史窗口">
+          <Group label={t.optimizer.historyWindow}>
             <Segmented
               size="sm"
               options={OPTIMIZER_PERIOD_OPTIONS}
@@ -287,7 +293,7 @@ export default function OptimizerWorkspace({
             />
           </Group>
 
-          <Group label="优化方法">
+          <Group label={t.optimizer.methodLabel}>
             <Segmented
               size="sm"
               options={METHOD_OPTIONS}
@@ -296,7 +302,7 @@ export default function OptimizerWorkspace({
             />
           </Group>
 
-          <Group label="目标">
+          <Group label={t.optimizer.objectiveLabel}>
             <Segmented
               size="sm"
               options={MODE_OPTIONS}
@@ -305,13 +311,17 @@ export default function OptimizerWorkspace({
             />
           </Group>
 
-          <Group label="无风险利率">
+          <Group label={t.optimizer.riskFreeRate}>
             <div className="flex items-center gap-3 pt-0.5">
-              <Toggle checked={rfAuto} onChange={setRfAuto} label="自动获取" />
+              <Toggle
+                checked={rfAuto}
+                onChange={setRfAuto}
+                label={t.optimizer.rfAuto}
+              />
               {!rfAuto && (
                 <span className="flex items-center gap-1.5 text-sm text-mist-300">
                   <NumInput
-                    aria-label="手动无风险利率（%）"
+                    aria-label={t.optimizer.rfManualAria}
                     step="0.1"
                     min="0"
                     max="20"
@@ -330,11 +340,11 @@ export default function OptimizerWorkspace({
           <Toggle
             checked={allowShort}
             onChange={setAllowShort}
-            label="允许做空"
+            label={t.optimizer.allowShort}
           />
           {method === "resampled" && (
             <Slider
-              label="模拟次数"
+              label={t.optimizer.simulations}
               value={nSim}
               min={50}
               max={1000}
@@ -353,18 +363,18 @@ export default function OptimizerWorkspace({
                 <Toggle
                   checked={applyRisk}
                   onChange={setApplyRisk}
-                  label={`客户风险约束（${clientName}）`}
+                  label={t.optimizer.clientRiskConstraint(clientName ?? "")}
                 />
               </span>
               {method !== "mvo" && (
                 <span className="text-[11px] text-mist-600">
-                  仅传统 MVO 生效
+                  {t.optimizer.mvoOnlyHint}
                 </span>
               )}
             </span>
           ) : (
             <span className="text-[11px] text-mist-600">
-              在侧边栏选择客户后，可将其风险等级注入为权重约束
+              {t.optimizer.selectClientHint}
             </span>
           )}
         </div>
@@ -399,15 +409,15 @@ export default function OptimizerWorkspace({
               (method === "black-litterman" && views.length === 0)
             }
           >
-            {loading ? "优化计算中…" : "运行优化"}
+            {loading ? t.optimizer.running : t.optimizer.run}
           </Button>
           {loading && (
             <span className="flex items-center gap-2 text-xs text-mist-500">
               <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-gold-400" />
               {progressLabel ??
                 (method === "resampled"
-                  ? "重采样任务已创建，等待进度…"
-                  : "正在获取行情并求解…")}
+                  ? t.optimizer.progressResampled
+                  : t.optimizer.progressSync)}
             </span>
           )}
         </div>
@@ -431,8 +441,8 @@ export default function OptimizerWorkspace({
         <Panel pad={false}>
           <EmptyState
             icon="pie"
-            title="配置参数并开始优化"
-            hint="至少选择 2 个资产类别；提交后将展示有效前沿、配置权重与关键指标。"
+            title={t.optimizer.emptyTitle}
+            hint={t.optimizer.emptyHint}
           />
         </Panel>
       )}

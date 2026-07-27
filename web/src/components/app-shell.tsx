@@ -4,26 +4,28 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import type { ProfileSummary } from "@/lib/api";
+import type { Dictionary } from "@/lib/i18n/dictionaries/en";
+import { en } from "@/lib/i18n/dictionaries/en";
+import { zh } from "@/lib/i18n/dictionaries/zh";
 import { cx } from "@/lib/cx";
 import ClientSelector from "./client-selector";
+import { useLocale, useT } from "./locale-context";
 import Icon, { type IconName } from "./ui/icon";
+import Segmented from "./ui/segmented";
 
-const NAV_ITEMS: Array<{
-  href: string;
-  label: string;
-  en: string;
-  icon: IconName;
-}> = [
-  { href: "/", label: "总览", en: "Overview", icon: "gauge" },
-  { href: "/market", label: "市场", en: "Market", icon: "chartUp" },
-  { href: "/optimizer", label: "组合优化", en: "Optimizer", icon: "pie" },
-  { href: "/retirement", label: "退休规划", en: "Retirement", icon: "target" },
-  { href: "/profiles", label: "客户画像", en: "Profiles", icon: "users" },
-  { href: "/advisor", label: "AI 顾问", en: "Advisor", icon: "sparkle" },
-  { href: "/ips", label: "IPS 生成", en: "IPS", icon: "scroll" },
-  { href: "/deliverables", label: "交付物", en: "Deliverables", icon: "briefcase" },
-  { href: "/monitoring", label: "组合监控", en: "Monitor", icon: "eye" },
-  { href: "/settings", label: "设置", en: "Settings", icon: "sliders" },
+type NavKey = keyof Dictionary["nav"];
+
+const NAV_ITEMS: Array<{ href: string; key: NavKey; icon: IconName }> = [
+  { href: "/", key: "overview", icon: "gauge" },
+  { href: "/market", key: "market", icon: "chartUp" },
+  { href: "/optimizer", key: "optimizer", icon: "pie" },
+  { href: "/retirement", key: "retirement", icon: "target" },
+  { href: "/profiles", key: "profiles", icon: "users" },
+  { href: "/advisor", key: "advisor", icon: "sparkle" },
+  { href: "/ips", key: "ips", icon: "scroll" },
+  { href: "/deliverables", key: "deliverables", icon: "briefcase" },
+  { href: "/monitoring", key: "monitoring", icon: "eye" },
+  { href: "/settings", key: "settings", icon: "sliders" },
 ];
 
 function Brand() {
@@ -54,6 +56,10 @@ function NavLink({
   active: boolean;
   onNavigate?: () => void;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
+  // 副标签始终显示另一语言，保留墨金双语识别层
+  const alt = locale === "en" ? zh : en;
   return (
     <Link
       href={item.href}
@@ -74,16 +80,32 @@ function NavLink({
             : "text-mist-500 transition-colors duration-300 group-hover:text-mist-300"
         }
       />
-      <span className="font-medium">{item.label}</span>
+      <span className="font-medium">{t.nav[item.key]}</span>
       <span
         className={cx(
           "ml-auto text-[9px] tracking-[0.16em] uppercase",
           active ? "text-gold-500/70" : "text-mist-600"
         )}
       >
-        {item.en}
+        {alt.nav[item.key]}
       </span>
     </Link>
+  );
+}
+
+/** 语言切换 —— EN/中文分段选择，写 cookie 后整树刷新。 */
+function LocaleSwitcher() {
+  const { locale, setLocale } = useLocale();
+  return (
+    <Segmented
+      size="sm"
+      options={[
+        { value: "en", label: "EN" },
+        { value: "zh", label: "中文" },
+      ]}
+      value={locale}
+      onChange={setLocale}
+    />
   );
 }
 
@@ -126,7 +148,12 @@ export default function AppShell({
             <NavLink key={item.href} item={item} active={isActive(item.href)} />
           ))}
         </nav>
-        <div className="mt-auto pt-6">{healthBadge}</div>
+        <div className="mt-auto pt-6">
+          <div className="mb-3">
+            <LocaleSwitcher />
+          </div>
+          {healthBadge}
+        </div>
       </aside>
 
       {/* 移动顶栏（z-50 保持于抽屉之上，汉堡键形变为 X） */}
@@ -172,7 +199,12 @@ export default function AppShell({
                 </div>
               ))}
             </nav>
-            <div className="mt-auto pt-8">{healthBadge}</div>
+            <div className="mt-auto pt-8">
+              <div className="mb-3">
+                <LocaleSwitcher />
+              </div>
+              {healthBadge}
+            </div>
           </div>
         </div>
       )}

@@ -2,6 +2,7 @@
 
 import type { BiasItem, ProfileCompareResponse } from "@/lib/api";
 import { fmtLocal, fmtMoney, fmtPct } from "@/lib/format";
+import { useLocale, useT } from "@/components/locale-context";
 import {
   Badge,
   Button,
@@ -51,18 +52,20 @@ export default function ProfileCompare({
   result: ProfileCompareResponse;
   onClose: () => void;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
   return (
     <Panel>
       <div className="flex items-center justify-between">
         <h3 className="font-display text-lg text-mist-100">
-          画像对比{" "}
+          {t.profiles.compareTitle}{" "}
           <span className="font-sans text-sm font-normal text-mist-500">
             — {result.profiles.map((p) => p.name).join(" vs ")} ·{" "}
             {fmtLocal(result.comparison_date)}
           </span>
         </h3>
         <Button variant="ghost" size="sm" icon="x" onClick={onClose}>
-          关闭
+          {t.common.close}
         </Button>
       </div>
 
@@ -70,14 +73,14 @@ export default function ProfileCompare({
         <Table className="min-w-[720px]">
           <THead>
             <tr>
-              <TH>客户</TH>
-              <TH className="text-right">风险评分</TH>
-              <TH>风险等级</TH>
-              <TH className="text-right">净资产</TH>
-              <TH className="text-right">年收入</TH>
-              <TH className="text-right">储蓄率</TH>
-              <TH className="text-right">应急基金</TH>
-              <TH className="text-right">偏差数</TH>
+              <TH>{t.profiles.colClient}</TH>
+              <TH className="text-right">{t.profiles.colRiskScore}</TH>
+              <TH>{t.profiles.colRiskLevel}</TH>
+              <TH className="text-right">{t.profiles.colNetWorth}</TH>
+              <TH className="text-right">{t.profiles.fieldAnnualIncome}</TH>
+              <TH className="text-right">{t.profiles.colSavingsRate}</TH>
+              <TH className="text-right">{t.profiles.colEmergencyFund}</TH>
+              <TH className="text-right">{t.profiles.colBiasCount}</TH>
             </tr>
           </THead>
           <tbody>
@@ -90,7 +93,11 @@ export default function ProfileCompare({
                     {s.risk_score > 0 ? s.risk_score.toFixed(1) : "—"}
                   </TD>
                   <TD>
-                    <RiskBadge level={s.risk_level} />
+                    <RiskBadge
+                      level={s.risk_level}
+                      locale={locale}
+                      unassessed={t.profiles.unassessed}
+                    />
                   </TD>
                   <TD className="text-right font-mono">
                     {fmtMoney(s.net_worth)}
@@ -102,7 +109,7 @@ export default function ProfileCompare({
                     {fmtPct(s.savings_rate, 1)}
                   </TD>
                   <TD className="text-right font-mono text-xs">
-                    {s.emergency_fund_months} 个月
+                    {t.profiles.monthsValue(s.emergency_fund_months)}
                   </TD>
                   <TD className="text-right font-mono">
                     {p.bias_count > 0 ? (
@@ -121,7 +128,7 @@ export default function ProfileCompare({
       {result.insights.length > 0 && (
         <div className="mt-6">
           <h4 className="mb-2 text-[11px] font-medium tracking-[0.14em] text-mist-500 uppercase">
-            关键洞察
+            {t.profiles.keyInsights}
           </h4>
           <ul className="space-y-1.5">
             {result.insights.map((insight, i) => (
@@ -139,7 +146,7 @@ export default function ProfileCompare({
 
       <div className="mt-6 space-y-4">
         <h4 className="text-[11px] font-medium tracking-[0.14em] text-mist-500 uppercase">
-          行为偏差分析
+          {t.profiles.biasAnalysis}
         </h4>
         {result.profiles.map((p) => (
           <div key={p.id}>
@@ -148,7 +155,7 @@ export default function ProfileCompare({
               {p.bias_count === 0 && (
                 <span className="flex items-center gap-1 text-xs text-jade-400">
                   <Icon name="check" size={12} />
-                  未检测到行为偏差
+                  {t.profiles.noBiasesDetected}
                 </span>
               )}
             </div>

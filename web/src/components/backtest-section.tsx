@@ -3,6 +3,7 @@ import { ApiOffline } from "@/components/api-offline";
 import BacktestPeriodSelector from "@/components/backtest-period-selector";
 import BacktestResults from "@/components/backtest-results";
 import { Icon } from "@/components/ui";
+import { getDict, getLocale } from "@/lib/i18n/server";
 
 /**
  * 历史回测区块（P13）—— 以 IPS 的 SAA 权重做月初再平衡回测，
@@ -15,9 +16,11 @@ export default async function BacktestSection({
   documentId: string;
   period: string;
 }) {
-  const bt = await getBacktest(documentId, period);
+  const t = await getDict();
+  const locale = await getLocale();
+  const bt = await getBacktest(documentId, period, locale);
   if (!bt) {
-    return <ApiOffline resource="回测数据（历史行情不可用，或文档缺少 SAA）" />;
+    return <ApiOffline resource={t.monitoring.resourceBacktest} />;
   }
 
   return (
@@ -25,9 +28,9 @@ export default async function BacktestSection({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="flex items-center gap-2 text-sm font-medium text-mist-200">
           <Icon name="clock" size={15} className="text-gold-400" />
-          历史回测
+          {t.monitoring.backtestTitle}
           <span className="text-xs font-normal text-mist-500">
-            月初再平衡 · 对照 {bt.benchmark.name}
+            {t.monitoring.backtestSub(bt.benchmark.name)}
           </span>
         </h3>
         <BacktestPeriodSelector documentId={documentId} period={period} />

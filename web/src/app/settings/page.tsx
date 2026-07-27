@@ -1,11 +1,15 @@
+import type { Metadata } from "next";
 import { getLlmSettings } from "@/lib/api";
+import { altLocale } from "@/lib/i18n/locale";
+import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
 import { ApiOffline } from "@/components/api-offline";
 import SettingsForm from "@/components/settings-form";
 import SectionHeader from "@/components/ui/section-header";
 
-export const metadata = {
-  title: "设置 · AI WealthPilot",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getDict();
+  return { title: `${t.settings.title} · AI WealthPilot` };
+}
 
 /**
  * Settings — user-defined OpenAI-compatible LLM endpoint. The current
@@ -13,19 +17,21 @@ export const metadata = {
  * save mutations through the same-origin proxy.
  */
 export default async function SettingsPage() {
-  const settings = await getLlmSettings();
+  const [settings, locale] = await Promise.all([getLlmSettings(), getLocale()]);
+  const t = dictionaries[locale];
+  const alt = dictionaries[altLocale(locale)];
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-10">
       <SectionHeader
-        eyebrow="Settings"
-        title="设置"
-        description="自定义 AI 模型端点：任何 OpenAI 兼容服务（DeepSeek、通义、OpenAI、本地 vLLM/Ollama 等）均可接入，保存后全站 AI 功能即时生效。"
+        eyebrow={alt.settings.title}
+        title={t.settings.title}
+        description={t.settings.description}
         className="mb-8"
       />
 
       {settings === null ? (
-        <ApiOffline resource="LLM 设置" />
+        <ApiOffline resource={t.settings.apiOfflineResource} />
       ) : (
         <SettingsForm initial={settings} />
       )}

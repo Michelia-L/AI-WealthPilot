@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useClient } from "@/components/client-context";
+import { useT } from "@/components/locale-context";
 import { Button } from "@/components/ui";
 
 /**
@@ -16,6 +17,7 @@ export default function HubActions({
   name: string;
 }) {
   const router = useRouter();
+  const t = useT();
   const { clientId, select, clear } = useClient();
   const isCurrent = clientId === id;
 
@@ -26,7 +28,9 @@ export default function HubActions({
         icon={isCurrent ? "check" : "users"}
         onClick={() => (isCurrent ? clear() : select(id, name))}
       >
-        {isCurrent ? "当前客户" : "设为当前客户"}
+        {isCurrent
+          ? t.profileDetail.currentClient
+          : t.profileDetail.setAsCurrentClient}
       </Button>
       <Button
         icon="sparkle"
@@ -35,7 +39,7 @@ export default function HubActions({
           router.push("/advisor");
         }}
       >
-        生成建议书
+        {t.profileDetail.generateReport}
       </Button>
       <Button
         variant="secondary"
@@ -45,7 +49,7 @@ export default function HubActions({
           router.push("/ips");
         }}
       >
-        生成 IPS
+        {t.profileDetail.generateIps}
       </Button>
     </div>
   );

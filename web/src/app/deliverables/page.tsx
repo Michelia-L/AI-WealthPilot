@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { getAdvisorReports, getIpsDocuments, getProfiles } from "@/lib/api";
 import { fmtLocal } from "@/lib/format";
 import DeliverablesControls from "@/components/deliverables-controls";
 import { ApiOffline } from "@/components/api-offline";
+import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
+import { altLocale } from "@/lib/i18n/locale";
 import {
   Badge,
   ButtonLink,
@@ -15,9 +18,10 @@ import {
   TR,
 } from "@/components/ui";
 
-export const metadata = {
-  title: "交付物中心 · AI WealthPilot",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getDict();
+  return { title: `${t.deliverables.title} · AI WealthPilot` };
+}
 
 interface DeliverableRow {
   kind: "advisor" | "ips";
@@ -38,6 +42,9 @@ interface PageProps {
  * URL 驱动的客户/类型筛选，行内查看与多格式导出。
  */
 export default async function DeliverablesPage({ searchParams }: PageProps) {
+  const locale = await getLocale();
+  const t = dictionaries[locale];
+  const alt = dictionaries[altLocale(locale)];
   const sp = await searchParams;
   const clientFilter = typeof sp.client === "string" ? sp.client : "";
   const typeFilter =
@@ -55,11 +62,11 @@ export default async function DeliverablesPage({ searchParams }: PageProps) {
     return (
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
         <SectionHeader
-          eyebrow="Deliverables"
-          title="交付物中心"
-          description="AI 建议书与 IPS 文档的统一浏览与导出。"
+          eyebrow={alt.deliverables.title}
+          title={t.deliverables.title}
+          description={t.deliverables.descriptionOffline}
         />
-        <ApiOffline resource="交付物列表" />
+        <ApiOffline resource={t.deliverables.resourceList} />
       </div>
     );
   }
@@ -93,7 +100,7 @@ export default async function DeliverablesPage({ searchParams }: PageProps) {
       kind: "ips" as const,
       id: d.document_id,
       client: d.client_name,
-      sub: `v${d.version} · ${d.status} · 修订 ${d.revision_rounds} 轮`,
+      sub: t.deliverables.ipsSub(d.version, d.status, d.revision_rounds),
       when: d.saved_at,
       viewHref: `/deliverables/ips/${encodeURIComponent(d.document_id)}`,
       downloads: [
@@ -115,9 +122,9 @@ export default async function DeliverablesPage({ searchParams }: PageProps) {
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
       <SectionHeader
-        eyebrow="Deliverables"
-        title="交付物中心"
-        description="AI 建议书与 IPS 文档的统一浏览与导出 —— 每一次顾问交付，都留痕可查。"
+        eyebrow={alt.deliverables.title}
+        title={t.deliverables.title}
+        description={t.deliverables.description}
       />
 
       <DeliverablesControls
@@ -131,8 +138,8 @@ export default async function DeliverablesPage({ searchParams }: PageProps) {
         <Panel pad={false}>
           <EmptyState
             icon="briefcase"
-            title="没有符合条件的交付物"
-            hint="调整筛选条件，或先到 AI 顾问 / IPS 生成页为客户产出交付物。"
+            title={t.deliverables.emptyTitle}
+            hint={t.deliverables.emptyHint}
           />
         </Panel>
       ) : (
@@ -140,11 +147,11 @@ export default async function DeliverablesPage({ searchParams }: PageProps) {
           <Table className="min-w-[720px]">
             <THead>
               <tr>
-                <TH>类型</TH>
-                <TH>客户</TH>
-                <TH>摘要</TH>
-                <TH>时间</TH>
-                <TH className="text-right">操作</TH>
+                <TH>{t.deliverables.colType}</TH>
+                <TH>{t.deliverables.colClient}</TH>
+                <TH>{t.deliverables.colSummary}</TH>
+                <TH>{t.deliverables.colTime}</TH>
+                <TH className="text-right">{t.deliverables.colActions}</TH>
               </tr>
             </THead>
             <tbody>
@@ -152,7 +159,9 @@ export default async function DeliverablesPage({ searchParams }: PageProps) {
                 <TR key={`${r.kind}-${r.id}`}>
                   <TD>
                     <Badge tone={r.kind === "advisor" ? "gold" : "steel"}>
-                      {r.kind === "advisor" ? "AI 建议书" : "IPS"}
+                      {r.kind === "advisor"
+                        ? t.deliverables.kindAdvisor
+                        : t.deliverables.kindIps}
                     </Badge>
                   </TD>
                   <TD className="font-medium text-mist-100">{r.client}</TD>
@@ -168,7 +177,7 @@ export default async function DeliverablesPage({ searchParams }: PageProps) {
                         size="sm"
                         icon="eye"
                       >
-                        查看
+                        {t.common.view}
                       </ButtonLink>
                       {r.downloads.map((d) => (
                         <ButtonLink

@@ -1,10 +1,14 @@
+import type { Metadata } from "next";
 import { getAdvisorReports, getAdvisorStatus, getProfiles } from "@/lib/api";
+import { altLocale } from "@/lib/i18n/locale";
+import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
 import AdvisorWorkspace from "@/components/advisor-workspace";
 import SectionHeader from "@/components/ui/section-header";
 
-export const metadata = {
-  title: "AI 顾问 · AI WealthPilot",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getDict();
+  return { title: `${t.advisor.title} · AI WealthPilot` };
+}
 
 /**
  * AI Advisor — streaming advisory reports over a selected client profile.
@@ -12,18 +16,21 @@ export const metadata = {
  * save-to-library, and the report history.
  */
 export default async function AdvisorPage() {
-  const [profiles, status, reports] = await Promise.all([
+  const [profiles, status, reports, locale] = await Promise.all([
     getProfiles(),
     getAdvisorStatus(),
     getAdvisorReports(),
+    getLocale(),
   ]);
+  const t = dictionaries[locale];
+  const alt = dictionaries[altLocale(locale)];
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-10">
       <SectionHeader
-        eyebrow="AI Advisor"
-        title="AI 顾问"
-        description="基于客户画像，由 DeepSeek 流式逐字生成个性化投资建议书（IPS 框架 · 行为金融 · 资产配置）。"
+        eyebrow={alt.advisor.title}
+        title={t.advisor.title}
+        description={t.advisor.description}
         className="mb-8"
       />
 

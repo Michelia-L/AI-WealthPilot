@@ -1,6 +1,9 @@
+"use client";
+
 import type { BacktestResponse, PortfolioBacktestResponse } from "@/lib/api";
 import { cx } from "@/lib/cx";
 import { fmtPct } from "@/lib/format";
+import { useT } from "@/components/locale-context";
 import PlotChart from "@/components/plot-chart";
 import {
   Icon,
@@ -30,43 +33,45 @@ export default function BacktestResults({
 }: {
   bt: BacktestResponse | PortfolioBacktestResponse;
 }) {
+  const t = useT();
+  const labels = t.common.backtest;
   const bm = bt.benchmark;
   const fee = bt.fee;
   const hasFee = fee.annual_rate > 0;
   const feeSourceLabel =
     fee.source === "ips_fee_schedule"
-      ? "IPS 披露 TER"
+      ? labels.feeSourceIps
       : fee.source === "manual"
-        ? "手动费率"
+        ? labels.feeSourceManual
         : "";
 
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile
-          label={hasFee ? "年化收益（费后）" : "年化收益（回测）"}
+          label={hasFee ? labels.annReturnNet : labels.annReturnBacktest}
           value={fmtPct(bt.metrics.cagr)}
-          hint={`基准 ${fmtPct(bm.metrics.cagr)}`}
+          hint={labels.benchmarkHint(fmtPct(bm.metrics.cagr))}
           tone="gold"
         />
         <StatTile
-          label="年化波动"
+          label={labels.annVolatility}
           value={fmtPct(bt.metrics.ann_volatility)}
-          hint={`基准 ${fmtPct(bm.metrics.ann_volatility)}`}
+          hint={labels.benchmarkHint(fmtPct(bm.metrics.ann_volatility))}
         />
         <StatTile
-          label="夏普比率"
+          label={labels.sharpeRatio}
           value={bt.metrics.sharpe === null ? "—" : bt.metrics.sharpe.toFixed(2)}
           hint={
             bm.metrics.sharpe === null
-              ? "基准 —"
-              : `基准 ${bm.metrics.sharpe.toFixed(2)}`
+              ? labels.benchmarkHint("—")
+              : labels.benchmarkHint(bm.metrics.sharpe.toFixed(2))
           }
         />
         <StatTile
-          label="最大回撤"
+          label={labels.maxDrawdown}
           value={fmtPct(bt.metrics.max_drawdown)}
-          hint={`基准 ${fmtPct(bm.metrics.max_drawdown)}`}
+          hint={labels.benchmarkHint(fmtPct(bm.metrics.max_drawdown))}
           tone="cinnabar"
         />
       </div>
@@ -75,15 +80,20 @@ export default function BacktestResults({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-gold-700/30 bg-gold-500/[0.05] px-5 py-3">
           <span className="flex items-center gap-2 text-xs font-medium text-gold-300">
             <Icon name="banknote" size={13} />
-            费用拖累
+            {labels.feeDrag}
           </span>
           <span className="text-xs text-mist-400">
-            年化 {fmtPct(fee.annual_rate)}（{feeSourceLabel}） · 区间累计
-            −{(fee.cumulative_impact_pp * 100).toFixed(1)}pp
+            {labels.feeSummary(
+              fmtPct(fee.annual_rate),
+              feeSourceLabel,
+              (fee.cumulative_impact_pp * 100).toFixed(1)
+            )}
           </span>
           <span className="tnum ml-auto font-mono text-[11px] text-mist-500">
-            费前 {fmtPct(fee.gross_total_return)} → 费后{" "}
-            {fmtPct(fee.net_total_return)}
+            {labels.grossToNet(
+              fmtPct(fee.gross_total_return),
+              fmtPct(fee.net_total_return)
+            )}
           </span>
         </div>
       )}
@@ -103,10 +113,10 @@ export default function BacktestResults({
           <Table>
             <THead>
               <tr>
-                <TH>年度</TH>
-                <TH className="text-right">组合</TH>
-                <TH className="text-right">基准</TH>
-                <TH className="text-right">差值</TH>
+                <TH>{labels.year}</TH>
+                <TH className="text-right">{labels.portfolio}</TH>
+                <TH className="text-right">{labels.benchmark}</TH>
+                <TH className="text-right">{labels.diff}</TH>
               </tr>
             </THead>
             <tbody>
@@ -138,17 +148,15 @@ export default function BacktestResults({
           <Table>
             <THead>
               <tr>
-                <TH>情景</TH>
-                <TH className="text-right">组合</TH>
-                <TH className="text-right">基准</TH>
+                <TH>{labels.scenario}</TH>
+                <TH className="text-right">{labels.portfolio}</TH>
+                <TH className="text-right">{labels.benchmark}</TH>
               </tr>
             </THead>
             <tbody>
               {bt.stress.length === 0 ? (
                 <TR>
-                  <TD className="text-mist-500">
-                    回测窗口未覆盖内置危机情景（2008 / 2020 / 2022）。
-                  </TD>
+                  <TD className="text-mist-500">{labels.stressEmpty}</TD>
                   <TD />
                   <TD />
                 </TR>
@@ -177,7 +185,7 @@ export default function BacktestResults({
         <div className="rounded-xl border border-gold-700/30 bg-gold-500/[0.05] px-5 py-4">
           <div className="mb-2 flex items-center gap-2 text-xs font-medium text-gold-300">
             <Icon name="info" size={13} />
-            回测说明
+            {labels.notes}
           </div>
           <ul className="space-y-1 text-xs leading-5 text-mist-400">
             {bt.notes.map((n, i) => (

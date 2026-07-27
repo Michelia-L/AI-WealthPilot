@@ -1,21 +1,29 @@
+import type { Metadata } from "next";
 import RetirementWorkspace from "@/components/retirement-workspace";
 import { SectionHeader } from "@/components/ui";
+import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
+import { altLocale } from "@/lib/i18n/locale";
 
-export const metadata = {
-  title: "退休规划 · AI WealthPilot",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getDict();
+  return { title: `${t.retirement.title} · AI WealthPilot` };
+}
 
 /**
  * Retirement planner — two-phase Monte Carlo (accumulation → distribution).
  * Pure form → POST → results flow; the workspace owns all interactivity.
  */
-export default function RetirementPage() {
+export default async function RetirementPage() {
+  const locale = await getLocale();
+  const t = dictionaries[locale];
+  const alt = dictionaries[altLocale(locale)];
+
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-10">
       <SectionHeader
-        eyebrow="Retirement Planner"
-        title="退休规划"
-        description="几何布朗运动两阶段蒙特卡洛：积累期持续储蓄注入，支取期按通胀调整提款，评估退休资金的存续概率。"
+        eyebrow={alt.retirement.title}
+        title={t.retirement.title}
+        description={t.retirement.description}
       />
 
       <div className="mt-10">

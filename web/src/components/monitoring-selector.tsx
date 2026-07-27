@@ -5,6 +5,7 @@ import { useTransition } from "react";
 import type { IpsDocumentSummary } from "@/lib/api";
 import { cx } from "@/lib/cx";
 import { fmtLocal } from "@/lib/format";
+import { useT } from "@/components/locale-context";
 import { Field, Select } from "./ui/field";
 
 /**
@@ -18,6 +19,7 @@ export default function MonitoringSelector({
   documents: IpsDocumentSummary[];
   selected: string;
 }) {
+  const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -28,7 +30,7 @@ export default function MonitoringSelector({
         pending && "opacity-60"
       )}
     >
-      <Field label="选择 IPS 文档（SAA 目标配置来源）">
+      <Field label={t.common.monitoringSelector.label}>
         <Select
           value={selected}
           onChange={(e) => {
@@ -38,7 +40,7 @@ export default function MonitoringSelector({
             });
           }}
         >
-          <option value="">— 请选择一份 IPS 文档 —</option>
+          <option value="">{t.common.monitoringSelector.placeholder}</option>
           {documents.map((d) => (
             <option key={d.document_id} value={d.document_id}>
               {d.client_name} · v{d.version} · {d.status} · {fmtLocal(d.saved_at)}

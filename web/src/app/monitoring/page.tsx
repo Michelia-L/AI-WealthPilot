@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getIpsDocuments, getMonitoring, type MonitoringHolding } from "@/lib/api";
 import { fmtLocal, fmtPct } from "@/lib/format";
 import { cx } from "@/lib/cx";
@@ -6,6 +7,8 @@ import { ApiOffline } from "@/components/api-offline";
 import BacktestSection from "@/components/backtest-section";
 import MonitoringSelector from "@/components/monitoring-selector";
 import RebalanceAdvice from "@/components/rebalance-advice";
+import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
+import { altLocale } from "@/lib/i18n/locale";
 import {
   Badge,
   ButtonLink,
@@ -22,18 +25,16 @@ import {
   TR,
 } from "@/components/ui";
 
-export const metadata = {
-  title: "组合监控 · AI WealthPilot",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getDict();
+  return { title: `${t.monitoring.title} · AI WealthPilot` };
+}
 
-const BAND_META: Record<
-  string,
-  { label: string; tone: "jade" | "cinnabar" | "gold" | "mist" }
-> = {
-  within: { label: "区间内", tone: "jade" },
-  above: { label: "超上限", tone: "cinnabar" },
-  below: { label: "低于下限", tone: "gold" },
-  unknown: { label: "无数据", tone: "mist" },
+const BAND_TONE: Record<string, "jade" | "cinnabar" | "gold" | "mist"> = {
+  within: "jade",
+  above: "cinnabar",
+  below: "gold",
+  unknown: "mist",
 };
 
 /** IPS 资产配置键 → 优化器资产宇宙键（EWH 港股在优化器宇宙中无代理，跳过）。 */
@@ -56,15 +57,17 @@ function signedPp(value: number | null): string {
 function WeightBar({
   holding,
   scale,
+  title,
 }: {
   holding: MonitoringHolding;
   scale: number;
+  title: string;
 }) {
   const pct = (v: number) => `${Math.min(100, (v / scale) * 100)}%`;
   return (
     <div
       className="relative h-2.5 w-full rounded-full bg-ink-700/50"
-      title={`目标 ${fmtPct(holding.target_weight, 1)} · 区间 ${fmtPct(holding.min_weight, 1)}–${fmtPct(holding.max_weight, 1)}`}
+      title={title}
     >
       <div
         className="absolute top-0 h-full rounded-full bg-white/[0.08]"
@@ -103,6 +106,9 @@ interface PageProps {
  * 偏离区间状态与复衡建议；组合指标基于 CME 与相关性矩阵计算。
  */
 export default async function MonitoringPage({ searchParams }: PageProps) {
+  const locale = await getLocale();
+  const t = dictionaries[locale];
+  const alt = dictionaries[altLocale(locale)];
   const sp = await searchParams;
   const docId = typeof sp.doc === "string" ? sp.doc : "";
   const btPeriod =
@@ -116,23 +122,30 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
     return (
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
         <SectionHeader
-          eyebrow="Portfolio Monitor"
-          title="组合监控"
-          description="以 SAA 目标配置为锚的漂移监测与复衡建议。"
+          eyebrow={alt.monitoring.title}
+          title={t.monitoring.title}
+          description={t.monitoring.descriptionOffline}
         />
-        <ApiOffline resource="IPS 文档列表" />
+        <ApiOffline resource={t.monitoring.resourceIpsList} />
       </div>
     );
   }
 
-  const data = docId ? await getMonitoring(docId) : null;
+  const data = docId ? await getMonitoring(docId, locale) : null;
+
+  const bandLabels: Record<string, string> = {
+    within: t.monitoring.bandWithin,
+    above: t.monitoring.bandAbove,
+    below: t.monitoring.bandBelow,
+    unknown: t.monitoring.bandUnknown,
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
       <SectionHeader
-        eyebrow="Portfolio Monitor"
-        title="组合监控"
-        description="以 IPS 战略配置（SAA）为锚：买入持有漂移、区间偏离与复衡建议。"
+        eyebrow={alt.monitoring.title}
+        title={t.monitoring.title}
+        description={t.monitoring.description}
       />
 
       <MonitoringSelector documents={documents} selected={docId} />
@@ -141,12 +154,12 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
         <Panel pad={false}>
           <EmptyState
             icon="eye"
-            title="选择一份 IPS 文档开始监控"
-            hint="监控以文档中的战略配置（目标权重与上下限）为基准，结合最新市场数据计算漂移。"
+            title={t.monitoring.emptyTitle}
+            hint={t.monitoring.emptyHint}
           />
         </Panel>
       ) : !data ? (
-        <ApiOffline resource="监控数据（文档可能缺少 SAA 配置，或 API 离线）" />
+        <ApiOffline resource={t.monitoring.resourceMonitoring} />
       ) : (
         <>
           {/* 头部信息 */}
@@ -154,11 +167,11 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
             <span className="text-sm font-medium text-mist-100">
               {data.client_name}
             </span>
-            <span>IPS 保存于 {fmtLocal(data.saved_at)}</span>
+            <span>{t.monitoring.ipsSavedAt(fmtLocal(data.saved_at))}</span>
             <span>·</span>
-            <span className="tnum">计算时点 {fmtLocal(data.as_of)}</span>
+            <span className="tnum">{t.monitoring.asOf(fmtLocal(data.as_of))}</span>
             <span>·</span>
-            <span>CME 缓存：{data.cme_cache_status}</span>
+            <span>{t.monitoring.cmeCache(data.cme_cache_status)}</span>
             {(() => {
               const optimizerKeys = [
                 ...new Set(
@@ -174,7 +187,7 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
                     size="sm"
                     icon="pie"
                   >
-                    在优化器中分析
+                    {t.monitoring.analyzeInOptimizer}
                   </ButtonLink>
                 </span>
               ) : null;
@@ -184,28 +197,32 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
           {/* 组合指标：目标口径 vs 漂移口径 */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
             <StatTile
-              label="组合预期收益（目标）"
+              label={t.monitoring.statReturnTarget}
               value={fmtPct(data.portfolio.expected_return)}
-              hint={`漂移口径 ${fmtPct(data.drifted_portfolio.expected_return)}`}
+              hint={t.monitoring.driftedHint(
+                fmtPct(data.drifted_portfolio.expected_return)
+              )}
               tone="gold"
             />
             <StatTile
-              label="组合波动率（目标）"
+              label={t.monitoring.statVolTarget}
               value={fmtPct(data.portfolio.volatility)}
-              hint={`漂移口径 ${fmtPct(data.drifted_portfolio.volatility)}`}
+              hint={t.monitoring.driftedHint(
+                fmtPct(data.drifted_portfolio.volatility)
+              )}
             />
             <StatTile
-              label="组合夏普（目标）"
+              label={t.monitoring.statSharpeTarget}
               value={
                 data.portfolio.sharpe === null
                   ? "—"
                   : data.portfolio.sharpe.toFixed(2)
               }
-              hint={
+              hint={t.monitoring.driftedHint(
                 data.drifted_portfolio.sharpe === null
-                  ? "漂移口径 —"
-                  : `漂移口径 ${data.drifted_portfolio.sharpe.toFixed(2)}`
-              }
+                  ? "—"
+                  : data.drifted_portfolio.sharpe.toFixed(2)
+              )}
             />
           </div>
 
@@ -214,10 +231,10 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
             <div className="mb-5 flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-sm font-medium text-mist-200">
                 <Icon name="chartUp" size={15} className="text-gold-400" />
-                权重漂移与配置区间
+                {t.monitoring.driftPanelTitle}
               </h3>
               <span className="text-[11px] text-mist-600">
-                金色条=当前（漂移后）· 竖线=目标 · 浅带=允许区间
+                {t.monitoring.driftLegend}
               </span>
             </div>
             <div className="space-y-5">
@@ -228,7 +245,7 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
                     0.2
                   ) * 1.15;
                 return data.holdings.map((h) => {
-                  const band = BAND_META[h.band_status] ?? BAND_META.unknown;
+                  const tone = BAND_TONE[h.band_status] ?? BAND_TONE.unknown;
                   return (
                     <div
                       key={h.name}
@@ -242,7 +259,15 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
                           {h.ticker ?? "—"}
                         </div>
                       </div>
-                      <WeightBar holding={h} scale={barScale} />
+                      <WeightBar
+                        holding={h}
+                        scale={barScale}
+                        title={t.monitoring.barTitle(
+                          fmtPct(h.target_weight, 1),
+                          fmtPct(h.min_weight, 1),
+                          fmtPct(h.max_weight, 1)
+                        )}
+                      />
                       <div className="text-right">
                         <div
                           className={cx(
@@ -262,7 +287,9 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
                           {signedPp(h.drift_pp)}
                         </div>
                         <div className="mt-1 flex justify-end">
-                          <Badge tone={band.tone}>{band.label}</Badge>
+                          <Badge tone={tone}>
+                            {bandLabels[h.band_status] ?? bandLabels.unknown}
+                          </Badge>
                         </div>
                       </div>
                     </div>
@@ -276,27 +303,29 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
           <Panel>
             <h3 className="mb-4 flex items-center gap-2 text-sm font-medium text-mist-200">
               <Icon name="refresh" size={15} className="text-gold-400" />
-              复衡建议
+              {t.monitoring.rebalanceTitle}
             </h3>
             {!data.rebalance.needed ? (
               <div className="flex items-center gap-2.5 text-sm text-jade-300">
                 <Icon name="check" size={16} />
-                所有持仓均在配置区间内，无需复衡。
+                {t.monitoring.rebalanceNone}
               </div>
             ) : (
               <div className="flex flex-col divide-y divide-white/[0.05]">
-                {data.rebalance.trades.map((t) => (
+                {data.rebalance.trades.map((trade) => (
                   <div
-                    key={t.name}
+                    key={trade.name}
                     className="flex items-center justify-between gap-3 py-2.5"
                   >
-                    <span className="text-sm text-mist-100">{t.name}</span>
+                    <span className="text-sm text-mist-100">{trade.name}</span>
                     <span className="flex items-center gap-3">
-                      <Badge tone={t.action === "buy" ? "jade" : "cinnabar"}>
-                        {t.action === "buy" ? "买入" : "卖出"}
+                      <Badge tone={trade.action === "buy" ? "jade" : "cinnabar"}>
+                        {trade.action === "buy"
+                          ? t.monitoring.actionBuy
+                          : t.monitoring.actionSell}
                       </Badge>
                       <span className="tnum font-mono text-sm text-mist-200">
-                        {Math.abs(t.weight_pp * 100).toFixed(1)}pp
+                        {Math.abs(trade.weight_pp * 100).toFixed(1)}pp
                       </span>
                     </span>
                   </div>
@@ -313,14 +342,14 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
             <Table className="min-w-[820px]">
               <THead>
                 <tr>
-                  <TH>资产类别</TH>
-                  <TH className="text-right">预期收益</TH>
-                  <TH className="text-right">波动率</TH>
-                  <TH className="text-right">夏普</TH>
-                  <TH className="text-right">最大回撤</TH>
+                  <TH>{t.monitoring.colAsset}</TH>
+                  <TH className="text-right">{t.monitoring.colExpectedReturn}</TH>
+                  <TH className="text-right">{t.monitoring.colVolatility}</TH>
+                  <TH className="text-right">{t.monitoring.colSharpe}</TH>
+                  <TH className="text-right">{t.monitoring.colMaxDrawdown}</TH>
                   <TH className="text-right">VaR 95</TH>
                   <TH className="text-right">CVaR 95</TH>
-                  <TH className="text-right">区间涨跌</TH>
+                  <TH className="text-right">{t.monitoring.colPeriodReturn}</TH>
                 </tr>
               </THead>
               <tbody>
@@ -384,7 +413,7 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
             <div className="rounded-xl border border-gold-700/30 bg-gold-500/[0.05] px-5 py-4">
               <div className="mb-2 flex items-center gap-2 text-xs font-medium text-gold-300">
                 <Icon name="info" size={13} />
-                数据说明
+                {t.monitoring.notesTitle}
               </div>
               <ul className="space-y-1 text-xs leading-5 text-mist-400">
                 {data.notes.map((n, i) => (

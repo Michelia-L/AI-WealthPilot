@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { OptimizeResponse, PortfolioBacktestResponse } from "@/lib/api";
 import BacktestResults from "@/components/backtest-results";
 import { Button, Icon, Panel, Segmented } from "@/components/ui";
+import { useT } from "@/components/locale-context";
 
 const PERIOD_OPTIONS = [
   { value: "3y", label: "3Y" },
@@ -20,6 +21,7 @@ export default function OptimizerBacktest({
 }: {
   result: OptimizeResponse;
 }) {
+  const t = useT();
   const [period, setPeriod] = useState<string>("5y");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export default function OptimizerBacktest({
         throw new Error(
           typeof data.detail === "string"
             ? data.detail
-            : `回测失败（HTTP ${res.status}）`
+            : t.optimizer.backtestFailed(res.status)
         );
       }
       setBt(data as PortfolioBacktestResponse);
@@ -63,9 +65,9 @@ export default function OptimizerBacktest({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="flex items-center gap-2 text-sm font-medium text-mist-200">
           <Icon name="clock" size={15} className="text-gold-400" />
-          组合回测
+          {t.optimizer.backtestTitle}
           <span className="text-xs font-normal text-mist-500">
-            用历史验证这组权重（月初再平衡）
+            {t.optimizer.backtestSubtitle}
           </span>
         </h3>
         <div className="flex items-center gap-3">
@@ -87,7 +89,11 @@ export default function OptimizerBacktest({
             disabled={busy}
             onClick={() => void run(period)}
           >
-            {busy ? "回测计算中…" : bt ? "重新回测" : "回测该组合"}
+            {busy
+              ? t.optimizer.backtestRunning
+              : bt
+                ? t.optimizer.backtestRerun
+                : t.optimizer.backtestRun}
           </Button>
         </div>
       </div>
@@ -102,7 +108,7 @@ export default function OptimizerBacktest({
       {busy && (
         <div className="mt-4 flex items-center gap-2 py-4 text-sm text-mist-500">
           <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-gold-400" />
-          正在拉取历史行情并模拟净值…
+          {t.optimizer.backtestFetching}
         </div>
       )}
 

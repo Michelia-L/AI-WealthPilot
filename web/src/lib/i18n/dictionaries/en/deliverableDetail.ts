@@ -1,0 +1,21 @@
+/** deliverableDetail namespace — populated by the localization pass (phase 22). */
+export const deliverableDetail = {
+  title: "Deliverable Details",
+  notFoundTitle: "Unable to open deliverable",
+  reasonUnknownType: "Unknown deliverable type.",
+  reasonReportMissing: "The report does not exist, or the API is offline.",
+  reasonIpsMissing: "The IPS document does not exist, or the API is offline.",
+  reportEyebrow: "Advisory Report",
+  reportDescription: "AI Advisory Report",
+  ipsEyebrow: "Investment Policy Statement",
+  ipsDescription: "Investment Policy Statement (with audit trail)",
+  downloadPdf: "Download PDF",
+  labelGenerated: "Generated",
+  labelModel: "AI Model",
+  labelTokens: "Token Usage",
+  labelPromptCompletion: "Input / Output",
+  labelVersion: "Version",
+  labelSaved: "Saved",
+  labelRounds: "Revision Rounds",
+  labelRisk: "Risk Level",
+};

@@ -1,5 +1,6 @@
 import { getCme } from "@/lib/api";
 import { fmtPct } from "@/lib/format";
+import { getDict } from "@/lib/i18n/server";
 import { ApiOffline } from "@/components/api-offline";
 import { Badge, type BadgeTone } from "./ui/chip";
 import Panel from "./ui/panel";
@@ -24,10 +25,11 @@ const REGIME_TONE: Record<string, BadgeTone> = {
  * (historical stats blended with implied volatility).
  */
 export async function CmeSection() {
+  const t = await getDict();
   const data = await getCme();
 
   if (!data) {
-    return <ApiOffline resource="资本市场预期（CME）" />;
+    return <ApiOffline resource={t.market.offlineCme} />;
   }
 
   const { report } = data;
@@ -36,7 +38,7 @@ export async function CmeSection() {
     <section>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h2 className="font-display text-xl text-mist-100">
-          资本市场预期{" "}
+          {t.market.cmeTitle}{" "}
           <span className="font-sans text-sm font-normal text-mist-500">
             CME
           </span>
@@ -45,9 +47,12 @@ export async function CmeSection() {
           {data.cache_status}
         </Badge>
         <span className="text-xs text-mist-500">
-          数据截至 {report.as_of_date} · 无风险利率{" "}
-          {fmtPct(report.risk_free_rate)}（{report.risk_free_rate_source}）·
-          回溯 {report.data_lookback_years} 年
+          {t.market.cmeMeta(
+            report.as_of_date,
+            fmtPct(report.risk_free_rate),
+            report.risk_free_rate_source,
+            report.data_lookback_years
+          )}
         </span>
       </div>
 
@@ -55,13 +60,13 @@ export async function CmeSection() {
         <Table className="min-w-[760px]">
           <THead>
             <tr>
-              <TH>资产类别</TH>
-              <TH className="text-right">预期收益</TH>
-              <TH className="text-right">年化波动</TH>
-              <TH className="text-right">混合波动 (IV)</TH>
-              <TH className="text-right">夏普</TH>
-              <TH className="text-right">最大回撤</TH>
-              <TH className="text-right">波动状态</TH>
+              <TH>{t.market.thAssetClass}</TH>
+              <TH className="text-right">{t.market.thExpectedReturn}</TH>
+              <TH className="text-right">{t.market.thAnnVol}</TH>
+              <TH className="text-right">{t.market.thBlendedVol}</TH>
+              <TH className="text-right">{t.market.thSharpe}</TH>
+              <TH className="text-right">{t.market.thMaxDrawdown}</TH>
+              <TH className="text-right">{t.market.thVolRegime}</TH>
             </tr>
           </THead>
           <tbody>

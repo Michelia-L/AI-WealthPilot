@@ -5,7 +5,9 @@ import "./globals.css";
 import AppShell from "@/components/app-shell";
 import { ClientProvider } from "@/components/client-context";
 import HealthBadge from "@/components/health-badge";
+import { LocaleProvider } from "@/components/locale-context";
 import { getProfiles } from "@/lib/api";
+import { getDict, getLocale } from "@/lib/i18n/server";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,40 +33,44 @@ const plexMono = IBM_Plex_Mono({
   weight: ["400", "500", "600"],
 });
 
-export const metadata: Metadata = {
-  title: "AI WealthPilot · 私人财富管理工作站",
-  description:
-    "AI 辅助的私人财富管理工作站 —— 量化组合引擎、资本市场预期与顾问智能体。",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getDict();
+  return {
+    title: t.meta.title,
+    description: t.meta.description,
+  };
+}
 
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const profilesData = await getProfiles();
+  const [profilesData, locale] = await Promise.all([getProfiles(), getLocale()]);
 
   return (
     <html
-      lang="zh-CN"
+      lang={locale === "zh" ? "zh-CN" : "en"}
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
         <ClientProvider>
-          <AppShell
-            profiles={profilesData?.profiles ?? []}
-            healthBadge={
-              <Suspense
-                fallback={
-                  <span className="inline-block h-6 w-24 animate-pulse rounded-full bg-ink-800" />
-                }
-              >
-                <HealthBadge />
-              </Suspense>
-            }
-          >
-            {children}
-          </AppShell>
+          <LocaleProvider locale={locale}>
+            <AppShell
+              profiles={profilesData?.profiles ?? []}
+              healthBadge={
+                <Suspense
+                  fallback={
+                    <span className="inline-block h-6 w-24 animate-pulse rounded-full bg-ink-800" />
+                  }
+                >
+                  <HealthBadge />
+                </Suspense>
+              }
+            >
+              {children}
+            </AppShell>
+          </LocaleProvider>
         </ClientProvider>
       </body>
     </html>

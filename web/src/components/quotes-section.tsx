@@ -1,6 +1,8 @@
 import { getQuotes, type Quote } from "@/lib/api";
 import { cx } from "@/lib/cx";
 import { formatAssetChange, formatAssetPrice, fmtUtc } from "@/lib/format";
+import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
+import { altLocale } from "@/lib/i18n/locale";
 import { ApiOffline } from "@/components/api-offline";
 import Icon from "@/components/ui/icon";
 import Reveal from "@/components/ui/reveal";
@@ -160,7 +162,8 @@ function QuoteCard({ quote, index }: { quote: Quote; index: number }) {
 // 市场 breadth 汇总条
 // ---------------------------------------------------------------------------
 
-function BreadthStrip({ quotes }: { quotes: Quote[] }) {
+async function BreadthStrip({ quotes }: { quotes: Quote[] }) {
+  const t = await getDict();
   const known = quotes.filter((q) => q.change !== null && q.change_pct !== null);
   const up = known.filter((q) => q.change! > 0).length;
   const down = known.filter((q) => q.change! < 0).length;
@@ -173,9 +176,9 @@ function BreadthStrip({ quotes }: { quotes: Quote[] }) {
     : null;
 
   const items: Array<{ tone: string; label: string }> = [
-    { tone: "text-jade-400", label: `上涨 ${up}` },
-    { tone: "text-cinnabar-400", label: `下跌 ${down}` },
-    { tone: "text-mist-500", label: `持平 ${flat}` },
+    { tone: "text-jade-400", label: t.market.breadthUp(up) },
+    { tone: "text-cinnabar-400", label: t.market.breadthDown(down) },
+    { tone: "text-mist-500", label: t.market.breadthFlat(flat) },
   ];
 
   return (
@@ -190,7 +193,7 @@ function BreadthStrip({ quotes }: { quotes: Quote[] }) {
       </div>
       {best && best.change_pct! > 0 && (
         <span className="text-mist-400">
-          领涨{" "}
+          {t.market.breadthBest}{" "}
           <span className="text-mist-200">{best.name}</span>{" "}
           <span className="tnum font-mono text-jade-400">
             +{best.change_pct!.toFixed(2)}%
@@ -199,7 +202,7 @@ function BreadthStrip({ quotes }: { quotes: Quote[] }) {
       )}
       {worst && worst.change_pct! < 0 && (
         <span className="text-mist-400">
-          领跌{" "}
+          {t.market.breadthWorst}{" "}
           <span className="text-mist-200">{worst.name}</span>{" "}
           <span className="tnum font-mono text-cinnabar-400">
             {worst.change_pct!.toFixed(2)}%
@@ -220,10 +223,14 @@ function BreadthStrip({ quotes }: { quotes: Quote[] }) {
  * card carries a 30-day sparkline for density.
  */
 export async function QuotesSection({ tickers }: { tickers: string[] }) {
+  const locale = await getLocale();
+  const t = dictionaries[locale];
+  const alt = dictionaries[altLocale(locale)];
+
   const data = await getQuotes(tickers);
 
   if (!data || data.quotes.length === 0) {
-    return <ApiOffline resource="行情数据" />;
+    return <ApiOffline resource={t.market.offlineQuotes} />;
   }
 
   const quotes = [...data.quotes].sort(
@@ -234,9 +241,9 @@ export async function QuotesSection({ tickers }: { tickers: string[] }) {
     <section>
       <div className="mb-4 flex items-baseline justify-between">
         <h2 className="font-display text-xl text-mist-100">
-          市场速览{" "}
+          {t.market.snapshotTitle}{" "}
           <span className="font-sans text-sm font-normal text-mist-500">
-            Market Snapshot
+            {alt.market.snapshotTitle}
           </span>
         </h2>
         <span className="tnum text-xs text-mist-500">{fmtUtc(data.as_of)}</span>

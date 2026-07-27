@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ProfileSummary } from "@/lib/api";
 import { fmtLocal } from "@/lib/format";
+import { useLocale, useT } from "@/components/locale-context";
 import { ApiOffline } from "@/components/api-offline";
 import {
   Button,
@@ -48,6 +49,8 @@ export default function ProfileList({
   onDelete: (p: ProfileSummary) => void;
   onCreate: () => void;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -57,7 +60,7 @@ export default function ProfileList({
           onClick={onImport}
           disabled={busy}
         >
-          从 JSON 导入
+          {t.profiles.importFromJson}
         </Button>
         <Button
           variant="secondary"
@@ -65,11 +68,13 @@ export default function ProfileList({
           onClick={onCompare}
           disabled={comparing || selected.length < 2}
         >
-          {comparing ? "对比中…" : `对比所选（${selected.length}）`}
+          {comparing
+            ? t.profiles.comparing
+            : t.profiles.compareSelected(selected.length)}
         </Button>
         {selected.length > 0 && selected.length < 2 && (
           <span className="text-xs text-mist-500">
-            再选 1 个即可对比（最多 {MAX_COMPARE} 个）
+            {t.profiles.selectOneMoreHint(MAX_COMPARE)}
           </span>
         )}
         {notice && (
@@ -87,16 +92,16 @@ export default function ProfileList({
       </div>
 
       {profiles === null ? (
-        <ApiOffline resource="画像列表" />
+        <ApiOffline resource={t.profiles.listResource} />
       ) : profiles.length === 0 ? (
         <Panel pad={false}>
           <EmptyState
             icon="users"
-            title="还没有客户画像"
-            hint="建立第一份双轨风险评估画像，或从 Streamlit 时代的 JSON 文件导入。"
+            title={t.profiles.emptyTitle}
+            hint={t.profiles.emptyHint}
             action={
               <Button icon="plus" onClick={onCreate}>
-                新建画像
+                {t.profiles.createProfile}
               </Button>
             }
           />
@@ -107,13 +112,13 @@ export default function ProfileList({
             <THead>
               <tr>
                 <TH className="w-10">
-                  <span className="sr-only">选择</span>
+                  <span className="sr-only">{t.profiles.selectSrOnly}</span>
                 </TH>
-                <TH>姓名</TH>
-                <TH className="text-right">年龄</TH>
-                <TH>风险等级</TH>
-                <TH>更新时间</TH>
-                <TH className="text-right">操作</TH>
+                <TH>{t.profiles.fieldName}</TH>
+                <TH className="text-right">{t.profiles.fieldAge}</TH>
+                <TH>{t.profiles.colRiskLevel}</TH>
+                <TH>{t.profiles.colUpdated}</TH>
+                <TH className="text-right">{t.profiles.colActions}</TH>
               </tr>
             </THead>
             <tbody>
@@ -124,7 +129,7 @@ export default function ProfileList({
                       type="checkbox"
                       checked={selected.includes(p.id)}
                       onChange={() => onToggleSelect(p.id)}
-                      aria-label={`选择 ${p.name} 参与对比`}
+                      aria-label={t.profiles.selectForCompareAria(p.name)}
                       className="h-4 w-4 accent-gold-500"
                     />
                   </TD>
@@ -138,7 +143,11 @@ export default function ProfileList({
                   </TD>
                   <TD className="text-right font-mono">{p.age}</TD>
                   <TD>
-                    <RiskBadge level={p.risk_level} />
+                    <RiskBadge
+                      level={p.risk_level}
+                      locale={locale}
+                      unassessed={t.profiles.unassessed}
+                    />
                   </TD>
                   <TD className="font-mono text-xs text-mist-500">
                     {fmtLocal(p.updated_at)}
@@ -149,7 +158,7 @@ export default function ProfileList({
                         variant="ghost"
                         size="sm"
                         icon="pencil"
-                        aria-label={`编辑 ${p.name}`}
+                        aria-label={t.profiles.editAria(p.name)}
                         onClick={() => onEdit(p.id)}
                         disabled={busy}
                       />
@@ -157,7 +166,7 @@ export default function ProfileList({
                         variant="ghost"
                         size="sm"
                         icon="trash"
-                        aria-label={`删除 ${p.name}`}
+                        aria-label={t.profiles.deleteAria(p.name)}
                         className="hover:text-cinnabar-300"
                         onClick={() => onDelete(p)}
                         disabled={busy}

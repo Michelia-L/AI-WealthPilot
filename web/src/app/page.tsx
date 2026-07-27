@@ -11,6 +11,8 @@ import {
 } from "@/lib/api";
 import { cx } from "@/lib/cx";
 import { formatAssetPrice, fmtLocal } from "@/lib/format";
+import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
+import { altLocale } from "@/lib/i18n/locale";
 import { ApiOffline } from "@/components/api-offline";
 import { Badge, type BadgeTone } from "@/components/ui/chip";
 import EmptyState from "@/components/ui/empty";
@@ -58,7 +60,8 @@ function PulseTape({ quotes }: { quotes: Quote[] | null }) {
 // 组合监控告警（Phase 17 — 越带亮灯，懒触发日检）
 // ---------------------------------------------------------------------------
 
-function MonitoringBanner({ fleet }: { fleet: MonitoringFleetResponse }) {
+async function MonitoringBanner({ fleet }: { fleet: MonitoringFleetResponse }) {
+  const t = await getDict();
   const { summary } = fleet;
   const priceAsOf = fleet.price_as_of ?? "—";
 
@@ -70,9 +73,11 @@ function MonitoringBanner({ fleet }: { fleet: MonitoringFleetResponse }) {
       );
     const offenders = worst
       .slice(0, 2)
-      .map(
-        (w) =>
-          `${w.client_name} 偏离 ${((w.max_abs_drift_pp ?? 0) * 100).toFixed(1)}pp`
+      .map((w) =>
+        t.overview.monitoringOffender(
+          w.client_name,
+          (w.max_abs_drift_pp ?? 0) * 100
+        )
       )
       .join(" · ");
     return (
@@ -86,11 +91,11 @@ function MonitoringBanner({ fleet }: { fleet: MonitoringFleetResponse }) {
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-sm text-mist-100">
-              {summary.breach} 个组合偏离政策区间
+              {t.overview.monitoringBreachTitle(summary.breach)}
               <span className="ml-2 text-xs text-mist-500">{offenders}</span>
             </p>
             <p className="mt-0.5 text-xs text-mist-500">
-              建议评估复衡 · 行情截至 {priceAsOf}
+              {t.overview.monitoringBreachHint(priceAsOf)}
             </p>
           </div>
           <Icon
@@ -108,15 +113,15 @@ function MonitoringBanner({ fleet }: { fleet: MonitoringFleetResponse }) {
       <div className="flex items-center gap-3 rounded-2xl border border-jade-500/20 bg-jade-500/[0.04] px-5 py-2.5">
         <Icon name="shield" size={14} className="shrink-0 text-jade-400" />
         <p className="text-xs text-mist-400">
-          组合监控正常 · {summary.ok} 个组合均在政策区间内
+          {t.overview.monitoringOk(summary.ok)}
           {summary.unknown > 0 && (
             <span className="text-mist-600">
-              （{summary.unknown} 个暂无法检测）
+              {t.overview.monitoringUnknown(summary.unknown)}
             </span>
           )}
         </p>
         <span className="tnum ml-auto shrink-0 font-mono text-[11px] text-mist-600">
-          行情截至 {priceAsOf}
+          {t.overview.monitoringAsOf(priceAsOf)}
         </span>
       </div>
     );
@@ -126,7 +131,7 @@ function MonitoringBanner({ fleet }: { fleet: MonitoringFleetResponse }) {
     <div className="flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-ink-900/70 px-5 py-2.5">
       <Icon name="info" size={14} className="shrink-0 text-mist-500" />
       <p className="text-xs text-mist-500">
-        组合监控数据暂不可用
+        {t.overview.monitoringUnavailable}
         {fleet.items[0]?.note ? `：${fleet.items[0].note}` : ""}
       </p>
     </div>
@@ -146,23 +151,24 @@ function riskTone(level: string): BadgeTone {
   return "mist";
 }
 
-function ClientsCard({
+async function ClientsCard({
   profiles,
 }: {
   profiles: ProfileSummary[] | null;
 }) {
+  const t = await getDict();
   return (
     <Panel className="h-full" innerClassName="flex h-full flex-col">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="flex items-center gap-2 text-sm font-medium text-mist-200">
           <Icon name="users" size={15} className="text-gold-400" />
-          客户速览
+          {t.overview.clientsTitle}
         </h3>
         <Link
           href="/profiles"
           className="group flex items-center gap-1 text-xs text-mist-500 transition-colors hover:text-gold-300"
         >
-          管理
+          {t.overview.clientsManage}
           <Icon
             name="arrowUpRight"
             size={12}
@@ -171,12 +177,12 @@ function ClientsCard({
         </Link>
       </div>
       {profiles === null ? (
-        <p className="text-xs leading-5 text-mist-500">API 离线，无法读取客户列表。</p>
+        <p className="text-xs leading-5 text-mist-500">{t.overview.clientsOffline}</p>
       ) : profiles.length === 0 ? (
         <EmptyState
           icon="users"
-          title="还没有客户画像"
-          hint="建立第一份双轨风险评估画像，开启顾问工作流。"
+          title={t.overview.clientsEmptyTitle}
+          hint={t.overview.clientsEmptyHint}
           className="py-8"
         />
       ) : (
@@ -192,7 +198,7 @@ function ClientsCard({
                   <div className="truncate text-sm text-mist-100 transition-colors group-hover:text-gold-300">
                     {p.name}
                   </div>
-                  <div className="text-xs text-mist-500">{p.age} 岁</div>
+                  <div className="text-xs text-mist-500">{t.overview.clientAge(p.age)}</div>
                 </div>
                 <Badge tone={riskTone(p.risk_level)}>
                   {p.risk_level.split("/")[0].trim()}
@@ -201,7 +207,7 @@ function ClientsCard({
             ))}
           </div>
           <div className="mt-auto pt-3 text-xs text-mist-600">
-            共 {profiles.length} 位客户
+            {t.overview.clientsTotal(profiles.length)}
           </div>
         </>
       )}
@@ -221,56 +227,58 @@ interface Deliverable {
   sub: string;
 }
 
-const KIND_META: Record<Deliverable["kind"], { icon: IconName; label: string }> = {
-  advisor: { icon: "sparkle", label: "AI 建议书" },
-  ips: { icon: "scroll", label: "IPS 文档" },
+const KIND_ICON: Record<Deliverable["kind"], IconName> = {
+  advisor: "sparkle",
+  ips: "scroll",
 };
 
-function DeliverablesCard({ items }: { items: Deliverable[] | null }) {
+async function DeliverablesCard({ items }: { items: Deliverable[] | null }) {
+  const t = await getDict();
+  const kindLabel: Record<Deliverable["kind"], string> = {
+    advisor: t.overview.kindAdvisor,
+    ips: t.overview.kindIps,
+  };
   return (
     <Panel className="h-full" innerClassName="flex h-full flex-col">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="flex items-center gap-2 text-sm font-medium text-mist-200">
           <Icon name="briefcase" size={15} className="text-gold-400" />
-          最近交付物
+          {t.overview.deliverablesTitle}
         </h3>
       </div>
       {items === null ? (
-        <p className="text-xs leading-5 text-mist-500">API 离线，无法读取交付物。</p>
+        <p className="text-xs leading-5 text-mist-500">{t.overview.deliverablesOffline}</p>
       ) : items.length === 0 ? (
         <EmptyState
           icon="briefcase"
-          title="暂无交付物"
-          hint="在 AI 顾问或 IPS 生成页为客户产出第一份建议书。"
+          title={t.overview.deliverablesEmptyTitle}
+          hint={t.overview.deliverablesEmptyHint}
           className="py-8"
         />
       ) : (
         <div className="grid gap-x-8 sm:grid-cols-2">
-          {items.map((d) => {
-            const meta = KIND_META[d.kind];
-            return (
-              <Link
-                key={`${d.kind}-${d.id}`}
-                href={`/deliverables/${d.kind}/${encodeURIComponent(d.id)}`}
-                className="group flex items-center gap-3 border-b border-white/[0.05] py-3 transition-colors"
-              >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/[0.06] bg-ink-850 text-gold-400">
-                  <Icon name={meta.icon} size={14} />
+          {items.map((d) => (
+            <Link
+              key={`${d.kind}-${d.id}`}
+              href={`/deliverables/${d.kind}/${encodeURIComponent(d.id)}`}
+              className="group flex items-center gap-3 border-b border-white/[0.05] py-3 transition-colors"
+            >
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/[0.06] bg-ink-850 text-gold-400">
+                <Icon name={KIND_ICON[d.kind]} size={14} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm text-mist-100 transition-colors group-hover:text-gold-300">
+                  {d.client}
                 </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm text-mist-100 transition-colors group-hover:text-gold-300">
-                    {d.client}
-                  </span>
-                  <span className="block truncate text-xs text-mist-500">
-                    {meta.label} · {d.sub}
-                  </span>
+                <span className="block truncate text-xs text-mist-500">
+                  {kindLabel[d.kind]} · {d.sub}
                 </span>
-                <span className="tnum shrink-0 font-mono text-[11px] text-mist-600">
-                  {fmtLocal(d.when)}
-                </span>
-              </Link>
-          );
-          })}
+              </span>
+              <span className="tnum shrink-0 font-mono text-[11px] text-mist-600">
+                {fmtLocal(d.when)}
+              </span>
+            </Link>
+          ))}
         </div>
       )}
     </Panel>
@@ -281,22 +289,16 @@ function DeliverablesCard({ items }: { items: Deliverable[] | null }) {
 // 模块入口
 // ---------------------------------------------------------------------------
 
-const MODULES: Array<{
+interface ModuleEntry {
   href: string;
   icon: IconName;
   title: string;
-  en: string;
+  /** 另一语言的小字标签（沿用全站双语品牌层）。 */
+  alt: string;
   desc: string;
-}> = [
-  { href: "/market", icon: "chartUp", title: "市场", en: "Market", desc: "全球行情、跨资产相关性与资本市场预期（CME）" },
-  { href: "/optimizer", icon: "pie", title: "组合优化", en: "Optimizer", desc: "MVO · Resampled · Black-Litterman 有效前沿求解" },
-  { href: "/retirement", icon: "target", title: "退休规划", en: "Retirement", desc: "GBM 蒙特卡洛两阶段生命周期模拟" },
-  { href: "/profiles", icon: "users", title: "客户画像", en: "Profiles", desc: "双轨风险画像与行为金融偏差识别" },
-  { href: "/advisor", icon: "sparkle", title: "AI 顾问", en: "Advisor", desc: "DeepSeek 流式生成个性化投资建议书" },
-  { href: "/ips", icon: "scroll", title: "IPS 生成", en: "IPS Workflow", desc: "LangGraph 多智能体生成—评审—修订流水线" },
-];
+}
 
-function ModuleCard({ mod, index }: { mod: (typeof MODULES)[number]; index: number }) {
+function ModuleCard({ mod, index }: { mod: ModuleEntry; index: number }) {
   return (
     <Reveal delay={index * 60}>
       <Link href={mod.href} className="group block h-full">
@@ -319,7 +321,7 @@ function ModuleCard({ mod, index }: { mod: (typeof MODULES)[number]; index: numb
           <div className="mt-5 font-display text-lg text-mist-100">
             {mod.title}
             <span className="ml-2 align-middle font-sans text-[10px] font-medium tracking-[0.18em] text-mist-600 uppercase">
-              {mod.en}
+              {mod.alt}
             </span>
           </div>
           <p className="mt-2 text-xs leading-5 text-mist-500">{mod.desc}</p>
@@ -334,13 +336,17 @@ function ModuleCard({ mod, index }: { mod: (typeof MODULES)[number]; index: numb
 // ---------------------------------------------------------------------------
 
 export default async function OverviewPage() {
+  const locale = await getLocale();
+  const t = dictionaries[locale];
+  const alt = dictionaries[altLocale(locale)];
+
   const [quotes, profilesData, reportsData, ipsData, fleetData] =
     await Promise.all([
       getQuotes(),
       getProfiles(),
       getAdvisorReports(),
       getIpsDocuments(),
-      getMonitoringFleetStatus(),
+      getMonitoringFleetStatus(locale),
     ]);
 
   const deliverables: Deliverable[] | null =
@@ -365,12 +371,24 @@ export default async function OverviewPage() {
           .sort((a, b) => (a.when < b.when ? 1 : -1))
           .slice(0, 6);
 
-  const dateStr = new Date().toLocaleDateString("zh-CN", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    weekday: "long",
-  });
+  const dateStr = new Date().toLocaleDateString(
+    locale === "zh" ? "zh-CN" : "en-US",
+    {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      weekday: "long",
+    }
+  );
+
+  const modules: ModuleEntry[] = [
+    { href: "/market", icon: "chartUp", title: t.overview.modules.market.title, alt: alt.overview.modules.market.title, desc: t.overview.modules.market.desc },
+    { href: "/optimizer", icon: "pie", title: t.overview.modules.optimizer.title, alt: alt.overview.modules.optimizer.title, desc: t.overview.modules.optimizer.desc },
+    { href: "/retirement", icon: "target", title: t.overview.modules.retirement.title, alt: alt.overview.modules.retirement.title, desc: t.overview.modules.retirement.desc },
+    { href: "/profiles", icon: "users", title: t.overview.modules.profiles.title, alt: alt.overview.modules.profiles.title, desc: t.overview.modules.profiles.desc },
+    { href: "/advisor", icon: "sparkle", title: t.overview.modules.advisor.title, alt: alt.overview.modules.advisor.title, desc: t.overview.modules.advisor.desc },
+    { href: "/ips", icon: "scroll", title: t.overview.modules.ips.title, alt: alt.overview.modules.ips.title, desc: t.overview.modules.ips.desc },
+  ];
 
   const allOffline = !quotes && !profilesData;
 
@@ -382,19 +400,18 @@ export default async function OverviewPage() {
           Private Wealth Workstation
         </div>
         <h1 className="font-display text-4xl leading-tight text-mist-100 md:text-5xl">
-          财富驾驶舱
+          {t.overview.title}
         </h1>
         <p className="font-display mt-3 text-lg text-gold-400 italic">
-          The Advisor&apos;s Cockpit
+          {alt.overview.title}
         </p>
         <p className="mt-3 max-w-xl text-sm leading-6 text-mist-500">
-          机构级财富管理方法论 × AI
-          智能体——从客户画像到投资建议书的完整工作流。
+          {t.overview.tagline}
         </p>
         <p className="mt-2 text-xs text-mist-600">{dateStr}</p>
       </header>
 
-      {allOffline && <ApiOffline resource="市场与客户数据" />}
+      {allOffline && <ApiOffline resource={t.overview.offlineResource} />}
 
       {/* 市场脉搏 */}
       <PulseTape quotes={quotes?.quotes ?? null} />
@@ -419,22 +436,20 @@ export default async function OverviewPage() {
       {/* 模块入口 */}
       <section>
         <div className="mb-4 flex items-baseline justify-between">
-          <h2 className="font-display text-xl text-mist-100">工作台</h2>
+          <h2 className="font-display text-xl text-mist-100">{t.overview.workbenchTitle}</h2>
           <span className="text-[10px] tracking-[0.2em] text-mist-600 uppercase">
-            Modules
+            {alt.overview.workbenchTitle}
           </span>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {MODULES.map((mod, i) => (
+          {modules.map((mod, i) => (
             <ModuleCard key={mod.href} mod={mod} index={i} />
           ))}
         </div>
       </section>
 
       <footer className="mt-auto border-t border-white/[0.06] pt-6 text-xs leading-5 text-mist-500">
-        AI WealthPilot
-        为研究与教育用途的财富管理原型。所有量化输出与 AI
-        生成内容基于历史数据与模型假设，不构成投资建议。
+        {t.overview.disclaimer}
       </footer>
     </div>
   );

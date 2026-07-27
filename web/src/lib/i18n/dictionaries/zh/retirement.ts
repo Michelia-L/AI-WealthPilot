@@ -1,0 +1,57 @@
+/** retirement namespace — populated by the localization pass (phase 22). */
+export const retirement = {
+  title: "退休规划",
+  description:
+    "几何布朗运动两阶段蒙特卡洛：积累期持续储蓄注入，支取期按通胀调整提款，评估退休资金的存续概率。",
+
+  currentAge: "当前年龄",
+  retirementAge: "退休年龄",
+  lifeExpectancy: "预期寿命",
+  ageYears: (v: number) => `${v} 岁`,
+  currentSavings: "当前储蓄",
+  annualSavings: "年度储蓄",
+  desiredIncome: "退休后期望年收入",
+  expectedReturn: "预期年化收益",
+  volatility: "年化波动率",
+  inflationRate: "通胀率",
+  simulationCount: "模拟次数",
+  run: "运行模拟",
+  running: "模拟计算中…",
+  ageConstraint: "需满足：当前年龄 < 退休年龄 < 预期寿命",
+  requestFailed: (status: number) => `请求失败（HTTP ${status}）`,
+
+  survivalRate: "计划存活率",
+  survivalSteady: "计划稳健",
+  survivalWatch: "需要关注",
+  survivalRisk: "存在风险",
+  medianAtRetirement: "退休时中位资产",
+  accumulationPhase: "积累期",
+  distributionPhase: "支取期",
+  durationYears: (n: number) => `${n} 年`,
+
+  depletionTitle: "资金枯竭分析",
+  neverDepleted: "从未耗尽",
+  depletedWithin10y: "10 年内耗尽",
+  medianDepletionYear: "中位耗尽年份",
+  yearNth: (y: string) => `第 ${y} 年`,
+
+  quantileTableTitle: "退休时资产分位数",
+  meanLabel: "均值",
+  terminalDistribution: "终值分布",
+
+  sensitivityTitle: "敏感性分析",
+  sensitivitySubtitle: "— 年度储蓄如何影响存活率",
+  survivalRateShort: "存活率",
+  currentBadge: "当前",
+
+  paramsPrefix: "参数：",
+  expectedReturnShort: "预期收益",
+  volatilityShort: "波动",
+  inflationShort: "通胀",
+  simulationsShort: (n: string) => `${n} 次模拟`,
+  seedNote: (seed: number) => `seed=${seed}（结果可复现）`,
+
+  emptyTitle: "设定参数并运行模拟",
+  emptyHint:
+    "默认 10,000 条几何布朗运动路径，覆盖积累期与支取期全程，输出存活率、资产分布与储蓄敏感性。",
+};

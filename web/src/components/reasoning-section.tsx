@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useT } from "./locale-context";
 import Icon from "./ui/icon";
 
 /**
@@ -17,6 +18,7 @@ export default function ReasoningSection({
   streaming: boolean;
   reasoningTokens?: number | null;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(true);
   // render 期条件调整（React 官方模式）：流式状态翻转时重置展开态
   const [wasStreaming, setWasStreaming] = useState(streaming);
@@ -39,13 +41,15 @@ export default function ReasoningSection({
           size={13}
           className="shrink-0 text-mist-500"
         />
-        <span className="text-xs font-medium text-mist-400">思考过程</span>
+        <span className="text-xs font-medium text-mist-400">
+          {t.advisor.reasoningTitle}
+        </span>
         {streaming && (
           <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-gold-400" />
         )}
         {reasoningTokens != null && reasoningTokens > 0 && (
           <span className="tnum ml-auto font-mono text-[11px] text-mist-600">
-            思考 {reasoningTokens.toLocaleString()} tokens
+            {t.advisor.reasoningTokens(reasoningTokens)}
           </span>
         )}
       </button>

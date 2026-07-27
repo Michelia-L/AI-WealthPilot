@@ -11,6 +11,10 @@ import type {
   QuestionnaireResponse,
 } from "@/lib/api";
 import { detailToPayload } from "@/lib/api";
+import { useLocale, useT } from "@/components/locale-context";
+import { en } from "@/lib/i18n/dictionaries/en";
+import { zh } from "@/lib/i18n/dictionaries/zh";
+import { altLocale } from "@/lib/i18n/locale";
 import { Button, ConfirmDialog, SectionHeader } from "@/components/ui";
 import ProfileCompare from "./profile-compare";
 import ProfileForm from "./profile-form";
@@ -58,6 +62,9 @@ export default function ProfilesManager({
   initialEdit?: { id: number; payload: ProfilePayload } | null;
 }) {
   const router = useRouter();
+  const t = useT();
+  const { locale } = useLocale();
+  const alt = { en, zh }[altLocale(locale)];
   const [mode, setMode] = useState<"list" | "create" | "edit">(
     initialEdit ? "edit" : "list"
   );
@@ -97,7 +104,11 @@ export default function ProfilesManager({
       const res = await fetch(`/api/profiles/compare?ids=${selected.join(",")}`);
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(typeof data.detail === "string" ? data.detail : "对比失败");
+        throw new Error(
+          typeof data.detail === "string"
+            ? data.detail
+            : t.profiles.errorCompareFailed
+        );
       }
       setCompareResult(data as ProfileCompareResponse);
     } catch (e) {
@@ -139,7 +150,12 @@ export default function ProfilesManager({
     try {
       const res = await fetch(`/api/profiles/${id}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : "加载失败");
+      if (!res.ok)
+        throw new Error(
+          typeof data.detail === "string"
+            ? data.detail
+            : t.profiles.errorLoadFailed
+        );
       const payload = detailToPayload(data as ProfileDetailResponse);
       setForm(payload);
       setRestrictionsText(payload.sector_restrictions.join(", "));
@@ -179,8 +195,13 @@ export default function ProfilesManager({
           typeof detail === "string"
             ? detail
             : Array.isArray(detail)
-              ? detail.map((d: { msg?: string }) => d.msg ?? "校验失败").join("；")
-              : `保存失败（HTTP ${res.status}）`
+              ? detail
+                  .map(
+                    (d: { msg?: string }) =>
+                      d.msg ?? t.profiles.errorValidationFailed
+                  )
+                  .join(t.profiles.errorListSeparator)
+              : t.profiles.errorSaveFailed(res.status)
         );
       }
       setMode("list");
@@ -202,7 +223,11 @@ export default function ProfilesManager({
       const res = await fetch(`/api/profiles/${target.id}`, { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(typeof data.detail === "string" ? data.detail : "删除失败");
+        throw new Error(
+          typeof data.detail === "string"
+            ? data.detail
+            : t.profiles.errorDeleteFailed
+        );
       }
       router.refresh();
     } catch (e) {
@@ -219,9 +244,18 @@ export default function ProfilesManager({
     try {
       const res = await fetch("/api/profiles/import", { method: "POST" });
       const data = await res.json();
-      if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : "导入失败");
+      if (!res.ok)
+        throw new Error(
+          typeof data.detail === "string"
+            ? data.detail
+            : t.profiles.errorImportFailed
+        );
       setNotice(
-        `导入完成：发现 ${data.files_found} 个 JSON 文件，新增 ${data.imported} 条，跳过 ${data.skipped} 条。`
+        t.profiles.importSummary(
+          data.files_found,
+          data.imported,
+          data.skipped
+        )
       );
       router.refresh();
     } catch (e) {
@@ -244,13 +278,13 @@ export default function ProfilesManager({
   return (
     <>
       <SectionHeader
-        eyebrow="Client Profiling"
-        title="客户画像"
-        description="IPS 框架客户信息管理：双轨风险评估取 min(能力, 意愿) 得出最终风险等级。"
+        eyebrow={alt.profiles.title}
+        title={t.profiles.title}
+        description={t.profiles.description}
         actions={
           mode === "list" ? (
             <Button icon="plus" onClick={startCreate}>
-              新建画像
+              {t.profiles.createProfile}
             </Button>
           ) : undefined
         }
@@ -300,13 +334,13 @@ export default function ProfilesManager({
       <ConfirmDialog
         open={pendingDelete !== null}
         danger
-        title="删除客户画像"
+        title={t.profiles.deleteDialogTitle}
         description={
           pendingDelete
-            ? `确定删除画像「${pendingDelete.name}」？此操作不可撤销。`
+            ? t.profiles.deleteDialogDescription(pendingDelete.name)
             : undefined
         }
-        confirmLabel="删除"
+        confirmLabel={t.common.delete}
         onConfirm={confirmRemove}
         onCancel={() => setPendingDelete(null)}
       />

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { AnalyticsResponse, PlotlyFigure } from "@/lib/api";
 import { fmtPct } from "@/lib/format";
+import { useT } from "@/components/locale-context";
 import PlotChart from "@/components/plot-chart";
 import Panel from "./ui/panel";
 import Tabs from "./ui/tabs";
@@ -10,12 +11,6 @@ import Toggle from "./ui/toggle";
 import { Table, THead, TH, TR, TD } from "./ui/table";
 
 type TabKey = "price" | "correlation" | "stats";
-
-const TABS: { key: TabKey; label: string }[] = [
-  { key: "price", label: "价格走势" },
-  { key: "correlation", label: "资产相关性" },
-  { key: "stats", label: "风险统计" },
-];
 
 /** Decode plotly.py's base64 typed-array encoding ({bdata, dtype}). */
 function decodeBdata(bdata: string, dtype: string): ArrayLike<number> {
@@ -101,8 +96,15 @@ export default function AnalyticsTabs({
 }: {
   analytics: AnalyticsResponse;
 }) {
+  const t = useT();
   const [tab, setTab] = useState<TabKey>("price");
   const [normalize, setNormalize] = useState(true);
+
+  const tabs: { key: TabKey; label: string }[] = [
+    { key: "price", label: t.market.tabPrice },
+    { key: "correlation", label: t.market.tabCorrelation },
+    { key: "stats", label: t.market.tabStats },
+  ];
 
   const priceFigure = useMemo(
     () =>
@@ -114,7 +116,7 @@ export default function AnalyticsTabs({
     <section>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <Tabs
-          tabs={TABS}
+          tabs={tabs}
           active={tab}
           onChange={(k) => setTab(k as TabKey)}
           className="border-b-0"
@@ -123,7 +125,7 @@ export default function AnalyticsTabs({
           <Toggle
             checked={normalize}
             onChange={setNormalize}
-            label="基准归一化（Base = 100）"
+            label={t.market.normalizeToggle}
           />
         )}
       </div>
@@ -141,31 +143,31 @@ export default function AnalyticsTabs({
               <PlotChart figure={analytics.correlation_chart} height={540} />
             ) : (
               <p className="p-6 text-sm text-mist-400">
-                至少需要 2 个资产才能计算相关性矩阵。
+                {t.market.correlationEmpty}
               </p>
             )}
           </Panel>
           <Panel innerClassName="text-sm">
-            <h3 className="font-display mb-4 text-base text-mist-100">解读</h3>
-            <p className="mb-2 font-medium text-mist-200">分散化分析</p>
+            <h3 className="font-display mb-4 text-base text-mist-100">{t.market.corrGuideTitle}</h3>
+            <p className="mb-2 font-medium text-mist-200">{t.market.corrGuideSubtitle}</p>
             <ul className="space-y-2.5 text-mist-400">
               <li>
                 <span className="font-semibold text-cinnabar-400">
-                  红 (+1.0)
+                  {t.market.corrRedLabel}
                 </span>
-                ：高度正相关，资产同涨同跌。
+                {t.market.corrRedDesc}
               </li>
               <li>
-                <span className="font-semibold text-steel-400">蓝 (−1.0)</span>
-                ：高度负相关，优秀的对冲组合。
+                <span className="font-semibold text-steel-400">{t.market.corrBlueLabel}</span>
+                {t.market.corrBlueDesc}
               </li>
               <li>
-                <span className="font-semibold text-mist-200">白 (0.0)</span>
-                ：不相关，纯粹的分散化收益。
+                <span className="font-semibold text-mist-200">{t.market.corrWhiteLabel}</span>
+                {t.market.corrWhiteDesc}
               </li>
             </ul>
             <p className="mt-4 border-t border-white/[0.06] pt-3 text-xs leading-5 text-mist-500">
-              提示：用低相关性的资产构建组合，可以最大化夏普比率。
+              {t.market.corrTip}
             </p>
           </Panel>
         </div>
@@ -176,12 +178,12 @@ export default function AnalyticsTabs({
           <Table className="min-w-[820px]">
             <THead>
               <tr>
-                <TH>资产</TH>
-                <TH className="text-right">年化收益</TH>
-                <TH className="text-right">年化波动</TH>
-                <TH className="text-right">夏普</TH>
-                <TH className="text-right">最大回撤</TH>
-                <TH className="text-right">日 VaR (95%)</TH>
+                <TH>{t.market.thAsset}</TH>
+                <TH className="text-right">{t.market.thAnnReturn}</TH>
+                <TH className="text-right">{t.market.thAnnVol}</TH>
+                <TH className="text-right">{t.market.thSharpe}</TH>
+                <TH className="text-right">{t.market.thMaxDrawdown}</TH>
+                <TH className="text-right">{t.market.thDailyVar}</TH>
               </tr>
             </THead>
             <tbody>

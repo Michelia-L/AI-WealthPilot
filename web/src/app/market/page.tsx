@@ -5,6 +5,8 @@ import {
   getAnalytics,
   getUniverse,
 } from "@/lib/api";
+import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
+import { altLocale } from "@/lib/i18n/locale";
 import { QuotesSection } from "@/components/quotes-section";
 import { CmeSection } from "@/components/cme-section";
 import { ApiOffline } from "@/components/api-offline";
@@ -45,7 +47,8 @@ async function AnalyticsSection({
 }) {
   const analytics = await getAnalytics(period, tickers);
   if (!analytics) {
-    return <ApiOffline resource="分析数据" />;
+    const t = await getDict();
+    return <ApiOffline resource={t.market.offlineAnalytics} />;
   }
   return <AnalyticsTabs analytics={analytics} />;
 }
@@ -65,12 +68,16 @@ export default async function MarketPage({ searchParams }: PageProps) {
     ? periodParam
     : DEFAULT_PERIOD;
 
+  const locale = await getLocale();
+  const t = dictionaries[locale];
+  const alt = dictionaries[altLocale(locale)];
+
   const universe = await getUniverse();
   if (!universe) {
     return (
       <div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-8 px-6 py-10">
-        <SectionHeader eyebrow="Market Dashboard" title="市场仪表盘" />
-        <ApiOffline resource="资产宇宙元数据" />
+        <SectionHeader eyebrow={alt.market.title} title={t.market.title} />
+        <ApiOffline resource={t.market.offlineUniverse} />
       </div>
     );
   }
@@ -92,9 +99,9 @@ export default async function MarketPage({ searchParams }: PageProps) {
   return (
     <div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-10 px-6 py-10">
       <SectionHeader
-        eyebrow="Global Markets Pulse"
-        title="市场仪表盘"
-        description="实时行情、跨资产相关性与资本市场预期（CME）。"
+        eyebrow={alt.market.title}
+        title={t.market.title}
+        description={t.market.description}
       />
 
       <DashboardControls
@@ -117,8 +124,7 @@ export default async function MarketPage({ searchParams }: PageProps) {
       </Suspense>
 
       <footer className="mt-auto border-t border-white/[0.06] pt-6 text-xs leading-5 text-mist-500">
-        数据来源：Yahoo Finance（yfinance），实时行情缓存 5
-        分钟。量化输出仅供参考，不构成投资建议。
+        {t.market.footerDisclaimer}
       </footer>
     </div>
   );

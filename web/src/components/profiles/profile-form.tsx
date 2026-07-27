@@ -6,6 +6,7 @@ import type {
   QuestionnaireResponse,
 } from "@/lib/api";
 import { MARITAL_STATUS_OPTIONS, TAX_STATUS_OPTIONS } from "@/lib/api";
+import { useT } from "@/components/locale-context";
 import {
   Button,
   Field,
@@ -21,9 +22,9 @@ import type { IconName } from "@/components/ui";
 import RiskQuestionnaire from "./questionnaire";
 
 const GOAL_PRIORITY_OPTIONS = [
-  { value: "high", label: "高" },
-  { value: "medium", label: "中" },
-  { value: "low", label: "低" },
+  { value: "high" },
+  { value: "medium" },
+  { value: "low" },
 ] as const;
 
 /** 分区眉标 —— 小字 eyebrow + 金色细线图标。 */
@@ -113,44 +114,50 @@ export default function ProfileForm({
 }) {
   const setRiskScore = (key: "ability_score" | "willingness_score", v: number) =>
     set("risk_scores", { ...form.risk_scores, [key]: v });
+  const t = useT();
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h2 className="font-display text-xl text-mist-100">
-          {mode === "edit" ? `编辑画像 · ${form.name || "…"}` : "新建画像"}
+          {mode === "edit"
+            ? t.profiles.editFormTitle(form.name)
+            : t.profiles.createProfile}
         </h2>
         <Button variant="ghost" size="sm" icon="x" onClick={onCancel}>
-          取消
+          {t.common.cancel}
         </Button>
       </div>
 
       <Panel>
-        <SectionTitle icon="users">基本信息</SectionTitle>
+        <SectionTitle icon="users">{t.profiles.sectionBasicInfo}</SectionTitle>
         <div className="mt-4 grid gap-4 md:grid-cols-4">
-          <Field label="姓名">
+          <Field label={t.profiles.fieldName}>
             <Input
               value={form.name}
-              placeholder="例如：张三"
+              placeholder={t.profiles.namePlaceholder}
               onChange={(e) => set("name", e.target.value)}
             />
           </Field>
           <NumField
-            label="年龄"
+            label={t.profiles.fieldAge}
             value={form.age}
             min={18}
             max={100}
             onChange={(v) => set("age", Math.min(100, v))}
           />
-          <Field label="婚姻状况">
+          <Field label={t.profiles.fieldMaritalStatus}>
             <Segmented
               value={form.marital_status}
-              options={MARITAL_STATUS_OPTIONS}
+              options={MARITAL_STATUS_OPTIONS.map((o) => ({
+                value: o.value,
+                label: t.profiles.maritalLabel(o.value),
+              }))}
               onChange={(v) => set("marital_status", v)}
             />
           </Field>
           <NumField
-            label="受抚养人数"
+            label={t.profiles.fieldDependents}
             value={form.dependents}
             max={20}
             onChange={(v) => set("dependents", v)}
@@ -159,34 +166,36 @@ export default function ProfileForm({
       </Panel>
 
       <Panel>
-        <SectionTitle icon="banknote">财务状况</SectionTitle>
+        <SectionTitle icon="banknote">
+          {t.profiles.sectionFinancials}
+        </SectionTitle>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <NumField
-            label="年收入"
+            label={t.profiles.fieldAnnualIncome}
             value={form.financial.annual_income}
             step={10000}
             onChange={(v) => setFin("annual_income", v)}
           />
           <NumField
-            label="年支出"
+            label={t.profiles.fieldAnnualExpenses}
             value={form.financial.annual_expenses}
             step={10000}
             onChange={(v) => setFin("annual_expenses", v)}
           />
           <NumField
-            label="可投资资产"
+            label={t.profiles.fieldInvestableAssets}
             value={form.financial.investable_assets}
             step={10000}
             onChange={(v) => setFin("investable_assets", v)}
           />
           <NumField
-            label="总负债"
+            label={t.profiles.fieldTotalLiabilities}
             value={form.financial.total_liabilities}
             step={10000}
             onChange={(v) => setFin("total_liabilities", v)}
           />
           <NumField
-            label="应急基金（月数）"
+            label={t.profiles.fieldEmergencyFundMonths}
             value={form.financial.emergency_fund_months}
             step={0.5}
             onChange={(v) => setFin("emergency_fund_months", v)}
@@ -196,7 +205,7 @@ export default function ProfileForm({
 
       <Panel>
         <div className="flex items-center justify-between">
-          <SectionTitle icon="target">投资目标</SectionTitle>
+          <SectionTitle icon="target">{t.profiles.sectionGoals}</SectionTitle>
           <Button
             variant="ghost"
             size="sm"
@@ -208,11 +217,11 @@ export default function ProfileForm({
               ])
             }
           >
-            添加目标
+            {t.profiles.addGoal}
           </Button>
         </div>
         {form.goals.length === 0 && (
-          <p className="mt-4 text-xs text-mist-500">暂无目标，点击右上角添加。</p>
+          <p className="mt-4 text-xs text-mist-500">{t.profiles.noGoalsYet}</p>
         )}
         <div className="mt-4 space-y-3">
           {form.goals.map((g, i) => (
@@ -220,30 +229,33 @@ export default function ProfileForm({
               key={i}
               className="grid items-end gap-3 md:grid-cols-[2fr_1fr_1fr_1fr_auto]"
             >
-              <Field label={i === 0 ? "目标名称" : undefined}>
+              <Field label={i === 0 ? t.profiles.fieldGoalName : undefined}>
                 <Input
                   value={g.name}
-                  placeholder="例如：退休"
+                  placeholder={t.profiles.goalNamePlaceholder}
                   onChange={(e) => setGoal(i, "name", e.target.value)}
                 />
               </Field>
               <NumField
-                label={i === 0 ? "目标金额" : undefined}
+                label={i === 0 ? t.profiles.fieldTargetAmount : undefined}
                 value={g.target_amount}
                 step={100000}
                 onChange={(v) => setGoal(i, "target_amount", v)}
               />
               <NumField
-                label={i === 0 ? "年限" : undefined}
+                label={i === 0 ? t.profiles.fieldYears : undefined}
                 value={g.years}
                 max={80}
                 onChange={(v) => setGoal(i, "years", v)}
               />
-              <Field label={i === 0 ? "优先级" : undefined}>
+              <Field label={i === 0 ? t.profiles.fieldPriority : undefined}>
                 <Segmented
                   size="sm"
                   value={g.priority}
-                  options={GOAL_PRIORITY_OPTIONS}
+                  options={GOAL_PRIORITY_OPTIONS.map((o) => ({
+                    value: o.value,
+                    label: t.profiles.priorityShort(o.value),
+                  }))}
                   onChange={(v) => setGoal(i, "priority", v)}
                 />
               </Field>
@@ -251,7 +263,7 @@ export default function ProfileForm({
                 variant="ghost"
                 size="sm"
                 icon="trash"
-                aria-label="删除目标"
+                aria-label={t.profiles.deleteGoalAria}
                 className="hover:text-cinnabar-300"
                 onClick={() => set("goals", form.goals.filter((_, j) => j !== i))}
               />
@@ -261,34 +273,39 @@ export default function ProfileForm({
       </Panel>
 
       <Panel>
-        <SectionTitle icon="sliders">投资约束与偏好</SectionTitle>
+        <SectionTitle icon="sliders">
+          {t.profiles.sectionConstraints}
+        </SectionTitle>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <NumField
-            label="投资期限（年）"
+            label={t.profiles.fieldTimeHorizon}
             value={form.time_horizon_years}
             min={1}
             max={60}
             onChange={(v) => set("time_horizon_years", Math.max(1, v))}
           />
           <NumField
-            label="流动性需求（金额）"
+            label={t.profiles.fieldLiquidityNeeds}
             value={form.liquidity_needs}
             step={10000}
             onChange={(v) => set("liquidity_needs", v)}
           />
-          <Field label="税务状态">
+          <Field label={t.profiles.fieldTaxStatus}>
             <Segmented
               value={form.tax_status}
-              options={TAX_STATUS_OPTIONS}
+              options={TAX_STATUS_OPTIONS.map((o) => ({
+                value: o.value,
+                label: t.profiles.taxLabel(o.value),
+              }))}
               onChange={(v) => set("tax_status", v)}
             />
           </Field>
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <Field label="行业限制（逗号分隔）">
+          <Field label={t.profiles.fieldSectorRestrictions}>
             <Input
               value={restrictionsText}
-              placeholder="例如：烟草, 军工"
+              placeholder={t.profiles.sectorRestrictionsPlaceholder}
               onChange={(e) => onRestrictionsChange(e.target.value)}
             />
           </Field>
@@ -296,12 +313,12 @@ export default function ProfileForm({
             <Toggle
               checked={form.esg_preference}
               onChange={(v) => set("esg_preference", v)}
-              label="ESG 偏好（环境/社会/治理）"
+              label={t.profiles.esgPreferenceLabel}
             />
           </div>
         </div>
         <div className="mt-4">
-          <Field label="备注">
+          <Field label={t.profiles.fieldNotes}>
             <Textarea
               value={form.notes}
               onChange={(e) => set("notes", e.target.value)}
@@ -311,7 +328,9 @@ export default function ProfileForm({
       </Panel>
 
       <Panel>
-        <SectionTitle icon="shield">风险问卷</SectionTitle>
+        <SectionTitle icon="shield">
+          {t.profiles.sectionQuestionnaire}
+        </SectionTitle>
         <div className="mt-4">
           <RiskQuestionnaire
             questionnaire={questionnaire}
@@ -324,7 +343,11 @@ export default function ProfileForm({
 
       <div className="flex items-center gap-4">
         <Button onClick={onSave} disabled={busy || !form.name.trim()}>
-          {busy ? "保存中…" : mode === "edit" ? "保存修改" : "创建画像"}
+          {busy
+            ? t.common.saving
+            : mode === "edit"
+              ? t.profiles.saveChanges
+              : t.profiles.createProfile}
         </Button>
         {error && (
           <span className="flex items-center gap-1.5 text-sm text-cinnabar-400">

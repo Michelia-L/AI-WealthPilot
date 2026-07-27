@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { getAdvisorReport, getIpsDocument } from "@/lib/api";
 import { fmtLocal } from "@/lib/format";
 import Markdown from "@/components/markdown";
+import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
+import { altLocale } from "@/lib/i18n/locale";
 import {
   Badge,
   ButtonLink,
@@ -10,23 +13,32 @@ import {
   SectionHeader,
 } from "@/components/ui";
 
-export const metadata = {
-  title: "交付物详情 · AI WealthPilot",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getDict();
+  return { title: `${t.deliverableDetail.title} · AI WealthPilot` };
+}
 
 interface PageProps {
   params: Promise<{ type: string; id: string }>;
 }
 
-function NotFound({ reason }: { reason: string }) {
+function NotFound({
+  reason,
+  title,
+  backLabel,
+}: {
+  reason: string;
+  title: string;
+  backLabel: string;
+}) {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-6 py-10">
       <Panel>
         <EmptyState
           icon="warning"
-          title="无法打开交付物"
+          title={title}
           hint={reason}
-          action={<ButtonLink href="/deliverables">返回交付物中心</ButtonLink>}
+          action={<ButtonLink href="/deliverables">{backLabel}</ButtonLink>}
         />
       </Panel>
     </div>
@@ -56,32 +68,47 @@ function MetaItem({
  * 头部提供多格式导出。
  */
 export default async function DeliverableViewerPage({ params }: PageProps) {
+  const locale = await getLocale();
+  const t = dictionaries[locale];
+  const alt = dictionaries[altLocale(locale)];
   const { type, id } = await params;
 
   if (type !== "advisor" && type !== "ips") {
-    return <NotFound reason="未知的交付物类型。" />;
+    return (
+      <NotFound
+        reason={t.deliverableDetail.reasonUnknownType}
+        title={t.deliverableDetail.notFoundTitle}
+        backLabel={t.deliverables.backToCenter}
+      />
+    );
   }
 
   if (type === "advisor") {
     const report = await getAdvisorReport(id);
     if (!report) {
-      return <NotFound reason="建议书不存在，或 API 服务离线。" />;
+      return (
+        <NotFound
+          reason={t.deliverableDetail.reasonReportMissing}
+          title={t.deliverableDetail.notFoundTitle}
+          backLabel={t.deliverables.backToCenter}
+        />
+      );
     }
     const encoded = encodeURIComponent(report.report_id);
     return (
       <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-6 py-10">
         <SectionHeader
-          eyebrow="Advisory Report"
+          eyebrow={alt.deliverableDetail.reportEyebrow}
           title={report.client_name}
-          description="AI 投资建议书"
+          description={t.deliverableDetail.reportDescription}
           actions={
             <div className="flex items-center gap-2">
-              <Badge tone="gold">AI 建议书</Badge>
+              <Badge tone="gold">{t.deliverables.kindAdvisor}</Badge>
               <ButtonLink
                 href={`/api/advisor/reports/${encoded}/pdf`}
                 icon="download"
               >
-                下载 PDF
+                {t.deliverableDetail.downloadPdf}
               </ButtonLink>
               <ButtonLink
                 href={`/api/advisor/reports/${encoded}/export?format=html`}
@@ -103,14 +130,20 @@ export default async function DeliverableViewerPage({ params }: PageProps) {
 
         <Panel pad={false}>
           <div className="grid grid-cols-2 gap-4 border-b border-white/[0.06] px-6 py-4 sm:grid-cols-4">
-            <MetaItem label="生成时间" value={fmtLocal(report.generated_at)} />
-            <MetaItem label="AI 模型" value={report.model} />
             <MetaItem
-              label="Token 用量"
+              label={t.deliverableDetail.labelGenerated}
+              value={fmtLocal(report.generated_at)}
+            />
+            <MetaItem
+              label={t.deliverableDetail.labelModel}
+              value={report.model}
+            />
+            <MetaItem
+              label={t.deliverableDetail.labelTokens}
               value={report.total_tokens.toLocaleString()}
             />
             <MetaItem
-              label="输入 / 输出"
+              label={t.deliverableDetail.labelPromptCompletion}
               value={`${report.prompt_tokens.toLocaleString()} / ${report.completion_tokens.toLocaleString()}`}
             />
           </div>
@@ -127,7 +160,7 @@ export default async function DeliverableViewerPage({ params }: PageProps) {
 
         <div>
           <ButtonLink href="/deliverables" variant="ghost" size="sm">
-            返回交付物中心
+            {t.deliverables.backToCenter}
           </ButtonLink>
         </div>
       </div>
@@ -136,23 +169,29 @@ export default async function DeliverableViewerPage({ params }: PageProps) {
 
   const doc = await getIpsDocument(id);
   if (!doc) {
-    return <NotFound reason="IPS 文档不存在，或 API 服务离线。" />;
+    return (
+      <NotFound
+        reason={t.deliverableDetail.reasonIpsMissing}
+        title={t.deliverableDetail.notFoundTitle}
+        backLabel={t.deliverables.backToCenter}
+      />
+    );
   }
   const encoded = encodeURIComponent(doc.document_id);
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-6 py-10">
       <SectionHeader
-        eyebrow="Investment Policy Statement"
+        eyebrow={alt.deliverableDetail.ipsEyebrow}
         title={doc.client_name}
-        description="投资政策声明书（含审计追踪）"
+        description={t.deliverableDetail.ipsDescription}
         actions={
           <div className="flex items-center gap-2">
             <Badge tone={doc.status === "approved" ? "jade" : "gold"} dot>
               {doc.status}
             </Badge>
             <ButtonLink href={`/api/ips/${encoded}/pdf`} icon="download">
-              下载 PDF
+              {t.deliverableDetail.downloadPdf}
             </ButtonLink>
             <ButtonLink
               href={`/api/ips/${encoded}/export`}
@@ -167,13 +206,16 @@ export default async function DeliverableViewerPage({ params }: PageProps) {
 
       <Panel pad={false}>
         <div className="grid grid-cols-2 gap-4 border-b border-white/[0.06] px-6 py-4 sm:grid-cols-4">
-          <MetaItem label="版本" value={`v${doc.version}`} />
+          <MetaItem label={t.deliverableDetail.labelVersion} value={`v${doc.version}`} />
           <MetaItem
-            label="保存时间"
+            label={t.deliverableDetail.labelSaved}
             value={doc.saved_at ? fmtLocal(doc.saved_at) : "—"}
           />
-          <MetaItem label="修订轮次" value={String(doc.revision_rounds)} />
-          <MetaItem label="风险等级" value={doc.risk_level} />
+          <MetaItem
+            label={t.deliverableDetail.labelRounds}
+            value={String(doc.revision_rounds)}
+          />
+          <MetaItem label={t.deliverableDetail.labelRisk} value={doc.risk_level} />
         </div>
         <div className="px-6 py-6">
           <Markdown>{doc.markdown}</Markdown>
@@ -182,7 +224,7 @@ export default async function DeliverableViewerPage({ params }: PageProps) {
 
       <div>
         <ButtonLink href="/deliverables" variant="ghost" size="sm">
-          返回交付物中心
+          {t.deliverables.backToCenter}
         </ButtonLink>
       </div>
     </div>

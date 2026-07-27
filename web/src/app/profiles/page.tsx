@@ -1,10 +1,12 @@
 import { detailToPayload, getProfile, getProfiles, getQuestionnaire } from "@/lib/api";
 import type { ProfilePayload } from "@/lib/api";
+import { getDict } from "@/lib/i18n/server";
 import ProfilesManager from "@/components/profiles/profiles-manager";
 
-export const metadata = {
-  title: "客户画像 · AI WealthPilot",
-};
+export async function generateMetadata() {
+  const t = await getDict();
+  return { title: `${t.profiles.title} · AI WealthPilot` };
+}
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

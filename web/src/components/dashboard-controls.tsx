@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { DEFAULT_PERIOD, PERIOD_OPTIONS } from "@/lib/api";
 import { cx } from "@/lib/cx";
+import { useT } from "@/components/locale-context";
 import { Chip } from "./ui/chip";
 import Segmented from "./ui/segmented";
 
@@ -25,6 +26,7 @@ export default function DashboardControls({
   period,
   assetCount,
 }: DashboardControlsProps) {
+  const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -61,7 +63,7 @@ export default function DashboardControls({
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[11px] font-medium tracking-[0.14em] text-mist-500 uppercase">
-          资产类别
+          {t.common.dashboard.assetCategories}
         </span>
         {categories.map((c) => (
           <Chip
@@ -76,7 +78,7 @@ export default function DashboardControls({
 
       <div className="ml-auto flex items-center gap-3">
         <span className="text-[11px] font-medium tracking-[0.14em] text-mist-500 uppercase">
-          视窗
+          {t.common.dashboard.window}
         </span>
         <Segmented
           size="sm"
@@ -85,7 +87,7 @@ export default function DashboardControls({
           onChange={(v) => navigate(selectedCategories, v)}
         />
         <span className="text-xs text-mist-500">
-          {pending ? "刷新中…" : `${assetCount} 个资产`}
+          {pending ? t.common.refreshing : t.common.dashboard.assetCount(assetCount)}
         </span>
       </div>
     </div>

@@ -1,10 +1,14 @@
+import type { Metadata } from "next";
 import { getAdvisorStatus, getIpsDocuments, getProfiles } from "@/lib/api";
+import { altLocale } from "@/lib/i18n/locale";
+import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
 import IpsWorkspace from "@/components/ips-workspace";
 import SectionHeader from "@/components/ui/section-header";
 
-export const metadata = {
-  title: "IPS 生成 · AI WealthPilot",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getDict();
+  return { title: `${t.ips.title} · AI WealthPilot` };
+}
 
 /**
  * IPS generation — LangGraph multi-agent workflow as an async task.
@@ -12,18 +16,21 @@ export const metadata = {
  * the task, follows its SSE progress feed, and browses the document library.
  */
 export default async function IpsPage() {
-  const [profiles, status, documents] = await Promise.all([
+  const [profiles, status, documents, locale] = await Promise.all([
     getProfiles(),
     getAdvisorStatus(),
     getIpsDocuments(),
+    getLocale(),
   ]);
+  const t = dictionaries[locale];
+  const alt = dictionaries[altLocale(locale)];
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-10">
       <SectionHeader
-        eyebrow="IPS Workflow"
-        title="IPS 生成"
-        description="LangGraph 多智能体工作流：注入资本市场预期后生成初稿，经适当性、合规、一致性三维评审与 SAA 量化验证，自动修订直至定稿入库。"
+        eyebrow={alt.ips.title}
+        title={t.ips.title}
+        description={t.ips.description}
       />
 
       <IpsWorkspace

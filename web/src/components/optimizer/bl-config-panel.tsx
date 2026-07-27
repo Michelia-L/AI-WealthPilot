@@ -1,6 +1,7 @@
 "use client";
 
 import type { AssetClassInfo, BLViewInput } from "@/lib/api";
+import { useT } from "@/components/locale-context";
 import Button from "../ui/button";
 import Icon from "../ui/icon";
 import Panel from "../ui/panel";
@@ -41,6 +42,8 @@ export default function BLConfigPanel({
   views,
   setViews,
 }: BLConfigPanelProps) {
+  const t = useT();
+
   function addView() {
     setViews((prev) => [
       ...prev,
@@ -65,13 +68,13 @@ export default function BLConfigPanel({
   return (
     <Panel innerClassName="space-y-5 p-5">
       <div className="text-[11px] font-medium tracking-[0.18em] text-gold-400/90 uppercase">
-        Black-Litterman 配置
+        {t.optimizer.blConfig}
       </div>
 
       <div className="grid gap-5 md:grid-cols-3">
-        <Group label="τ（不确定性缩放）">
+        <Group label={t.optimizer.blTau}>
           <NumInput
-            aria-label="τ（不确定性缩放）"
+            aria-label={t.optimizer.blTau}
             step="0.005"
             min="0.01"
             max="0.1"
@@ -80,9 +83,9 @@ export default function BLConfigPanel({
             className="w-28"
           />
         </Group>
-        <Group label="δ（风险厌恶系数）">
+        <Group label={t.optimizer.blDelta}>
           <NumInput
-            aria-label="δ（风险厌恶系数）"
+            aria-label={t.optimizer.blDelta}
             step="0.5"
             min="1"
             max="10"
@@ -91,12 +94,14 @@ export default function BLConfigPanel({
             className="w-28"
           />
         </Group>
-        <Group label="市值权重">
+        <Group label={t.optimizer.marketWeights}>
           <div className="pt-1.5">
             <Toggle
               checked={equalWeights}
               onChange={setEqualWeights}
-              label={equalWeights ? "等权（1/N）" : "自定义"}
+              label={
+                equalWeights ? t.optimizer.equalWeight : t.optimizer.customWeight
+              }
             />
           </div>
         </Group>
@@ -111,7 +116,7 @@ export default function BLConfigPanel({
             >
               <span className="w-28 truncate">{assetClasses[k].name}</span>
               <NumInput
-                aria-label={`${assetClasses[k].name} 市值权重（%）`}
+                aria-label={t.optimizer.marketWeightAria(assetClasses[k].name)}
                 step="1"
                 min="0"
                 placeholder={(100 / assets.length).toFixed(0)}
@@ -133,17 +138,16 @@ export default function BLConfigPanel({
       <div>
         <div className="mb-2.5 flex items-center justify-between">
           <span className="text-[11px] font-medium tracking-[0.14em] text-mist-500 uppercase">
-            投资者观点（{views.length}）
+            {t.optimizer.investorViews(views.length)}
           </span>
           <Button variant="secondary" size="sm" icon="plus" onClick={addView}>
-            添加观点
+            {t.optimizer.addView}
           </Button>
         </div>
 
         {views.length === 0 && (
           <p className="text-xs leading-5 text-mist-500">
-            Black-Litterman 需要至少一条观点。绝对观点：看多某资产至目标收益；相对观点：A
-            相对 B 的超额收益。
+            {t.optimizer.viewsEmptyHint}
           </p>
         )}
 
@@ -155,7 +159,7 @@ export default function BLConfigPanel({
             >
               <div className="w-24">
                 <Select
-                  aria-label="观点类型"
+                  aria-label={t.optimizer.viewTypeAria}
                   value={v.view_type}
                   onChange={(e) =>
                     updateView(i, {
@@ -164,14 +168,14 @@ export default function BLConfigPanel({
                   }
                   className="py-1.5 text-xs"
                 >
-                  <option value="absolute">绝对</option>
-                  <option value="relative">相对</option>
+                  <option value="absolute">{t.optimizer.viewAbsolute}</option>
+                  <option value="relative">{t.optimizer.viewRelative}</option>
                 </Select>
               </div>
 
               <div className="w-44 max-w-full">
                 <Select
-                  aria-label="多头资产"
+                  aria-label={t.optimizer.longAssetAria}
                   value={v.asset_long}
                   onChange={(e) => updateView(i, { asset_long: e.target.value })}
                   className="py-1.5 text-xs"
@@ -186,10 +190,12 @@ export default function BLConfigPanel({
 
               {v.view_type === "relative" && (
                 <>
-                  <span className="text-xs text-mist-500">跑赢</span>
+                  <span className="text-xs text-mist-500">
+                    {t.optimizer.outperforms}
+                  </span>
                   <div className="w-44 max-w-full">
                     <Select
-                      aria-label="空头资产"
+                      aria-label={t.optimizer.shortAssetAria}
                       value={v.asset_short ?? ""}
                       onChange={(e) =>
                         updateView(i, { asset_short: e.target.value })
@@ -209,9 +215,11 @@ export default function BLConfigPanel({
               )}
 
               <span className="flex items-center gap-1.5 text-xs text-mist-400">
-                {v.view_type === "absolute" ? "预期收益" : "超额"}
+                {v.view_type === "absolute"
+                  ? t.optimizer.expectedReturn
+                  : t.optimizer.excessReturn}
                 <NumInput
-                  aria-label="观点收益（%）"
+                  aria-label={t.optimizer.viewReturnAria}
                   step="1"
                   value={Math.round(v.expected_return * 100)}
                   onChange={(e) =>
@@ -226,7 +234,7 @@ export default function BLConfigPanel({
               </span>
 
               <span className="flex items-center gap-2 text-xs text-mist-400">
-                置信度
+                {t.optimizer.confidence}
                 <Slider
                   value={v.confidence}
                   min={10}
@@ -243,7 +251,7 @@ export default function BLConfigPanel({
               <button
                 type="button"
                 onClick={() => removeView(i)}
-                aria-label="删除观点"
+                aria-label={t.optimizer.deleteViewAria}
                 className="ml-auto rounded-full p-1.5 text-mist-500 transition-colors duration-300 ease-luxe hover:bg-white/[0.05] hover:text-cinnabar-300"
               >
                 <Icon name="x" size={14} />

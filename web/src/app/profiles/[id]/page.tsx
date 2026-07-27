@@ -1,18 +1,18 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import {
-  MARITAL_STATUS_OPTIONS,
-  TAX_STATUS_OPTIONS,
   getAdvisorReports,
   getIpsDocuments,
   getProfile,
   getRecommendation,
 } from "@/lib/api";
 import { fmtLocal, fmtMoney, fmtPct } from "@/lib/format";
+import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
+import { altLocale } from "@/lib/i18n/locale";
 import { ApiOffline } from "@/components/api-offline";
 import Markdown from "@/components/markdown";
 import HubActions from "@/components/profiles/hub-actions";
-import { RiskBadge } from "@/components/profiles/shared";
+import { localizedRiskLabel, RiskBadge } from "@/components/profiles/shared";
 import {
   Badge,
   ButtonLink,
@@ -26,22 +26,16 @@ import {
 } from "@/components/ui";
 import type { IconName } from "@/components/ui";
 
-export const metadata = {
-  title: "客户枢纽 · AI WealthPilot",
-};
-
-const PRIORITY_META: Record<string, { label: string; tone: BadgeTone }> = {
-  high: { label: "高", tone: "gold" },
-  medium: { label: "中", tone: "steel" },
-  low: { label: "低", tone: "mist" },
-};
-
-function optionLabel(
-  options: ReadonlyArray<{ value: string; label: string }>,
-  value: string
-): string {
-  return options.find((o) => o.value === value)?.label ?? value;
+export async function generateMetadata() {
+  const t = await getDict();
+  return { title: `${t.profileDetail.title} · AI WealthPilot` };
 }
+
+const PRIORITY_META: Record<string, { tone: BadgeTone }> = {
+  high: { tone: "gold" },
+  medium: { tone: "steel" },
+  low: { tone: "mist" },
+};
 
 /** 定义列表行 —— 标签 + 等宽数值。 */
 function MetaRow({
@@ -64,13 +58,21 @@ function MetaRow({
 }
 
 /** 风险双轨分数条。 */
-function ScoreBar({ label, score }: { label: string; score: number }) {
+function ScoreBar({
+  label,
+  score,
+  unassessed,
+}: {
+  label: string;
+  score: number;
+  unassessed: string;
+}) {
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between">
         <span className="text-xs text-mist-500">{label}</span>
         <span className="tnum font-mono text-sm text-gold-300">
-          {score > 0 ? score.toFixed(1) : "未评估"}
+          {score > 0 ? score.toFixed(1) : unassessed}
         </span>
       </div>
       <div className="h-1 overflow-hidden rounded-full bg-ink-700/70">
@@ -89,7 +91,11 @@ interface PageProps {
 
 /** 推荐配置区块 —— 基于风险分数的目标波动率组合（服务端流式渲染）。 */
 async function RecommendationSection({ profileId }: { profileId: number }) {
-  const rec = await getRecommendation(profileId);
+  const [locale, rec] = await Promise.all([
+    getLocale(),
+    getRecommendation(profileId),
+  ]);
+  const t = dictionaries[locale];
   if (!rec) return null;
 
   const entries = Object.entries(rec.allocation)
@@ -102,22 +108,27 @@ async function RecommendationSection({ profileId }: { profileId: number }) {
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <h3 className="flex items-center gap-2 text-sm font-medium text-mist-200">
           <Icon name="pie" size={15} className="text-gold-400" />
-          推荐配置
+          {t.profileDetail.recommendation}
         </h3>
-        <Badge tone="gold">{rec.risk_level}</Badge>
+        <Badge tone="gold">
+          {localizedRiskLabel(rec.risk_level, locale, t.profileDetail.unassessed)}
+        </Badge>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
         <div>
           <div className="mb-4 grid grid-cols-3 gap-3">
             <StatTile
-              label="预期收益"
+              label={t.profileDetail.expectedReturn}
               value={fmtPct(rec.expected_return)}
               tone="jade"
             />
-            <StatTile label="预期波动" value={fmtPct(rec.expected_volatility)} />
             <StatTile
-              label="夏普比率"
+              label={t.profileDetail.expectedVolatility}
+              value={fmtPct(rec.expected_volatility)}
+            />
+            <StatTile
+              label={t.profileDetail.sharpeRatio}
               value={rec.sharpe_ratio.toFixed(2)}
               tone="gold"
             />
@@ -155,7 +166,9 @@ async function RecommendationSection({ profileId }: { profileId: number }) {
  * 画像详情 + 财务指标 + 该客户的建议书与 IPS 交付物 + 快捷工作流入口。
  */
 export default async function ClientHubPage({ params }: PageProps) {
-  const { id: raw } = await params;
+  const [{ id: raw }, locale] = await Promise.all([params, getLocale()]);
+  const t = dictionaries[locale];
+  const alt = dictionaries[altLocale(locale)];
   const id = Number(raw);
 
   if (!Number.isInteger(id) || id <= 0) {
@@ -164,8 +177,12 @@ export default async function ClientHubPage({ params }: PageProps) {
         <Panel>
           <EmptyState
             icon="warning"
-            title="无效的客户编号"
-            action={<ButtonLink href="/profiles">返回客户列表</ButtonLink>}
+            title={t.profileDetail.invalidId}
+            action={
+              <ButtonLink href="/profiles">
+                {t.profileDetail.backToList}
+              </ButtonLink>
+            }
           />
         </Panel>
       </div>
@@ -177,11 +194,14 @@ export default async function ClientHubPage({ params }: PageProps) {
   if (!detail) {
     return (
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
-        <SectionHeader eyebrow="Client Hub" title="客户枢纽" />
-        <ApiOffline resource="客户详情（客户可能不存在，或 API 离线）" />
+        <SectionHeader
+          eyebrow={alt.profileDetail.title}
+          title={t.profileDetail.title}
+        />
+        <ApiOffline resource={t.profileDetail.detailResource} />
         <div>
           <ButtonLink href="/profiles" variant="ghost">
-            返回客户列表
+            {t.profileDetail.backToList}
           </ButtonLink>
         </div>
       </div>
@@ -202,7 +222,7 @@ export default async function ClientHubPage({ params }: PageProps) {
     ...reports.map((r) => ({
       key: `a-${r.report_id}`,
       icon: "sparkle" as IconName,
-      label: "AI 建议书",
+      label: t.profileDetail.advisorReport,
       sub: `${r.model} · ${r.total_tokens} tokens`,
       when: r.generated_at,
       href: `/deliverables/advisor/${encodeURIComponent(r.report_id)}`,
@@ -220,14 +240,23 @@ export default async function ClientHubPage({ params }: PageProps) {
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
       <SectionHeader
-        eyebrow="Client Hub"
+        eyebrow={alt.profileDetail.title}
         title={profile.name}
-        description={`${profile.age} 岁 · ${optionLabel(MARITAL_STATUS_OPTIONS, profile.marital_status)} · 抚养/赡养 ${profile.dependents} 人 · 更新于 ${fmtLocal(detail.updated_at)}`}
+        description={t.profileDetail.headerDescription(
+          profile.age,
+          t.profileDetail.maritalLabel(profile.marital_status),
+          profile.dependents,
+          fmtLocal(detail.updated_at)
+        )}
         actions={
           <div className="flex items-center gap-3">
-            <RiskBadge level={derived.tolerance_level} />
+            <RiskBadge
+              level={derived.tolerance_level}
+              locale={locale}
+              unassessed={t.profileDetail.unassessed}
+            />
             <ButtonLink href={`/profiles?edit=${id}`} icon="pencil">
-              编辑画像
+              {t.profileDetail.editProfile}
             </ButtonLink>
           </div>
         }
@@ -237,14 +266,20 @@ export default async function ClientHubPage({ params }: PageProps) {
 
       {/* 关键指标 */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="净资产" value={fmtMoney(derived.net_worth)} tone="gold" />
         <StatTile
-          label="年储蓄率"
-          value={fmtPct(derived.savings_rate)}
-          hint={`年储蓄 ${fmtMoney(derived.annual_savings)}`}
+          label={t.profileDetail.netWorth}
+          value={fmtMoney(derived.net_worth)}
+          tone="gold"
         />
         <StatTile
-          label="负债资产比"
+          label={t.profileDetail.savingsRate}
+          value={fmtPct(derived.savings_rate)}
+          hint={t.profileDetail.annualSavingsHint(
+            fmtMoney(derived.annual_savings)
+          )}
+        />
+        <StatTile
+          label={t.profileDetail.debtToAssetRatio}
           value={
             derived.debt_to_asset_ratio === null
               ? "∞"
@@ -258,9 +293,13 @@ export default async function ClientHubPage({ params }: PageProps) {
           }
         />
         <StatTile
-          label="综合风险分"
-          value={derived.final_risk_score > 0 ? derived.final_risk_score.toFixed(1) : "未评估"}
-          hint="min（能力， 意愿） · 满分 5"
+          label={t.profileDetail.finalRiskScore}
+          value={
+            derived.final_risk_score > 0
+              ? derived.final_risk_score.toFixed(1)
+              : t.profileDetail.unassessed
+          }
+          hint={t.profileDetail.finalRiskScoreHint}
         />
       </div>
 
@@ -269,15 +308,29 @@ export default async function ClientHubPage({ params }: PageProps) {
         <Panel>
           <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-mist-200">
             <Icon name="banknote" size={15} className="text-gold-400" />
-            财务状况
+            {t.profileDetail.financials}
           </h3>
-          <MetaRow label="年收入" value={fmtMoney(profile.financial.annual_income)} />
-          <MetaRow label="年支出" value={fmtMoney(profile.financial.annual_expenses)} />
-          <MetaRow label="可投资资产" value={fmtMoney(profile.financial.investable_assets)} />
-          <MetaRow label="总负债" value={fmtMoney(profile.financial.total_liabilities)} />
           <MetaRow
-            label="应急基金"
-            value={`${profile.financial.emergency_fund_months} 个月`}
+            label={t.profileDetail.annualIncome}
+            value={fmtMoney(profile.financial.annual_income)}
+          />
+          <MetaRow
+            label={t.profileDetail.annualExpenses}
+            value={fmtMoney(profile.financial.annual_expenses)}
+          />
+          <MetaRow
+            label={t.profileDetail.investableAssets}
+            value={fmtMoney(profile.financial.investable_assets)}
+          />
+          <MetaRow
+            label={t.profileDetail.totalLiabilities}
+            value={fmtMoney(profile.financial.total_liabilities)}
+          />
+          <MetaRow
+            label={t.profileDetail.emergencyFund}
+            value={t.profileDetail.monthsValue(
+              profile.financial.emergency_fund_months
+            )}
             border={false}
           />
         </Panel>
@@ -286,11 +339,19 @@ export default async function ClientHubPage({ params }: PageProps) {
         <Panel>
           <h3 className="mb-4 flex items-center gap-2 text-sm font-medium text-mist-200">
             <Icon name="shield" size={15} className="text-gold-400" />
-            风险画像
+            {t.profileDetail.riskProfile}
           </h3>
           <div className="space-y-4">
-            <ScoreBar label="风险承受能力（客观）" score={profile.risk_profile.ability_score} />
-            <ScoreBar label="风险承受意愿（主观）" score={profile.risk_profile.willingness_score} />
+            <ScoreBar
+              label={t.profileDetail.abilityScoreLabel}
+              score={profile.risk_profile.ability_score}
+              unassessed={t.profileDetail.unassessed}
+            />
+            <ScoreBar
+              label={t.profileDetail.willingnessScoreLabel}
+              score={profile.risk_profile.willingness_score}
+              unassessed={t.profileDetail.unassessed}
+            />
           </div>
           {profile.risk_profile.description && (
             <p className="mt-4 border-t border-white/[0.06] pt-3 text-xs leading-6 text-mist-400">
@@ -303,10 +364,12 @@ export default async function ClientHubPage({ params }: PageProps) {
         <Panel>
           <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-mist-200">
             <Icon name="target" size={15} className="text-gold-400" />
-            投资目标
+            {t.profileDetail.goals}
           </h3>
           {profile.goals.length === 0 ? (
-            <p className="text-xs leading-5 text-mist-500">尚未设定投资目标。</p>
+            <p className="text-xs leading-5 text-mist-500">
+              {t.profileDetail.noGoals}
+            </p>
           ) : (
             <div className="flex flex-col divide-y divide-white/[0.05]">
               {profile.goals.map((g, i) => {
@@ -315,13 +378,17 @@ export default async function ClientHubPage({ params }: PageProps) {
                   <div key={i} className="flex items-center justify-between gap-3 py-2.5">
                     <div className="min-w-0">
                       <div className="truncate text-sm text-mist-100">{g.name}</div>
-                      <div className="text-xs text-mist-500">{g.years} 年后</div>
+                      <div className="text-xs text-mist-500">
+                        {t.profileDetail.yearsLater(g.years)}
+                      </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
                       <span className="tnum font-mono text-sm text-mist-100">
                         {fmtMoney(g.target_amount)}
                       </span>
-                      <Badge tone={meta.tone}>{meta.label}优先</Badge>
+                      <Badge tone={meta.tone}>
+                        {t.profileDetail.priorityBadge(g.priority)}
+                      </Badge>
                     </div>
                   </div>
                 );
@@ -334,29 +401,42 @@ export default async function ClientHubPage({ params }: PageProps) {
         <Panel>
           <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-mist-200">
             <Icon name="sliders" size={15} className="text-gold-400" />
-            约束与偏好
+            {t.profileDetail.constraints}
           </h3>
-          <MetaRow label="投资期限" value={`${profile.time_horizon_years} 年${profile.is_multi_stage ? "（多阶段）" : ""}`} />
-          <MetaRow label="流动性需求" value={fmtMoney(profile.liquidity_needs)} />
           <MetaRow
-            label="税务状态"
-            value={optionLabel(TAX_STATUS_OPTIONS, profile.tax_status)}
+            label={t.profileDetail.timeHorizon}
+            value={t.profileDetail.horizonValue(
+              profile.time_horizon_years,
+              profile.is_multi_stage
+            )}
           />
           <MetaRow
-            label="ESG 偏好"
+            label={t.profileDetail.liquidityNeeds}
+            value={fmtMoney(profile.liquidity_needs)}
+          />
+          <MetaRow
+            label={t.profileDetail.taxStatus}
+            value={t.profileDetail.taxLabel(profile.tax_status)}
+          />
+          <MetaRow
+            label={t.profileDetail.esgPreference}
             value={
               profile.esg_preference ? (
-                <Badge tone="jade">是</Badge>
+                <Badge tone="jade">{t.profileDetail.esgYes}</Badge>
               ) : (
-                <span className="text-mist-500">否</span>
+                <span className="text-mist-500">{t.profileDetail.esgNo}</span>
               )
             }
           />
           <div className="flex items-start justify-between gap-4 py-2.5">
-            <span className="shrink-0 text-xs text-mist-500">行业限制</span>
+            <span className="shrink-0 text-xs text-mist-500">
+              {t.profileDetail.sectorRestrictions}
+            </span>
             <span className="flex flex-wrap justify-end gap-1.5">
               {profile.sector_restrictions.length === 0 ? (
-                <span className="text-sm text-mist-500">无</span>
+                <span className="text-sm text-mist-500">
+                  {t.profileDetail.none}
+                </span>
               ) : (
                 profile.sector_restrictions.map((s) => (
                   <Badge key={s} tone="mist">
@@ -384,17 +464,17 @@ export default async function ClientHubPage({ params }: PageProps) {
         <div className="mb-4 flex items-center justify-between">
           <h3 className="flex items-center gap-2 text-sm font-medium text-mist-200">
             <Icon name="briefcase" size={15} className="text-gold-400" />
-            交付物
+            {t.profileDetail.deliverables}
           </h3>
           <span className="text-xs text-mist-600">
-            {deliverables.length} 份
+            {t.profileDetail.deliverableCount(deliverables.length)}
           </span>
         </div>
         {deliverables.length === 0 ? (
           <EmptyState
             icon="briefcase"
-            title="还没有交付物"
-            hint="使用上方「生成建议书」或「生成 IPS」为该客户产出第一份交付物。"
+            title={t.profileDetail.deliverablesEmptyTitle}
+            hint={t.profileDetail.deliverablesEmptyHint}
           />
         ) : (
           <div className="grid gap-x-8 sm:grid-cols-2">
@@ -424,7 +504,7 @@ export default async function ClientHubPage({ params }: PageProps) {
 
       <div>
         <ButtonLink href="/profiles" variant="ghost" size="sm">
-          返回客户列表
+          {t.profileDetail.backToList}
         </ButtonLink>
       </div>
     </div>

@@ -1,0 +1,21 @@
+/** deliverableDetail namespace — populated by the localization pass (phase 22). */
+export const deliverableDetail = {
+  title: "交付物详情",
+  notFoundTitle: "无法打开交付物",
+  reasonUnknownType: "未知的交付物类型。",
+  reasonReportMissing: "建议书不存在，或 API 服务离线。",
+  reasonIpsMissing: "IPS 文档不存在，或 API 服务离线。",
+  reportEyebrow: "AI 建议书",
+  reportDescription: "AI 投资建议书",
+  ipsEyebrow: "投资政策声明书",
+  ipsDescription: "投资政策声明书（含审计追踪）",
+  downloadPdf: "下载 PDF",
+  labelGenerated: "生成时间",
+  labelModel: "AI 模型",
+  labelTokens: "Token 用量",
+  labelPromptCompletion: "输入 / 输出",
+  labelVersion: "版本",
+  labelSaved: "保存时间",
+  labelRounds: "修订轮次",
+  labelRisk: "风险等级",
+};

@@ -1,6 +1,24 @@
 import { NextResponse } from "next/server";
+import { getDict, getLocale } from "@/lib/i18n/server";
 
 const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:8000";
+
+/** X-Locale header forwarded to the API (resolved from the wp_locale cookie). */
+async function localeHeader(): Promise<Record<string, string>> {
+  return { "X-Locale": await getLocale() };
+}
+
+/** Localized "API unreachable" detail for proxy failures. */
+async function unreachableDetail(): Promise<string> {
+  const t = await getDict();
+  return t.errors.apiUnreachable;
+}
+
+/** Localized fallback when the upstream returns a non-JSON error body. */
+async function upstreamDetail(status: number): Promise<string> {
+  const t = await getDict();
+  return t.errors.upstreamError(status);
+}
 
 /**
  * Shared same-origin proxy for mutations. The browser only talks to the
@@ -15,7 +33,10 @@ export async function proxyJson(
   try {
     const res = await fetch(`${API_ORIGIN}${path}`, {
       method,
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      headers: {
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        ...(await localeHeader()),
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: "no-store",
     });
@@ -25,7 +46,7 @@ export async function proxyJson(
     return NextResponse.json(data, { status: res.status });
   } catch {
     return NextResponse.json(
-      { detail: "API 服务不可达，请确认后端已启动。" },
+      { detail: await unreachableDetail() },
       { status: 502 }
     );
   }
@@ -45,14 +66,14 @@ export async function proxyStream(path: string, body: unknown) {
   try {
     const res = await fetch(`${API_ORIGIN}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await localeHeader()) },
       body: JSON.stringify(body),
       cache: "no-store",
     });
     if (!res.ok || !res.body) {
       const data = await res
         .json()
-        .catch(() => ({ detail: `上游服务错误（HTTP ${res.status}）` }));
+        .catch(async () => ({ detail: await upstreamDetail(res.status) }));
       return NextResponse.json(data, { status: res.status });
     }
     return new Response(res.body, {
@@ -64,7 +85,7 @@ export async function proxyStream(path: string, body: unknown) {
     });
   } catch {
     return NextResponse.json(
-      { detail: "API 服务不可达，请确认后端已启动。" },
+      { detail: await unreachableDetail() },
       { status: 502 }
     );
   }
@@ -73,11 +94,14 @@ export async function proxyStream(path: string, body: unknown) {
 /** Streaming proxy for GET SSE endpoints (task progress feeds). */
 export async function proxyStreamGet(path: string) {
   try {
-    const res = await fetch(`${API_ORIGIN}${path}`, { cache: "no-store" });
+    const res = await fetch(`${API_ORIGIN}${path}`, {
+      cache: "no-store",
+      headers: await localeHeader(),
+    });
     if (!res.ok || !res.body) {
       const data = await res
         .json()
-        .catch(() => ({ detail: `上游服务错误（HTTP ${res.status}）` }));
+        .catch(async () => ({ detail: await upstreamDetail(res.status) }));
       return NextResponse.json(data, { status: res.status });
     }
     return new Response(res.body, {
@@ -89,7 +113,7 @@ export async function proxyStreamGet(path: string) {
     });
   } catch {
     return NextResponse.json(
-      { detail: "API 服务不可达，请确认后端已启动。" },
+      { detail: await unreachableDetail() },
       { status: 502 }
     );
   }
@@ -102,11 +126,14 @@ export async function proxyStreamGet(path: string) {
  */
 export async function proxyFile(path: string) {
   try {
-    const res = await fetch(`${API_ORIGIN}${path}`, { cache: "no-store" });
+    const res = await fetch(`${API_ORIGIN}${path}`, {
+      cache: "no-store",
+      headers: await localeHeader(),
+    });
     if (!res.ok || !res.body) {
       const data = await res
         .json()
-        .catch(() => ({ detail: `上游服务错误（HTTP ${res.status}）` }));
+        .catch(async () => ({ detail: await upstreamDetail(res.status) }));
       return NextResponse.json(data, { status: res.status });
     }
     return new Response(res.body, {
@@ -118,7 +145,7 @@ export async function proxyFile(path: string) {
     });
   } catch {
     return NextResponse.json(
-      { detail: "API 服务不可达，请确认后端已启动。" },
+      { detail: await unreachableDetail() },
       { status: 502 }
     );
   }

@@ -10,10 +10,13 @@ import type {
   ReportSummary,
 } from "@/lib/api";
 import { fmtLocal } from "@/lib/format";
+import { en } from "@/lib/i18n/dictionaries/en";
+import { zh } from "@/lib/i18n/dictionaries/zh";
 import { readSseStream } from "@/lib/sse";
 import Markdown from "@/components/markdown";
 import ReasoningSection from "@/components/reasoning-section";
 import { useClient } from "@/components/client-context";
+import { useLocale, useT } from "@/components/locale-context";
 import {
   Button,
   ConfirmDialog,
@@ -42,6 +45,10 @@ export default function AdvisorWorkspace({
 }) {
   const router = useRouter();
   const { clientId, select } = useClient();
+  const t = useT();
+  const { locale } = useLocale();
+  // 装饰性眉标沿用 SectionHeader 的双语模式：显示另一种语言。
+  const alt = locale === "zh" ? en : zh;
   // 用户手动选择的画像；未选择时回退到全局客户上下文，再回退到列表首位。
   // 纯派生，不用 effect —— 手动选择一旦存在便永远优先，上下文只作默认。
   const [pickedId, setPickedId] = useState<number | null>(null);
@@ -69,6 +76,11 @@ export default function AdvisorWorkspace({
     if (p) select(p.id, p.name);
   }
 
+  /** risk_level 为 "English / 中文" 双语数据串，按当前语言取对应一半。 */
+  function riskLabel(riskLevel: string): string {
+    return riskLevel.split(" / ")[locale === "zh" ? 1 : 0] ?? riskLevel;
+  }
+
   async function generate() {
     if (selectedId === null) return;
     setStreaming(true);
@@ -93,7 +105,7 @@ export default function AdvisorWorkspace({
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => null);
         throw new Error(
-          data && typeof data.detail === "string" ? data.detail : `请求失败（HTTP ${res.status}）`
+          data && typeof data.detail === "string" ? data.detail : t.advisor.requestFailed(res.status)
         );
       }
 
@@ -105,10 +117,10 @@ export default function AdvisorWorkspace({
         } else if (event.type === "done") {
           setDone(event as unknown as AdvisorDoneEvent);
           if (!event.success) {
-            setError(String(event.error_message || "报告校验未通过"));
+            setError(String(event.error_message || t.advisor.validationFailed));
           }
         } else if (event.type === "error") {
-          setError(String(event.message ?? "生成中断"));
+          setError(String(event.message ?? t.advisor.generationInterrupted));
         }
       });
     } catch (e) {
@@ -139,7 +151,7 @@ export default function AdvisorWorkspace({
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : "保存失败");
+      if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : t.advisor.saveFailed);
       setSaved(true);
       router.refresh();
     } catch (e) {
@@ -154,7 +166,7 @@ export default function AdvisorWorkspace({
     try {
       const res = await fetch(`/api/advisor/reports/${reportId}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : "加载失败");
+      if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : t.advisor.loadFailed);
       setViewing({ title: `${data.client_name} · ${fmtLocal(data.generated_at)}`, content: data.content });
       setText("");
       setDone(null);
@@ -169,7 +181,7 @@ export default function AdvisorWorkspace({
       const res = await fetch(`/api/advisor/reports/${reportId}`, { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(typeof data.detail === "string" ? data.detail : "删除失败");
+        throw new Error(typeof data.detail === "string" ? data.detail : t.advisor.deleteFailed);
       }
       setViewing(null);
       router.refresh();
@@ -188,9 +200,7 @@ export default function AdvisorWorkspace({
       {!configured && (
         <div className="flex items-start gap-3 rounded-xl border border-gold-700/40 bg-gold-500/[0.06] px-4 py-3">
           <Icon name="warning" size={16} className="mt-0.5 shrink-0 text-gold-400" />
-          <p className="text-sm leading-6 text-gold-300">
-            DEEPSEEK_API_KEY 未配置 —— 请在项目根目录 .env 中设置并重启 API 服务后使用。
-          </p>
+          <p className="text-sm leading-6 text-gold-300">{t.advisor.notConfigured}</p>
         </div>
       )}
 
@@ -198,10 +208,7 @@ export default function AdvisorWorkspace({
       {demo && (
         <div className="flex items-start gap-3 rounded-xl border border-steel-500/30 bg-steel-500/[0.06] px-4 py-3">
           <Icon name="info" size={16} className="mt-0.5 shrink-0 text-steel-400" />
-          <p className="text-sm leading-6 text-mist-400">
-            演示模式 —— AI 生成内容为录制样例，用于功能预览；配置
-            DEEPSEEK_API_KEY 并关闭 DEMO_MODE 后体验真实生成。
-          </p>
+          <p className="text-sm leading-6 text-mist-400">{t.advisor.demoMode}</p>
         </div>
       )}
 
@@ -210,22 +217,22 @@ export default function AdvisorWorkspace({
         {profiles === null ? (
           <p className="flex items-center gap-2 text-sm text-cinnabar-300">
             <Icon name="warning" size={15} className="shrink-0" />
-            无法获取画像列表 —— 请确认 API 服务已启动。
+            {t.advisor.profilesUnreachable}
           </p>
         ) : profiles.length === 0 ? (
           <p className="text-sm leading-6 text-mist-400">
-            还没有客户画像。请先在
+            {t.advisor.noProfilesPre}
             <Link
               href="/profiles"
               className="mx-1 text-gold-400 underline decoration-gold-500/40 underline-offset-2 transition-colors hover:text-gold-300"
             >
-              客户画像
+              {t.advisor.noProfilesLink}
             </Link>
-            页面创建。
+            {t.advisor.noProfilesPost}
           </p>
         ) : (
           <div className="flex flex-wrap items-end gap-4">
-            <Field label="选择客户" className="w-full sm:w-72">
+            <Field label={t.advisor.selectClient} className="w-full sm:w-72">
               <Select
                 value={selectedId ?? ""}
                 onChange={(e) => handleSelect(Number(e.target.value))}
@@ -233,7 +240,7 @@ export default function AdvisorWorkspace({
               >
                 {profiles.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name}（{p.age} 岁{p.risk_level ? ` · ${p.risk_level.split(" / ")[1] ?? p.risk_level}` : ""}）
+                    {t.advisor.profileOption(p.name, p.age, p.risk_level ? riskLabel(p.risk_level) : null)}
                   </option>
                 ))}
               </Select>
@@ -245,7 +252,7 @@ export default function AdvisorWorkspace({
               onClick={generate}
               disabled={streaming || !configured || selectedId === null}
             >
-              {streaming ? "AI 生成中…" : "生成建议书"}
+              {streaming ? t.advisor.generating : t.advisor.generateReport}
             </Button>
 
             {streaming && (
@@ -254,13 +261,14 @@ export default function AdvisorWorkspace({
                 size="lg"
                 onClick={() => abortRef.current?.abort()}
               >
-                停止
+                {t.advisor.stop}
               </Button>
             )}
 
             {status && (
               <span className="pb-1 text-xs text-mist-500 sm:ml-auto">
-                模型 <span className="tnum font-mono text-mist-400">{status.model}</span>
+                {t.advisor.model}{" "}
+                <span className="tnum font-mono text-mist-400">{status.model}</span>
               </span>
             )}
           </div>
@@ -292,11 +300,11 @@ export default function AdvisorWorkspace({
                   size={15}
                   className="text-gold-400"
                 />
-                {viewing ? viewing.title : "AI 投资建议书"}
+                {viewing ? viewing.title : t.advisor.reportTitle}
               </h3>
               {viewing && (
                 <Button variant="ghost" size="sm" icon="x" onClick={() => setViewing(null)}>
-                  关闭
+                  {t.common.close}
                 </Button>
               )}
             </div>
@@ -308,18 +316,17 @@ export default function AdvisorWorkspace({
               <div className="mt-5 border-t border-white/[0.06] pt-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="tnum font-mono text-xs text-mist-500">
-                    {done.total_tokens.toLocaleString()} tokens（输入{" "}
-                    {done.prompt_tokens.toLocaleString()} / 输出{" "}
-                    {done.completion_tokens.toLocaleString()}
-                    {done.reasoning_tokens
-                      ? ` · 思考 ${done.reasoning_tokens.toLocaleString()}`
-                      : ""}
-                    ）
+                    {t.advisor.tokenSummary(
+                      done.total_tokens,
+                      done.prompt_tokens,
+                      done.completion_tokens,
+                      done.reasoning_tokens
+                    )}
                   </p>
                   {saved && (
                     <span className="flex items-center gap-1.5 text-xs text-jade-400">
                       <Icon name="check" size={13} />
-                      已保存到报告库
+                      {t.advisor.savedToLibrary}
                     </span>
                   )}
                 </div>
@@ -327,19 +334,19 @@ export default function AdvisorWorkspace({
                 {done.success && !saved && (
                   <div className="mt-4">
                     <div className="grid gap-3 sm:grid-cols-[minmax(0,14rem)_1fr]">
-                      <Field label="客户名称">
+                      <Field label={t.advisor.clientName}>
                         <Input
                           value={clientName}
                           onChange={(e) => setClientName(e.target.value)}
-                          placeholder="客户名称"
+                          placeholder={t.advisor.clientName}
                         />
                       </Field>
-                      <Field label="交付备注（可选）">
+                      <Field label={t.advisor.deliveryNotes}>
                         <Textarea
                           value={notes}
                           onChange={(e) => setNotes(e.target.value)}
                           rows={2}
-                          placeholder="随报告一起存档的一句话备注…"
+                          placeholder={t.advisor.notesPlaceholder}
                         />
                       </Field>
                     </div>
@@ -350,7 +357,7 @@ export default function AdvisorWorkspace({
                         onClick={saveReport}
                         disabled={saving || !clientName.trim()}
                       >
-                        {saving ? "保存中…" : "保存到报告库"}
+                        {saving ? t.common.saving : t.advisor.saveToLibrary}
                       </Button>
                     </div>
                   </div>
@@ -364,16 +371,16 @@ export default function AdvisorWorkspace({
             title={
               streaming
                 ? reasoning
-                  ? "DeepSeek 正在思考…"
-                  : "DeepSeek 正在生成…"
-                : "建议书将在此流式呈现"
+                  ? t.advisor.thinking
+                  : t.advisor.streaming
+                : t.advisor.idleTitle
             }
             hint={
               streaming
                 ? reasoning
-                  ? "推理过程见上方「思考过程」，正文随后抵达。"
-                  : "首段文字即将抵达。"
-                : "选择客户后点击「生成建议书」，报告逐字输出，可一键存入报告库。"
+                  ? t.advisor.thinkingHint
+                  : t.advisor.streamingHint
+                : t.advisor.idleHint
             }
             className="flex-1 py-10"
           />
@@ -383,17 +390,17 @@ export default function AdvisorWorkspace({
       {/* ------------------------------ 历史报告 ------------------------------ */}
       <section>
         <div className="mb-4 flex items-baseline justify-between">
-          <h2 className="font-display text-xl text-mist-100">报告库</h2>
+          <h2 className="font-display text-xl text-mist-100">{t.advisor.libraryTitle}</h2>
           <span className="text-[10px] tracking-[0.2em] text-mist-600 uppercase">
-            Saved Reports
+            {alt.advisor.libraryTitle}
           </span>
         </div>
         {initialReports.length === 0 ? (
           <Panel>
             <EmptyState
               icon="sparkle"
-              title="暂无已保存的报告"
-              hint="生成建议书后点击「保存到报告库」，即可在此随时回看。"
+              title={t.advisor.libraryEmptyTitle}
+              hint={t.advisor.libraryEmptyHint}
             />
           </Panel>
         ) : (
@@ -401,11 +408,11 @@ export default function AdvisorWorkspace({
             <Table className="min-w-[720px]">
               <THead>
                 <tr>
-                  <TH>客户</TH>
-                  <TH>模型</TH>
-                  <TH>生成时间</TH>
+                  <TH>{t.advisor.thClient}</TH>
+                  <TH>{t.advisor.model}</TH>
+                  <TH>{t.advisor.thGenerated}</TH>
                   <TH className="text-right">Tokens</TH>
-                  <TH className="text-right">操作</TH>
+                  <TH className="text-right">{t.advisor.thActions}</TH>
                 </tr>
               </THead>
               <tbody>
@@ -433,16 +440,16 @@ export default function AdvisorWorkspace({
                           variant="ghost"
                           size="sm"
                           icon="eye"
-                          aria-label="查看报告"
-                          title="查看"
+                          aria-label={t.advisor.viewReportLabel}
+                          title={t.common.view}
                           onClick={() => viewReport(r.report_id)}
                         />
                         <Button
                           variant="ghost"
                           size="sm"
                           icon="trash"
-                          aria-label="删除报告"
-                          title="删除"
+                          aria-label={t.advisor.deleteReportLabel}
+                          title={t.common.delete}
                           onClick={() => setPendingDelete(r.report_id)}
                         />
                       </div>
@@ -457,9 +464,9 @@ export default function AdvisorWorkspace({
 
       <ConfirmDialog
         open={pendingDelete !== null}
-        title="删除这份报告？"
-        description="报告将从报告库中永久移除，此操作无法撤销。"
-        confirmLabel="删除"
+        title={t.advisor.deleteTitle}
+        description={t.advisor.deleteDescription}
+        confirmLabel={t.common.delete}
         danger
         onConfirm={() => {
           const id = pendingDelete;

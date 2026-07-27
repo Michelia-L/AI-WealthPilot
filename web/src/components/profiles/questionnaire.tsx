@@ -6,8 +6,9 @@ import type {
   QuestionnaireResponse,
 } from "@/lib/api";
 import { classifyRiskPreview, scoreFromAnswers } from "@/lib/api";
+import { useLocale, useT } from "@/components/locale-context";
 import { Badge, Chip, Slider, StatTile } from "@/components/ui";
-import { riskTone } from "./shared";
+import { localizedRiskLabel, riskTone } from "./shared";
 
 /** 单轨问卷（能力或意愿）：题目 + Chip 选项，再次点击已选选项即取消作答。 */
 function QuestionTrack({
@@ -73,6 +74,8 @@ export default function RiskQuestionnaire({
     value: number
   ) => void;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
   // Mirror of the server-side precedence: a track with answers derives its
   // score from the questionnaire; an unanswered track keeps manual scores.
   const abilityScore =
@@ -94,18 +97,21 @@ export default function RiskQuestionnaire({
     <div className="space-y-5">
       {/* 实时风险预览 —— 客户端镜像算分，保存时以服务端重算为准 */}
       <div className="grid gap-3 sm:grid-cols-3">
-        <StatTile label="风险承受能力" value={fmtScore(abilityScore)} />
-        <StatTile label="风险承受意愿" value={fmtScore(willingnessScore)} />
+        <StatTile label={t.profiles.riskAbility} value={fmtScore(abilityScore)} />
         <StatTile
-          label="综合 = min(能力, 意愿)"
+          label={t.profiles.riskWillingness}
+          value={fmtScore(willingnessScore)}
+        />
+        <StatTile
+          label={t.profiles.combinedScore}
           value={fmtScore(finalScore)}
           tone="gold"
         />
       </div>
       <div className="flex items-center gap-2.5">
-        <span className="text-xs text-mist-500">实时预览</span>
+        <span className="text-xs text-mist-500">{t.profiles.livePreview}</span>
         <Badge tone={riskTone(preview)} dot>
-          {preview}
+          {localizedRiskLabel(preview, locale, t.profiles.unassessed)}
         </Badge>
       </div>
 
@@ -113,47 +119,46 @@ export default function RiskQuestionnaire({
         <>
           <div className="grid gap-6 lg:grid-cols-2">
             <QuestionTrack
-              title="风险承受能力（客观 · 5 题）"
+              title={t.profiles.abilityTrackTitle}
               questions={questionnaire.ability}
               answers={form.ability_answers}
               onAnswer={(q, o) => onAnswer("ability_answers", q, o)}
             />
             <QuestionTrack
-              title="风险承受意愿（主观 · 4 题）"
+              title={t.profiles.willingnessTrackTitle}
               questions={questionnaire.willingness}
               answers={form.willingness_answers}
               onAnswer={(q, o) => onAnswer("willingness_answers", q, o)}
             />
           </div>
           <p className="text-xs leading-5 text-mist-600">
-            已答题目自动算分（未答题不参与平均），保存时覆盖手动评分；再次点击选项可取消作答。全部留空则保留手动评分，0
-            表示未评估。
+            {t.profiles.questionnaireHelp}
           </p>
         </>
       ) : (
         <>
           <div className="grid gap-4 md:grid-cols-2">
             <Slider
-              label="风险承受能力"
+              label={t.profiles.riskAbility}
               min={0}
               max={5}
               step={0.5}
               value={form.risk_scores.ability_score}
-              format={(v) => (v === 0 ? "未评估" : v.toFixed(1))}
+              format={(v) => (v === 0 ? t.profiles.unassessed : v.toFixed(1))}
               onChange={(v) => onRiskScoreChange("ability_score", v)}
             />
             <Slider
-              label="风险承受意愿"
+              label={t.profiles.riskWillingness}
               min={0}
               max={5}
               step={0.5}
               value={form.risk_scores.willingness_score}
-              format={(v) => (v === 0 ? "未评估" : v.toFixed(1))}
+              format={(v) => (v === 0 ? t.profiles.unassessed : v.toFixed(1))}
               onChange={(v) => onRiskScoreChange("willingness_score", v)}
             />
           </div>
           <p className="text-xs leading-5 text-mist-600">
-            风险问卷加载失败（API 未就绪），暂以手动评分代替；评分为 0 表示未评估。
+            {t.profiles.questionnaireUnavailable}
           </p>
         </>
       )}
