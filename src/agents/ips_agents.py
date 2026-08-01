@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Optional
 
 from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
 
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 # Model Configuration
 
-def _get_model() -> OpenAIModel:
+def _get_model() -> OpenAIChatModel:
     """
     Create PydanticAI model from the resolved LLM config (FR-002).
 
@@ -46,7 +46,7 @@ def _get_model() -> OpenAIModel:
     DeepSeek env defaults.
 
     Returns:
-        Configured OpenAIModel instance.
+        Configured OpenAIChatModel instance.
 
     Raises:
         ValueError: If no API key is configured (DB or env).
@@ -61,7 +61,7 @@ def _get_model() -> OpenAIModel:
         base_url=cfg.base_url,
         api_key=cfg.api_key,
     )
-    return OpenAIModel(
+    return OpenAIChatModel(
         cfg.model,
         provider=provider,
     )

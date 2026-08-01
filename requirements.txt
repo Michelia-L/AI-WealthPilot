@@ -20,9 +20,9 @@ openai>=1.0.0
 # Agent Orchestration — IPS Generator (LangGraph + PydanticAI)
 langgraph>=0.2.0
 langgraph-checkpoint>=2.0.0
-# OpenAIModel was removed in pydantic-ai 1.107+; src/agents/ips_agents.py
-# still uses it (src is frozen — pin instead of patching).
-pydantic-ai>=1.0.0,<1.107.0
+# pydantic-ai 1.107+ removed the deprecated OpenAIModel alias; the code uses
+# the canonical OpenAIChatModel, so no upper bound is needed below 2.0.
+pydantic-ai>=1.107.0,<2.0.0
 pydantic>=2.0.0
 
 # Utilities
