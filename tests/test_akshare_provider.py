@@ -45,6 +45,54 @@ class TestAkshareProvider:
             akshare_provider.fetch_index_history(["000300.SS"], "7y")
 
 
+class TestFetchCgbYield1y:
+    """CNY risk-free leg: latest 1Y treasury yield from the ChinaBond frame."""
+
+    def _stacked_frame(self) -> pd.DataFrame:
+        # Mirrors ak.bond_china_yield: several curve families stacked under
+        # 曲线名称, ascending dates, newest treasury 1Y quote NaN (holiday).
+        return pd.DataFrame(
+            {
+                "曲线名称": [
+                    "中债国债收益率曲线",
+                    "中债国债收益率曲线",
+                    "中债商业银行普通债收益率曲线(AAA)",
+                    "中债国债收益率曲线",
+                ],
+                "日期": ["2026-07-29", "2026-07-30", "2026-07-31", "2026-07-31"],
+                "1年": [1.50, 1.60, 9.99, None],
+            }
+        )
+
+    def test_latest_non_null_treasury_quote(self, monkeypatch):
+        monkeypatch.setattr(
+            akshare_provider,
+            "_fetch_bond_china_yield",
+            lambda start_date, end_date: self._stacked_frame(),
+        )
+        # Non-treasury curve (9.99) and NaN tail are both skipped.
+        assert akshare_provider.fetch_cgb_yield_1y() == pytest.approx(1.60)
+
+    def test_empty_frame_returns_none(self, monkeypatch):
+        monkeypatch.setattr(
+            akshare_provider,
+            "_fetch_bond_china_yield",
+            lambda start_date, end_date: pd.DataFrame(),
+        )
+        assert akshare_provider.fetch_cgb_yield_1y() is None
+
+    def test_missing_1y_column_returns_none(self, monkeypatch):
+        frame = pd.DataFrame(
+            {"曲线名称": ["中债国债收益率曲线"], "日期": ["2026-07-31"], "10年": [1.7]}
+        )
+        monkeypatch.setattr(
+            akshare_provider,
+            "_fetch_bond_china_yield",
+            lambda start_date, end_date: frame,
+        )
+        assert akshare_provider.fetch_cgb_yield_1y() is None
+
+
 class TestFallbackChain:
     def test_tushare_success_skips_akshare(self, monkeypatch):
         monkeypatch.setattr(tushare_provider, "TUSHARE_TOKEN", "tok")

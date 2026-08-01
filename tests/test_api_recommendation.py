@@ -40,7 +40,7 @@ def fake_market(monkeypatch):
         "api.routers.portfolio._fetch_returns", lambda keys, period, locale="zh": returns
     )
     monkeypatch.setattr(
-        "api.routers.portfolio.fetch_risk_free_rate", lambda: 0.045
+        "api.routers.portfolio.fetch_risk_free_rate", lambda **_: 0.045
     )
 
 

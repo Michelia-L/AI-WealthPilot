@@ -8,6 +8,7 @@ package is an optional dependency — absence degrades the chain silently.
 """
 
 import logging
+from typing import Optional
 
 import pandas as pd
 
@@ -92,3 +93,48 @@ def fetch_index_history(tickers: list[str], period: str) -> pd.DataFrame:
         if ticker not in panel.columns:
             panel[ticker] = float("nan")
     return panel[tickers]
+
+
+# ChinaBond treasury yield curve identifiers used for the CNY risk-free leg.
+# ak.bond_china_yield stacks several curve families (treasury, commercial
+# paper, bank bonds) into one frame keyed by the "曲线名称" column.
+_CGB_CURVE_NAME = "中债国债收益率曲线"
+_CGB_1Y_COLUMN = "1年"
+
+
+def _fetch_bond_china_yield(start_date: str, end_date: str) -> pd.DataFrame:
+    """Pull the ChinaBond yield-curve history for a date window (network).
+
+    The upstream window must span less than one year; dates use ``YYYYMMDD``.
+    """
+    import akshare as ak
+
+    return ak.bond_china_yield(start_date=start_date, end_date=end_date)
+
+
+def fetch_cgb_yield_1y(lookback_days: int = 31) -> Optional[float]:
+    """Latest 1-year China government bond yield, in percent.
+
+    Filters the stacked ChinaBond frame to the treasury curve, then takes
+    the newest non-null 1-year quote within a short trailing window (the
+    series is not published on weekends/holidays).
+
+    Returns:
+        Yield in percent (e.g. 1.146 for 1.146%), or None when the frame
+        is empty or lacks the treasury 1-year column.
+    """
+    end = pd.Timestamp.now()
+    start = end - pd.Timedelta(days=lookback_days)
+    df = _fetch_bond_china_yield(start.strftime("%Y%m%d"), end.strftime("%Y%m%d"))
+    if df is None or df.empty:
+        return None
+    if "曲线名称" in df.columns:
+        df = df[df["曲线名称"] == _CGB_CURVE_NAME]
+    if df.empty or _CGB_1Y_COLUMN not in df.columns:
+        return None
+    if "日期" in df.columns:
+        df = df.sort_values("日期")
+    series = pd.to_numeric(df[_CGB_1Y_COLUMN], errors="coerce").dropna()
+    if series.empty:
+        return None
+    return float(series.iloc[-1])

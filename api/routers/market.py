@@ -26,7 +26,7 @@ from api.schemas import (
     RiskStat,
     UniverseResponse,
 )
-from src.config import ASSET_UNIVERSE, TRADING_DAYS_PER_YEAR
+from src.config import ASSET_UNIVERSE, BASE_CURRENCY, TRADING_DAYS_PER_YEAR
 from src.data.market_data import (
     compute_correlation_matrix,
     compute_returns,
@@ -212,10 +212,16 @@ def get_quotes(tickers: Optional[str] = Query(None)) -> QuotesResponse:
 @router.get(
     "/risk-free-rate",
     response_model=RiskFreeRateResponse,
-    summary="Current annualized risk-free rate (FRED → yfinance → static fallback)",
+    summary="Current annualized risk-free rate on the base currency (CNY: akshare ChinaBond 1Y; USD: FRED → yfinance; static fallback)",
 )
 def get_risk_free_rate() -> RiskFreeRateResponse:
-    rate = _rf_cache.get_or_set("rf", RISK_FREE_RATE_TTL_SECONDS, fetch_risk_free_rate)
+    # Base-currency leg: the optimizer's returns are CNY-adjusted, so the
+    # rate auto-filled from here must be CNY-denominated too.
+    rate = _rf_cache.get_or_set(
+        "rf",
+        RISK_FREE_RATE_TTL_SECONDS,
+        lambda: fetch_risk_free_rate(currency=BASE_CURRENCY),
+    )
     return RiskFreeRateResponse(rate=rate, as_of=datetime.now(timezone.utc))
 
 

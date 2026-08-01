@@ -74,7 +74,8 @@ DEFAULT_ASSET_CLASSES = {
 }
 
 # Portfolio Optimization Defaults
-DEFAULT_RISK_FREE_RATE = 0.045  # Static fallback risk-free rate (4.5%)
+DEFAULT_RISK_FREE_RATE = 0.045  # Static fallback risk-free rate (4.5%, USD leg)
+DEFAULT_RISK_FREE_RATE_CNY = 0.02  # Static fallback for the CNY leg (~China 1Y government bond yield)
 RISK_FREE_RATE = DEFAULT_RISK_FREE_RATE  # For backward compatibility
 TRADING_DAYS_PER_YEAR = 252
 MONTE_CARLO_SIMULATIONS = 10000

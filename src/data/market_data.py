@@ -15,8 +15,8 @@ import numpy as np
 from datetime import datetime, timedelta
 from typing import Optional
 
-# Import the asset universe definition, trading days constant, base currency, default risk-free rate, and FRED API Key from project config
-from src.config import ASSET_UNIVERSE, TRADING_DAYS_PER_YEAR, BASE_CURRENCY, DEFAULT_RISK_FREE_RATE, FRED_API_KEY, TUSHARE_TICKER_MAP
+# Import the asset universe definition, trading days constant, base currency, default risk-free rates, and FRED API Key from project config
+from src.config import ASSET_UNIVERSE, TRADING_DAYS_PER_YEAR, BASE_CURRENCY, DEFAULT_RISK_FREE_RATE, DEFAULT_RISK_FREE_RATE_CNY, FRED_API_KEY, TUSHARE_TICKER_MAP
 from src.data import akshare_provider, tushare_provider
 
 logger = logging.getLogger(__name__)
@@ -272,8 +272,53 @@ def get_latest_quotes(tickers: Optional[list[str]] = None) -> pd.DataFrame:
 def fetch_risk_free_rate(
     fred_api_key: Optional[str] = None,
     default_rate: Optional[float] = None,
+    currency: str = "USD",
 ) -> float:
-    """Fetch current annualized risk-free rate (FRED -> yfinance -> static fallback)."""
+    """Fetch current annualized risk-free rate for the given currency.
+
+    Thin wrapper over ``fetch_risk_free_rate_detailed`` returning only the
+    rate (decimal form, e.g. 0.02 for 2%).
+    """
+    rate, _source = fetch_risk_free_rate_detailed(fred_api_key, default_rate, currency)
+    return rate
+
+
+def fetch_risk_free_rate_detailed(
+    fred_api_key: Optional[str] = None,
+    default_rate: Optional[float] = None,
+    currency: str = "USD",
+) -> tuple[float, str]:
+    """Fetch the risk-free rate and a label identifying the source used.
+
+    Currency legs:
+        USD: FRED DGS3MO -> yfinance ^IRX -> DEFAULT_RISK_FREE_RATE.
+        CNY: akshare ChinaBond 1Y treasury yield -> DEFAULT_RISK_FREE_RATE_CNY.
+
+    Every external call degrades silently to the next tier, so the
+    function never raises on network/provider failures.
+
+    Returns:
+        Tuple of (rate as decimal, source label). Labels: ``fred_api``
+        (FRED DGS3MO), ``yfinance_irx`` (^IRX 13-week T-bill),
+        ``akshare_cgb_1y`` (ChinaBond 1Y treasury yield),
+        ``static_fallback``.
+    """
+    currency = (currency or "USD").upper()
+
+    # CNY leg: ChinaBond 1Y treasury yield via akshare -> static CNY default
+    if currency == "CNY":
+        fallback_cny = default_rate if default_rate is not None else DEFAULT_RISK_FREE_RATE_CNY
+        if akshare_provider.is_available():
+            try:
+                yield_pct = akshare_provider.fetch_cgb_yield_1y()
+                if yield_pct is not None and yield_pct > 0:
+                    return float(yield_pct) / 100.0, "akshare_cgb_1y"
+            except Exception:
+                # Silent fallback to static CNY default
+                pass
+        return fallback_cny, "static_fallback"
+
+    # USD leg: FRED -> yfinance -> static default
     fallback_rate = default_rate if default_rate is not None else DEFAULT_RISK_FREE_RATE
     api_key = fred_api_key or FRED_API_KEY or os.getenv("FRED_API_KEY")
 
@@ -295,7 +340,7 @@ def fetch_risk_free_rate(
                 if observations:
                     val_str = observations[0].get("value")
                     if val_str and val_str != ".":
-                        return float(val_str) / 100.0
+                        return float(val_str) / 100.0, "fred_api"
         except Exception:
             # Silent fallback to yfinance
             pass
@@ -306,20 +351,20 @@ def fetch_risk_free_rate(
         # Try fast_info first
         rate_pct = ticker.fast_info.get("lastPrice")
         if rate_pct is not None and rate_pct > 0:
-            return float(rate_pct) / 100.0
-            
+            return float(rate_pct) / 100.0, "yfinance_irx"
+
         # Fallback to history if fast_info fails
         hist = ticker.history(period="1d")
         if not hist.empty:
             rate_val = hist["Close"].iloc[-1]
             if rate_val is not None and rate_val > 0:
-                return float(rate_val) / 100.0
+                return float(rate_val) / 100.0, "yfinance_irx"
     except Exception:
         # Silent fallback to static default
         pass
 
     # 3. Fallback to static default rate
-    return fallback_rate
+    return fallback_rate, "static_fallback"
 
 
 # Main entry point - for quick testing and validation

@@ -294,6 +294,41 @@ class TestCMEComputation:
         # When no data is available and no stale cache, falls back to static
         assert report.risk_free_rate > 0
 
+    @patch("src.portfolio.cme_engine.fetch_implied_volatility")
+    @patch("src.portfolio.cme_engine.fetch_price_history")
+    @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
+    @patch("src.portfolio.cme_engine.compute_correlation_matrix")
+    def test_cme_uses_cny_basis(
+        self,
+        mock_corr,
+        mock_rf,
+        mock_prices,
+        mock_iv,
+        mock_price_data,
+    ):
+        """Phase 23: CME returns are FX-translated to the CNY base and the
+        methodology notes disclose the single-currency basis."""
+        mock_prices.return_value = mock_price_data
+        mock_rf.return_value = (0.02, "akshare_cgb_1y")
+        mock_iv.return_value = {"000300.SS": None, "AGG": None}
+        mock_corr.return_value = mock_price_data.pct_change().dropna().corr()
+
+        test_tickers = {
+            "domestic_equity": {"ticker": "000300.SS", "name": "国内权益"},
+            "fixed_income": {"ticker": "AGG", "name": "固定收益"},
+        }
+
+        report, _ = compute_cme(asset_tickers=test_tickers, force_refresh=True)
+
+        # Prices must be requested with FX translation to the base currency.
+        call_kwargs = mock_prices.call_args[1]
+        assert call_kwargs.get("adjust_currency") is True
+        assert call_kwargs.get("base_currency") == "CNY"
+
+        # Methodology must disclose the CNY basis and unhedged FX exposure.
+        assert "人民币（CNY）口径" in report.methodology_notes
+        assert "未对冲汇率风险" in report.methodology_notes
+
     @patch("src.portfolio.cme_engine.fetch_price_history")
     def test_compute_cme_fallback_on_exception(self, mock_prices):
         """compute_cme should fall back to static on exception."""
@@ -313,14 +348,23 @@ class TestCMEComputation:
 class TestRiskFreeRate:
     """Test risk-free rate fetching with source tracking."""
 
-    @patch.dict("os.environ", {"FRED_API_KEY": ""}, clear=False)
-    def test_fallback_returns_default(self):
-        """Without API keys, should return static fallback."""
-        # This will try FRED (no key), yfinance (may fail), then fallback
+    def test_delegates_to_base_currency_detailed(self, monkeypatch):
+        """CME rf comes from the base-currency (CNY) leg of market_data."""
+        calls = {}
+
+        def fake_detailed(*args, **kwargs):
+            calls.update(kwargs)
+            return (0.02, "static_fallback")
+
+        monkeypatch.setattr(
+            "src.portfolio.cme_engine.fetch_risk_free_rate_detailed", fake_detailed
+        )
+
         rate, source = _fetch_risk_free_rate_with_source()
-        assert rate > 0
-        assert isinstance(source, str)
-        assert source in ("fred_api", "yfinance_irx", "static_fallback")
+
+        assert rate == 0.02
+        assert source == "static_fallback"
+        assert calls.get("currency") == "CNY"
 
 
 # ============================================================
@@ -540,7 +584,7 @@ class TestCMEWithIVBlending:
         assert "隐含σ" in text
         assert "混合σ" in text
         assert "波动率方法论" in text
-        assert "贝叶斯" in text
+        assert "加权混合" in text
         # Should include regime info
         assert "volatility_regime" in text or "波动率环境" in text
 

@@ -42,7 +42,7 @@ def _body(**overrides):
 
 def test_poisoned_price_frame_is_rejected_and_not_cached(client, monkeypatch):
     monkeypatch.setattr(
-        "api.routers.portfolio.fetch_risk_free_rate", lambda: 0.045
+        "api.routers.portfolio.fetch_risk_free_rate", lambda **_: 0.045
     )
     calls = {"n": 0}
 
@@ -66,7 +66,7 @@ def test_poisoned_price_frame_is_rejected_and_not_cached(client, monkeypatch):
 
 def test_unsolvable_frontier_returns_422(client, monkeypatch):
     monkeypatch.setattr(
-        "api.routers.portfolio.fetch_risk_free_rate", lambda: 0.045
+        "api.routers.portfolio.fetch_risk_free_rate", lambda **_: 0.045
     )
     rng = np.random.default_rng(3)
     idx = pd.date_range("2023-01-02", periods=60, freq="B")

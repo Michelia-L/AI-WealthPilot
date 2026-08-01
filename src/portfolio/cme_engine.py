@@ -8,10 +8,10 @@ CMEReport that gets injected into the IPS generator's LLM context.
 Pipeline:
     1. Fetch historical prices for IPS asset class proxies (yfinance)
     2. Compute returns, volatility, Sharpe, VaR, CVaR per asset class
-    3. Fetch implied volatility indices (VIX, MOVE) for Bayesian blending
-    4. Compute Bayesian-blended volatility per asset class
+    3. Fetch implied volatility indices (VIX, MOVE) for weighted blending
+    4. Compute blended volatility per asset class
     5. Compute correlation matrix
-    6. Fetch dynamic risk-free rate (FRED / yfinance / fallback)
+    6. Fetch dynamic risk-free rate (base-currency cascade)
     7. Package into CMEReport (Pydantic)
     8. Format as LLM-readable text for prompt injection
 
@@ -28,6 +28,7 @@ import numpy as np
 import pandas as pd
 
 from src.config import (
+    BASE_CURRENCY,
     CME_LOOKBACK_YEARS,
     CME_INFLATION_ASSUMPTION,
     CME_DATA_INTERVAL,
@@ -40,7 +41,7 @@ from src.data.market_data import (
     fetch_price_history,
     compute_returns,
     compute_correlation_matrix,
-    fetch_risk_free_rate,
+    fetch_risk_free_rate_detailed,
 )
 from src.data.implied_volatility import (
     fetch_implied_volatility,
@@ -74,7 +75,7 @@ def compute_cme(
 ) -> tuple[CMEReport, str]:
     """
     Compute Capital Market Expectations from historical market data,
-    enhanced with forward-looking implied volatility via Bayesian blending.
+    enhanced with forward-looking implied volatility via weighted blending.
 
     This is the main entry point for CME generation. It supports a
     file-based caching layer: cached results are returned instantly
@@ -91,7 +92,7 @@ def compute_cme(
         inflation: Long-term inflation rate assumption.
         asset_tickers: Override asset class ticker mapping.
             Defaults to IPS_ASSET_CLASS_TICKERS from config.
-        iv_blending_tau: Bayesian blending weight for implied volatility.
+        iv_blending_tau: Blending weight for implied volatility.
             0.0 = pure historical, 1.0 = pure implied.
             Defaults to CME_IV_BLENDING_TAU from config (0.5).
         force_refresh: If True, bypass cache and recompute from scratch.
@@ -115,6 +116,7 @@ def compute_cme(
     cache = CMECacheManager(ttl_days=cache_ttl_days)
     params_hash = CMECacheManager.compute_params_hash(
         lookback_years, inflation, asset_tickers, iv_blending_tau,
+        base_currency=BASE_CURRENCY,
     )
 
     if not force_refresh and cache.is_valid(params_hash):
@@ -177,7 +179,7 @@ def _compute_cme_fresh(
         lookback_years: Number of years of historical data to use.
         inflation: Long-term inflation rate assumption.
         asset_tickers: Asset class ticker mapping.
-        iv_blending_tau: Bayesian blending weight for implied volatility.
+        iv_blending_tau: Blending weight for implied volatility.
 
     Returns:
         CMEReport on success, None on failure.
@@ -191,7 +193,10 @@ def _compute_cme_fresh(
             tickers=tickers,
             period=period,
             interval=CME_DATA_INTERVAL,
-            adjust_currency=False,  # Keep in native currency for CME
+            base_currency=BASE_CURRENCY,
+            # FX-translate all asset classes to the CNY base currency so the
+            # CME table is single-currency (unhedged FX exposure included).
+            adjust_currency=True,
         )
     except Exception as e:
         logger.error("Failed to fetch price data: %s", e)
@@ -246,7 +251,7 @@ def _compute_cme_fresh(
         var95 = value_at_risk(asset_returns, confidence=0.95)
         cvar95 = conditional_var(asset_returns, confidence=0.95)
 
-        # --- Bayesian blending with implied volatility ---
+        # --- weighted blending with implied volatility ---
         ticker_iv = iv_data.get(ticker)
         if ticker_iv is not None:
             implied_vol = ticker_iv.implied_volatility
@@ -315,7 +320,7 @@ def _compute_cme_fresh(
         iv_count = sum(1 for v in iv_data.values() if v is not None)
         iv_note = (
             f"隐含波动率数据已获取（{iv_count} 个资产类别），"
-            f"采用贝叶斯混合方法（τ={iv_blending_tau:.1f}）将前瞻性 IV 与历史波动率融合。"
+            f"采用加权混合方法（τ={iv_blending_tau:.1f}）将前瞻性 IV 与历史波动率融合。"
             f"IV 来源：VIX（权益类）/ MOVE（固定收益类）。"
         )
     else:
@@ -324,10 +329,11 @@ def _compute_cme_fresh(
     methodology = (
         f"基于 {lookback_years} 年历史数据（截至 {as_of}）计算。"
         f"预期收益率采用历史算术平均年化收益率。"
-        f"波动率采用贝叶斯混合方法：blended_vol = τ·σ_IV + (1-τ)·σ_hist。"
+        f"波动率采用加权混合方法：blended_vol = τ·σ_IV + (1-τ)·σ_hist。"
         f"{iv_note}"
         f"相关性矩阵基于简单收益率的 Pearson 相关系数。"
         f"无风险利率来源：{rf_source}。"
+        f"所有资产类别收益已换算为人民币（CNY）口径；未对冲汇率风险。"
         f"通胀率假设：{inflation:.1%}。"
         f"局限性：历史数据不代表未来表现；"
         f"部分资产类别使用 ETF 代理（如 AGG 代理固定收益）；"
@@ -359,51 +365,16 @@ def _compute_cme_fresh(
 
 def _fetch_risk_free_rate_with_source() -> tuple[float, str]:
     """
-    Fetch risk-free rate and track which source provided it.
+    Fetch the base-currency risk-free rate and track which source provided it.
+
+    Delegates to ``market_data.fetch_risk_free_rate_detailed`` on
+    ``BASE_CURRENCY`` (CNY), so CME Sharpe ratios stay consistent with the
+    CNY-denominated return basis.
 
     Returns:
         Tuple of (rate, source_name).
     """
-    import os
-    from src.config import FRED_API_KEY, DEFAULT_RISK_FREE_RATE
-
-    api_key = FRED_API_KEY or os.getenv("FRED_API_KEY")
-
-    # Try FRED first
-    if api_key:
-        try:
-            import requests
-            url = "https://api.stlouisfed.org/fred/series/observations"
-            params = {
-                "series_id": "DGS3MO",
-                "api_key": api_key,
-                "file_type": "json",
-                "sort_order": "desc",
-                "limit": 1,
-            }
-            response = requests.get(url, params=params, timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                observations = data.get("observations", [])
-                if observations:
-                    val_str = observations[0].get("value")
-                    if val_str and val_str != ".":
-                        return float(val_str) / 100.0, "fred_api"
-        except Exception:
-            pass
-
-    # Try yfinance
-    try:
-        import yfinance as yf
-        ticker = yf.Ticker("^IRX")
-        rate_pct = ticker.fast_info.get("lastPrice")
-        if rate_pct is not None and rate_pct > 0:
-            return float(rate_pct) / 100.0, "yfinance_irx"
-    except Exception:
-        pass
-
-    # Static fallback
-    return DEFAULT_RISK_FREE_RATE, "static_fallback"
+    return fetch_risk_free_rate_detailed(currency=BASE_CURRENCY)
 
 
 # Volatility Regime Classification
@@ -489,7 +460,7 @@ def format_cme_for_prompt(report: CMEReport) -> str:
     iv_header_note = ""
     if report.iv_data_available:
         iv_header_note = (
-            f"贝叶斯混合参数 τ（隐含波动率权重）：{report.iv_blending_tau:.1f}"
+            f"加权混合参数 τ（隐含波动率权重）：{report.iv_blending_tau:.1f}"
         )
     else:
         iv_header_note = "未获取到隐含波动率数据，仅显示历史波动率"

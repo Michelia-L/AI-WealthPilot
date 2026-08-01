@@ -48,7 +48,7 @@ from api.tasks import (
     task_events_stream,
 )
 from src.agents.portfolio_recommender import recommend_portfolio
-from src.config import DEFAULT_ASSET_CLASSES
+from src.config import BASE_CURRENCY, DEFAULT_ASSET_CLASSES
 from src.data.market_data import (
     compute_returns,
     fetch_price_history,
@@ -253,7 +253,13 @@ def _fetch_returns(keys: list[str], period: str, locale: str = "zh") -> pd.DataF
 def _effective_risk_free_rate(override: Optional[float]) -> float:
     if override is not None:
         return override
-    return _rf_cache.get_or_set("rf", RISK_FREE_RATE_TTL_SECONDS, fetch_risk_free_rate)
+    # Optimizer returns are FX-adjusted to the base currency (fetch_price_history
+    # default adjust_currency=True), so the Sharpe rf must use the same leg.
+    return _rf_cache.get_or_set(
+        "rf",
+        RISK_FREE_RATE_TTL_SECONDS,
+        lambda: fetch_risk_free_rate(currency=BASE_CURRENCY),
+    )
 
 
 def _result_payload(result: dict, asset_names: list[str]) -> PortfolioResult:

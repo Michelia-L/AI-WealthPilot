@@ -17,6 +17,7 @@ from src.data.market_data import (
     compute_correlation_matrix,
     get_latest_quotes,
     fetch_risk_free_rate,
+    fetch_risk_free_rate_detailed,
 )
 
 
@@ -368,3 +369,88 @@ class TestFetchRiskFreeRate:
 
         rate = fetch_risk_free_rate(fred_api_key=None, default_rate=0.045)
         assert rate == 0.045
+
+
+class TestFetchRiskFreeRateCNY:
+    """
+    Test suite for the CNY leg of fetch_risk_free_rate (phase 23).
+    akshare 中债国债 1 年期收益率 → 静态 2% 回退。
+    """
+
+    def _enable_akshare(self, monkeypatch, yield_value):
+        monkeypatch.setattr(
+            "src.data.market_data.akshare_provider.is_available", lambda: True
+        )
+        monkeypatch.setattr(
+            "src.data.market_data.akshare_provider.fetch_cgb_yield_1y",
+            lambda: yield_value,
+        )
+
+    def test_cny_leg_akshare_success(self, monkeypatch):
+        """CNY leg converts the akshare 1Y CGB yield (percent) to decimal."""
+        self._enable_akshare(monkeypatch, 1.85)
+
+        rate = fetch_risk_free_rate(currency="CNY")
+
+        assert rate == pytest.approx(0.0185)
+
+    def test_cny_leg_source_label(self, monkeypatch):
+        """Detailed variant reports the akshare source label."""
+        self._enable_akshare(monkeypatch, 1.85)
+
+        rate, source = fetch_risk_free_rate_detailed(currency="CNY")
+
+        assert rate == pytest.approx(0.0185)
+        assert source == "akshare_cgb_1y"
+
+    def test_cny_leg_akshare_none_falls_back(self, monkeypatch):
+        """No usable yield -> static CNY fallback (2%)."""
+        self._enable_akshare(monkeypatch, None)
+
+        rate, source = fetch_risk_free_rate_detailed(currency="CNY")
+
+        assert rate == 0.02
+        assert source == "static_fallback"
+
+    def test_cny_leg_akshare_error_falls_back(self, monkeypatch):
+        """Provider exception degrades silently to the static CNY fallback."""
+        monkeypatch.setattr(
+            "src.data.market_data.akshare_provider.is_available", lambda: True
+        )
+
+        def _boom():
+            raise RuntimeError("chinabond unreachable")
+
+        monkeypatch.setattr(
+            "src.data.market_data.akshare_provider.fetch_cgb_yield_1y", _boom
+        )
+
+        rate = fetch_risk_free_rate(currency="CNY")
+
+        assert rate == 0.02
+
+    def test_cny_leg_akshare_unavailable_falls_back(self, monkeypatch):
+        """Without the optional akshare package the static fallback applies
+        (is_available is already patched off by conftest)."""
+        rate = fetch_risk_free_rate(currency="CNY")
+        assert rate == 0.02
+
+    def test_cny_leg_custom_default(self, monkeypatch):
+        """An explicit default_rate overrides the CNY static fallback."""
+        rate = fetch_risk_free_rate(currency="CNY", default_rate=0.03)
+        assert rate == 0.03
+
+    @patch("src.data.market_data.requests.get")
+    def test_usd_leg_source_label(self, mock_get):
+        """USD leg is unchanged: FRED DGS3MO with its source label."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"observations": [{"value": "3.85"}]}
+        mock_get.return_value = mock_response
+
+        rate, source = fetch_risk_free_rate_detailed(
+            fred_api_key="mock_key", default_rate=0.045, currency="USD"
+        )
+
+        assert rate == 0.0385
+        assert source == "fred_api"

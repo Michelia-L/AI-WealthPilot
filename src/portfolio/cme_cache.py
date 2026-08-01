@@ -209,6 +209,7 @@ class CMECacheManager:
         inflation: float,
         asset_tickers: dict,
         iv_blending_tau: float,
+        base_currency: Optional[str] = None,
     ) -> str:
         """
         Compute a deterministic hash of CME computation parameters.
@@ -221,6 +222,9 @@ class CMECacheManager:
             inflation: Long-term inflation assumption.
             asset_tickers: Asset class → ticker mapping dict.
             iv_blending_tau: Bayesian blending weight.
+            base_currency: Currency basis of the return computation
+                (e.g. "CNY"). Included so caches computed under a
+                different currency basis invalidate naturally.
 
         Returns:
             8-character hex MD5 hash string.
@@ -234,6 +238,8 @@ class CMECacheManager:
         )
 
         content = f"{lookback_years}|{inflation}|{ticker_repr}|{iv_blending_tau}"
+        if base_currency is not None:
+            content += f"|{base_currency}"
         return hashlib.md5(content.encode()).hexdigest()[:8]
 
     # Private Helpers

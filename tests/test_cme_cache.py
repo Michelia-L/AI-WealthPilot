@@ -209,6 +209,21 @@ class TestCMECacheManager:
         assert h1 != h3
         assert h1 != h4
 
+    def test_compute_params_hash_changes_with_base_currency(self):
+        """Currency basis participates in the hash (phase 23): caches computed
+        under the old native-currency CME basis invalidate naturally."""
+        tickers = {"a": {"ticker": "SPY", "name": "US"}}
+        h_legacy = CMECacheManager.compute_params_hash(5, 0.025, tickers, 0.5)
+        h_usd = CMECacheManager.compute_params_hash(
+            5, 0.025, tickers, 0.5, base_currency="USD"
+        )
+        h_cny = CMECacheManager.compute_params_hash(
+            5, 0.025, tickers, 0.5, base_currency="CNY"
+        )
+
+        assert h_legacy != h_cny
+        assert h_usd != h_cny
+
     def test_corrupt_report_file_returns_none(
         self, manager: CMECacheManager, cache_dir: Path
     ):
