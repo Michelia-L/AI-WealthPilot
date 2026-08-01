@@ -2,7 +2,7 @@
 export const overview = {
   title: "财富驾驶舱",
   tagline:
-    "机构级财富管理方法论 × AI 智能体——从客户画像到投资建议书的完整工作流。",
+    "系统化财富管理方法论 × AI 智能体——从客户画像到投资建议书的完整工作流。",
   workbenchTitle: "工作台",
   monitoringOffender: (name: string, driftPp: number) =>
     `${name} 偏离 ${driftPp.toFixed(1)}pp`,

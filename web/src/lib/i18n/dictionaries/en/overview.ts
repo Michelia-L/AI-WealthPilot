@@ -2,7 +2,7 @@
 export const overview = {
   title: "The Advisor's Cockpit",
   tagline:
-    "Institutional-grade wealth management methodology × AI agents — the complete workflow from client profile to investment proposal.",
+    "Systematic wealth management methodology × AI agents — the complete workflow from client profile to investment proposal.",
   workbenchTitle: "Workbench",
   monitoringOffender: (name: string, driftPp: number) =>
     `${name} drifted ${driftPp.toFixed(1)}pp`,
