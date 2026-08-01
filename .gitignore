@@ -52,7 +52,6 @@ logs/
 *.whl
 
 # LLM Agent config
-AGENTS.md
 CLAUDE.md
 .claude/
 
