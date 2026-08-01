@@ -45,10 +45,10 @@ export const optimizer = {
   blConfig: "Black-Litterman Configuration",
   blTau: "τ (Uncertainty Scaling)",
   blDelta: "δ (Risk Aversion Coefficient)",
-  marketWeights: "Market-Cap Weights",
+  marketWeights: "Benchmark Weights",
   equalWeight: "Equal Weight (1/N)",
   customWeight: "Custom",
-  marketWeightAria: (name: string) => `${name} market-cap weight (%)`,
+  marketWeightAria: (name: string) => `${name} benchmark weight (%)`,
   investorViews: (n: number) => `Investor Views (${n})`,
   addView: "Add View",
   viewsEmptyHint:

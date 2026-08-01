@@ -41,10 +41,10 @@ export const optimizer = {
   blConfig: "Black-Litterman 配置",
   blTau: "τ（不确定性缩放）",
   blDelta: "δ（风险厌恶系数）",
-  marketWeights: "市值权重",
+  marketWeights: "基准权重",
   equalWeight: "等权（1/N）",
   customWeight: "自定义",
-  marketWeightAria: (name: string) => `${name} 市值权重（%）`,
+  marketWeightAria: (name: string) => `${name} 基准权重（%）`,
   investorViews: (n: number) => `投资者观点（${n}）`,
   addView: "添加观点",
   viewsEmptyHint:

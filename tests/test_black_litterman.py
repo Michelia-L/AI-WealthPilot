@@ -126,11 +126,12 @@ class TestImpliedEquilibriumReturns:
 
     def test_Pi_formula_correctness(self, bl_optimizer, market_cap_weights):
         """
-        Pi should equal δ × Σ × w_mkt.
-        Pi 应等于 δ × Σ × w_mkt。
+        Pi should equal R_f + δ × Σ × w_mkt (total-return basis).
+        Pi 应等于 R_f + δ × Σ × w_mkt（总收益口径）。
         """
         expected_Pi = (
-            bl_optimizer.delta
+            bl_optimizer.risk_free_rate
+            + bl_optimizer.delta
             * bl_optimizer.cov_matrix.values
             @ market_cap_weights
         )
@@ -140,8 +141,8 @@ class TestImpliedEquilibriumReturns:
 
     def test_Pi_linear_in_delta(self, sample_returns):
         """
-        Doubling delta should double Pi (linearity property).
-        使 delta 翻倍应该使 Pi 翻倍（线性性质）。
+        Doubling delta should double the excess part of Pi (Pi - R_f).
+        使 delta 翻倍应该使 Pi 的超额部分（Pi - R_f）翻倍。
         """
         weights = np.array([0.40, 0.25, 0.20, 0.15])
         opt1 = BlackLittermanOptimizer(
@@ -150,8 +151,10 @@ class TestImpliedEquilibriumReturns:
         opt2 = BlackLittermanOptimizer(
             sample_returns, market_cap_weights=weights, delta=4.0
         )
-        # Doubling delta should double Pi
-        np.testing.assert_array_almost_equal(opt2.Pi, 2.0 * opt1.Pi)
+        # The excess component doubles; the R_f offset is delta-independent
+        excess1 = opt1.Pi - opt1.risk_free_rate
+        excess2 = opt2.Pi - opt2.risk_free_rate
+        np.testing.assert_array_almost_equal(excess2, 2.0 * excess1)
 
     def test_Pi_finite_values(self, bl_optimizer):
         """

@@ -618,8 +618,9 @@ class PortfolioOptimizer:
 class BlackLittermanOptimizer(PortfolioOptimizer):
     """Black-Litterman optimizer: Bayesian blend of equilibrium and views.
 
-    Computes implied equilibrium returns from CAPM (Π = δΣw_mkt),
-    then combines with investor views via the BL posterior formula.
+    Computes implied equilibrium returns from CAPM (Π = R_f + δΣw_mkt,
+    total-return basis), then combines with investor views via the BL
+    posterior formula.
     """
 
     def __init__(
@@ -678,12 +679,17 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
         self.views_applied = False
 
     def implied_equilibrium_returns(self) -> np.ndarray:
-        """CAPM-implied equilibrium excess returns: Π = δΣw_mkt.
+        """CAPM-implied equilibrium returns, total-return basis: Π = R_f + δΣw_mkt.
+
+        Total-return basis keeps Π consistent with investor views Q (entered
+        as total returns in views.py) and with downstream Sharpe computation
+        (which subtracts R_f once in bl_portfolio_performance). The classic
+        excess-return form δΣw_mkt is recovered as Π - R_f.
 
         Returns:
-            Implied excess return vector (N,).
+            Implied total return vector (N,).
         """
-        return self.delta * self.cov_matrix.values @ self.market_cap_weights
+        return self.risk_free_rate + self.delta * self.cov_matrix.values @ self.market_cap_weights
 
     def bl_posterior_returns(
         self,
