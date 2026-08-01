@@ -12,6 +12,44 @@ from dataclasses import dataclass
 from typing import Union
 
 
+# Bilingual user-facing strings (validation errors/warnings surfaced through
+# the API as 422 details). zh keeps the Chinese half of the pre-i18n
+# bilingual wording; kept here rather than in api/i18n.py because src/ must
+# not import from the api/ transport shell.
+_VIEW_STRINGS: dict[str, dict[str, str]] = {
+    "invalid_views": {
+        "zh": "检测到无效观点: {errors}",
+        "en": "Invalid views detected: {errors}",
+    },
+    "relative_requires_short": {
+        "zh": "观点{k}：相对观点需要设置 'asset_short'。",
+        "en": "View {k}: relative view requires 'asset_short' to be set.",
+    },
+    "unknown_view_type": {
+        "zh": "未知观点类型：'{view_type}'。必须是 'absolute' 或 'relative'。",
+        "en": "Unknown view type: '{view_type}'. Must be 'absolute' or 'relative'.",
+    },
+    "multiple_absolute": {
+        "zh": "对{asset}有多个绝对观点。观点将按精度混合。",
+        "en": "Multiple absolute views on {asset}. Views will be blended by precision.",
+    },
+    "unknown_asset": {
+        "zh": "未知资产：'{asset}'。可用：{names}",
+        "en": "Unknown asset: '{asset}'. Available: {names}",
+    },
+    "confidence_out_of_range": {
+        "zh": "观点{k}：置信度{confidence}%超出[0, 100]范围。",
+        "en": "View {k}: confidence {confidence}% is outside [0, 100].",
+    },
+}
+
+
+def _vs(key: str, locale: str, **fmt) -> str:
+    """Render a bilingual view-processor string; unknown locales use zh."""
+    template = _VIEW_STRINGS[key].get(locale) or _VIEW_STRINGS[key]["zh"]
+    return template.format(**fmt) if fmt else template
+
+
 @dataclass
 class ViewInput:
     """Single investor view input.
@@ -43,14 +81,16 @@ class ViewInput:
 class ViewProcessor:
     """Process investor views into Black-Litterman model matrices (P, Q, Omega)."""
 
-    def __init__(self, asset_names: list[str]):
+    def __init__(self, asset_names: list[str], locale: str = "zh"):
         """Initialize the ViewProcessor.
 
         Args:
             asset_names: List of asset names in the portfolio universe.
+            locale: Language for validation errors/warnings ("zh" / "en").
         """
         self.asset_names = asset_names
         self.n_assets = len(asset_names)
+        self.locale = locale
         # Create mapping from asset name to index
         self.asset_to_idx = {name: idx for idx, name in enumerate(asset_names)}
 
@@ -73,12 +113,21 @@ class ViewProcessor:
         K = len(views)
         N = self.n_assets
 
-        # Validate views before processing
-        warnings = self.validate_views(views)
-        errors = [w for w in warnings if "Unknown asset" in w]
-        if errors:
+        # Validate views before processing. Unknown assets are detected
+        # directly (not by matching warning text) so the check is
+        # locale-independent.
+        unknown = [
+            _vs("unknown_asset", self.locale, asset=v.asset_long, names=self.asset_names)
+            for v in views
+            if v.asset_long not in self.asset_to_idx
+        ] + [
+            _vs("unknown_asset", self.locale, asset=v.asset_short, names=self.asset_names)
+            for v in views
+            if v.view_type == 'relative' and v.asset_short not in self.asset_to_idx
+        ]
+        if unknown:
             raise ValueError(
-                f"Invalid views detected / 检测到无效观点: {'; '.join(errors)}"
+                _vs("invalid_views", self.locale, errors="; ".join(unknown))
             )
 
         # Initialize P matrix and Q vector with zeros
@@ -97,8 +146,7 @@ class ViewProcessor:
                 # Relative view: P[k, long_idx] = 1, P[k, short_idx] = -1
                 if view.asset_short is None:
                     raise ValueError(
-                        f"View {k+1}: relative view requires 'asset_short' to be set. / "
-                        f"观点{k+1}：相对观点需要设置 'asset_short'。"
+                        _vs("relative_requires_short", self.locale, k=k + 1)
                     )
                 long_idx = self.asset_to_idx[view.asset_long]
                 short_idx = self.asset_to_idx[view.asset_short]
@@ -108,9 +156,7 @@ class ViewProcessor:
 
             else:
                 raise ValueError(
-                    f"Unknown view type: '{view.view_type}'. "
-                    f"Must be 'absolute' or 'relative'. / "
-                    f"未知观点类型：'{view.view_type}'。必须是 'absolute' 或 'relative'。"
+                    _vs("unknown_view_type", self.locale, view_type=view.view_type)
                 )
 
         # Construct Omega using Idzorek's confidence method
@@ -186,33 +232,39 @@ class ViewProcessor:
 
         for asset, count in asset_view_count.items():
             if count > 1:
-                warnings.append(
-                    f"Multiple absolute views on {asset}. "
-                    f"Views will be blended by precision. / "
-                    f"对{asset}有多个绝对观点。观点将按精度混合。"
-                )
+                warnings.append(_vs("multiple_absolute", self.locale, asset=asset))
 
         # Check for invalid asset names
         for v in views:
             if v.asset_long not in self.asset_to_idx:
                 warnings.append(
-                    f"Unknown asset: '{v.asset_long}'. "
-                    f"Available: {self.asset_names} / "
-                    f"未知资产：'{v.asset_long}'。可用：{self.asset_names}"
+                    _vs(
+                        "unknown_asset",
+                        self.locale,
+                        asset=v.asset_long,
+                        names=self.asset_names,
+                    )
                 )
             if v.view_type == 'relative' and v.asset_short not in self.asset_to_idx:
                 warnings.append(
-                    f"Unknown asset: '{v.asset_short}'. "
-                    f"Available: {self.asset_names} / "
-                    f"未知资产：'{v.asset_short}'。可用：{self.asset_names}"
+                    _vs(
+                        "unknown_asset",
+                        self.locale,
+                        asset=v.asset_short,
+                        names=self.asset_names,
+                    )
                 )
 
         # Check for invalid confidence values
         for i, v in enumerate(views):
             if not (0 <= v.confidence <= 100):
                 warnings.append(
-                    f"View {i+1}: confidence {v.confidence}% is outside [0, 100]. / "
-                    f"观点{i+1}：置信度{v.confidence}%超出[0, 100]范围。"
+                    _vs(
+                        "confidence_out_of_range",
+                        self.locale,
+                        k=i + 1,
+                        confidence=v.confidence,
+                    )
                 )
 
         return warnings

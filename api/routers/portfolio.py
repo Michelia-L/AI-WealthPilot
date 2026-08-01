@@ -160,7 +160,7 @@ def backtest_weights(
         + hashlib.sha1(
             sorted(req.weights.items()).__repr__().encode("utf-8")
         ).hexdigest()[:12]
-        + f":{req.period}:{req.annual_fee_rate}"
+        + f":{req.period}:{req.annual_fee_rate}:{locale}"
     )
 
     def _compute() -> PortfolioBacktestResponse:
@@ -170,6 +170,7 @@ def backtest_weights(
                 req.period,
                 annual_fee_rate=req.annual_fee_rate,
                 fee_source="manual",
+                locale=locale,
             )
         except InsufficientDataError as e:
             raise HTTPException(status_code=502, detail=str(e))
@@ -199,7 +200,7 @@ def backtest_weights(
     return _backtest_cache.get_or_set(cache_key, BACKTEST_TTL_SECONDS, _compute)
 
 
-def _resolve_asset_keys(requested: list[str]) -> list[str]:
+def _resolve_asset_keys(requested: list[str], locale: str = "zh") -> list[str]:
     """Filter requested keys to the known universe, preserving order."""
     seen: set[str] = set()
     keys: list[str] = []
@@ -210,8 +211,11 @@ def _resolve_asset_keys(requested: list[str]) -> list[str]:
     if len(keys) < 2:
         raise HTTPException(
             status_code=422,
-            detail="At least 2 valid asset classes are required. Valid keys: "
-            + ", ".join(DEFAULT_ASSET_CLASSES.keys()),
+            detail=msg(
+                "portfolio.min_assets",
+                locale,
+                keys=", ".join(DEFAULT_ASSET_CLASSES.keys()),
+            ),
         )
     return keys
 
@@ -298,7 +302,7 @@ def _resolve_risk_constraints(
         )
     tolerance_level = (record.data.get("risk_profile") or {}).get("tolerance_level") or ""
     try:
-        caps = caps_for_tolerance(tolerance_level)
+        caps = caps_for_tolerance(tolerance_level, locale)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     if req.method != "mvo":
@@ -362,7 +366,7 @@ def _run_mvo(
 
 
 def _run_bl(
-    returns: pd.DataFrame, req: OptimizeRequest
+    returns: pd.DataFrame, req: OptimizeRequest, locale: str = "zh"
 ) -> tuple[PortfolioOptimizer, dict, dict, dict, pd.DataFrame, pd.DataFrame, dict]:
     """Black-Litterman optimization. Requires at least one view."""
     bl_cfg = req.bl
@@ -370,11 +374,10 @@ def _run_bl(
     if not views:
         raise HTTPException(
             status_code=422,
-            detail="Black-Litterman requires at least one investor view "
-            "(bl.views must be non-empty).",
+            detail=msg("portfolio.bl_requires_view", locale),
         )
 
-    keys = _resolve_asset_keys(req.assets)
+    keys = _resolve_asset_keys(req.assets, locale)
     names = [DEFAULT_ASSET_CLASSES[k]["name"] for k in keys]
     name_of = dict(zip(keys, names))
 
@@ -405,7 +408,7 @@ def _run_bl(
         for v in views
     ]
     try:
-        optimizer.apply_views(view_inputs)
+        optimizer.apply_views(view_inputs, locale=locale)
         max_sharpe = optimizer.bl_maximize_sharpe(allow_short=req.allow_short)
         min_vol = optimizer.bl_minimize_volatility(allow_short=req.allow_short)
         frontier = optimizer.bl_efficient_frontier(
@@ -444,7 +447,7 @@ def _prepare_optimize(
     req: OptimizeRequest, locale: str = "zh"
 ) -> tuple[list[str], pd.DataFrame, float]:
     """Resolve asset keys, fetch returns (TTL-cached) and the risk-free rate."""
-    keys = _resolve_asset_keys(req.assets)
+    keys = _resolve_asset_keys(req.assets, locale)
     returns = _fetch_returns(keys, req.period, locale)
     rf = _effective_risk_free_rate(req.risk_free_rate)
     return keys, returns, rf
@@ -469,7 +472,7 @@ def _solve_optimize(
 
     if req.method == "black-litterman":
         optimizer, selected, max_sharpe, min_vol, frontier, random_ports, bl_extra = (
-            _run_bl(returns, req)
+            _run_bl(returns, req, locale)
         )
     else:
         optimizer, selected, max_sharpe, min_vol, frontier, random_ports, bl_extra = (
@@ -589,12 +592,11 @@ async def optimize_async(
     locale = get_request_locale(request)
     # Validate everything that doesn't need market data up front, so bad
     # requests fail fast with 422 instead of surfacing on the event stream.
-    _resolve_asset_keys(req.assets)
+    _resolve_asset_keys(req.assets, locale)
     if req.method == "black-litterman" and not (req.bl and req.bl.views):
         raise HTTPException(
             status_code=422,
-            detail="Black-Litterman requires at least one investor view "
-            "(bl.views must be non-empty).",
+            detail=msg("portfolio.bl_requires_view", locale),
         )
     # Profile lookup + cap resolution happen here, not in the executor.
     risk_info = _resolve_risk_constraints(req, session, locale)

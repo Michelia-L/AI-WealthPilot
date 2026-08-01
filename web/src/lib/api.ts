@@ -507,13 +507,13 @@ export const getProfile = (id: number) =>
 
 export interface QuestionnaireOption {
   key: string;
-  label: string; // bilingual "English / 中文"
+  label: string; // locale-resolved by the API (X-Locale)
   score: number; // 1-5 — client live preview only; server recomputes on save
 }
 
 export interface QuestionnaireQuestion {
   key: string;
-  question: string; // bilingual
+  question: string; // locale-resolved by the API
   options: QuestionnaireOption[];
 }
 
@@ -522,8 +522,8 @@ export interface QuestionnaireResponse {
   willingness: QuestionnaireQuestion[];
 }
 
-export const getQuestionnaire = () =>
-  getJson<QuestionnaireResponse>("/api/profiles/questionnaire");
+export const getQuestionnaire = (locale?: string) =>
+  getJson<QuestionnaireResponse>("/api/profiles/questionnaire", locale);
 
 // ---------------------------------------------------------------------------
 // Profile comparison + behavioral biases (Phase 5c)

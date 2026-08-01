@@ -30,7 +30,7 @@ RISK_LEVEL_CAPS: dict[str, dict[str, float]] = {
 }
 
 
-def caps_for_tolerance(tolerance_level: str) -> dict[str, float]:
+def caps_for_tolerance(tolerance_level: str, locale: str = "zh") -> dict[str, float]:
     """Resolve a bilingual tolerance label to its group caps.
 
     Matches on the Chinese level stem (保守/稳健/平衡/成长/进取) so both
@@ -38,6 +38,7 @@ def caps_for_tolerance(tolerance_level: str) -> dict[str, float]:
 
     Args:
         tolerance_level: e.g. "Moderately Conservative / 稳健型".
+        locale: Language for the ValueError message ("zh" / "en").
 
     Returns:
         A copy of the group's cap dict, e.g. {"equity": 0.3, "alternative": 0.15}.
@@ -50,6 +51,8 @@ def caps_for_tolerance(tolerance_level: str) -> dict[str, float]:
         # "保守型"[:-1] == "保守": the stem also matches the full "保守型".
         if level_key[:-1] in text:
             return dict(caps)
+    if locale == "en":
+        raise ValueError(f"Unrecognized risk tolerance level: {tolerance_level!r}")
     raise ValueError(f"无法识别的风险等级: {tolerance_level!r}")
 
 

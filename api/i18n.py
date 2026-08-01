@@ -169,6 +169,14 @@ _MESSAGES: dict[str, dict[str, dict[str, str]]] = {
             "zh": "优化失败: {error}",
             "en": "Optimization failed: {error}",
         },
+        "bl_requires_view": {
+            "zh": "Black-Litterman 需要至少一条投资者观点（bl.views 不能为空）。",
+            "en": "Black-Litterman requires at least one investor view (bl.views must be non-empty).",
+        },
+        "min_assets": {
+            "zh": "至少需要 2 个有效资产类别。可选：{keys}",
+            "en": "At least 2 valid asset classes are required. Valid keys: {keys}",
+        },
     },
     "profiles": {
         "ids_not_integers": {

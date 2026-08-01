@@ -371,13 +371,13 @@ class QuestionnaireOption(BaseModel):
     still recomputes authoritatively from the submitted answers."""
 
     key: str
-    label: str = Field(description="Bilingual 'English / 中文' label")
+    label: str = Field(description="Locale-resolved option label")
     score: int = Field(ge=1, le=5)
 
 
 class QuestionnaireQuestion(BaseModel):
     key: str
-    question: str = Field(description="Bilingual 'English / 中文' question text")
+    question: str = Field(description="Locale-resolved question text")
     options: list[QuestionnaireOption]
 
 

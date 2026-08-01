@@ -294,7 +294,33 @@ class TestViewProcessor:
         )
         warnings = view_processor.validate_views([view])
         assert len(warnings) > 0
+        # Default locale is Chinese-only (no legacy bilingual blend).
+        assert "未知资产" in warnings[0]
+
+    def test_validate_views_invalid_asset_en(self):
+        """English locale produces English-only warnings."""
+        vp = ViewProcessor(['US_EQ', 'INTL_EQ', 'BONDS', 'GOLD'], locale="en")
+        view = ViewInput(
+            view_type='absolute', asset_long='INVALID',
+            expected_return=0.15, confidence=70.0
+        )
+        warnings = vp.validate_views([view])
+        assert len(warnings) > 0
         assert "Unknown asset" in warnings[0]
+
+    def test_unknown_asset_error_locale(self):
+        """generate_P_Q_omega raises in the processor's locale."""
+        view = ViewInput(
+            view_type='absolute', asset_long='INVALID',
+            expected_return=0.15, confidence=70.0
+        )
+        cov = pd.DataFrame(np.eye(4) * 0.04)
+        vp_zh = ViewProcessor(['US_EQ', 'INTL_EQ', 'BONDS', 'GOLD'])
+        with pytest.raises(ValueError, match="检测到无效观点"):
+            vp_zh.generate_P_Q_omega([view], cov)
+        vp_en = ViewProcessor(['US_EQ', 'INTL_EQ', 'BONDS', 'GOLD'], locale="en")
+        with pytest.raises(ValueError, match="Invalid views detected"):
+            vp_en.generate_P_Q_omega([view], cov)
 
 
 class TestBlackLittermanPosterior:

@@ -187,6 +187,7 @@ def get_backtest(
                 period,
                 annual_fee_rate=fee_rate,
                 fee_source="ips_fee_schedule",
+                locale=locale,
             )
         except InsufficientDataError as e:
             raise HTTPException(status_code=502, detail=str(e))

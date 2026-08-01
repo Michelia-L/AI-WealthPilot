@@ -126,14 +126,18 @@ AI 顾问/调仓建议等流式生成等待数十秒，期间只看着正文逐�
 
 **为什么不自动读 cookie**：`lib/api.ts` 同时在客户端模块图（`dashboard-controls.tsx`、`retirement-workspace.tsx` 从它导入 `PERIOD_OPTIONS` / `SIMULATION_OPTIONS` 等运行时常量），任何对 `lib/i18n/server.ts`（`next/headers`）的引用——包括 `typeof window` 守卫的动态 `import()`——都会让 Turbopack 把 `next/headers` 打进客户端图，构建直接报错（实测日志佐证）。故 locale 只能由 RSC 调用方显式传入；**新增 RSC 数据函数如需本地化文案，遵循同样的"调用方传 locale"模式**。彻底解法是拆 server-only 数据层（约 15 个 import 改动），暂不必要。
 
-### P22-i18n-2 · 回测/BL 观点/风险约束的 src 异常文案仍仅中文
+### ~~P22-i18n-2 · 回测/BL 观点/风险约束的 src 异常文案仍仅中文~~（已解决）
 
-step 3 按授权范围只双语化了路由静态文案、SSE 消息与监控（`src/portfolio/monitoring.py`）备注。以下经 `detail=str(e)` 透出的 src 异常仍为中文（en 请求的 422/502 会带中文）：
+**解决方式（2026-08-01）**：按 monitoring 同款模式落地——src 模块内双语表 + `locale: str = "zh"` 参数（zh 保持既有中文逐字，测试里的中文字面断言靠默认值兼容），路由经 `get_request_locale(request)` 透传：
 
-- `src/portfolio/backtest.py`：`run_backtest` 的 6 条 `InsufficientDataError`/`ValueError`、约 10 条 `notes`、3 个压力测试情景名（"2020 新冠"等）与基准名"基准"。
-- `src/portfolio/views.py`：BL 观点校验 7 条 `ValueError`（经 `_run_bl` → 422）。
-- `src/portfolio/risk_constraints.py`：`caps_for_tolerance` 的"无法识别的风险等级"（经 `_resolve_risk_constraints` → 422）。
+- `src/portfolio/backtest.py`：7 条异常、全部 `notes`（费率截断/费后口径/剔除资产/压力测试跳过）、3 个压力情景名（`STRESS_SCENARIOS` 改为 key + `_STRESS_NAMES` 双语表）、组合/基准标签与费用来源标签双语化；`run_backtest`/`_normalized`/`_drop_sparse_assets`/`_run_stress_scenarios` 加 `locale` 参数。组合回测缓存键补 `:{locale}`（与监控回测既有约定一致）。
+- `src/portfolio/views.py`：`ViewProcessor(asset_names, locale)`；3 条 `ValueError` + 3 类警告双语化；未知资产的错误探测从「匹配警告文本」改为直接检测（与 locale 解耦）。`optimizer.apply_views(views, locale)` 透传。
+- `src/portfolio/risk_constraints.py`：`caps_for_tolerance(tolerance_level, locale)`。
+- 顺带双语化两处英文-only 路由文案：`portfolio.bl_requires_view`、`portfolio.min_assets`（入 `api/i18n.py`）。
+- **同日顺带关闭：风险问卷混排**。`src/agents/profiler.py` 的 `RISK_ABILITY/WILLINGNESS_QUESTIONS` 题目/选项改为 `{zh, en}` 结构（删除半截的 `question_en` 残留）；`GET /profiles/questionnaire` 按请求 locale 出单语言文本；前端 `getQuestionnaire(locale)`（RSC 调用方传 locale，`router.refresh()` 后自动重取）。算分只读 option key/score，不受影响。
+- 新增测试：问卷 zh/en 端点、backtest 引擎 en（异常/notes/情景名）、监控回测 en 端对端、ViewProcessor 双 locale、caps_for_tolerance en、异步优化 en 422。
 
-修复方向：与 monitoring 相同的模式——函数加 `locale: str = "zh"` 参数、模块内双语表，路由透传；注意 `test_backtest.py`/`test_black_litterman.py` 有大量中文字面断言，靠默认值保持兼容。
+**仍按设计不随请求 locale 切换**（如产品要求 en 用户全英文，需单独立项——涉及文档生成语言策略，不只是传输层）：
 
-另外 LLM 相关产物按设计不随请求 locale 切换：IPS/报告文档（`src/agents/ips_storage.py`、`report_storage.py` 的 Markdown/PDF 渲染，约 250 条中文模板串）、LLM prompt（`ips_agents.py`、`advisor.py`、`rebalance_advisor.py`）、`src/agents/ips_workflow.py` 的 SAA 校验 error_message（约 15 条，会作为 SSE error message 透出）。如产品要求 en 用户全英文，需要单独立项（涉及文档生成语言策略，不只是传输层）。
+- LLM 相关产物：IPS/报告文档（`src/agents/ips_storage.py`、`report_storage.py` 的 Markdown/PDF 渲染，约 250 条中文模板串）、LLM prompt（`ips_agents.py`、`advisor.py`、`rebalance_advisor.py`）、`src/agents/ips_workflow.py` 的 SAA 校验 error_message（约 15 条，会作为 SSE error message 透出）。
+- profiler 的其余硬编码双语串：行为偏差（`identify_behavioral_biases`）、画像对比洞察（`_generate_comparison_insights`/`format_comparison_report`）、`format_ratio` 的「∞ (无资产但有负债)」（经 `build_derived` 透出到画像详情页）。风险等级标签（`RISK_LEVEL_LABELS`）作为持久化数据保持双语存储，前端经 `localizedRiskLabel` 按 locale 显示，属既有设计。

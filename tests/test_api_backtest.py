@@ -148,6 +148,20 @@ def test_backtest_document_not_found(client):
     assert client.get("/api/monitoring/..%2F..%2Fsecret/backtest").status_code == 404
 
 
+def test_backtest_en_locale(bare_client, ips_dir, monkeypatch):
+    """No X-Locale header -> English-only scenario names and notes (P22)."""
+    _stub_market(monkeypatch)
+    doc_id = _write_ips_doc(ips_dir, "ips_bt_en_20260601_093000", [
+        _saa_entry("国内权益（A股/沪深300）", 0.6, 0.5, 0.7),
+        _saa_entry("固定收益", 0.4, 0.3, 0.5),
+    ])
+    resp = bare_client.get(f"/api/monitoring/{doc_id}/backtest?period=5y")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["stress"][0]["scenario"] == "2020 COVID Crash"
+    assert any("2022 Rate Shock" in n for n in body["notes"])
+
+
 def test_backtest_invalid_period_422(client, ips_dir, monkeypatch):
     _stub_market(monkeypatch)
     doc_id = _write_ips_doc(ips_dir, "ips_bt_period_20260601_093000", [

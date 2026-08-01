@@ -327,3 +327,48 @@ def test_fee_notes_disclose_net_basis(monkeypatch):
         for n in result["notes"]
     )
     assert any("压力测试" in n and "未计费用" in n for n in result["notes"])
+
+
+# ---------------------------------------------------------------------------
+# Locale (P22-i18n-2): zh default verbatim, en fully English
+# ---------------------------------------------------------------------------
+
+
+def test_invalid_period_error_locale(monkeypatch):
+    """The invalid-period ValueError follows the locale argument."""
+    with pytest.raises(ValueError, match="不支持的回测区间"):
+        run_backtest({"AAA": 1.0}, "7y")
+    with pytest.raises(ValueError, match="Unsupported backtest period"):
+        run_backtest({"AAA": 1.0}, "7y", locale="en")
+
+
+def test_empty_prices_error_locale(monkeypatch):
+    """InsufficientDataError messages are English-only under locale='en'."""
+    monkeypatch.setattr(backtest, "fetch_price_history", lambda **kw: pd.DataFrame())
+    with pytest.raises(InsufficientDataError, match="行情数据为空"):
+        run_backtest({"AAA": 1.0}, "1y")
+    with pytest.raises(InsufficientDataError, match="Price history is empty"):
+        run_backtest({"AAA": 1.0}, "1y", locale="en")
+
+
+def test_stress_scenario_names_and_notes_locale(monkeypatch):
+    """Stress names and skip notes render in the requested locale."""
+    dates = pd.bdate_range("2019-06-03", periods=700)  # covers COVID window only
+    d = np.arange(700, dtype=float)
+    df = pd.DataFrame(
+        {"AAA": 100.0 * np.cumprod(1.0 + 0.0006 + 0.008 * np.sin(d / 7.0))},
+        index=dates,
+    )
+    _stub(monkeypatch, df)
+
+    zh = run_backtest({"AAA": 1.0}, "1y", benchmark_weights={"AAA": 1.0})
+    assert zh["stress"][0]["scenario"] == "2020 新冠"
+    assert any("2022 加息冲击" in n for n in zh["notes"])
+    assert any("未计入费用拖累" in n for n in zh["notes"])
+
+    en = run_backtest({"AAA": 1.0}, "1y", benchmark_weights={"AAA": 1.0}, locale="en")
+    assert en["stress"][0]["scenario"] == "2020 COVID Crash"
+    assert any("2022 Rate Shock" in n for n in en["notes"])
+    assert any("No fee drag" in n for n in en["notes"])
+    # No Chinese residue anywhere in the English notes.
+    assert all(not any("一" <= ch <= "鿿" for ch in n) for n in en["notes"])

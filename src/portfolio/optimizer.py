@@ -729,14 +729,15 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
         Sigma_bl = Sigma + M
         return mu_bl, Sigma_bl
 
-    def apply_views(self, views: list) -> None:
+    def apply_views(self, views: list, locale: str = "zh") -> None:
         """Apply investor views to compute BL posterior.
 
         Args:
             views: List of ViewInput objects from src.portfolio.views.
+            locale: Language for view-validation errors ("zh" / "en").
         """
         from src.portfolio.views import ViewProcessor
-        view_processor = ViewProcessor(self.asset_names)
+        view_processor = ViewProcessor(self.asset_names, locale)
         P, Q, Omega = view_processor.generate_P_Q_omega(
             views, self.cov_matrix, self.tau
         )

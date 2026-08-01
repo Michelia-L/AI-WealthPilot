@@ -96,6 +96,20 @@ def test_async_eager_validation(client, fake_optimize):
     assert resp.status_code == 422
 
 
+def test_async_eager_validation_en(bare_client, fake_optimize):
+    """Eager 422 details are English without an X-Locale header (P22)."""
+    resp = bare_client.post(
+        "/api/portfolio/optimize/async",
+        json=_async_body(method="black-litterman", bl=None),
+    )
+    assert resp.status_code == 422
+    assert "at least one investor view" in resp.json()["detail"]
+
+    resp = bare_client.post("/api/portfolio/optimize/async", json=_async_body(assets=["NOPE"]))
+    assert resp.status_code == 422
+    assert "At least 2 valid asset classes" in resp.json()["detail"]
+
+
 def test_async_http_error_becomes_error_event(client, monkeypatch):
     from fastapi import HTTPException
 

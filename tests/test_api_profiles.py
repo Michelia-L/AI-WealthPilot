@@ -184,6 +184,26 @@ def test_questionnaire_endpoint_mirrors_src(client):
     assert all(1 <= o["score"] <= 5 for q in body["ability"] for o in q["options"])
 
 
+def test_questionnaire_serves_request_locale(client, bare_client):
+    """zh sees Chinese-only text; en (no X-Locale) sees English-only — no blend."""
+    zh = client.get("/api/profiles/questionnaire").json()
+    assert zh["ability"][0]["question"] == "你目前的收入有多稳定？"
+    assert zh["ability"][0]["options"][0]["label"] == "很不稳定"
+    assert zh["willingness"][0]["question"] == "如果你的组合一个月内下跌20%，你会："
+
+    en = bare_client.get("/api/profiles/questionnaire").json()
+    assert en["ability"][0]["question"] == "How stable is your current income?"
+    assert en["ability"][0]["options"][0]["label"] == "Very unstable (freelance, variable)"
+    assert en["willingness"][0]["question"] == "If your portfolio dropped 20% in a month, you would:"
+    # No Chinese residue in any English question/option text.
+    for track in ("ability", "willingness"):
+        for q in en[track]:
+            assert not any("一" <= ch <= "鿿" for ch in q["question"])
+            assert all(
+                not any("一" <= ch <= "鿿" for ch in o["label"]) for o in q["options"]
+            )
+
+
 def test_answers_derive_scores_and_override_manual(client):
     """Non-empty answers win over manual risk_scores on save."""
     resp = client.post(

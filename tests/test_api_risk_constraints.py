@@ -105,6 +105,14 @@ def test_caps_for_tolerance_unknown_level():
         caps_for_tolerance("Unknown / 未知等级")
 
 
+def test_caps_for_tolerance_error_locale():
+    """The ValueError message follows the locale argument (zh default)."""
+    with pytest.raises(ValueError, match="无法识别的风险等级"):
+        caps_for_tolerance("Unknown / 未知等级")
+    with pytest.raises(ValueError, match="Unrecognized risk tolerance level"):
+        caps_for_tolerance("Unknown / 未知等级", locale="en")
+
+
 def test_build_group_constraints_filters_to_selected():
     constraints = build_group_constraints(
         {"equity": 0.15, "alternative": 0.10},

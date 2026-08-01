@@ -183,100 +183,129 @@ class ClientProfile:
         return "\n".join(lines)
 
 
-# Question options with corresponding scores
+# Question options with corresponding scores. Question/option text is
+# per-locale ({zh, en}); the API layer (api/routers/profiles.py) resolves the
+# request locale when serving the questionnaire, so each audience sees
+# single-language text instead of the legacy "English / 中文" blend.
 RISK_ABILITY_QUESTIONS = {
     "income_stability": {
-        "question": "How stable is your current income? / 你目前的收入有多稳定？",
-        "question_en": "How stable is your current income?",
+        "question": {
+            "zh": "你目前的收入有多稳定？",
+            "en": "How stable is your current income?",
+        },
         "options": {
-            "very_unstable": {"label": "Very unstable (freelance, variable) / 很不稳定", "score": 1},
-            "somewhat_unstable": {"label": "Somewhat unstable / 不太稳定", "score": 2},
-            "moderate": {"label": "Moderately stable / 一般稳定", "score": 3},
-            "stable": {"label": "Stable (fixed salary) / 稳定", "score": 4},
-            "very_stable": {"label": "Very stable (tenured, government) / 非常稳定", "score": 5},
+            "very_unstable": {"label": {"zh": "很不稳定", "en": "Very unstable (freelance, variable)"}, "score": 1},
+            "somewhat_unstable": {"label": {"zh": "不太稳定", "en": "Somewhat unstable"}, "score": 2},
+            "moderate": {"label": {"zh": "一般稳定", "en": "Moderately stable"}, "score": 3},
+            "stable": {"label": {"zh": "稳定", "en": "Stable (fixed salary)"}, "score": 4},
+            "very_stable": {"label": {"zh": "非常稳定", "en": "Very stable (tenured, government)"}, "score": 5},
         },
     },
     "investment_knowledge": {
-        "question": "How would you rate your investment knowledge? / 你的投资知识水平如何？",
+        "question": {
+            "zh": "你的投资知识水平如何？",
+            "en": "How would you rate your investment knowledge?",
+        },
         "options": {
-            "none": {"label": "No knowledge / 无知识", "score": 1},
-            "limited": {"label": "Limited / 有限", "score": 2},
-            "moderate": {"label": "Moderate / 中等", "score": 3},
-            "good": {"label": "Good / 良好", "score": 4},
-            "expert": {"label": "Expert / 专家", "score": 5},
+            "none": {"label": {"zh": "无知识", "en": "No knowledge"}, "score": 1},
+            "limited": {"label": {"zh": "有限", "en": "Limited"}, "score": 2},
+            "moderate": {"label": {"zh": "中等", "en": "Moderate"}, "score": 3},
+            "good": {"label": {"zh": "良好", "en": "Good"}, "score": 4},
+            "expert": {"label": {"zh": "专家", "en": "Expert"}, "score": 5},
         },
     },
     "investment_experience": {
-        "question": "How many years of investment experience do you have? / 你有多少年投资经验？",
+        "question": {
+            "zh": "你有多少年投资经验？",
+            "en": "How many years of investment experience do you have?",
+        },
         "options": {
-            "none": {"label": "None / 无", "score": 1},
-            "1_3": {"label": "1-3 years / 1-3年", "score": 2},
-            "3_5": {"label": "3-5 years / 3-5年", "score": 3},
-            "5_10": {"label": "5-10 years / 5-10年", "score": 4},
-            "10_plus": {"label": "10+ years / 10年以上", "score": 5},
+            "none": {"label": {"zh": "无", "en": "None"}, "score": 1},
+            "1_3": {"label": {"zh": "1-3年", "en": "1-3 years"}, "score": 2},
+            "3_5": {"label": {"zh": "3-5年", "en": "3-5 years"}, "score": 3},
+            "5_10": {"label": {"zh": "5-10年", "en": "5-10 years"}, "score": 4},
+            "10_plus": {"label": {"zh": "10年以上", "en": "10+ years"}, "score": 5},
         },
     },
     "emergency_fund": {
-        "question": "How many months of expenses does your emergency fund cover? / 你的应急基金能覆盖几个月的支出？",
+        "question": {
+            "zh": "你的应急基金能覆盖几个月的支出？",
+            "en": "How many months of expenses does your emergency fund cover?",
+        },
         "options": {
-            "none": {"label": "None / 没有", "score": 1},
-            "1_3": {"label": "1-3 months / 1-3个月", "score": 2},
-            "3_6": {"label": "3-6 months / 3-6个月", "score": 3},
-            "6_12": {"label": "6-12 months / 6-12个月", "score": 4},
-            "12_plus": {"label": "12+ months / 12个月以上", "score": 5},
+            "none": {"label": {"zh": "没有", "en": "None"}, "score": 1},
+            "1_3": {"label": {"zh": "1-3个月", "en": "1-3 months"}, "score": 2},
+            "3_6": {"label": {"zh": "3-6个月", "en": "3-6 months"}, "score": 3},
+            "6_12": {"label": {"zh": "6-12个月", "en": "6-12 months"}, "score": 4},
+            "12_plus": {"label": {"zh": "12个月以上", "en": "12+ months"}, "score": 5},
         },
     },
     "income_vs_expenses": {
-        "question": "What is your income relative to expenses? / 你的收入相对于支出如何？",
+        "question": {
+            "zh": "你的收入相对于支出如何？",
+            "en": "What is your income relative to expenses?",
+        },
         "options": {
-            "deficit": {"label": "Expenses > Income / 支出大于收入", "score": 1},
-            "breakeven": {"label": "About equal / 基本持平", "score": 2},
-            "moderate_surplus": {"label": "20-50% surplus / 20-50%盈余", "score": 3},
-            "good_surplus": {"label": "50-100% surplus / 50-100%盈余", "score": 4},
-            "high_surplus": {"label": "100%+ surplus / 100%以上盈余", "score": 5},
+            "deficit": {"label": {"zh": "支出大于收入", "en": "Expenses > Income"}, "score": 1},
+            "breakeven": {"label": {"zh": "基本持平", "en": "About equal"}, "score": 2},
+            "moderate_surplus": {"label": {"zh": "20-50%盈余", "en": "20-50% surplus"}, "score": 3},
+            "good_surplus": {"label": {"zh": "50-100%盈余", "en": "50-100% surplus"}, "score": 4},
+            "high_surplus": {"label": {"zh": "100%以上盈余", "en": "100%+ surplus"}, "score": 5},
         },
     },
 }
 
 RISK_WILLINGNESS_QUESTIONS = {
     "loss_reaction": {
-        "question": "If your portfolio dropped 20% in a month, you would: / 如果你的组合一个月内下跌20%，你会：",
+        "question": {
+            "zh": "如果你的组合一个月内下跌20%，你会：",
+            "en": "If your portfolio dropped 20% in a month, you would:",
+        },
         "options": {
-            "sell_all": {"label": "Sell everything / 全部卖出", "score": 1},
-            "sell_some": {"label": "Sell some / 卖出一部分", "score": 2},
-            "do_nothing": {"label": "Do nothing / 不动", "score": 3},
-            "buy_more": {"label": "Buy more / 加仓", "score": 4},
-            "aggressively_buy": {"label": "Aggressively buy more / 大幅加仓", "score": 5},
+            "sell_all": {"label": {"zh": "全部卖出", "en": "Sell everything"}, "score": 1},
+            "sell_some": {"label": {"zh": "卖出一部分", "en": "Sell some"}, "score": 2},
+            "do_nothing": {"label": {"zh": "不动", "en": "Do nothing"}, "score": 3},
+            "buy_more": {"label": {"zh": "加仓", "en": "Buy more"}, "score": 4},
+            "aggressively_buy": {"label": {"zh": "大幅加仓", "en": "Aggressively buy more"}, "score": 5},
         },
     },
     "volatility_comfort": {
-        "question": "Which investment outcome would you be most comfortable with? / 你最能接受哪种投资结果？",
+        "question": {
+            "zh": "你最能接受哪种投资结果？",
+            "en": "Which investment outcome would you be most comfortable with?",
+        },
         "options": {
-            "low_low": {"label": "Low return (3%), low risk / 低收益(3%)低风险", "score": 1},
-            "moderate_low": {"label": "Moderate return (6%), low risk / 中收益(6%)低风险", "score": 2},
-            "moderate": {"label": "Moderate return (8%), moderate risk / 中收益(8%)中风险", "score": 3},
-            "high_moderate": {"label": "High return (12%), moderate risk / 高收益(12%)中风险", "score": 4},
-            "very_high": {"label": "Very high return (15%+), high risk / 很高收益(15%+)高风险", "score": 5},
+            "low_low": {"label": {"zh": "低收益(3%)低风险", "en": "Low return (3%), low risk"}, "score": 1},
+            "moderate_low": {"label": {"zh": "中收益(6%)低风险", "en": "Moderate return (6%), low risk"}, "score": 2},
+            "moderate": {"label": {"zh": "中收益(8%)中风险", "en": "Moderate return (8%), moderate risk"}, "score": 3},
+            "high_moderate": {"label": {"zh": "高收益(12%)中风险", "en": "High return (12%), moderate risk"}, "score": 4},
+            "very_high": {"label": {"zh": "很高收益(15%+)高风险", "en": "Very high return (15%+), high risk"}, "score": 5},
         },
     },
     "gambling_scenario": {
-        "question": "You are given $10,000. Would you take a coin flip: double or nothing? / 给你1万元，你愿意掷硬币：翻倍或全输？",
+        "question": {
+            "zh": "给你1万元，你愿意掷硬币：翻倍或全输？",
+            "en": "You are given $10,000. Would you take a coin flip: double or nothing?",
+        },
         "options": {
-            "definitely_no": {"label": "Definitely not / 绝对不会", "score": 1},
-            "probably_no": {"label": "Probably not / 可能不会", "score": 2},
-            "maybe": {"label": "Maybe / 可能", "score": 3},
-            "probably_yes": {"label": "Probably yes / 可能会", "score": 4},
-            "definitely_yes": {"label": "Definitely yes / 一定会", "score": 5},
+            "definitely_no": {"label": {"zh": "绝对不会", "en": "Definitely not"}, "score": 1},
+            "probably_no": {"label": {"zh": "可能不会", "en": "Probably not"}, "score": 2},
+            "maybe": {"label": {"zh": "可能", "en": "Maybe"}, "score": 3},
+            "probably_yes": {"label": {"zh": "可能会", "en": "Probably yes"}, "score": 4},
+            "definitely_yes": {"label": {"zh": "一定会", "en": "Definitely yes"}, "score": 5},
         },
     },
     "tracking_error_tolerance": {
-        "question": "How much short-term underperformance vs benchmark can you tolerate? / 你能容忍多少短期跑输基准？",
+        "question": {
+            "zh": "你能容忍多少短期跑输基准？",
+            "en": "How much short-term underperformance vs benchmark can you tolerate?",
+        },
         "options": {
-            "minimal": {"label": "< 2% / 不超过2%", "score": 1},
-            "low": {"label": "2-5%", "score": 2},
-            "moderate": {"label": "5-10%", "score": 3},
-            "high": {"label": "10-15%", "score": 4},
-            "very_high": {"label": "15%+ / 超过15%", "score": 5},
+            "minimal": {"label": {"zh": "不超过2%", "en": "< 2%"}, "score": 1},
+            "low": {"label": {"zh": "2-5%", "en": "2-5%"}, "score": 2},
+            "moderate": {"label": {"zh": "5-10%", "en": "5-10%"}, "score": 3},
+            "high": {"label": {"zh": "10-15%", "en": "10-15%"}, "score": 4},
+            "very_high": {"label": {"zh": "超过15%", "en": "15%+"}, "score": 5},
         },
     },
 }

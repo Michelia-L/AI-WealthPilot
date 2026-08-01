@@ -60,14 +60,22 @@ def _get_or_404(profile_id: int, session: Session, locale: str) -> ProfileRecord
     return record
 
 
-def _build_track(questions: dict) -> list[QuestionnaireQuestion]:
-    """Flatten one src/ question dict into response models (order preserved)."""
+def _build_track(questions: dict, locale: str) -> list[QuestionnaireQuestion]:
+    """Flatten one src/ question dict into response models (order preserved).
+
+    Question/option text is per-locale in src; unknown locales fall back to
+    zh so the track is never left textless.
+    """
     return [
         QuestionnaireQuestion(
             key=q_key,
-            question=q_data["question"],
+            question=q_data["question"].get(locale) or q_data["question"]["zh"],
             options=[
-                QuestionnaireOption(key=o_key, label=o["label"], score=o["score"])
+                QuestionnaireOption(
+                    key=o_key,
+                    label=o["label"].get(locale) or o["label"]["zh"],
+                    score=o["score"],
+                )
                 for o_key, o in q_data["options"].items()
             ],
         )
@@ -121,15 +129,17 @@ def create_profile(
 # NOTE: declared before /{profile_id} — FastAPI matches routes in order, so
 # the literal "questionnaire" segment must win over the int parameter.
 @router.get("/questionnaire", response_model=QuestionnaireResponse)
-def get_questionnaire() -> QuestionnaireResponse:
+def get_questionnaire(request: Request) -> QuestionnaireResponse:
     """9-question dual-track risk questionnaire straight from src/ profiler.
 
-    Option scores are included so the client can show a live preview; the
-    server recomputes authoritative scores from the submitted answers on save.
+    Question/option text is served in the request locale (X-Locale). Option
+    scores are included so the client can show a live preview; the server
+    recomputes authoritative scores from the submitted answers on save.
     """
+    locale = get_request_locale(request)
     return QuestionnaireResponse(
-        ability=_build_track(RISK_ABILITY_QUESTIONS),
-        willingness=_build_track(RISK_WILLINGNESS_QUESTIONS),
+        ability=_build_track(RISK_ABILITY_QUESTIONS, locale),
+        willingness=_build_track(RISK_WILLINGNESS_QUESTIONS, locale),
     )
 
 

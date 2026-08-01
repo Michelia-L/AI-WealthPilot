@@ -1,6 +1,6 @@
 import { detailToPayload, getProfile, getProfiles, getQuestionnaire } from "@/lib/api";
 import type { ProfilePayload } from "@/lib/api";
-import { getDict } from "@/lib/i18n/server";
+import { getDict, getLocale } from "@/lib/i18n/server";
 import ProfilesManager from "@/components/profiles/profiles-manager";
 
 export async function generateMetadata() {
@@ -25,9 +25,10 @@ export default async function ProfilesPage({ searchParams }: PageProps) {
   const initialEditId =
     Number.isInteger(editRaw) && editRaw > 0 ? editRaw : null;
 
+  const locale = await getLocale();
   const [data, questionnaire, editDetail] = await Promise.all([
     getProfiles(),
-    getQuestionnaire(),
+    getQuestionnaire(locale),
     initialEditId ? getProfile(initialEditId) : Promise.resolve(null),
   ]);
 
