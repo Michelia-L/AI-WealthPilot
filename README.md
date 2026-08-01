@@ -307,7 +307,6 @@ AI-WealthPilot/
 │   └── test_phase3_features.py   # End-to-end features integration tests
 ├── examples/                     # [Demo & Showcase Scripts]
 │   ├── demo_quick.py             # Simple quick demo (MVO + BL + Monte Carlo)
-│   ├── demo_interview.py         # Core quantitative engine demo (MVO + MC + Risk)
 │   ├── demo_comprehensive.py     # Complete visual demo with Plotly charts opening in browser
 │   ├── demo_advanced_optimization.py # Advanced regularization & Resampled MVO demo
 │   └── demo_ips_generator.py     # Multi-Agent LangGraph workflow execution terminal demo
@@ -404,9 +403,6 @@ python -m pytest -v
 We provide standalone scripts inside the `examples/` directory to run the quantitative engine offline and showcase core functionalities:
 
 ```bash
-# Run the core interview demo (MVO, Monte Carlo, Sharpe/VaR/CVaR)
-python examples/demo_interview.py
-
 # Run the quick demo (MVO, Black-Litterman, Monte Carlo)
 python examples/demo_quick.py
 

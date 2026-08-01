@@ -2,8 +2,8 @@
 AI WealthPilot - Quick Demo Script
 AI WealthPilot - 快速演示脚本
 
-A simplified demo script for interview presentation.
-用于面试演示的简化脚本。
+A simplified demo script showcasing the core quantitative modules.
+核心量化引擎的简化演示脚本。
 
 This script demonstrates the three core quantitative modules:
 本脚本演示三个核心量化模块：
@@ -310,8 +310,8 @@ def main():
     print("\n" + "=" * 60)
     print("DEMO COMPLETED! / 演示完成！")
     print("=" * 60)
-    print("\nKey Talking Points for Interview:")
-    print("面试要点：")
+    print("\nKey discussion points:")
+    print("讨论要点：")
     print("  1. MVO constructs efficient frontier using Markowitz theory")
     print("     MVO使用Markowitz理论构建有效前沿")
     print("  2. Black-Litterman combines equilibrium with investor views")
