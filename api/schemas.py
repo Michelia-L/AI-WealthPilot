@@ -703,6 +703,28 @@ class BacktestResponse(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class GoalFeasibility(BaseModel):
+    """Per-goal feasibility vs. the risk budget (contribution-aware TVM)."""
+
+    name: str
+    priority: str
+    years: int
+    target_amount: float
+    allocated_assets: float = Field(
+        description="This goal's priority-weighted share of investable assets"
+    )
+    annual_contribution: float = Field(
+        description="This goal's priority-weighted share of annual savings"
+    )
+    required_return: float = Field(
+        description="Annual return this goal requires, solved from "
+                    "PV·(1+r)^n + PMT·[((1+r)^n − 1)/r] = FV"
+    )
+    status: str = Field(
+        description="'on_track' | 'constrained' | 'infeasible'"
+    )
+
+
 class RecommendationResponse(BaseModel):
     """Personalized allocation from src portfolio_recommender (P12)."""
 
@@ -715,6 +737,23 @@ class RecommendationResponse(BaseModel):
     expected_volatility: float
     sharpe_ratio: float
     rationale: str
+    goal_status: Optional[str] = Field(
+        default=None,
+        description="Primary-goal feasibility vs. the risk budget: "
+                    "'on_track' | 'constrained' | 'infeasible'; null when the "
+                    "profile has no evaluable goal",
+    )
+    goal_name: Optional[str] = Field(
+        default=None, description="Name of the primary goal evaluated"
+    )
+    goal_required_return: Optional[float] = Field(
+        default=None,
+        description="Annual return the primary goal requires (e.g. 0.08 for 8%)",
+    )
+    goals: list[GoalFeasibility] = Field(
+        default_factory=list,
+        description="Per-goal feasibility, ordered by priority",
+    )
 
 
 class PortfolioBacktestRequest(BaseModel):

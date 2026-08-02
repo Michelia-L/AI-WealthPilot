@@ -7,6 +7,8 @@ Tests for the portfolio recommendation engine.
 投资组合推荐引擎的测试。
 """
 
+import copy
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -21,9 +23,11 @@ from src.agents.profiler import (
 from src.agents.portfolio_recommender import (
     PortfolioRecommendation,
     _get_target_volatility,
+    _solve_required_return,
     recommend_portfolio,
     get_recommended_allocation_text,
 )
+from src.portfolio.optimizer import PortfolioOptimizer
 
 
 # ============================================================
@@ -260,6 +264,209 @@ class TestPortfolioRecommendation:
         assert rec.risk_level == "Moderate"
         assert rec.expected_return > 0
         assert len(rec.suggested_allocation) > 0
+        # Goal feasibility is always evaluated and disclosed.
+        assert rec.goal_status in {"on_track", "constrained", "infeasible"}
+        assert rec.goal_name == "Retirement"
+        assert rec.goal_required_return is not None
+        assert "Goal Feasibility" in rec.rationale
+
+    def test_goal_beyond_risk_budget_keeps_risk_portfolio(
+        self, conservative_profile, sample_returns
+    ):
+        """A goal requiring more return than the risk budget can fund must
+        NOT override the risk-derived portfolio — the volatility budget is a
+        hard cap, and the shortfall is reported as 'constrained'."""
+        baseline = recommend_portfolio(conservative_profile, sample_returns)
+        optimizer = PortfolioOptimizer(sample_returns)
+        max_return = float(optimizer.mean_returns.max())
+        # Required return above the risk-budget portfolio's return, but still
+        # attainable within the asset universe.
+        required = (baseline.expected_return + max_return) / 2
+
+        profile = copy.deepcopy(conservative_profile)
+        years = 10
+        # Build the target amount with the same contribution-aware TVM the
+        # engine solves, so the solved required return lands on `required`.
+        savings = (
+            profile.financial.annual_income - profile.financial.annual_expenses
+        )
+        growth = (1 + required) ** years
+        target_amount = (
+            profile.financial.investable_assets * growth
+            + savings * (growth - 1) / required
+        )
+        profile.goals = [
+            InvestmentGoal(
+                name="Ambitious Goal",
+                target_amount=target_amount,
+                years=years,
+                priority="high",
+            )
+        ]
+        rec = recommend_portfolio(profile, sample_returns)
+
+        assert rec.goal_status == "constrained"
+        assert rec.goal_required_return == pytest.approx(required, rel=1e-6)
+        # Same portfolio as the no-goal baseline: no extra risk is taken.
+        assert rec.expected_volatility <= baseline.expected_volatility + 1e-6
+        assert rec.expected_return == pytest.approx(baseline.expected_return, abs=1e-6)
+
+    def test_goal_within_budget_on_track(self, moderate_profile, sample_returns):
+        """An easily funded goal is met within the risk budget ('on_track');
+        the portfolio may de-risk but must never exceed the baseline risk."""
+        baseline = recommend_portfolio(moderate_profile, sample_returns)
+
+        profile = copy.deepcopy(moderate_profile)
+        profile.goals = [
+            InvestmentGoal(
+                name="Rainy Day",
+                target_amount=profile.financial.investable_assets * 1.05,
+                years=10,
+                priority="high",
+            )
+        ]
+        rec = recommend_portfolio(profile, sample_returns)
+
+        assert rec.goal_status == "on_track"
+        assert rec.goal_name == "Rainy Day"
+        assert rec.expected_volatility <= baseline.expected_volatility + 1e-6
+
+    def test_goal_below_gmv_return_not_dominated(
+        self, moderate_profile, sample_returns
+    ):
+        """A required return below the GMV return must yield the GMV portfolio,
+        not the dominated lower frontier branch (higher vol, lower return)."""
+        profile = copy.deepcopy(moderate_profile)
+        profile.goals = [
+            InvestmentGoal(
+                name="Tiny Goal",
+                target_amount=profile.financial.investable_assets * 1.02,
+                years=10,
+                priority="high",
+            )
+        ]
+        rec = recommend_portfolio(profile, sample_returns)
+
+        gmv = PortfolioOptimizer(sample_returns).minimize_volatility()
+        assert rec.goal_status == "on_track"
+        assert rec.expected_volatility <= gmv["volatility"] + 1e-3
+        assert rec.expected_return >= gmv["return"] - 1e-3
+
+    def test_goal_beyond_universe_is_infeasible(
+        self, conservative_profile, sample_returns
+    ):
+        """A required return above the best asset in the universe cannot be
+        solved — reported as 'infeasible' while the risk portfolio stands."""
+        baseline = recommend_portfolio(conservative_profile, sample_returns)
+
+        profile = copy.deepcopy(conservative_profile)
+        profile.goals = [
+            InvestmentGoal(
+                name="Moonshot",
+                target_amount=profile.financial.investable_assets * 50,
+                years=5,
+                priority="high",
+            )
+        ]
+        rec = recommend_portfolio(profile, sample_returns)
+
+        assert rec.goal_status == "infeasible"
+        assert rec.expected_volatility <= baseline.expected_volatility + 1e-6
+        assert rec.expected_return == pytest.approx(baseline.expected_return, abs=1e-6)
+
+    def test_no_goals_has_no_goal_status(self, moderate_profile, sample_returns):
+        """Without goals, no feasibility evaluation is reported."""
+        rec = recommend_portfolio(moderate_profile, sample_returns)
+        assert rec.goal_status == ""
+        assert rec.goal_required_return is None
+        assert rec.goal_details == []
+
+    def test_ongoing_savings_lower_required_return(
+        self, profile_with_goals, sample_returns
+    ):
+        """Contribution-aware TVM: the required return sits below the
+        lump-sum (FV/PV)^(1/n) − 1 figure whenever the client saves."""
+        rec = recommend_portfolio(profile_with_goals, sample_returns)
+        lump_sum_required = (2_000_000 / 200_000) ** (1 / 25) - 1
+        assert 0 < rec.goal_required_return < lump_sum_required
+
+    def test_multi_goal_capital_allocation(
+        self, moderate_profile, sample_returns
+    ):
+        """Capital and savings are split across goals proportionally to
+        priority rank; every goal gets its own required return and status,
+        and the primary (highest-priority) goal drives the recommendation."""
+        profile = copy.deepcopy(moderate_profile)
+        profile.goals = [
+            InvestmentGoal(
+                name="Retirement", target_amount=2_000_000, years=25,
+                priority="high",
+            ),
+            InvestmentGoal(
+                name="Education", target_amount=300_000, years=10,
+                priority="low",
+            ),
+        ]
+        rec = recommend_portfolio(profile, sample_returns)
+
+        assert len(rec.goal_details) == 2
+        # Ordered by priority: high first.
+        retirement, education = rec.goal_details
+        assert retirement["name"] == "Retirement"
+        assert education["name"] == "Education"
+        # Priority weights 3:1 → 75% / 25% of assets and savings.
+        assert retirement["allocated_assets"] == pytest.approx(300_000)
+        assert education["allocated_assets"] == pytest.approx(100_000)
+        savings = 150_000 - 80_000
+        assert retirement["annual_contribution"] == pytest.approx(savings * 0.75)
+        assert education["annual_contribution"] == pytest.approx(savings * 0.25)
+        # Every goal is classified; the primary is reported at top level.
+        assert all(
+            d["status"] in {"on_track", "constrained", "infeasible"}
+            for d in rec.goal_details
+        )
+        assert rec.goal_name == "Retirement"
+        assert rec.goal_status == retirement["status"]
+        assert rec.goal_required_return == pytest.approx(
+            retirement["required_return"]
+        )
+        assert "All goals" in rec.rationale
+
+
+# ============================================================
+# Test Contribution-Aware Required Return (TVM solver)
+# ============================================================
+
+class TestSolveRequiredReturn:
+    """Tests for the contribution-aware TVM required-return solver."""
+
+    def test_zero_contribution_reduces_to_lump_sum(self):
+        """PMT = 0 must recover r = (FV/PV)^(1/n) − 1."""
+        r = _solve_required_return(2_000_000, 500_000, 0.0, 10)
+        assert r == pytest.approx((2_000_000 / 500_000) ** (1 / 10) - 1, rel=1e-6)
+
+    def test_contributions_lower_required_return(self):
+        """Ongoing savings fund part of the goal → less return needed."""
+        lump = _solve_required_return(2_000_000, 500_000, 0.0, 10)
+        with_savings = _solve_required_return(2_000_000, 500_000, 30_000, 10)
+        assert 0 < with_savings < lump
+
+    def test_fundable_without_growth_returns_zero(self):
+        """PV + PMT·n already covers FV → no growth required."""
+        assert _solve_required_return(500_000, 400_000, 30_000, 10) == 0.0
+
+    def test_unattainable_goal_returns_sentinel(self):
+        """A goal beyond any achievable rate hits the sentinel, which the
+        goal evaluation maps to 'infeasible'."""
+        assert _solve_required_return(1e12, 1_000.0, 0.0, 5) == 10.0
+
+    def test_solution_satisfies_tvm_equation(self):
+        """The solved rate actually funds the goal."""
+        target, pv, pmt, years = 2_000_000, 500_000, 30_000, 10
+        r = _solve_required_return(target, pv, pmt, years)
+        growth = (1 + r) ** years
+        funded = pv * growth + pmt * (growth - 1) / r
+        assert funded == pytest.approx(target, rel=1e-6)
 
     def test_volatility_lands_near_target(self, moderate_profile, sample_returns):
         """The solved portfolio must sit at the target volatility, not at the

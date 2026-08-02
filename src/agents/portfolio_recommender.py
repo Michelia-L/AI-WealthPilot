@@ -23,6 +23,10 @@ from src.config import RISK_FREE_RATE
 # which collapsed priority to a bool and could not distinguish medium from low.
 _PRIORITY_RANK = {"high": 3, "medium": 2, "low": 1}
 
+# Absolute tolerance when comparing a goal portfolio's volatility against the
+# risk budget, absorbing SLSQP numeric noise around the frontier point.
+_VOL_TOLERANCE = 1e-3
+
 
 def _goal_priority_rank(goal) -> int:
     """Numeric rank for a goal's priority; unknown/missing → lowest."""
@@ -42,6 +46,17 @@ class PortfolioRecommendation:
     rationale: str = ""
     asset_classes: list = field(default_factory=list)
     weights: np.ndarray = field(default_factory=lambda: np.array([]))
+    # Goal feasibility vs. the risk budget: "" (no evaluable goal),
+    # "on_track" (met within budget), "constrained" (needs more risk than
+    # the budget allows), "infeasible" (beyond the asset universe).
+    goal_status: str = ""
+    goal_name: str = ""
+    goal_required_return: Optional[float] = None
+    # Per-goal feasibility detail (name, priority, years, target_amount,
+    # allocated_assets, annual_contribution, required_return, status),
+    # ordered by priority. Capital and ongoing savings are split across
+    # goals proportionally to priority rank.
+    goal_details: list = field(default_factory=list)
 
 
 # Risk Score to Target Volatility Mapping
@@ -140,6 +155,105 @@ def _solve_at_target_volatility(
     return best
 
 
+# Goal Evaluation — Contribution-Aware TVM
+
+# Upper bisection bound for _solve_required_return; a solved rate at this
+# bound means the goal is unattainable and downstream evaluation reports
+# 'infeasible' (no asset universe delivers ~1000% p.a.).
+_UNATTAINABLE_RATE = 10.0
+
+
+def _solve_required_return(
+    target_amount: float,
+    present_value: float,
+    annual_contribution: float,
+    years: int,
+    iterations: int = 60,
+) -> float:
+    """Solve the contribution-aware TVM equation for the annual return r.
+
+        PV·(1+r)^n + PMT·[((1+r)^n − 1)/r]  =  FV
+
+    (ordinary annuity, end-of-year contributions). Reduces to the lump-sum
+    formula r = (FV/PV)^(1/n) − 1 when PMT = 0. Ongoing savings therefore
+    lower the return a goal actually requires.
+
+    Args:
+        target_amount: Future amount needed (FV).
+        present_value: Capital allocated to the goal today (PV).
+        annual_contribution: Yearly savings allocated to the goal (PMT ≥ 0).
+        years: Years until the goal must be funded (n > 0).
+        iterations: Bisection depth.
+
+    Returns:
+        0.0 when the goal is fundable without growth (PV + PMT·n ≥ FV);
+        otherwise the solved rate; _UNATTAINABLE_RATE when even 1000% p.a.
+        cannot fund it (a sentinel the goal evaluation maps to 'infeasible').
+    """
+    if years <= 0:
+        return 0.0 if present_value >= target_amount else _UNATTAINABLE_RATE
+    # Fundable without any growth?
+    if present_value + annual_contribution * years >= target_amount:
+        return 0.0
+
+    def _funding_gap(rate: float) -> float:
+        growth = (1 + rate) ** years
+        fv_contributions = (
+            annual_contribution * ((growth - 1) / rate)
+            if rate > 0
+            else annual_contribution * years
+        )
+        return present_value * growth + fv_contributions - target_amount
+
+    lo, hi = 0.0, _UNATTAINABLE_RATE
+    if _funding_gap(hi) < 0:
+        return _UNATTAINABLE_RATE
+    for _ in range(iterations):
+        mid = (lo + hi) / 2
+        if _funding_gap(mid) <= 0:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+
+def _evaluate_goal(
+    optimizer: PortfolioOptimizer,
+    gmv: dict,
+    required_return: float,
+    target_volatility: float,
+) -> tuple:
+    """Classify a goal's required return against the risk budget.
+
+    Args:
+        optimizer: PortfolioOptimizer built on the returns universe.
+        gmv: Pre-computed global minimum-variance portfolio.
+        required_return: Annual return the goal requires.
+        target_volatility: Client's volatility budget (hard cap).
+
+    Returns:
+        (status, portfolio) where status is "on_track" (portfolio is the
+        lowest-risk way to stay funded), "constrained" (attainable only by
+        breaching the budget; portfolio is None), or "infeasible" (beyond
+        the asset universe; portfolio is None).
+    """
+    if required_return <= gmv["return"]:
+        # GMV already earns more than the goal needs, so it is the
+        # lowest-risk on-track portfolio. (An equality-constrained solve
+        # below the GMV return would land on the dominated lower branch of
+        # the frontier: higher vol, lower return.)
+        goal_portfolio = gmv
+    else:
+        goal_portfolio = optimizer.minimize_volatility(
+            target_return=required_return
+        )
+    if not goal_portfolio.get("success", False):
+        return "infeasible", None
+    if goal_portfolio["volatility"] <= target_volatility + _VOL_TOLERANCE:
+        return "on_track", goal_portfolio
+    return "constrained", None
+
+
 def recommend_portfolio(
     profile: ClientProfile,
     returns_data: pd.DataFrame,
@@ -168,22 +282,62 @@ def recommend_portfolio(
     # Step 4: Solve the efficient portfolio at the target volatility
     result = _solve_at_target_volatility(optimizer, target_volatility)
 
-    # Step 5: If target return is specified in goals, try to achieve it
-    if profile.goals:
-        # Calculate required return based on most important goal
-        primary_goal = max(profile.goals, key=_goal_priority_rank)
-        if primary_goal.years > 0:
-            required_return = (
-                (primary_goal.target_amount / max(profile.financial.investable_assets, 1))
-                ** (1 / primary_goal.years)
-                - 1
+    # Step 5: Evaluate goals against the risk budget.
+    #
+    # The risk-score → volatility mapping is a hard cap and is never
+    # overridden: a goal-derived portfolio is accepted only when it stays
+    # within the volatility budget (goals-based de-risking); otherwise the
+    # risk-budget portfolio stands and the shortfall is surfaced through
+    # goal_status instead of silently raising the client's risk exposure.
+    #
+    # Investable assets and ongoing savings (income − expenses) are split
+    # across goals proportionally to priority rank (high=3, medium=2, low=1)
+    # — a documented heuristic giving high-priority goals more funding weight.
+    # Each goal's required return is solved with the contribution-aware TVM
+    # equation, so regular savings lower the required return.
+    goal_status = ""
+    goal_name = ""
+    goal_required_return: Optional[float] = None
+    goal_details: list = []
+    evaluable_goals = [
+        g for g in profile.goals if g.years > 0 and g.target_amount > 0
+    ]
+    if evaluable_goals:
+        # Priority order (stable for ties); the primary goal drives the
+        # portfolio-level decision.
+        ordered_goals = sorted(evaluable_goals, key=_goal_priority_rank, reverse=True)
+        primary_goal = ordered_goals[0]
+        annual_savings = max(
+            profile.financial.annual_income - profile.financial.annual_expenses,
+            0.0,
+        )
+        total_weight = sum(max(_goal_priority_rank(g), 1) for g in ordered_goals)
+        gmv = optimizer.minimize_volatility()
+        for goal in ordered_goals:
+            weight = max(_goal_priority_rank(goal), 1) / total_weight
+            allocated = profile.financial.investable_assets * weight
+            contribution = annual_savings * weight
+            required = _solve_required_return(
+                goal.target_amount, allocated, contribution, goal.years
             )
-            # Try to find portfolio with target return
-            result_with_return = optimizer.minimize_volatility(
-                target_return=required_return
+            status, goal_portfolio = _evaluate_goal(
+                optimizer, gmv, required, target_volatility
             )
-            if result_with_return.get("success", False):
-                result = result_with_return
+            goal_details.append({
+                "name": goal.name,
+                "priority": goal.priority,
+                "years": goal.years,
+                "target_amount": float(goal.target_amount),
+                "allocated_assets": float(allocated),
+                "annual_contribution": float(contribution),
+                "required_return": float(required),
+                "status": status,
+            })
+            if goal is primary_goal:
+                goal_status, goal_name = status, goal.name
+                goal_required_return = required
+                if goal_portfolio is not None:
+                    result = goal_portfolio
 
     # Step 6: Build recommendation
     weights = np.array(list(result["weights"].values()))
@@ -191,7 +345,11 @@ def recommend_portfolio(
 
     # Generate rationale
     rationale = _generate_rationale(
-        profile, risk_level, target_volatility, result
+        profile, risk_level, target_volatility, result,
+        goal_status=goal_status,
+        goal_name=goal_name,
+        goal_required_return=goal_required_return,
+        goal_details=goal_details,
     )
 
     return PortfolioRecommendation(
@@ -203,6 +361,10 @@ def recommend_portfolio(
         rationale=rationale,
         asset_classes=asset_classes,
         weights=weights,
+        goal_status=goal_status,
+        goal_name=goal_name,
+        goal_required_return=goal_required_return,
+        goal_details=goal_details,
     )
 
 
@@ -211,6 +373,10 @@ def _generate_rationale(
     risk_level: str,
     target_volatility: float,
     optimization_result: dict,
+    goal_status: str = "",
+    goal_name: str = "",
+    goal_required_return: Optional[float] = None,
+    goal_details: Optional[list] = None,
 ) -> str:
     """
     Generate human-readable rationale for the portfolio recommendation.
@@ -221,6 +387,10 @@ def _generate_rationale(
         risk_level: Classified risk level.
         target_volatility: Target volatility.
         optimization_result: MVO optimization result.
+        goal_status: "", "on_track", "constrained", or "infeasible".
+        goal_name: Name of the primary goal evaluated.
+        goal_required_return: Annual return the primary goal requires.
+        goal_details: Per-goal feasibility dicts (see PortfolioRecommendation).
 
     Returns:
         Formatted rationale string.
@@ -262,6 +432,75 @@ def _generate_rationale(
     for asset, weight in sorted_alloc[:5]:  # Top 5 assets
         if weight > 0.01:  # Only show > 1%
             rationale_parts.append(f"- **{asset}**: {weight:.1%}")
+
+    # Goal feasibility section — the volatility budget is a hard cap, so any
+    # gap between the goal's required return and the achievable return is
+    # disclosed here instead of being silently overridden.
+    if goal_status and goal_required_return is not None:
+        rationale_parts.extend(["", "**Goal Feasibility / 目标可行性**:", ""])
+        req_text = (
+            f"{goal_required_return:.1%}"
+            if goal_required_return < _UNATTAINABLE_RATE
+            else "≥1000%"
+        )
+        if goal_status == "on_track":
+            rationale_parts.append(
+                f"Your primary goal **{goal_name}** requires an estimated "
+                f"**{req_text}** annual return (after counting your ongoing "
+                f"savings), which the recommended portfolio meets within your "
+                f"risk budget. / 计入持续储蓄后,您的主要目标「{goal_name}」"
+                f"预计需要年化 **{req_text}**,当前推荐组合可在您的风险预算内达成。"
+            )
+        elif goal_status == "constrained":
+            rationale_parts.append(
+                f"Your primary goal **{goal_name}** requires an estimated "
+                f"**{req_text}** annual return (after counting your ongoing "
+                f"savings), but staying within your "
+                f"**{target_volatility:.1%}** volatility budget yields "
+                f"approximately **{optimization_result['return']:.1%}**. The "
+                f"recommendation respects your risk budget; closing the gap "
+                f"requires higher risk tolerance, additional savings, or a "
+                f"longer horizon. / 计入持续储蓄后,您的主要目标「{goal_name}」"
+                f"预计需要年化 **{req_text}**,但在 **{target_volatility:.1%}** 的"
+                f"波动预算内预期收益约为 **{optimization_result['return']:.1%}**。"
+                f"推荐组合严守您的风险预算;弥补缺口需要提高风险承受、增加储蓄或延长投资期限。"
+            )
+        elif goal_status == "infeasible":
+            rationale_parts.append(
+                f"Your primary goal **{goal_name}** requires an estimated "
+                f"**{req_text}** annual return, which exceeds what the available "
+                f"asset universe can deliver. Consider increasing ongoing "
+                f"savings, extending the horizon, or revising the target "
+                f"amount. / 您的主要目标「{goal_name}」预计需要年化 **{req_text}**,"
+                f"已超出现有资产类别可实现的范围;建议增加持续储蓄、延长投资期限"
+                f"或调整目标金额。"
+            )
+
+        # Multi-goal breakdown: every evaluable goal gets its own required
+        # return (on its priority-weighted share of capital and savings) and
+        # its own feasibility status.
+        if goal_details and len(goal_details) > 1:
+            _STATUS_LABELS = {
+                "on_track": ("on track within budget", "预算内可达成"),
+                "constrained": ("beyond the risk budget", "超出风险预算"),
+                "infeasible": ("beyond the asset universe", "超出资产可实现范围"),
+            }
+            rationale_parts.extend([
+                "",
+                "All goals, by priority / 全部目标(按优先级):",
+                "",
+            ])
+            for detail in goal_details:
+                en_label, zh_label = _STATUS_LABELS[detail["status"]]
+                detail_req = (
+                    f"{detail['required_return']:.1%}"
+                    if detail["required_return"] < _UNATTAINABLE_RATE
+                    else "≥1000%"
+                )
+                rationale_parts.append(
+                    f"- **{detail['name']}**: requires ~{detail_req} p.a. — "
+                    f"{en_label} / 需年化约 {detail_req},{zh_label}"
+                )
 
     return "\n".join(rationale_parts)
 

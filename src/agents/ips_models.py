@@ -58,7 +58,10 @@ class GoalReturnRequirement(BaseModel):
     )
     required_return: float = Field(
         description="Required annual return for this specific goal, "
-                    "e.g. 0.08 for 8%. Derived via TVM: r = (FV/PV)^(1/n) - 1"
+                    "e.g. 0.08 for 8%. Derived via contribution-aware TVM: "
+                    "solve PV·(1+r)^n + PMT·[((1+r)^n − 1)/r] = FV for r, "
+                    "where PMT is the annual savings allocated to the goal "
+                    "(reduces to r = (FV/PV)^(1/n) − 1 when PMT = 0)"
     )
     calculation_basis: str = Field(
         default="",
@@ -89,7 +92,9 @@ class ReturnObjective(BaseModel):
     return_methodology: str = Field(
         default="",
         description="Calculation methodology used to derive return requirements, "
-                    "e.g. 'TVM: r = (FV/PV)^(1/n) - 1' or 'Annuity: PMT-based'"
+                    "e.g. 'Contribution-aware TVM: solve PV·(1+r)^n + "
+                    "PMT·[((1+r)^n − 1)/r] = FV' (PMT = annual savings; "
+                    "reduces to (FV/PV)^(1/n) − 1 when PMT = 0)"
     )
 
 

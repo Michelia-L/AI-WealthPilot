@@ -33,6 +33,7 @@ from api.schemas import (
     AssetClassesResponse,
     AssetStat,
     BLInsight,
+    GoalFeasibility,
     OptimizeRequest,
     OptimizeResponse,
     PortfolioBacktestRequest,
@@ -126,6 +127,14 @@ def get_recommendation(
         expected_volatility=float(rec.expected_volatility),
         sharpe_ratio=float(rec.sharpe_ratio),
         rationale=rec.rationale,
+        goal_status=rec.goal_status or None,
+        goal_name=rec.goal_name or None,
+        goal_required_return=(
+            float(rec.goal_required_return)
+            if rec.goal_required_return is not None
+            else None
+        ),
+        goals=[GoalFeasibility(**d) for d in rec.goal_details],
     )
 
 

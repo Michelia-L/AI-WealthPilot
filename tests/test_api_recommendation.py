@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from src.agents.portfolio_recommender import _solve_required_return
 from tests.test_api_profiles import sample_payload
 
 
@@ -63,6 +64,20 @@ def test_recommendation_happy_path(client, fake_market):
     assert all(w >= -1e-6 for w in body["allocation"].values())  # long-only
     assert body["expected_volatility"] > 0
     assert body["rationale"]
+    # Goal feasibility is disclosed (the payload carries a 30y retirement
+    # goal, with 40k/yr of ongoing savings from the payload's income/expenses).
+    assert body["goal_status"] in {"on_track", "constrained", "infeasible"}
+    assert body["goal_name"] == "Retirement / 退休"
+    expected_required = _solve_required_return(2_000_000, 200_000, 40_000, 30)
+    assert body["goal_required_return"] == pytest.approx(expected_required, rel=1e-3)
+    # Per-goal breakdown: a single goal receives all capital and savings.
+    assert len(body["goals"]) == 1
+    goal = body["goals"][0]
+    assert goal["name"] == "Retirement / 退休"
+    assert goal["allocated_assets"] == pytest.approx(200_000)
+    assert goal["annual_contribution"] == pytest.approx(40_000)
+    assert goal["required_return"] == pytest.approx(expected_required, rel=1e-3)
+    assert goal["status"] in {"on_track", "constrained", "infeasible"}
 
 
 def test_recommendation_profile_not_found(client):
