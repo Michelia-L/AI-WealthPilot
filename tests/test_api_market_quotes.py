@@ -85,3 +85,14 @@ def test_quotes_spark_handles_missing_ticker_column(client, monkeypatch):
     quotes = {q["ticker"]: q for q in res.json()["quotes"]}
     assert len(quotes["GC=F"]["spark"]) == 22
     assert quotes["SI=F"]["spark"] == []
+
+
+def test_universe_includes_vix(client):
+    """The fear index ships in the asset universe as a Volatility index."""
+    res = client.get("/api/market/universe")
+    assert res.status_code == 200
+    vix = res.json()["assets"]["^VIX"]
+    assert vix["name"] == "CBOE VIX"
+    assert vix["category"] == "Volatility"
+    assert vix["currency"] == "Index"
+    assert vix["symbol"] == ""

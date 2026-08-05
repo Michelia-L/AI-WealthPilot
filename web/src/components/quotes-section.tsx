@@ -92,13 +92,50 @@ function Sparkline({ values }: { values: number[] }) {
 // 单资产卡片：类别眉题 + 名称 + 价格 + 涨跌 pill + 30 日走势
 // ---------------------------------------------------------------------------
 
-function QuoteCard({ quote, index }: { quote: Quote; index: number }) {
+/** VIX 恐慌等级标签（QuotesSection 从字典注入，卡片保持同步函数）。 */
+type VixLabels = {
+  complacent: string;
+  calm: string;
+  elevated: string;
+  fear: string;
+  extremeFear: string;
+};
+
+/**
+ * Map a VIX print (index points) to a fear-level badge. Empirical zones:
+ * <12 complacent, 12–17 calm, 17–25 elevated, 25–35 fear, ≥35 extreme fear.
+ */
+function vixLevel(price: number, labels: VixLabels) {
+  if (price < 12)
+    return { label: labels.complacent, cls: "border-white/10 bg-white/[0.04] text-mist-400" };
+  if (price < 17)
+    return { label: labels.calm, cls: "border-jade-500/30 bg-jade-500/10 text-jade-400" };
+  if (price < 25)
+    return { label: labels.elevated, cls: "border-gold-500/30 bg-gold-500/10 text-gold-400" };
+  if (price < 35)
+    return { label: labels.fear, cls: "border-cinnabar-500/30 bg-cinnabar-500/10 text-cinnabar-400" };
+  return { label: labels.extremeFear, cls: "border-cinnabar-500/50 bg-cinnabar-500/20 text-cinnabar-300" };
+}
+
+function QuoteCard({
+  quote,
+  index,
+  vixLabels,
+}: {
+  quote: Quote;
+  index: number;
+  vixLabels?: VixLabels;
+}) {
   const spark = quote.spark ?? [];
   const pct30 =
     spark.length >= 2 && spark[0] !== 0
       ? (spark[spark.length - 1] / spark[0] - 1) * 100
       : null;
   const up30 = pct30 !== null && pct30 >= 0;
+  const fear =
+    quote.ticker === "^VIX" && quote.price !== null && vixLabels
+      ? vixLevel(quote.price, vixLabels)
+      : null;
 
   return (
     <Reveal delay={Math.min(index, 12) * 40} className="h-full">
@@ -127,8 +164,18 @@ function QuoteCard({ quote, index }: { quote: Quote; index: number }) {
         <div className="tnum mt-1 font-mono text-2xl font-semibold text-mist-100">
           {formatAssetPrice(quote.price, quote.currency, quote.symbol, quote.ticker)}
         </div>
-        <div className="mt-2">
+        <div className="mt-2 flex flex-wrap items-center gap-2">
           <TrendPill quote={quote} />
+          {fear && (
+            <span
+              className={cx(
+                "inline-flex items-center rounded-full border px-2.5 py-0.5 font-mono text-xs",
+                fear.cls
+              )}
+            >
+              {fear.label}
+            </span>
+          )}
         </div>
         {spark.length >= 2 && (
           <div className="mt-3 flex items-end gap-3 border-t border-white/[0.05] pt-3">
@@ -253,7 +300,18 @@ export async function QuotesSection({ tickers }: { tickers: string[] }) {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6">
         {quotes.map((q, i) => (
-          <QuoteCard key={q.ticker} quote={q} index={i} />
+          <QuoteCard
+            key={q.ticker}
+            quote={q}
+            index={i}
+            vixLabels={{
+              complacent: t.market.vixComplacent,
+              calm: t.market.vixCalm,
+              elevated: t.market.vixElevated,
+              fear: t.market.vixFear,
+              extremeFear: t.market.vixExtremeFear,
+            }}
+          />
         ))}
       </div>
     </section>

@@ -34,6 +34,8 @@ ASSET_UNIVERSE = {
     "^GSPC": {"name": "S&P 500", "category": "US Equity", "color": "#1F77B4", "currency": "USD", "symbol": ""},
     "^IXIC": {"name": "NASDAQ", "category": "US Equity", "color": "#2CA02C", "currency": "USD", "symbol": ""},
     "^DJI": {"name": "Dow Jones", "category": "US Equity", "color": "#9467BD", "currency": "USD", "symbol": ""},
+    # Volatility (index points, not a tradable price)
+    "^VIX": {"name": "CBOE VIX", "category": "Volatility", "color": "#C2185B", "currency": "Index", "symbol": ""},
     # CN Equity (CNY-denominated)
     "000300.SS": {"name": "CSI 300", "category": "CN Equity", "color": "#D62728", "currency": "CNY", "symbol": ""},
     # HK Equity (HKD-denominated)

@@ -16,6 +16,12 @@ export const market = {
   breadthFlat: (n: number) => `Flat ${n}`,
   breadthBest: "Top gainer",
   breadthWorst: "Top loser",
+  /** VIX fear-level badge on the quote card (levels in index points). */
+  vixComplacent: "Complacent", // < 12
+  vixCalm: "Calm", // 12–17
+  vixElevated: "Elevated", // 17–25
+  vixFear: "Fear", // 25–35
+  vixExtremeFear: "Extreme Fear", // ≥ 35
   cmeTitle: "Capital Market Expectations",
   cmeMeta: (
     asOf: string,

@@ -15,6 +15,12 @@ export const market = {
   breadthFlat: (n: number) => `持平 ${n}`,
   breadthBest: "领涨",
   breadthWorst: "领跌",
+  /** VIX 恐慌等级徽章（点位分级）。 */
+  vixComplacent: "极度平静", // < 12
+  vixCalm: "平静", // 12–17
+  vixElevated: "警惕", // 17–25
+  vixFear: "恐慌", // 25–35
+  vixExtremeFear: "极度恐慌", // ≥ 35
   cmeTitle: "资本市场预期",
   cmeMeta: (
     asOf: string,
