@@ -8,7 +8,7 @@ so the API contract and the engine can never drift apart.
 from datetime import datetime
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from src.portfolio.cme_models import CMEReport
 
@@ -226,10 +226,30 @@ class RetirementRequest(BaseModel):
     current_savings: float = Field(default=100000, ge=0)
     annual_savings: float = Field(default=50000, ge=0)
     desired_annual_income: float = Field(default=80000, ge=0)
-    inflation_rate: float = Field(default=0.025, ge=0, le=0.2)
+    inflation_rate: float = Field(
+        default=0.025, ge=0, le=0.2,
+        description="Base (generic-CPI) inflation, applied during accumulation",
+    )
+    inflation_preset: Optional[Literal["standard", "elderly", "luxury", "custom"]] = Field(
+        default=None,
+        description="Personal inflation segment for the distribution phase "
+                    "(src.portfolio.inflation); None keeps single-rate behavior",
+    )
+    custom_inflation_rate: Optional[float] = Field(
+        default=None, ge=0, le=0.2,
+        description="Absolute distribution-phase rate when inflation_preset='custom'",
+    )
     expected_return: float = Field(default=0.07, ge=-0.1, le=0.4)
     volatility: float = Field(default=0.15, ge=0.01, le=0.8)
     n_simulations: int = Field(default=10000, ge=1000, le=50000)
+
+    @model_validator(mode="after")
+    def _check_custom_inflation(self) -> "RetirementRequest":
+        if self.inflation_preset == "custom" and self.custom_inflation_rate is None:
+            raise ValueError(
+                "custom_inflation_rate is required when inflation_preset is 'custom'"
+            )
+        return self
 
 
 class TerminalStats(BaseModel):

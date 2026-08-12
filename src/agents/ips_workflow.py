@@ -40,8 +40,10 @@ from src.agents.ips_agents import (
     load_compliance_checklist,
 )
 from src.agents.llm_config import get_llm_config
+from src.config import CME_INFLATION_ASSUMPTION
 from src.portfolio.cme_engine import compute_cme, format_cme_for_prompt
 from src.portfolio.cme_models import CMEReport, SAAValidationResult
+from src.portfolio.inflation import resolve_personal_inflation, suggest_inflation_preset
 
 logger = logging.getLogger(__name__)
 
@@ -240,14 +242,26 @@ async def generate_cme_node(state: IPSWorkflowState) -> dict[str, Any]:
     """Node: generate Capital Market Expectations for prompt injection."""
     logger.info("=== CME Generation Node ===")
 
+    # Client-segment inflation: elderly clients spend out of a healthcare-
+    # tilted basket (CPI-E style), so their CME inflation assumption is
+    # adjusted upward from the generic-CPI base before prompt injection.
     try:
-        cme_report, cache_status = compute_cme()
+        profile = json.loads(state.client_profile_json) if state.client_profile_json else {}
+    except (json.JSONDecodeError, TypeError):
+        profile = {}
+    inflation = resolve_personal_inflation(
+        CME_INFLATION_ASSUMPTION, suggest_inflation_preset(profile.get("age"))
+    )
+
+    try:
+        cme_report, cache_status = compute_cme(inflation=inflation)
         cme_text = format_cme_for_prompt(cme_report)
 
         logger.info(
-            "CME ready: %d asset classes, rf=%.4f, as_of=%s, source=%s",
+            "CME ready: %d asset classes, rf=%.4f, inflation=%.4f, as_of=%s, source=%s",
             len(cme_report.asset_classes),
             cme_report.risk_free_rate,
+            cme_report.inflation_assumption,
             cme_report.as_of_date,
             cache_status,
         )

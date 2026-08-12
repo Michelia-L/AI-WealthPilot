@@ -663,6 +663,72 @@ class TestMonteCarloSimulator:
             f"Inflation should decrease survival rate (with: {res_inf['survival_rate']:.2%}, without: {res_no_inf['survival_rate']:.2%})"
         )
 
+    def test_retirement_planning_distribution_inflation_default_matches_legacy(self):
+        """
+        Omitting distribution_inflation_rate should reproduce the legacy
+        single-rate behavior bit-for-bit (same seed ⇒ identical paths).
+        省略支取期通胀率时应与旧的单一通胀率行为完全一致。
+        """
+        kwargs = dict(
+            current_age=30, retirement_age=60, life_expectancy=85,
+            current_savings=100000, annual_savings=50000,
+            desired_annual_income=200000, inflation_rate=0.03,
+        )
+        sim_legacy = MonteCarloSimulator(
+            expected_return=0.08, volatility=0.15,
+            n_simulations=200, n_years=30, seed=42,
+        )
+        res_legacy = sim_legacy.retirement_planning(**kwargs)
+
+        sim_explicit = MonteCarloSimulator(
+            expected_return=0.08, volatility=0.15,
+            n_simulations=200, n_years=30, seed=42,
+        )
+        res_explicit = sim_explicit.retirement_planning(
+            **kwargs, distribution_inflation_rate=0.03,
+        )
+
+        assert res_legacy["survival_rate"] == res_explicit["survival_rate"]
+        np.testing.assert_array_equal(
+            res_legacy["distribution_paths"], res_explicit["distribution_paths"]
+        )
+
+    def test_retirement_planning_distribution_inflation_impact(self):
+        """
+        A higher distribution-phase (CPI-E style) inflation should lower the
+        survival rate versus using the base rate for both phases, while the
+        accumulation phase stays untouched.
+        更高的支取期（CPI-E 风格）通胀应降低存活率，且不影响积累期结果。
+        """
+        kwargs = dict(
+            current_age=30, retirement_age=60, life_expectancy=85,
+            current_savings=100000, annual_savings=50000,
+            desired_annual_income=200000, inflation_rate=0.025,
+        )
+        sim_base = MonteCarloSimulator(
+            expected_return=0.08, volatility=0.15,
+            n_simulations=500, n_years=30, seed=42,
+        )
+        res_base = sim_base.retirement_planning(**kwargs)
+
+        sim_elderly = MonteCarloSimulator(
+            expected_return=0.08, volatility=0.15,
+            n_simulations=500, n_years=30, seed=42,
+        )
+        res_elderly = sim_elderly.retirement_planning(
+            **kwargs, distribution_inflation_rate=0.0325,
+        )
+
+        assert res_elderly["survival_rate"] < res_base["survival_rate"], (
+            f"Elderly inflation should decrease survival rate "
+            f"(elderly: {res_elderly['survival_rate']:.2%}, base: {res_base['survival_rate']:.2%})"
+        )
+        # Same seed and same accumulation parameters ⇒ identical accumulation.
+        np.testing.assert_array_equal(
+            res_base["accumulation"].terminal_values,
+            res_elderly["accumulation"].terminal_values,
+        )
+
 
 # ============================================================
 # Risk Metrics Tests — 风险度量测试

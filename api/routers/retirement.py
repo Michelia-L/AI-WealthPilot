@@ -22,6 +22,7 @@ from api.schemas import (
     SensitivityRow,
     TerminalStats,
 )
+from src.portfolio.inflation import resolve_personal_inflation
 from src.portfolio.simulator import MonteCarloSimulator
 from src.visualization.charts import plot_monte_carlo_paths
 
@@ -31,6 +32,20 @@ SEED = 42  # Fixed seed for reproducibility (same as the Streamlit planner)
 SAVINGS_MULTIPLIERS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
 SENSITIVITY_SIMULATIONS = 5_000
 CHART_DISPLAY_PATHS = 200
+
+
+def _distribution_inflation(req: RetirementRequest) -> float:
+    """Effective distribution-phase inflation from the client's segment.
+
+    Retirees spend out of an elderly basket (CPI-E style), so the
+    distribution phase may carry a higher rate than the accumulation
+    phase's generic CPI; no preset means the legacy single rate.
+    """
+    return resolve_personal_inflation(
+        base_rate=req.inflation_rate,
+        preset=req.inflation_preset,
+        custom_rate=req.custom_inflation_rate,
+    )
 
 
 def _run_plan(req: RetirementRequest, annual_savings: float, n_simulations: int) -> dict:
@@ -48,6 +63,7 @@ def _run_plan(req: RetirementRequest, annual_savings: float, n_simulations: int)
         annual_savings=annual_savings,
         desired_annual_income=req.desired_annual_income,
         inflation_rate=req.inflation_rate,
+        distribution_inflation_rate=_distribution_inflation(req),
     )
 
 
@@ -112,6 +128,9 @@ def simulate(req: RetirementRequest) -> RetirementResponse:
 
     params: dict[str, Any] = req.model_dump()
     params["seed"] = SEED
+    # Echo the effective distribution-phase rate so the UI can show the
+    # client-segment adjustment actually applied (None → same as base).
+    params["distribution_inflation_rate"] = _distribution_inflation(req)
 
     return RetirementResponse(
         as_of=datetime.now(timezone.utc),

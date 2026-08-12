@@ -297,6 +297,8 @@ export const getRecommendation = (profileId: number) =>
 // Retirement planning
 // ---------------------------------------------------------------------------
 
+export type InflationPreset = "standard" | "elderly" | "luxury" | "custom";
+
 export interface RetirementRequest {
   current_age: number;
   retirement_age: number;
@@ -305,6 +307,8 @@ export interface RetirementRequest {
   annual_savings: number;
   desired_annual_income: number;
   inflation_rate: number;
+  inflation_preset: InflationPreset;
+  custom_inflation_rate?: number;
   expected_return: number;
   volatility: number;
   n_simulations: number;
@@ -334,7 +338,7 @@ export interface SensitivityRow {
 
 export interface RetirementResponse {
   as_of: string;
-  params: RetirementRequest & { seed: number };
+  params: RetirementRequest & { seed: number; distribution_inflation_rate: number };
   survival_rate: number;
   accumulation_years: number;
   distribution_years: number;

@@ -108,6 +108,22 @@ CME_DATA_INTERVAL = "1d"          # Data frequency
 CME_CACHE_TTL_DAYS = 90            # Cache validity period (days)
 CME_CACHE_DIR = DATA_DIR / "cache" / "cme"  # Cache storage path
 
+# Personal inflation presets (demographic & lifestyle-based inflation).
+# Generic CPI misprices the inflation actually experienced by key private-
+# banking segments, so presets apply a stylized additive delta over the base
+# (generic-CPI) rate: "elderly" approximates the BLS CPI-E vs CPI-W gap
+# (healthcare weight roughly doubles to ~11% for 62+ spending baskets);
+# "luxury" approximates Forbes CLEWI's long-run premium over CPI (~+2.4pp/yr).
+# Neither series has an official Chinese equivalent, so these are configurable
+# assumptions — transparent and auditable, not a live data pipeline.
+PERSONAL_INFLATION_DELTAS = {
+    "standard": 0.0,
+    "elderly": 0.0075,
+    "luxury": 0.024,
+}
+# Client age at/above which the IPS pipeline defaults to the elderly preset.
+PERSONAL_INFLATION_ELDERLY_MIN_AGE = 60
+
 # Tushare Pro data provider (paid CN backbone, P16)
 # yfinance ticker → tushare ts_code. Routed tickers are served by Tushare
 # Pro (daily bars); yfinance remains the fallback when Tushare is absent

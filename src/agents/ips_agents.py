@@ -123,6 +123,7 @@ _GENERATOR_SYSTEM_PROMPT = """你是一名资深私人财富管理顾问，专�
 7. **资本市场预期（CME）驱动的资产配置**：
    - 如果提供了 CME 数据，战略性资产配置（SAA）必须参考 CME 中的预期收益率和波动率
    - 无风险利率和通胀率必须使用 CME 中提供的数值，不得自行假设
+   - `required_real_return` 必须等于 `required_nominal_return` 减去 CME 中的通胀率假设；若该通胀率已按客户所在人群调整（如老年客户采用 CPI-E 风格的更高通胀假设），必须在 `return_calculation_basis` 中说明所采用的人群专属通胀假设
    - 组合预期收益率必须基于 CME 各资产预期收益率加权计算，并与 IPS 所需收益率对比
    - 风险披露中必须说明 CME 基于历史数据，不代表未来表现
    - 各资产类别的配置理由应引用 CME 数据支撑（如夏普比率、波动率、相关性）
@@ -186,6 +187,7 @@ Based on the provided client profile data and the IPS structural template, gener
 7. **CME-driven asset allocation**:
    - If CME data is provided, the strategic asset allocation (SAA) MUST reference the expected returns and volatilities from the CME
    - The risk-free rate and inflation rate MUST use the values provided in the CME — do not assume your own
+   - `required_real_return` MUST equal `required_nominal_return` minus the CME inflation assumption; if that assumption has been adjusted for the client's demographic segment (e.g. a CPI-E-style higher rate for elderly clients), the segment-specific inflation basis MUST be stated in `return_calculation_basis`
    - The portfolio's expected return MUST be computed as the CME-weighted average of the asset-class expected returns, and compared against the IPS required return
    - The risk disclosure MUST state that the CME is based on historical data and does not represent future performance
    - The rationale for each asset-class allocation should cite CME data (e.g. Sharpe ratio, volatility, correlations)

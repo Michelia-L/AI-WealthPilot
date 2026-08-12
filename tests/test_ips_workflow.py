@@ -29,6 +29,7 @@ from src.agents.ips_workflow import (
     _ips_version_hash,
     _fuzzy_asset_match,
     build_ips_workflow,
+    generate_cme_node,
     validate_saa_node,
 )
 from src.portfolio.cme_models import CMEReport, AssetClassCME, SAAValidationResult
@@ -535,3 +536,65 @@ class TestSAAValidation:
         assert len(weight_issues) == 1
         assert weight_issues[0]["severity"] == "critical"
 
+
+
+# ============================================================
+# Test: CME Generation Node — personal inflation injection
+# ============================================================
+
+class TestGenerateCMENodeInflation:
+    """generate_cme_node adjusts the CME inflation assumption to the client
+    segment (elderly ⇒ CPI-E-style uplift) before prompt injection."""
+
+    def _run(self, coro):
+        """Run an async coroutine synchronously."""
+        import asyncio
+        return asyncio.run(coro)
+
+    def _fake_cme(self, monkeypatch) -> MagicMock:
+        """Stub compute_cme / format_cme_for_prompt; return the mock."""
+        report = CMEReport(
+            as_of_date="2026-06-01",
+            data_lookback_years=5,
+            risk_free_rate=0.04,
+            risk_free_rate_source="test",
+            inflation_assumption=0.025,
+            asset_classes=[],
+            correlation_matrix={},
+            methodology_notes="Test methodology",
+        )
+        mock_compute = MagicMock(return_value=(report, "fresh"))
+        monkeypatch.setattr("src.agents.ips_workflow.compute_cme", mock_compute)
+        monkeypatch.setattr(
+            "src.agents.ips_workflow.format_cme_for_prompt", lambda r: "CME text"
+        )
+        return mock_compute
+
+    def test_elderly_profile_gets_elevated_inflation(self, monkeypatch):
+        """Age ≥ 60 ⇒ CME is computed with the elderly inflation uplift."""
+        mock_compute = self._fake_cme(monkeypatch)
+        state = IPSWorkflowState(client_profile_json=json.dumps({"age": 65}))
+        result = self._run(generate_cme_node(state))
+
+        assert result["status"] == "cme_generated"
+        inflation = mock_compute.call_args.kwargs["inflation"]
+        assert inflation == pytest.approx(0.025 + 0.0075)
+
+    def test_younger_profile_gets_base_inflation(self, monkeypatch):
+        """Age < 60 ⇒ the generic-CPI base assumption is used."""
+        mock_compute = self._fake_cme(monkeypatch)
+        state = IPSWorkflowState(client_profile_json=json.dumps({"age": 40}))
+        self._run(generate_cme_node(state))
+
+        inflation = mock_compute.call_args.kwargs["inflation"]
+        assert inflation == pytest.approx(0.025)
+
+    def test_malformed_profile_falls_back_to_base_inflation(self, monkeypatch):
+        """Unparseable profile JSON must not break CME generation."""
+        mock_compute = self._fake_cme(monkeypatch)
+        state = IPSWorkflowState(client_profile_json="{not valid json")
+        result = self._run(generate_cme_node(state))
+
+        assert result["status"] == "cme_generated"
+        inflation = mock_compute.call_args.kwargs["inflation"]
+        assert inflation == pytest.approx(0.025)

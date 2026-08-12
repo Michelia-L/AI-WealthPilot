@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { RetirementRequest, RetirementResponse } from "@/lib/api";
+import type { InflationPreset, RetirementRequest, RetirementResponse } from "@/lib/api";
 import { SIMULATION_OPTIONS } from "@/lib/api";
 import { fmtMoney, fmtPct } from "@/lib/format";
 import { useT } from "@/components/locale-context";
@@ -36,6 +36,8 @@ export default function RetirementWorkspace() {
     annual_savings: 50000,
     desired_annual_income: 80000,
     inflation_rate: 0.025,
+    inflation_preset: "standard",
+    custom_inflation_rate: 0.03,
     expected_return: 0.07,
     volatility: 0.15,
     n_simulations: 10000,
@@ -134,6 +136,32 @@ export default function RetirementWorkspace() {
                 onChange={(v) => set("n_simulations", v)}
               />
             </div>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-4">
+            <div>
+              <span className="mb-2 block text-xs text-mist-400">{t.retirement.inflationSegment}</span>
+              <Segmented<InflationPreset>
+                size="sm"
+                options={[
+                  { value: "standard", label: t.retirement.inflationPresetStandard },
+                  { value: "elderly", label: t.retirement.inflationPresetElderly },
+                  { value: "luxury", label: t.retirement.inflationPresetLuxury },
+                  { value: "custom", label: t.retirement.inflationPresetCustom },
+                ]}
+                value={form.inflation_preset}
+                onChange={(v) => set("inflation_preset", v)}
+              />
+            </div>
+            {form.inflation_preset === "custom" ? (
+              <Slider label={t.retirement.distributionInflationRate} value={form.custom_inflation_rate ?? 0.03}
+                min={0} max={0.1} step={0.005}
+                onChange={(v) => set("custom_inflation_rate", v)} format={(v) => fmtPct(v, 1)} />
+            ) : form.inflation_preset !== "standard" ? (
+              <p className="self-end pb-1 text-xs text-mist-500 md:col-span-3">
+                {t.retirement.distributionInflationHint}
+              </p>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-4 border-t border-white/[0.05] pt-5">
@@ -247,7 +275,10 @@ export default function RetirementWorkspace() {
             {t.retirement.paramsPrefix}
             {fmtPct(result.params.expected_return, 1)} {t.retirement.expectedReturnShort} ·{" "}
             {fmtPct(result.params.volatility, 0)} {t.retirement.volatilityShort} ·{" "}
-            {fmtPct(result.params.inflation_rate, 1)} {t.retirement.inflationShort} ·{" "}
+            {fmtPct(result.params.inflation_rate, 1)} {t.retirement.inflationShort}
+            {result.params.distribution_inflation_rate !== result.params.inflation_rate && (
+              <> · {fmtPct(result.params.distribution_inflation_rate, 1)} {t.retirement.distributionInflationShort}</>
+            )} ·{" "}
             {t.retirement.simulationsShort(result.params.n_simulations.toLocaleString())} ·{" "}
             {t.retirement.seedNote(result.params.seed)}
           </p>

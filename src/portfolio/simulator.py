@@ -136,6 +136,7 @@ class MonteCarloSimulator:
         annual_savings: float,
         desired_annual_income: float,
         inflation_rate: float = 0.025,
+        distribution_inflation_rate: Optional[float] = None,
     ) -> dict:
         """Two-phase retirement simulation: accumulation then distribution.
 
@@ -150,12 +151,20 @@ class MonteCarloSimulator:
             current_savings: Current portfolio value.
             annual_savings: Yearly savings during accumulation.
             desired_annual_income: Annual income needed in retirement (today's $).
-            inflation_rate: Annual inflation for withdrawal adjustment.
+            inflation_rate: Annual inflation during the accumulation phase.
+            distribution_inflation_rate: Annual inflation during the
+                distribution phase. Defaults to inflation_rate (single-rate
+                legacy behavior). Retirees spend out of an elderly
+                (healthcare-tilted) basket, so a CPI-E-style rate higher
+                than the accumulation-phase generic CPI is often the
+                better assumption — see src.portfolio.inflation.
 
         Returns:
             Dict with 'accumulation', 'distribution_paths', 'survival_rate',
             'accumulation_years', 'distribution_years'.
         """
+        if distribution_inflation_rate is None:
+            distribution_inflation_rate = inflation_rate
         # Phase 1: Accumulation
         accum_years = retirement_age - current_age
         accum_sim = MonteCarloSimulator(
@@ -184,8 +193,13 @@ class MonteCarloSimulator:
         for t in range(1, dist_years + 1):
             z = rng.standard_normal(self.n_simulations)
             growth = np.exp(drift + conservative_vol * z)
-            # Inflate withdrawal to nominal terms
-            inflation_factor = (1.0 + inflation_rate) ** (accum_years + t)
+            # Inflate withdrawal to nominal terms: the target income (in
+            # today's money) is eroded by the accumulation-phase rate until
+            # retirement, then by the distribution-phase rate thereafter.
+            inflation_factor = (
+                (1.0 + inflation_rate) ** accum_years
+                * (1.0 + distribution_inflation_rate) ** t
+            )
             nominal_withdrawal = desired_annual_income * inflation_factor
             dist_paths[:, t] = dist_paths[:, t - 1] * growth - nominal_withdrawal
             dist_paths[:, t] = np.maximum(dist_paths[:, t], 0)
