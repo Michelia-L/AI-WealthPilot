@@ -20,6 +20,7 @@ from api.schemas import (
     RetirementRequest,
     RetirementResponse,
     SensitivityRow,
+    StrategyComparison,
     TerminalStats,
 )
 from src.portfolio.inflation import resolve_personal_inflation
@@ -64,6 +65,9 @@ def _run_plan(req: RetirementRequest, annual_savings: float, n_simulations: int)
         desired_annual_income=req.desired_annual_income,
         inflation_rate=req.inflation_rate,
         distribution_inflation_rate=_distribution_inflation(req),
+        withdrawal_strategy=req.withdrawal_strategy,
+        guardrail_band=req.guardrail_band,
+        guardrail_adjust=req.guardrail_adjust,
     )
 
 
@@ -132,6 +136,19 @@ def simulate(req: RetirementRequest) -> RetirementResponse:
     # client-segment adjustment actually applied (None → same as base).
     params["distribution_inflation_rate"] = _distribution_inflation(req)
 
+    # Guardrails vs fixed on identical draws (only for the guardrails run).
+    comparison = None
+    if req.withdrawal_strategy == "guardrails":
+        fixed_sr = float(result["baseline_survival_rate"])
+        guard_sr = float(result["survival_rate"])
+        comparison = StrategyComparison(
+            fixed_survival_rate=fixed_sr,
+            guardrails_survival_rate=guard_sr,
+            survival_lift=guard_sr - fixed_sr,
+            guardrail_band=req.guardrail_band,
+            guardrail_adjust=req.guardrail_adjust,
+        )
+
     return RetirementResponse(
         as_of=datetime.now(timezone.utc),
         params=params,
@@ -150,4 +167,5 @@ def simulate(req: RetirementRequest) -> RetirementResponse:
         distribution_chart=_fig_json(dist_fig),
         depletion=_depletion_analysis(dist_paths),
         sensitivity=sensitivity,
+        comparison=comparison,
     )

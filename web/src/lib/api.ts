@@ -356,6 +356,12 @@ export interface RetirementRequest {
   expected_return: number;
   volatility: number;
   n_simulations: number;
+  /** 提款策略：fixed 刚性通胀调整；guardrails 动态护栏（Guyton-Klinger）。 */
+  withdrawal_strategy?: "fixed" | "guardrails";
+  /** 护栏带：相对初始提款率的触发带宽（0.2 = ±20%）。 */
+  guardrail_band?: number;
+  /** 触发后的提款削减/回补幅度（0.1 = ∓10%）。 */
+  guardrail_adjust?: number;
 }
 
 export interface TerminalStats {
@@ -380,6 +386,14 @@ export interface SensitivityRow {
   median_at_retirement: number;
 }
 
+export interface StrategyComparison {
+  fixed_survival_rate: number;
+  guardrails_survival_rate: number;
+  survival_lift: number;
+  guardrail_band: number;
+  guardrail_adjust: number;
+}
+
 export interface RetirementResponse {
   as_of: string;
   params: RetirementRequest & { seed: number; distribution_inflation_rate: number };
@@ -391,6 +405,8 @@ export interface RetirementResponse {
   distribution_chart: PlotlyFigure;
   depletion: DepletionAnalysis;
   sensitivity: SensitivityRow[];
+  /** 护栏策略与固定策略的同抽对比（仅 guardrails 模式返回）。 */
+  comparison?: StrategyComparison | null;
 }
 
 export const SIMULATION_OPTIONS = [

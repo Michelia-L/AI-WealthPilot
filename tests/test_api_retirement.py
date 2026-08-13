@@ -87,3 +87,54 @@ class TestRetirementSimulateInflation:
             json=_minimal_payload(inflation_preset="celebrity"),
         )
         assert res.status_code == 422
+
+
+class TestRetirementGuardrails:
+    """Guyton-Klinger guardrails withdrawal strategy."""
+
+    def test_guardrails_comparison_block(self, client):
+        """guardrails ⇒ comparison block with a same-draws fixed baseline."""
+        res = client.post(
+            "/api/retirement/simulate",
+            json=_minimal_payload(withdrawal_strategy="guardrails"),
+        )
+        assert res.status_code == 200
+        data = res.json()
+        comp = data["comparison"]
+        assert comp is not None
+        assert comp["guardrails_survival_rate"] == data["survival_rate"]
+        assert comp["guardrail_band"] == pytest.approx(0.2)
+        assert comp["guardrail_adjust"] == pytest.approx(0.1)
+        assert comp["survival_lift"] == pytest.approx(
+            comp["guardrails_survival_rate"] - comp["fixed_survival_rate"]
+        )
+
+        # The baseline must equal a pure fixed request (same seed, SEED=42).
+        res_fixed = client.post(
+            "/api/retirement/simulate", json=_minimal_payload()
+        )
+        assert res_fixed.status_code == 200
+        assert comp["fixed_survival_rate"] == res_fixed.json()["survival_rate"]
+
+    def test_fixed_strategy_has_no_comparison(self, client):
+        res = client.post("/api/retirement/simulate", json=_minimal_payload())
+        assert res.status_code == 200
+        assert res.json()["comparison"] is None
+
+    def test_guardrail_band_out_of_range_422(self, client):
+        res = client.post(
+            "/api/retirement/simulate",
+            json=_minimal_payload(
+                withdrawal_strategy="guardrails", guardrail_band=0.9
+            ),
+        )
+        assert res.status_code == 422
+
+    def test_guardrail_adjust_out_of_range_422(self, client):
+        res = client.post(
+            "/api/retirement/simulate",
+            json=_minimal_payload(
+                withdrawal_strategy="guardrails", guardrail_adjust=0.001
+            ),
+        )
+        assert res.status_code == 422

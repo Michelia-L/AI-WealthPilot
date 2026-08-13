@@ -544,6 +544,7 @@ class TestMonteCarloSimulator:
         expected_keys = {
             "accumulation", "distribution_paths",
             "survival_rate", "accumulation_years", "distribution_years",
+            "withdrawal_strategy",
         }
         assert set(result.keys()) == expected_keys
 
@@ -728,6 +729,98 @@ class TestMonteCarloSimulator:
             res_base["accumulation"].terminal_values,
             res_elderly["accumulation"].terminal_values,
         )
+
+    # ------ guardrails withdrawal strategy tests ------
+
+    def test_guardrails_never_worse_same_draws(self):
+        """
+        Under identical random draws, guardrails survival >= fixed survival
+        (capital-preservation cuts can only help in stressed paths).
+        """
+        kwargs = dict(
+            current_age=30, retirement_age=60, life_expectancy=85,
+            current_savings=100000, annual_savings=50000,
+            desired_annual_income=200000, inflation_rate=0.025,
+        )
+        sim_fixed = MonteCarloSimulator(
+            expected_return=0.08, volatility=0.15,
+            n_simulations=500, n_years=30, seed=42,
+        )
+        res_fixed = sim_fixed.retirement_planning(
+            **kwargs, withdrawal_strategy="fixed"
+        )
+        sim_guard = MonteCarloSimulator(
+            expected_return=0.08, volatility=0.15,
+            n_simulations=500, n_years=30, seed=42,
+        )
+        res_guard = sim_guard.retirement_planning(
+            **kwargs, withdrawal_strategy="guardrails"
+        )
+        assert res_guard["survival_rate"] >= res_fixed["survival_rate"]
+        # Stressed scenario must show a visible lift, not a tie.
+        assert res_guard["survival_rate"] > res_fixed["survival_rate"]
+
+    def test_guardrails_baseline_matches_fixed_run(self):
+        """
+        The baseline inside a guardrails run must equal a pure fixed run
+        bit-for-bit (common random numbers keep the comparison honest).
+        """
+        kwargs = dict(
+            current_age=35, retirement_age=65, life_expectancy=90,
+            current_savings=50000, annual_savings=20000,
+            desired_annual_income=80000,
+        )
+        sim_fixed = MonteCarloSimulator(
+            expected_return=0.07, volatility=0.12,
+            n_simulations=200, n_years=30, seed=7,
+        )
+        res_fixed = sim_fixed.retirement_planning(**kwargs)
+        sim_guard = MonteCarloSimulator(
+            expected_return=0.07, volatility=0.12,
+            n_simulations=200, n_years=30, seed=7,
+        )
+        res_guard = sim_guard.retirement_planning(
+            **kwargs, withdrawal_strategy="guardrails"
+        )
+        assert res_guard["baseline_survival_rate"] == res_fixed["survival_rate"]
+
+    def test_fixed_strategy_unchanged_by_guardrail_params(self):
+        """Default/fixed behavior is bit-identical with or without the new params."""
+        kwargs = dict(
+            current_age=30, retirement_age=60, life_expectancy=85,
+            current_savings=100000, annual_savings=30000,
+            desired_annual_income=100000,
+        )
+        sim_legacy = MonteCarloSimulator(
+            expected_return=0.08, volatility=0.15,
+            n_simulations=200, n_years=30, seed=42,
+        )
+        res_legacy = sim_legacy.retirement_planning(**kwargs)
+        sim_explicit = MonteCarloSimulator(
+            expected_return=0.08, volatility=0.15,
+            n_simulations=200, n_years=30, seed=42,
+        )
+        res_explicit = sim_explicit.retirement_planning(
+            **kwargs, withdrawal_strategy="fixed",
+            guardrail_band=0.5, guardrail_adjust=0.4,
+        )
+        np.testing.assert_array_equal(
+            res_legacy["distribution_paths"], res_explicit["distribution_paths"]
+        )
+        assert res_legacy["survival_rate"] == res_explicit["survival_rate"]
+        assert "baseline_survival_rate" not in res_explicit
+
+    def test_unknown_withdrawal_strategy_raises(self):
+        sim = MonteCarloSimulator(
+            expected_return=0.08, volatility=0.15,
+            n_simulations=100, n_years=30, seed=1,
+        )
+        with pytest.raises(ValueError, match="Unknown withdrawal strategy"):
+            sim.retirement_planning(
+                current_age=30, retirement_age=60, life_expectancy=85,
+                current_savings=100000, annual_savings=30000,
+                desired_annual_income=100000, withdrawal_strategy="dynamic",
+            )
 
 
 # ============================================================

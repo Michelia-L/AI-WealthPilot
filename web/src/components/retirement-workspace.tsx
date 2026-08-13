@@ -41,6 +41,9 @@ export default function RetirementWorkspace() {
     expected_return: 0.07,
     volatility: 0.15,
     n_simulations: 10000,
+    withdrawal_strategy: "fixed",
+    guardrail_band: 0.2,
+    guardrail_adjust: 0.1,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -164,6 +167,31 @@ export default function RetirementWorkspace() {
             ) : null}
           </div>
 
+          <div className="grid gap-5 md:grid-cols-4">
+            <div>
+              <span className="mb-2 block text-xs text-mist-400">{t.retirement.withdrawalStrategy}</span>
+              <Segmented
+                size="sm"
+                options={[
+                  { value: "fixed" as const, label: t.retirement.strategyFixed },
+                  { value: "guardrails" as const, label: t.retirement.strategyGuardrails },
+                ]}
+                value={form.withdrawal_strategy ?? "fixed"}
+                onChange={(v) => set("withdrawal_strategy", v)}
+              />
+            </div>
+            {form.withdrawal_strategy === "guardrails" && (
+              <>
+                <Slider label={t.retirement.guardrailBand} value={form.guardrail_band ?? 0.2}
+                  min={0.05} max={0.5} step={0.05}
+                  onChange={(v) => set("guardrail_band", v)} format={(v) => `±${fmtPct(v, 0)}`} />
+                <Slider label={t.retirement.guardrailAdjust} value={form.guardrail_adjust ?? 0.1}
+                  min={0.01} max={0.5} step={0.01}
+                  onChange={(v) => set("guardrail_adjust", v)} format={(v) => fmtPct(v, 0)} />
+              </>
+            )}
+          </div>
+
           <div className="flex flex-wrap items-center gap-4 border-t border-white/[0.05] pt-5">
             <Button
               variant="primary"
@@ -199,6 +227,19 @@ export default function RetirementWorkspace() {
             <StatTile label={t.retirement.accumulationPhase} value={t.retirement.durationYears(result.accumulation_years)} />
             <StatTile label={t.retirement.distributionPhase} value={t.retirement.durationYears(result.distribution_years)} />
           </div>
+
+          {result.comparison && (
+            <div>
+              <h3 className="mb-3 text-sm font-semibold text-mist-200">{t.retirement.comparisonTitle}</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <StatTile label={t.retirement.baselineSurvival}
+                  value={fmtPct(result.comparison.fixed_survival_rate, 1)} />
+                <StatTile label={t.retirement.survivalLift}
+                  value={`${result.comparison.survival_lift >= 0 ? "+" : ""}${(result.comparison.survival_lift * 100).toFixed(1)} pp`}
+                  tone={result.comparison.survival_lift >= 0 ? "jade" : "cinnabar"} />
+              </div>
+            </div>
+          )}
 
           <Panel pad={false} innerClassName="p-2">
             <PlotChart figure={result.accumulation_chart} height={480} />

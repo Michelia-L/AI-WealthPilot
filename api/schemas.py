@@ -311,6 +311,19 @@ class RetirementRequest(BaseModel):
     expected_return: float = Field(default=0.07, ge=-0.1, le=0.4)
     volatility: float = Field(default=0.15, ge=0.01, le=0.8)
     n_simulations: int = Field(default=10000, ge=1000, le=50000)
+    withdrawal_strategy: Literal["fixed", "guardrails"] = Field(
+        default="fixed",
+        description="fixed = rigid inflation-adjusted withdrawals; guardrails = "
+        "Guyton-Klinger rules (cut/raise around the initial withdrawal rate)",
+    )
+    guardrail_band: float = Field(
+        default=0.2, ge=0.05, le=0.5,
+        description="Relative band around the initial withdrawal rate (0.2 = ±20%)",
+    )
+    guardrail_adjust: float = Field(
+        default=0.1, ge=0.01, le=0.5,
+        description="Withdrawal cut/raise when a guardrail fires (0.1 = ∓10%)",
+    )
 
     @model_validator(mode="after")
     def _check_custom_inflation(self) -> "RetirementRequest":
@@ -349,6 +362,18 @@ class SensitivityRow(BaseModel):
     median_at_retirement: float
 
 
+class StrategyComparison(BaseModel):
+    """Guardrails vs fixed withdrawals on identical random draws."""
+
+    fixed_survival_rate: float
+    guardrails_survival_rate: float
+    survival_lift: float = Field(
+        description="guardrails_survival_rate − fixed_survival_rate"
+    )
+    guardrail_band: float
+    guardrail_adjust: float
+
+
 class RetirementResponse(BaseModel):
     as_of: datetime
     params: dict[str, Any]
@@ -362,6 +387,11 @@ class RetirementResponse(BaseModel):
     distribution_chart: dict[str, Any]
     depletion: DepletionAnalysis
     sensitivity: list[SensitivityRow]
+    comparison: Optional[StrategyComparison] = Field(
+        default=None,
+        description="Guardrails vs fixed comparison; only when "
+        "withdrawal_strategy='guardrails'",
+    )
 
 
 # ---------------------------------------------------------------------------

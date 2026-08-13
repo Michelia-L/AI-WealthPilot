@@ -127,6 +127,92 @@ class MonteCarloSimulator:
             ),
         )
 
+    def _distribution_phase(
+        self,
+        terminal_values: np.ndarray,
+        dist_years: int,
+        desired_annual_income: float,
+        accum_years: int,
+        inflation_rate: float,
+        distribution_inflation_rate: float,
+        withdrawal_strategy: str,
+        guardrail_band: float,
+        guardrail_adjust: float,
+        seed: int,
+    ) -> np.ndarray:
+        """Distribution-phase paths under one withdrawal strategy.
+
+        fixed: withdrawals are purely inflation-adjusted (rigid spending).
+        guardrails: simplified Guyton-Klinger (2006) rules — each path
+        anchors its initial withdrawal rate WR0 = W0 / V0 at retirement;
+        every year the tentative withdrawal steps up with the distribution
+        inflation rate, then
+
+            current WR > WR0 × (1 + band)  →  cut by `guardrail_adjust`
+                                               (capital-preservation rule)
+            current WR < WR0 × (1 − band)  →  raise by `guardrail_adjust`
+                                               (prosperity rule)
+
+        All operations are vectorized across paths; depleted paths keep a
+        zero balance (their WR reads as +inf, so no rule fires).
+
+        References:
+            - Guyton & Klinger (2006). Decision Rules for Portfolio
+              Withdrawal. Journal of Financial Planning.
+        """
+        # 30% reduced return/vol for the conservative retirement shift.
+        conservative_return = self.expected_return * 0.7
+        conservative_vol = self.volatility * 0.7
+        drift = conservative_return - 0.5 * conservative_vol ** 2
+
+        dist_paths = np.zeros((self.n_simulations, dist_years + 1))
+        dist_paths[:, 0] = terminal_values
+        rng = np.random.default_rng(seed)
+
+        if withdrawal_strategy == "guardrails":
+            # First-year withdrawal matches the fixed schedule at t=1.
+            w0 = (
+                desired_annual_income
+                * (1.0 + inflation_rate) ** accum_years
+                * (1.0 + distribution_inflation_rate)
+            )
+            with np.errstate(divide="ignore", invalid="ignore"):
+                wr0 = np.where(terminal_values > 0, w0 / terminal_values, np.inf)
+            withdrawals = np.full(self.n_simulations, w0)
+
+        for t in range(1, dist_years + 1):
+            z = rng.standard_normal(self.n_simulations)
+            growth = np.exp(drift + conservative_vol * z)
+
+            if withdrawal_strategy == "guardrails":
+                prev = dist_paths[:, t - 1]
+                tentative = withdrawals * (1.0 + distribution_inflation_rate)
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    current_wr = np.where(prev > 0, tentative / prev, np.inf)
+                cut = current_wr > wr0 * (1.0 + guardrail_band)
+                boost = current_wr < wr0 * (1.0 - guardrail_band)
+                tentative = np.where(
+                    cut, tentative * (1.0 - guardrail_adjust), tentative
+                )
+                tentative = np.where(
+                    boost, tentative * (1.0 + guardrail_adjust), tentative
+                )
+                withdrawals = tentative
+                dist_paths[:, t] = np.maximum(prev * growth - tentative, 0)
+            else:
+                # Inflate withdrawal to nominal terms: the target income (in
+                # today's money) is eroded by the accumulation-phase rate
+                # until retirement, then by the distribution-phase rate.
+                inflation_factor = (
+                    (1.0 + inflation_rate) ** accum_years
+                    * (1.0 + distribution_inflation_rate) ** t
+                )
+                nominal_withdrawal = desired_annual_income * inflation_factor
+                dist_paths[:, t] = dist_paths[:, t - 1] * growth - nominal_withdrawal
+                dist_paths[:, t] = np.maximum(dist_paths[:, t], 0)
+
+        return dist_paths
+
     def retirement_planning(
         self,
         current_age: int,
@@ -137,12 +223,16 @@ class MonteCarloSimulator:
         desired_annual_income: float,
         inflation_rate: float = 0.025,
         distribution_inflation_rate: Optional[float] = None,
+        withdrawal_strategy: str = "fixed",
+        guardrail_band: float = 0.2,
+        guardrail_adjust: float = 0.1,
     ) -> dict:
         """Two-phase retirement simulation: accumulation then distribution.
 
         Phase 1 (accumulation): client saves until retirement_age.
         Phase 2 (distribution): client withdraws with 30% reduced
-        return/vol (conservative shift) and inflation-adjusted withdrawals.
+        return/vol (conservative shift) and inflation-adjusted withdrawals,
+        optionally moderated by Guyton-Klinger guardrails.
 
         Args:
             current_age: Client's current age.
@@ -158,11 +248,26 @@ class MonteCarloSimulator:
                 (healthcare-tilted) basket, so a CPI-E-style rate higher
                 than the accumulation-phase generic CPI is often the
                 better assumption — see src.portfolio.inflation.
+            withdrawal_strategy: 'fixed' (rigid inflation-adjusted) or
+                'guardrails' (Guyton-Klinger capital-preservation and
+                prosperity rules around the initial withdrawal rate).
+            guardrail_band: Relative band around the initial withdrawal
+                rate that triggers an adjustment (0.2 = ±20%).
+            guardrail_adjust: Withdrawal cut/raise applied when a rule
+                fires (0.1 = ∓10%).
 
         Returns:
             Dict with 'accumulation', 'distribution_paths', 'survival_rate',
-            'accumulation_years', 'distribution_years'.
+            'accumulation_years', 'distribution_years', 'withdrawal_strategy';
+            under 'guardrails', also 'baseline_survival_rate' — the fixed-
+            strategy survival computed on the SAME random draws (common
+            random numbers keep the comparison honest).
         """
+        if withdrawal_strategy not in ("fixed", "guardrails"):
+            raise ValueError(
+                f"Unknown withdrawal strategy: {withdrawal_strategy}. "
+                "Supported: 'fixed', 'guardrails'."
+            )
         if distribution_inflation_rate is None:
             distribution_inflation_rate = inflation_rate
         # Phase 1: Accumulation
@@ -179,42 +284,41 @@ class MonteCarloSimulator:
             annual_contribution=annual_savings,
         )
 
-        # Phase 2: Distribution (30% reduced return/vol for conservative shift)
+        # Phase 2: Distribution
         dist_years = life_expectancy - retirement_age
-        conservative_return = self.expected_return * 0.7
-        conservative_vol = self.volatility * 0.7
+        dist_seed = int(self.rng.integers(0, 2**31))
 
-        dist_paths = np.zeros((self.n_simulations, dist_years + 1))
-        dist_paths[:, 0] = accum_result.terminal_values
-
-        drift = conservative_return - 0.5 * conservative_vol ** 2
-        rng = np.random.default_rng(self.rng.integers(0, 2**31))
-
-        for t in range(1, dist_years + 1):
-            z = rng.standard_normal(self.n_simulations)
-            growth = np.exp(drift + conservative_vol * z)
-            # Inflate withdrawal to nominal terms: the target income (in
-            # today's money) is eroded by the accumulation-phase rate until
-            # retirement, then by the distribution-phase rate thereafter.
-            inflation_factor = (
-                (1.0 + inflation_rate) ** accum_years
-                * (1.0 + distribution_inflation_rate) ** t
-            )
-            nominal_withdrawal = desired_annual_income * inflation_factor
-            dist_paths[:, t] = dist_paths[:, t - 1] * growth - nominal_withdrawal
-            dist_paths[:, t] = np.maximum(dist_paths[:, t], 0)
+        dist_paths = self._distribution_phase(
+            accum_result.terminal_values, dist_years, desired_annual_income,
+            accum_years, inflation_rate, distribution_inflation_rate,
+            withdrawal_strategy, guardrail_band, guardrail_adjust, dist_seed,
+        )
 
         # Survival rate: fraction of paths that never hit zero
         never_depleted = np.all(dist_paths > 0, axis=1)
         survival_rate = float(np.mean(never_depleted))
 
-        return {
+        result = {
             "accumulation": accum_result,
             "distribution_paths": dist_paths,
             "survival_rate": survival_rate,
             "accumulation_years": accum_years,
             "distribution_years": dist_years,
+            "withdrawal_strategy": withdrawal_strategy,
         }
+
+        if withdrawal_strategy == "guardrails":
+            # Fixed-strategy baseline on identical draws.
+            baseline_paths = self._distribution_phase(
+                accum_result.terminal_values, dist_years, desired_annual_income,
+                accum_years, inflation_rate, distribution_inflation_rate,
+                "fixed", guardrail_band, guardrail_adjust, dist_seed,
+            )
+            result["baseline_survival_rate"] = float(
+                np.mean(np.all(baseline_paths > 0, axis=1))
+            )
+
+        return result
 
 
 if __name__ == "__main__":
