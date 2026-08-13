@@ -38,6 +38,7 @@ class PortfolioOptimizer:
         returns: pd.DataFrame,
         risk_free_rate: float = RISK_FREE_RATE,
         covariance_method: str = 'sample',
+        expected_returns: Optional[pd.Series] = None,
     ):
         """Initialize with historical return data.
 
@@ -45,6 +46,12 @@ class PortfolioOptimizer:
             returns: DataFrame of daily asset returns (columns = assets).
             risk_free_rate: Annual risk-free rate.
             covariance_method: 'sample', 'ledoit-wolf', or 'oas'.
+            expected_returns: Optional external expected-return vector
+                (annualized, indexed by asset name — e.g. from the CME
+                engine via expected_return_source="cme"). Overrides the
+                sample means; covariance is always estimated from the
+                historical returns. Assets missing from the vector keep
+                their sample mean.
         """
         if covariance_method not in ['sample', 'ledoit-wolf', 'oas']:
             raise ValueError(
@@ -60,6 +67,12 @@ class PortfolioOptimizer:
 
         # Annualize: μ = daily_mean × 252
         self.mean_returns = returns.mean() * TRADING_DAYS_PER_YEAR
+        if expected_returns is not None:
+            # reindex pins the override to column order; fillna keeps the
+            # sample mean for assets the external vector does not cover.
+            self.mean_returns = expected_returns.reindex(returns.columns).fillna(
+                self.mean_returns
+            )
 
         # Estimate annualized covariance matrix
         if covariance_method == 'ledoit-wolf':
@@ -399,7 +412,9 @@ class PortfolioOptimizer:
         all_weights = []
 
         daily_cov = self.returns.cov().values
-        daily_mean = self.returns.mean().values
+        # Resample around the (possibly externally overridden) mean vector:
+        # identical to returns.mean() when no override was supplied.
+        daily_mean = self.mean_returns.values / TRADING_DAYS_PER_YEAR
         cov_over_T = daily_cov / len(self.returns)
 
         # Thread the sampled expected returns through each objective as a
@@ -497,7 +512,9 @@ class PortfolioOptimizer:
         """
         all_frontiers = []
         daily_cov = self.returns.cov().values
-        daily_mean = self.returns.mean().values
+        # Resample around the (possibly externally overridden) mean vector:
+        # identical to returns.mean() when no override was supplied.
+        daily_mean = self.mean_returns.values / TRADING_DAYS_PER_YEAR
         cov_over_T = daily_cov / len(self.returns)
 
         # Pass sampled means via mean_override instead of mutating

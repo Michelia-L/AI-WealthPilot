@@ -240,6 +240,8 @@ export interface OptimizeRequest {
   n_simulations: number;
   /** CVaR 置信水平（仅 method=mean-cvar 时发送）。 */
   cvar_confidence?: number;
+  /** 预期收益来源：历史样本均值 / CME 引擎（不适用于 black-litterman）。 */
+  expected_return_source?: "sample" | "cme";
   bl?: BLConfigInput | null;
   /** LDI 负债参数（仅 method=surplus 时发送）。 */
   surplus?: SurplusConfigInput | null;
@@ -290,6 +292,9 @@ export interface OptimizeResponse {
     allow_short: boolean;
     n_simulations: number | null;
     cvar_confidence: number | null;
+    expected_return_source?: "sample" | "cme";
+    /** cme 模式下未被 CME 覆盖、回退为样本均值的资产显示名。 */
+    cme_fallback_assets?: string[] | null;
     trading_days: number;
   };
   selected: PortfolioResult;

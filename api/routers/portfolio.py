@@ -54,9 +54,11 @@ from src.agents.portfolio_recommender import recommend_portfolio
 from src.config import (
     BASE_CURRENCY,
     CME_INFLATION_ASSUMPTION,
+    CME_TICKER_TO_OPTIMIZER_ASSET,
     DEFAULT_ASSET_CLASSES,
     LDI_DEFAULT_PROXY,
     LDI_PROXY_DURATIONS,
+    TRADING_DAYS_PER_YEAR,
 )
 from src.data.market_data import (
     compute_returns,
@@ -64,6 +66,7 @@ from src.data.market_data import (
     fetch_risk_free_rate,
 )
 from src.portfolio.backtest import InsufficientDataError, run_backtest
+from src.portfolio.cme_engine import compute_cme
 from src.portfolio.inflation import resolve_personal_inflation, suggest_inflation_preset
 from src.portfolio.liabilities import estimate_liability_stats, goals_to_liability
 from src.portfolio.optimizer import BlackLittermanOptimizer, PortfolioOptimizer
@@ -304,6 +307,49 @@ def _result_payload(result: dict, asset_names: list[str]) -> PortfolioResult:
     )
 
 
+def _resolve_expected_returns(
+    req: OptimizeRequest, keys: list[str], returns: pd.DataFrame, locale: str = "zh"
+) -> tuple[Optional[pd.Series], Optional[list[str]]]:
+    """Resolve the expected-return vector for expected_return_source='cme'.
+
+    Maps CME asset classes onto the optimizer universe by proxy ticker
+    (CME_TICKER_TO_OPTIMIZER_ASSET); uncovered assets keep their sample
+    mean and are reported for disclosure. Returns (None, None) under the
+    default sample source. Raises 422 for black-litterman (equilibrium μ
+    conflicts) and 502 when every CME data source has failed.
+    """
+    if req.expected_return_source != "cme":
+        return None, None
+    if req.method == "black-litterman":
+        raise HTTPException(
+            status_code=422, detail=msg("portfolio.cme_source_not_bl", locale)
+        )
+    try:
+        cme_report, _cache_status = compute_cme()
+    except RuntimeError:
+        raise HTTPException(
+            status_code=502, detail=msg("portfolio.cme_unavailable", locale)
+        ) from None
+
+    cme_by_key = {}
+    for ac in cme_report.asset_classes:
+        opt_key = CME_TICKER_TO_OPTIMIZER_ASSET.get(ac.ticker)
+        if opt_key:
+            cme_by_key[opt_key] = ac.expected_return
+
+    sample_means = returns.mean() * TRADING_DAYS_PER_YEAR
+    values = {}
+    fallback: list[str] = []
+    for key in keys:
+        name = DEFAULT_ASSET_CLASSES[key]["name"]
+        if key in cme_by_key:
+            values[name] = float(cme_by_key[key])
+        else:
+            values[name] = float(sample_means[name])
+            fallback.append(name)
+    return pd.Series(values), fallback
+
+
 def _resolve_risk_constraints(
     req: OptimizeRequest, session: Session, locale: str = "zh"
 ) -> Optional[RiskConstraintsInfo]:
@@ -416,7 +462,8 @@ def _resolve_surplus_raw(
 
 
 def _run_mvo(
-    returns: pd.DataFrame, req: OptimizeRequest, group_constraints: Optional[dict] = None
+    returns: pd.DataFrame, req: OptimizeRequest, group_constraints: Optional[dict] = None,
+    expected_returns: Optional[pd.Series] = None,
 ) -> tuple[PortfolioOptimizer, dict, dict, dict, pd.DataFrame, pd.DataFrame, dict]:
     """Traditional or Resampled (Michaud) MVO. Returns (optimizer, selected,
     max_sharpe, min_vol, frontier, random_portfolios, params_echo).
@@ -425,7 +472,9 @@ def _run_mvo(
     portfolio honors those per-group min/max limits while the max_sharpe /
     min_vol control portfolios stay unconstrained as a cost reference.
     """
-    optimizer = PortfolioOptimizer(returns, risk_free_rate=req.risk_free_rate)
+    optimizer = PortfolioOptimizer(
+        returns, risk_free_rate=req.risk_free_rate, expected_returns=expected_returns
+    )
     max_sharpe = optimizer.maximize_sharpe(allow_short=req.allow_short)
     min_vol = optimizer.minimize_volatility(allow_short=req.allow_short)
 
@@ -528,7 +577,8 @@ def _run_bl(
 
 
 def _run_cvar(
-    returns: pd.DataFrame, req: OptimizeRequest
+    returns: pd.DataFrame, req: OptimizeRequest,
+    expected_returns: Optional[pd.Series] = None,
 ) -> tuple[PortfolioOptimizer, dict, dict, dict, pd.DataFrame, pd.DataFrame, dict]:
     """Mean-CVaR optimization (Rockafellar-Uryasev LP on daily scenarios).
 
@@ -537,7 +587,7 @@ def _run_cvar(
     portfolio; max-sharpe → the frontier point maximizing
     (return − rf) / CVaR (Stable Tail Adjusted Return Ratio).
     """
-    optimizer = PortfolioOptimizer(returns, risk_free_rate=req.risk_free_rate)
+    optimizer = PortfolioOptimizer(returns, risk_free_rate=req.risk_free_rate, expected_returns=expected_returns)
     beta = req.cvar_confidence
 
     frontier = optimizer.cvar_efficient_frontier(
@@ -579,6 +629,7 @@ def _run_surplus(
     rf: float,
     surplus_raw: dict,
     proxy_returns: Optional[pd.Series],
+    expected_returns: Optional[pd.Series] = None,
 ) -> tuple[PortfolioOptimizer, dict, dict, dict, pd.DataFrame, pd.DataFrame, dict]:
     """LDI surplus optimization (Sharpe-Tint): assets minus liabilities.
 
@@ -621,7 +672,7 @@ def _run_surplus(
         growth_rate=growth,
     )
 
-    optimizer = PortfolioOptimizer(returns, risk_free_rate=req.risk_free_rate)
+    optimizer = PortfolioOptimizer(returns, risk_free_rate=req.risk_free_rate, expected_returns=expected_returns)
     max_sharpe = optimizer.maximize_surplus_sharpe(
         k, mu_L, sigma_L, cov_vec, allow_short=req.allow_short
     )
@@ -711,21 +762,24 @@ def _solve_optimize(
     if risk_constraints is not None and req.method == "mvo":
         group_constraints = build_group_constraints(risk_constraints.caps, keys)
 
+    # CME-sourced expected returns (default: historical sample means).
+    expected_returns, cme_fallback = _resolve_expected_returns(req, keys, returns, locale)
+
     if req.method == "black-litterman":
         optimizer, selected, max_sharpe, min_vol, frontier, random_ports, extra = (
             _run_bl(returns, req, locale)
         )
     elif req.method == "mean-cvar":
         optimizer, selected, max_sharpe, min_vol, frontier, random_ports, extra = (
-            _run_cvar(returns, req)
+            _run_cvar(returns, req, expected_returns)
         )
     elif req.method == "surplus":
         optimizer, selected, max_sharpe, min_vol, frontier, random_ports, extra = (
-            _run_surplus(returns, req, rf, surplus_raw, proxy_returns)
+            _run_surplus(returns, req, rf, surplus_raw, proxy_returns, expected_returns)
         )
     else:
         optimizer, selected, max_sharpe, min_vol, frontier, random_ports, extra = (
-            _run_mvo(returns, req, group_constraints)
+            _run_mvo(returns, req, group_constraints, expected_returns)
         )
 
     # Every frontier point failing to solve yields an empty/malformed frame;
@@ -776,6 +830,8 @@ def _solve_optimize(
             "cvar_confidence": (
                 req.cvar_confidence if req.method == "mean-cvar" else None
             ),
+            "expected_return_source": req.expected_return_source,
+            "cme_fallback_assets": cme_fallback,
             "trading_days": int(len(returns)),
         },
         selected=_result_payload(selected, asset_names),
@@ -856,6 +912,11 @@ async def optimize_async(
         raise HTTPException(
             status_code=422,
             detail=msg("portfolio.bl_requires_view", locale),
+        )
+    if req.method == "black-litterman" and req.expected_return_source == "cme":
+        raise HTTPException(
+            status_code=422,
+            detail=msg("portfolio.cme_source_not_bl", locale),
         )
     # Profile lookup + cap resolution happen here, not in the executor.
     risk_info = _resolve_risk_constraints(req, session, locale)

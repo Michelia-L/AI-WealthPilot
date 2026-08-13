@@ -1,6 +1,6 @@
 # AI WealthPilot — Agent Guide
 
-面向私人财富管理的 AI 顾问工作站：量化组合引擎（MVO / Resampled / Black-Litterman / Mean-CVaR / LDI 盈余优化 / GBM 蒙特卡洛）+ LangGraph 多智能体 IPS 流水线 + DeepSeek 顾问智能体。
+面向私人财富管理的 AI 顾问工作站：量化组合引擎（MVO / Resampled / Black-Litterman / Mean-CVaR / LDI 盈余优化 / GBM 蒙特卡洛；预期收益可切换历史样本 / CME 引擎口径 `expected_return_source`）+ LangGraph 多智能体 IPS 流水线 + DeepSeek 顾问智能体。
 
 ## 工作原则
 

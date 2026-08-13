@@ -23,6 +23,12 @@ export const optimizer = {
   cvarConfidence: "CVaR Confidence",
   cvarModeHint:
     "Max Sharpe → max (return − rf) / CVaR; Min Volatility → min CVaR",
+  expectedReturnSource: "Expected Returns",
+  sourceSample: "Sample",
+  sourceCme: "CME",
+  cmeBlHint: "BL uses its own equilibrium returns",
+  cmeFallbackHint: (names: string) =>
+    `Not covered by the CME engine — sample means used for: ${names}`,
   clientRiskConstraint: (name: string) => `Client Risk Constraint (${name})`,
   mvoOnlyHint: "Classic MVO only",
   selectClientHint:

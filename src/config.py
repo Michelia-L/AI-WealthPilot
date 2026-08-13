@@ -136,6 +136,21 @@ LDI_PROXY_DURATIONS = {
 }
 LDI_DEFAULT_PROXY = "US_BOND"
 
+# CME → optimizer expected-return bridge (expected_return_source="cme").
+# Maps a CME proxy ticker to the optimizer-universe key with the same
+# economic exposure. 000300.SS ↔ CHINA_EQUITY is an index-to-ETF
+# equivalence (CSI 300 index vs the ASHR ETF proxy); EWH (HK equities)
+# has no optimizer counterpart and is intentionally unmapped — uncovered
+# assets fall back to their sample mean with disclosure.
+CME_TICKER_TO_OPTIMIZER_ASSET = {
+    "000300.SS": "CHINA_EQUITY",
+    "EFA": "INTL_EQUITY",
+    "AGG": "US_BOND",
+    "GLD": "GOLD",
+    "VNQ": "REIT",
+    "BIL": "CASH",
+}
+
 # Tushare Pro data provider (paid CN backbone, P16)
 # yfinance ticker → tushare ts_code. Routed tickers are served by Tushare
 # Pro (daily bars); yfinance remains the fallback when Tushare is absent

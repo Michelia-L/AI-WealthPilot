@@ -80,6 +80,7 @@ export default function OptimizerWorkspace({
   const [rfManual, setRfManual] = useState("4.5");
   const [nSim, setNSim] = useState(200);
   const [cvarConf, setCvarConf] = useState(0.95);
+  const [erSource, setErSource] = useState<"sample" | "cme">("sample");
 
   const [surplusSource, setSurplusSource] = useState<SurplusSource>("manual");
   const [liabRatio, setLiabRatio] = useState(1.0);
@@ -144,6 +145,10 @@ export default function OptimizerWorkspace({
     }
     if (method === "mean-cvar") {
       body.cvar_confidence = cvarConf;
+    }
+    // BL 自带均衡-后验 μ，发送 cme 会被后端 422
+    if (erSource === "cme" && method !== "black-litterman") {
+      body.expected_return_source = "cme";
     }
     if (method === "surplus") {
       body.surplus = {
@@ -414,6 +419,33 @@ export default function OptimizerWorkspace({
               </span>
             </span>
           )}
+          <span className="flex items-center gap-2.5">
+            <span className="text-xs text-mist-400">
+              {t.optimizer.expectedReturnSource}
+            </span>
+            <span
+              className={
+                method === "black-litterman"
+                  ? "pointer-events-none opacity-50"
+                  : ""
+              }
+            >
+              <Segmented
+                size="sm"
+                options={[
+                  { value: "sample" as const, label: t.optimizer.sourceSample },
+                  { value: "cme" as const, label: t.optimizer.sourceCme },
+                ]}
+                value={erSource}
+                onChange={setErSource}
+              />
+            </span>
+            {method === "black-litterman" && (
+              <span className="text-[11px] text-mist-600">
+                {t.optimizer.cmeBlHint}
+              </span>
+            )}
+          </span>
           {clientId !== null ? (
             <span className="flex items-center gap-2.5">
               <span

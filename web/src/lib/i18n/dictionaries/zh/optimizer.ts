@@ -22,6 +22,12 @@ export const optimizer = {
   simulations: "模拟次数",
   cvarConfidence: "CVaR 置信水平",
   cvarModeHint: "最大夏普 → 最大化 (收益−无风险利率)/CVaR；最小波动 → 最小化 CVaR",
+  expectedReturnSource: "预期收益来源",
+  sourceSample: "历史样本",
+  sourceCme: "CME 预期",
+  cmeBlHint: "BL 已内置均衡收益",
+  cmeFallbackHint: (names: string) =>
+    `以下资产未被 CME 覆盖，已回退为历史样本均值：${names}`,
   clientRiskConstraint: (name: string) => `客户风险约束（${name}）`,
   mvoOnlyHint: "仅传统 MVO 生效",
   selectClientHint: "在侧边栏选择客户后，可将其风险等级注入为权重约束",

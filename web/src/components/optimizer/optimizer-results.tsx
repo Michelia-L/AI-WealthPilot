@@ -224,6 +224,15 @@ export default function OptimizerResults({
         </p>
       )}
 
+      {result.params.cme_fallback_assets != null &&
+        result.params.cme_fallback_assets.length > 0 && (
+          <p className="text-xs leading-5 text-mist-500">
+            {t.optimizer.cmeFallbackHint(
+              result.params.cme_fallback_assets.join(" · ")
+            )}
+          </p>
+        )}
+
       <p className="text-xs leading-5 text-mist-500">
         {t.optimizer.paramsSummary({
           period: result.params.period,

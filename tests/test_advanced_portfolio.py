@@ -796,3 +796,60 @@ class TestMeanCVaR:
         opt = PortfolioOptimizer(sample_returns)
         frontier = opt.cvar_efficient_frontier(n_points=12, beta=0.95)
         assert frontier["cvar"].iloc[-1] >= frontier["cvar"].iloc[0] - 1e-9
+
+
+# ============================================================
+# External Expected-Return Override (CME bridge)
+# ============================================================
+
+class TestExpectedReturnsOverride:
+    """
+    PortfolioOptimizer(expected_returns=...) — the CME → optimizer bridge.
+    PortfolioOptimizer 的外部预期收益覆盖（CME 桥接）。
+    """
+
+    def test_override_replaces_sample_means(self, sample_returns):
+        """Override wins for covered assets; covariance stays historical."""
+        override = pd.Series({c: 0.10 for c in sample_returns.columns})
+        opt_plain = PortfolioOptimizer(sample_returns)
+        opt_cme = PortfolioOptimizer(sample_returns, expected_returns=override)
+        for c in sample_returns.columns:
+            assert opt_cme.mean_returns[c] == pytest.approx(0.10)
+        pd.testing.assert_frame_equal(opt_plain.cov_matrix, opt_cme.cov_matrix)
+
+    def test_partial_override_keeps_sample_means(self, sample_returns):
+        """Assets missing from the override keep their sample mean."""
+        first = sample_returns.columns[0]
+        opt = PortfolioOptimizer(
+            sample_returns, expected_returns=pd.Series({first: 0.20})
+        )
+        assert opt.mean_returns[first] == pytest.approx(0.20)
+        sample_means = sample_returns.mean() * 252
+        for other in sample_returns.columns[1:]:
+            assert opt.mean_returns[other] == pytest.approx(sample_means[other])
+
+    def test_no_override_behaves_as_before(self, sample_returns):
+        """Default: mean_returns are the annualized sample means."""
+        opt = PortfolioOptimizer(sample_returns)
+        sample_means = sample_returns.mean() * 252
+        for c in sample_returns.columns:
+            assert opt.mean_returns[c] == pytest.approx(sample_means[c])
+
+    def test_override_flips_max_sharpe_allocation(self):
+        """Sample says A>B; override says B>A ⇒ long-only max-sharpe flips."""
+        rng = np.random.default_rng(5)
+        n = 500
+        returns = pd.DataFrame({
+            "A": rng.normal(0.0008, 0.010, n),   # clearly positive sample mean
+            "B": rng.normal(-0.0008, 0.010, n),  # clearly negative sample mean
+        })
+        w_sample = PortfolioOptimizer(
+            returns, risk_free_rate=0.0
+        ).maximize_sharpe()["weights"]
+        assert w_sample["A"] > 0.99
+
+        override = pd.Series({"A": -0.05, "B": 0.05})
+        w_cme = PortfolioOptimizer(
+            returns, risk_free_rate=0.0, expected_returns=override
+        ).maximize_sharpe()["weights"]
+        assert w_cme["B"] > 0.99

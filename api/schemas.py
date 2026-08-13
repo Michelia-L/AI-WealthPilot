@@ -191,6 +191,11 @@ class OptimizeRequest(BaseModel):
     mode: Literal["max-sharpe", "min-vol"] = "max-sharpe"
     allow_short: bool = False
     n_simulations: int = Field(default=200, ge=50, le=2000)
+    expected_return_source: Literal["sample", "cme"] = Field(
+        default="sample",
+        description="Expected-return vector source: historical sample means "
+        "or the CME engine (black-litterman is incompatible with 'cme')",
+    )
     cvar_confidence: float = Field(
         default=0.95, ge=0.8, le=0.99,
         description="CVaR confidence level (mean-cvar method only)",
