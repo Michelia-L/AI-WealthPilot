@@ -148,10 +148,14 @@ class OptimizeRequest(BaseModel):
     risk_free_rate: Optional[float] = Field(
         default=None, description="Annualized decimal; None = fetch dynamically"
     )
-    method: Literal["mvo", "resampled", "black-litterman"] = "mvo"
+    method: Literal["mvo", "resampled", "black-litterman", "mean-cvar"] = "mvo"
     mode: Literal["max-sharpe", "min-vol"] = "max-sharpe"
     allow_short: bool = False
     n_simulations: int = Field(default=200, ge=50, le=2000)
+    cvar_confidence: float = Field(
+        default=0.95, ge=0.8, le=0.99,
+        description="CVaR confidence level (mean-cvar method only)",
+    )
     bl: Optional[BLConfigInput] = None
     profile_id: Optional[int] = Field(
         default=None,
@@ -168,6 +172,11 @@ class PortfolioResult(BaseModel):
     success: bool = True
     weight_std: Optional[dict[str, float]] = Field(
         default=None, description="Resampled MVO only: weight dispersion per asset"
+    )
+    cvar: Optional[float] = Field(
+        default=None,
+        description="Mean-CVaR method only: annualized expected shortfall "
+        "(loss) at the request's confidence level",
     )
 
 

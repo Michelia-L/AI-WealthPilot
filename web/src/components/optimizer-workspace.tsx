@@ -34,6 +34,12 @@ import OptimizerResults from "./optimizer/optimizer-results";
 
 const DEFAULT_ASSETS = ["US_EQUITY", "INTL_EQUITY", "US_BOND", "GOLD"];
 
+const CVAR_CONFIDENCE_OPTIONS = [
+  { value: 0.9, label: "90%" },
+  { value: 0.95, label: "95%" },
+  { value: 0.99, label: "99%" },
+] as const;
+
 export default function OptimizerWorkspace({
   assetClasses,
   initialAssets,
@@ -49,6 +55,7 @@ export default function OptimizerWorkspace({
     { value: "mvo", label: t.optimizer.methodMvo },
     { value: "resampled", label: t.optimizer.methodResampled },
     { value: "black-litterman", label: "Black-Litterman" },
+    { value: "mean-cvar", label: "Mean-CVaR" },
   ];
 
   const MODE_OPTIONS: { value: OptimizeMode; label: string }[] = [
@@ -66,6 +73,7 @@ export default function OptimizerWorkspace({
   const [rfAuto, setRfAuto] = useState(true);
   const [rfManual, setRfManual] = useState("4.5");
   const [nSim, setNSim] = useState(200);
+  const [cvarConf, setCvarConf] = useState(0.95);
 
   const [blTau, setBlTau] = useState("0.025");
   const [blDelta, setBlDelta] = useState("2.5");
@@ -118,6 +126,9 @@ export default function OptimizerWorkspace({
             ),
         views,
       };
+    }
+    if (method === "mean-cvar") {
+      body.cvar_confidence = cvarConf;
     }
     if (method === "mvo" && applyRisk && clientId !== null) {
       body.profile_id = clientId;
@@ -352,6 +363,22 @@ export default function OptimizerWorkspace({
               onChange={setNSim}
               className="w-56"
             />
+          )}
+          {method === "mean-cvar" && (
+            <span className="flex flex-wrap items-center gap-2.5">
+              <span className="text-xs text-mist-400">
+                {t.optimizer.cvarConfidence}
+              </span>
+              <Segmented
+                size="sm"
+                options={CVAR_CONFIDENCE_OPTIONS}
+                value={cvarConf}
+                onChange={setCvarConf}
+              />
+              <span className="text-[11px] text-mist-600">
+                {t.optimizer.cvarModeHint}
+              </span>
+            </span>
           )}
           {clientId !== null ? (
             <span className="flex items-center gap-2.5">

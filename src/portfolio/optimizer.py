@@ -1,18 +1,23 @@
 """
-Portfolio optimization engine: MVO, Efficient Frontier, Black-Litterman.
+Portfolio optimization engine: MVO, Efficient Frontier, Black-Litterman,
+Mean-CVaR.
 
 Implements Markowitz mean-variance optimization with SLSQP solver,
-resampled efficient frontiers (Michaud), and the Black-Litterman
-Bayesian model for combining equilibrium returns with investor views.
+resampled efficient frontiers (Michaud), the Black-Litterman
+Bayesian model for combining equilibrium returns with investor views,
+and Mean-CVaR optimization via the Rockafellar-Uryasev LP formulation
+(scenario-based, solved with scipy's HiGHS LP solver).
 
 References:
     - Markowitz, H. (1952). Portfolio Selection. Journal of Finance.
     - Black & Litterman (1992). Global Portfolio Optimization. FAJ.
+    - Rockafellar & Uryasev (2000). Optimization of Conditional
+      Value-at-Risk. Journal of Risk.
 """
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize
+from scipy.optimize import linprog, minimize
 from typing import Optional
 
 from src.config import RISK_FREE_RATE, TRADING_DAYS_PER_YEAR
@@ -613,6 +618,165 @@ class PortfolioOptimizer:
             'success': result.success,
             'asset_class_weights': asset_class_weights,
         }
+
+    # ------------------------------------------------------------------
+    # Mean-CVaR optimization (Rockafellar-Uryasev LP)
+    # ------------------------------------------------------------------
+
+    def _solve_cvar_lp(
+        self,
+        beta: float,
+        allow_short: bool = False,
+        target_return: Optional[float] = None,
+    ) -> dict:
+        """Core LP for Mean-CVaR optimization (Rockafellar-Uryasev).
+
+        Decision variables x = [w (N), α (VaR threshold), z (S tail
+        excesses ≥ 0)] over the historical daily-return scenarios r_s:
+
+            min  α + (1 / ((1 − β)·S)) · Σ z_s
+            s.t. z_s ≥ −(r_s·w) − α      (tail excess beyond VaR)
+                 Σ w = 1
+                 μ_daily·w ≥ target      (only when target_return is set)
+
+        Solved on daily scenarios with scipy's HiGHS LP solver —
+        deterministic and reproducible, no Monte Carlo scenario sampling.
+
+        Args:
+            beta: CVaR confidence level (e.g. 0.95).
+            allow_short: Allow negative weights.
+            target_return: Optional annualized return floor (frontier points).
+
+        Returns:
+            Dict with 'weights' (ndarray), 'var_daily', 'cvar_daily'.
+
+        Raises:
+            ValueError: When the LP is infeasible (e.g. unreachable target).
+        """
+        R = self.returns.values  # (S, N) daily scenarios
+        S = R.shape[0]
+        n = self.n_assets
+
+        c = np.concatenate([
+            np.zeros(n),
+            [1.0],
+            np.full(S, 1.0 / ((1.0 - beta) * S)),
+        ])
+
+        # Tail constraints: −R·w − α − z ≤ 0
+        A_ub = np.hstack([-R, -np.ones((S, 1)), -np.eye(S)])
+        b_ub = np.zeros(S)
+
+        if target_return is not None:
+            mu_daily = R.mean(axis=0)
+            A_ub = np.vstack([
+                A_ub,
+                np.concatenate([-mu_daily, [0.0], np.zeros(S)]),
+            ])
+            b_ub = np.concatenate([
+                b_ub, [-target_return / TRADING_DAYS_PER_YEAR],
+            ])
+
+        A_eq = np.concatenate([np.ones(n), [0.0], np.zeros(S)]).reshape(1, -1)
+        b_eq = np.ones(1)
+
+        w_bound = (-1.0, 1.0) if allow_short else (0.0, 1.0)
+        bounds = [w_bound] * n + [(None, None)] + [(0.0, None)] * S
+
+        result = linprog(
+            c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq,
+            bounds=bounds, method="highs",
+        )
+        if not result.success:
+            raise ValueError(
+                f"Mean-CVaR LP infeasible (status {result.status}: "
+                f"{result.message})"
+            )
+
+        return {
+            "weights": result.x[:n],
+            "var_daily": float(result.x[n]),
+            "cvar_daily": float(result.fun),
+        }
+
+    def minimize_cvar(
+        self,
+        beta: float = 0.95,
+        allow_short: bool = False,
+        target_return: Optional[float] = None,
+    ) -> dict:
+        """Minimum-CVaR portfolio (Rockafellar-Uryasev LP).
+
+        Args:
+            beta: CVaR confidence level (e.g. 0.95).
+            allow_short: Allow negative weights.
+            target_return: Optional annualized return floor.
+
+        Returns:
+            Dict with 'weights', 'return', 'volatility', 'sharpe',
+            'success', plus 'cvar' and 'var' — the portfolio's annualized
+            expected shortfall and VaR threshold at confidence ``beta``
+            (daily figures × √252, the standard √T tail-risk scaling).
+        """
+        solved = self._solve_cvar_lp(beta, allow_short, target_return)
+        weights = solved["weights"]
+        ret, vol, sharpe = self.portfolio_performance(weights)
+        scale = np.sqrt(TRADING_DAYS_PER_YEAR)
+        return {
+            "weights": dict(zip(self.asset_names, weights)),
+            "return": ret,
+            "volatility": vol,
+            "sharpe": sharpe,
+            "cvar": solved["cvar_daily"] * scale,
+            "var": solved["var_daily"] * scale,
+            "success": True,
+        }
+
+    def cvar_efficient_frontier(
+        self,
+        n_points: int = 50,
+        beta: float = 0.95,
+        allow_short: bool = False,
+    ) -> pd.DataFrame:
+        """Mean-CVaR efficient frontier: min-CVaR weights per return target.
+
+        Each row also carries the portfolio's mean-variance metrics
+        (volatility, sharpe) so the frontier slots into the existing
+        efficient-frontier chart contract unchanged — i.e. CVaR-optimal
+        portfolios mapped into mean-variance space.
+
+        Args:
+            n_points: Number of frontier points.
+            beta: CVaR confidence level.
+            allow_short: Allow negative weights.
+
+        Returns:
+            DataFrame with 'return', 'volatility', 'sharpe', 'cvar', and
+            asset weight columns.
+        """
+        min_ret = float(self.mean_returns.min())
+        max_ret = float(self.mean_returns.max())
+        target_returns = np.linspace(min_ret, max_ret, n_points)
+
+        frontier = []
+        for target in target_returns:
+            try:
+                result = self.minimize_cvar(
+                    beta=beta, allow_short=allow_short,
+                    target_return=float(target),
+                )
+            except ValueError:
+                # Unreachable return target — skip like efficient_frontier.
+                continue
+            row = {
+                "return": result["return"],
+                "volatility": result["volatility"],
+                "sharpe": result["sharpe"],
+                "cvar": result["cvar"],
+            }
+            row.update(result["weights"])
+            frontier.append(row)
+        return pd.DataFrame(frontier)
 
 
 class BlackLittermanOptimizer(PortfolioOptimizer):

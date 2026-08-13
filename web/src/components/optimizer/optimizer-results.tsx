@@ -54,7 +54,14 @@ export default function OptimizerResults({
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-3">
+      <div
+        className={cx(
+          "grid gap-3",
+          result.selected.cvar != null
+            ? "grid-cols-2 lg:grid-cols-4"
+            : "grid-cols-3"
+        )}
+      >
         <StatTile
           label={t.optimizer.annReturn}
           value={fmtPct(result.selected.ann_return)}
@@ -69,6 +76,15 @@ export default function OptimizerResults({
           value={result.selected.sharpe.toFixed(2)}
           tone="gold"
         />
+        {result.selected.cvar != null && (
+          <StatTile
+            label={t.optimizer.cvarLabel(
+              result.params.cvar_confidence ?? 0.95
+            )}
+            value={fmtPct(result.selected.cvar)}
+            tone="cinnabar"
+          />
+        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

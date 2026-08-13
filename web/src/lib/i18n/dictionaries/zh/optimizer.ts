@@ -2,7 +2,7 @@
 export const optimizer = {
   title: "组合优化器",
   description:
-    "均值-方差优化（MVO）、Michaud 重采样前沿与 Black-Litterman 贝叶斯配置，求解有效前沿上的最优资产组合。",
+    "均值-方差优化（MVO）、Michaud 重采样前沿、Black-Litterman 贝叶斯配置与 Mean-CVaR 尾部风险优化，求解有效前沿上的最优资产组合。",
   /** ApiOffline `resource` prop shown when the asset universe cannot load. */
   assetUniverse: "优化资产宇宙",
 
@@ -20,6 +20,8 @@ export const optimizer = {
   modeMinVol: "最小波动",
   allowShort: "允许做空",
   simulations: "模拟次数",
+  cvarConfidence: "CVaR 置信水平",
+  cvarModeHint: "最大夏普 → 最大化 (收益−无风险利率)/CVaR；最小波动 → 最小化 CVaR",
   clientRiskConstraint: (name: string) => `客户风险约束（${name}）`,
   mvoOnlyHint: "仅传统 MVO 生效",
   selectClientHint: "在侧边栏选择客户后，可将其风险等级注入为权重约束",
@@ -72,6 +74,8 @@ export const optimizer = {
   annReturn: "年化收益",
   annVolatility: "年化波动",
   sharpeRatio: "夏普比率",
+  cvarLabel: (conf: number) =>
+    `${Math.round(conf * 100)}% CVaR（年化预期尾部损失）`,
   colAsset: "资产",
   colAllocation: "配置权重",
   colWeightStd: "权重波动 σ",

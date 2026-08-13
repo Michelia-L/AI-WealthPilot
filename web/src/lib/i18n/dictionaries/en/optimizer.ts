@@ -2,7 +2,7 @@
 export const optimizer = {
   title: "Portfolio Optimizer",
   description:
-    "Mean-variance optimization (MVO), Michaud resampled frontier, and Black-Litterman Bayesian allocation — solving for optimal portfolios on the efficient frontier.",
+    "Mean-variance optimization (MVO), Michaud resampled frontier, Black-Litterman Bayesian allocation, and Mean-CVaR tail-risk optimization — solving for optimal portfolios on the efficient frontier.",
   /** ApiOffline `resource` prop shown when the asset universe cannot load. */
   assetUniverse: "optimization asset universe",
 
@@ -20,6 +20,9 @@ export const optimizer = {
   modeMinVol: "Min Volatility",
   allowShort: "Allow Shorting",
   simulations: "Simulations",
+  cvarConfidence: "CVaR Confidence",
+  cvarModeHint:
+    "Max Sharpe → max (return − rf) / CVaR; Min Volatility → min CVaR",
   clientRiskConstraint: (name: string) => `Client Risk Constraint (${name})`,
   mvoOnlyHint: "Classic MVO only",
   selectClientHint:
@@ -77,6 +80,8 @@ export const optimizer = {
   annReturn: "Annualized Return",
   annVolatility: "Annualized Volatility",
   sharpeRatio: "Sharpe Ratio",
+  cvarLabel: (conf: number) =>
+    `${Math.round(conf * 100)}% CVaR (ann. expected shortfall)`,
   colAsset: "Asset",
   colAllocation: "Allocation",
   colWeightStd: "Weight σ",

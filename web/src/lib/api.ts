@@ -196,7 +196,7 @@ export interface BLConfigInput {
   views: BLViewInput[];
 }
 
-export type OptimizeMethod = "mvo" | "resampled" | "black-litterman";
+export type OptimizeMethod = "mvo" | "resampled" | "black-litterman" | "mean-cvar";
 export type OptimizeMode = "max-sharpe" | "min-vol";
 
 export interface OptimizeRequest {
@@ -207,6 +207,8 @@ export interface OptimizeRequest {
   mode: OptimizeMode;
   allow_short: boolean;
   n_simulations: number;
+  /** CVaR 置信水平（仅 method=mean-cvar 时发送）。 */
+  cvar_confidence?: number;
   bl?: BLConfigInput | null;
   /** 提供时按该客户的风险等级注入资产组权重上限（仅经典 MVO）。 */
   profile_id?: number | null;
@@ -219,6 +221,8 @@ export interface PortfolioResult {
   sharpe: number;
   success: boolean;
   weight_std: Record<string, number> | null;
+  /** mean-cvar 方法专属：该置信水平下的年化预期尾部损失。 */
+  cvar?: number | null;
 }
 
 export interface AssetStat {
@@ -252,6 +256,7 @@ export interface OptimizeResponse {
     mode: OptimizeMode;
     allow_short: boolean;
     n_simulations: number | null;
+    cvar_confidence: number | null;
     trading_days: number;
   };
   selected: PortfolioResult;

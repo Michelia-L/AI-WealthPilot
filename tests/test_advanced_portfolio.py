@@ -685,3 +685,114 @@ class TestCovarianceShrinkage:
         assert result['success']
         weights_sum = sum(result['weights'].values())
         assert abs(weights_sum - 1.0) < 1e-6
+
+
+# ============================================================
+# Mean-CVaR Optimization (Rockafellar-Uryasev LP)
+# ============================================================
+
+def _lp_cvar_daily(returns: pd.DataFrame, weights: np.ndarray, beta: float) -> float:
+    """CVaR of fixed weights under the LP's own definition.
+
+    Evaluates the Rockafellar-Uryasev objective at its minimizer:
+    f(α) = α + E[max(loss − α, 0)] / (1 − β), minimized over α. For a
+    discrete scenario set the empirical lower quantile is a minimizer,
+    so this equals the LP objective value for the same weights.
+    """
+    losses = -(returns.values @ weights)
+    alpha = np.quantile(losses, beta, method="lower")
+    return float(alpha + np.maximum(losses - alpha, 0).mean() / (1.0 - beta))
+
+
+class TestMeanCVaR:
+    """
+    Mean-CVaR optimization via the Rockafellar-Uryasev LP.
+    基于 Rockafellar-Uryasev 线性规划的 Mean-CVaR 优化。
+    """
+
+    def test_minimize_cvar_structure(self, sample_returns):
+        """Result dict carries the standard metrics plus cvar/var."""
+        opt = PortfolioOptimizer(sample_returns)
+        result = opt.minimize_cvar(beta=0.95)
+        assert result["success"]
+        for key in ("weights", "return", "volatility", "sharpe", "cvar", "var"):
+            assert key in result
+        assert set(result["weights"]) == set(sample_returns.columns)
+        assert result["cvar"] > 0
+        # CVaR (tail mean) must exceed the VaR threshold at the same beta.
+        assert result["cvar"] >= result["var"] - 1e-9
+
+    def test_minimize_cvar_weights_sum_to_one(self, sample_returns):
+        opt = PortfolioOptimizer(sample_returns)
+        result = opt.minimize_cvar()
+        assert abs(sum(result["weights"].values()) - 1.0) < 1e-6
+
+    def test_minimize_cvar_long_only_bounds(self, sample_returns):
+        """Long-only default: no negative weights."""
+        opt = PortfolioOptimizer(sample_returns)
+        result = opt.minimize_cvar()
+        assert all(w >= -1e-9 for w in result["weights"].values())
+
+    def test_minimize_cvar_beats_equal_weight(self, sample_returns):
+        """Optimality sanity: optimal CVaR ≤ equal-weight CVaR (same beta)."""
+        opt = PortfolioOptimizer(sample_returns)
+        beta = 0.95
+        result = opt.minimize_cvar(beta=beta)
+        n = sample_returns.shape[1]
+        eq_cvar = _lp_cvar_daily(sample_returns, np.ones(n) / n, beta)
+        assert result["cvar"] / np.sqrt(252) <= eq_cvar + 1e-9
+
+    def test_minimize_cvar_reported_value_matches_definition(self, sample_returns):
+        """Reported cvar must equal the LP objective at the reported var."""
+        opt = PortfolioOptimizer(sample_returns)
+        beta = 0.95
+        result = opt.minimize_cvar(beta=beta)
+        scale = np.sqrt(252)
+        alpha = result["var"] / scale
+        losses = -(
+            sample_returns.values
+            @ np.array(list(result["weights"].values()))
+        )
+        f = alpha + np.maximum(losses - alpha, 0).mean() / (1.0 - beta)
+        assert f == pytest.approx(result["cvar"] / scale, rel=1e-6)
+
+    def test_cvar_increases_with_confidence(self, sample_returns):
+        """Higher confidence ⇒ more conservative tail estimate (same weights)."""
+        n = sample_returns.shape[1]
+        w = np.ones(n) / n
+        assert _lp_cvar_daily(sample_returns, w, 0.99) >= _lp_cvar_daily(
+            sample_returns, w, 0.90
+        )
+
+    def test_minimize_cvar_allow_short(self, sample_returns):
+        opt = PortfolioOptimizer(sample_returns)
+        result = opt.minimize_cvar(allow_short=True)
+        assert result["success"]
+        assert abs(sum(result["weights"].values()) - 1.0) < 1e-6
+
+    def test_minimize_cvar_infeasible_target_raises(self, sample_returns):
+        """An unreachable return floor makes the LP infeasible."""
+        opt = PortfolioOptimizer(sample_returns)
+        with pytest.raises(ValueError, match="infeasible"):
+            opt.minimize_cvar(target_return=10.0)
+
+    def test_cvar_frontier_shape_and_columns(self, sample_returns):
+        opt = PortfolioOptimizer(sample_returns)
+        frontier = opt.cvar_efficient_frontier(n_points=10, beta=0.95)
+        assert not frontier.empty
+        assert len(frontier) <= 10
+        assert {"return", "volatility", "sharpe", "cvar"} <= set(frontier.columns)
+        for col in sample_returns.columns:
+            assert col in frontier.columns
+
+    def test_cvar_frontier_weights_sum_to_one(self, sample_returns):
+        opt = PortfolioOptimizer(sample_returns)
+        frontier = opt.cvar_efficient_frontier(n_points=10, beta=0.95)
+        weight_sums = frontier[list(sample_returns.columns)].sum(axis=1)
+        np.testing.assert_allclose(weight_sums, 1.0, atol=1e-6)
+
+    def test_cvar_frontier_return_cvar_tradeoff(self, sample_returns):
+        """Higher return targets should not come with lower tail risk."""
+        opt = PortfolioOptimizer(sample_returns)
+        frontier = opt.cvar_efficient_frontier(n_points=12, beta=0.95)
+        assert frontier["cvar"].iloc[-1] >= frontier["cvar"].iloc[0] - 1e-9

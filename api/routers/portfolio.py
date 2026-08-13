@@ -278,6 +278,7 @@ def _effective_risk_free_rate(override: Optional[float]) -> float:
 def _result_payload(result: dict, asset_names: list[str]) -> PortfolioResult:
     """Normalize an optimizer result-dict into the API schema."""
     weight_std = result.get("weight_std")
+    cvar = result.get("cvar")
     return PortfolioResult(
         weights={k: float(v) for k, v in result["weights"].items()},
         ann_return=float(result["return"]),
@@ -289,6 +290,7 @@ def _result_payload(result: dict, asset_names: list[str]) -> PortfolioResult:
             if weight_std is not None
             else None
         ),
+        cvar=float(cvar) if cvar is not None else None,
     )
 
 
@@ -438,10 +440,56 @@ def _run_bl(
     return optimizer, selected, max_sharpe, min_vol, frontier, random_ports, insight
 
 
+def _run_cvar(
+    returns: pd.DataFrame, req: OptimizeRequest
+) -> tuple[PortfolioOptimizer, dict, dict, dict, pd.DataFrame, pd.DataFrame, dict]:
+    """Mean-CVaR optimization (Rockafellar-Uryasev LP on daily scenarios).
+
+    A single frontier solve feeds both the chart and the max-STARR
+    reference point. Mode mapping: min-vol → the global min-CVaR
+    portfolio; max-sharpe → the frontier point maximizing
+    (return − rf) / CVaR (Stable Tail Adjusted Return Ratio).
+    """
+    optimizer = PortfolioOptimizer(returns, risk_free_rate=req.risk_free_rate)
+    beta = req.cvar_confidence
+
+    frontier = optimizer.cvar_efficient_frontier(
+        n_points=FRONTIER_POINTS, beta=beta, allow_short=req.allow_short
+    )
+    min_cvar = optimizer.minimize_cvar(beta=beta, allow_short=req.allow_short)
+
+    # Max-STARR reference: the frontier point with the best return per
+    # unit of tail loss. Falls back to the min-CVaR portfolio when every
+    # frontier target was infeasible (the downstream empty-frontier check
+    # then surfaces a clean 422).
+    max_ratio = min_cvar
+    if not frontier.empty:
+        weight_cols = [
+            c for c in frontier.columns
+            if c not in ("return", "volatility", "sharpe", "cvar")
+        ]
+        ratio = (frontier["return"] - optimizer.risk_free_rate) / frontier["cvar"]
+        best = frontier.loc[ratio.idxmax()]
+        max_ratio = {
+            "weights": {name: float(best[name]) for name in weight_cols},
+            "return": float(best["return"]),
+            "volatility": float(best["volatility"]),
+            "sharpe": float(best["sharpe"]),
+            "cvar": float(best["cvar"]),
+            "success": True,
+        }
+
+    max_sharpe = max_ratio
+    min_vol = min_cvar
+    selected = max_ratio if req.mode == "max-sharpe" else min_cvar
+    random_ports = optimizer.random_portfolios(n_portfolios=RANDOM_PORTFOLIOS)
+    return optimizer, selected, max_sharpe, min_vol, frontier, random_ports, {}
+
+
 @router.post(
     "/optimize",
     response_model=OptimizeResponse,
-    summary="Run portfolio optimization (MVO / Resampled / Black-Litterman)",
+    summary="Run portfolio optimization (MVO / Resampled / Black-Litterman / Mean-CVaR)",
 )
 def optimize(
     req: OptimizeRequest, request: Request, session: Session = Depends(get_session)
@@ -482,6 +530,10 @@ def _solve_optimize(
     if req.method == "black-litterman":
         optimizer, selected, max_sharpe, min_vol, frontier, random_ports, bl_extra = (
             _run_bl(returns, req, locale)
+        )
+    elif req.method == "mean-cvar":
+        optimizer, selected, max_sharpe, min_vol, frontier, random_ports, bl_extra = (
+            _run_cvar(returns, req)
         )
     else:
         optimizer, selected, max_sharpe, min_vol, frontier, random_ports, bl_extra = (
@@ -531,6 +583,9 @@ def _solve_optimize(
             "mode": req.mode,
             "allow_short": req.allow_short,
             "n_simulations": req.n_simulations if req.method == "resampled" else None,
+            "cvar_confidence": (
+                req.cvar_confidence if req.method == "mean-cvar" else None
+            ),
             "trading_days": int(len(returns)),
         },
         selected=_result_payload(selected, asset_names),
