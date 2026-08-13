@@ -57,7 +57,7 @@ export default function OptimizerResults({
       <div
         className={cx(
           "grid gap-3",
-          result.selected.cvar != null
+          result.selected.cvar != null || result.surplus != null
             ? "grid-cols-2 lg:grid-cols-4"
             : "grid-cols-3"
         )}
@@ -83,6 +83,13 @@ export default function OptimizerResults({
             )}
             value={fmtPct(result.selected.cvar)}
             tone="cinnabar"
+          />
+        )}
+        {result.surplus != null && (
+          <StatTile
+            label={t.optimizer.fundingRatio}
+            value={result.surplus.funding_ratio.toFixed(2)}
+            tone={result.surplus.funding_ratio >= 1 ? "jade" : "cinnabar"}
           />
         )}
       </div>
@@ -199,6 +206,23 @@ export default function OptimizerResults({
           </Panel>
         ))}
       </div>
+
+      {result.surplus && (
+        <p className="text-xs leading-5 text-mist-500">
+          {t.optimizer.surplusAssumptions({
+            source:
+              result.surplus.source === "profile"
+                ? t.optimizer.surplusSourceProfile
+                : t.optimizer.surplusSourceManual,
+            ratio: result.surplus.liability_ratio.toFixed(2),
+            duration: t.optimizer.durationYears(
+              Math.round(result.surplus.liability_duration)
+            ),
+            growth: fmtPct(result.surplus.liability_growth, 1),
+            proxy: result.surplus.proxy,
+          })}
+        </p>
+      )}
 
       <p className="text-xs leading-5 text-mist-500">
         {t.optimizer.paramsSummary({

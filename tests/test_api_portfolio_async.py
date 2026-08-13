@@ -40,11 +40,12 @@ def _dummy_result(weight: float) -> OptimizeResponse:
 def fake_optimize(monkeypatch):
     monkeypatch.setattr(
         "api.routers.portfolio._prepare_optimize",
-        lambda req, locale="zh": (["US_EQUITY", "US_BOND"], pd.DataFrame(), 0.045),
+        lambda req, locale="zh": (["US_EQUITY", "US_BOND"], pd.DataFrame(), 0.045, None),
     )
     monkeypatch.setattr(
         "api.routers.portfolio._solve_optimize",
-        lambda req, keys, returns, rf, risk_constraints=None, locale="zh": _dummy_result(0.6),
+        lambda req, keys, returns, rf, risk_constraints=None, locale="zh",
+        surplus_raw=None, proxy_returns=None: _dummy_result(0.6),
     )
 
 

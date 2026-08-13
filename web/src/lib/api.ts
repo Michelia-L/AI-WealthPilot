@@ -196,8 +196,39 @@ export interface BLConfigInput {
   views: BLViewInput[];
 }
 
-export type OptimizeMethod = "mvo" | "resampled" | "black-litterman" | "mean-cvar";
+export type OptimizeMethod = "mvo" | "resampled" | "black-litterman" | "mean-cvar" | "surplus";
 export type OptimizeMode = "max-sharpe" | "min-vol";
+
+export type SurplusGrowthSource = "inflation" | "risk_free" | "custom";
+
+/** LDI 盈余优化输入（method=surplus）。 */
+export interface SurplusConfigInput {
+  /** 显式通道：k = 负债现值 / 资产价值。 */
+  liability_ratio?: number | null;
+  /** 显式通道：负债久期（年）。 */
+  liability_duration?: number | null;
+  /** 负债对冲代理（债券类资产键）。 */
+  proxy?: string;
+  growth_source?: SurplusGrowthSource;
+  custom_growth?: number | null;
+  inflation_preset?: InflationPreset | null;
+}
+
+/** 盈余优化实际采用的假设回显。 */
+export interface SurplusInsight {
+  liability_ratio: number;
+  funding_ratio: number;
+  liability_duration: number;
+  liability_growth: number;
+  proxy: string;
+  source: "manual" | "profile";
+}
+
+export const SURPLUS_PROXY_OPTIONS = [
+  "US_BOND",
+  "LONG_TREASURY_BOND",
+  "TIPS",
+] as const;
 
 export interface OptimizeRequest {
   assets: string[];
@@ -210,6 +241,8 @@ export interface OptimizeRequest {
   /** CVaR 置信水平（仅 method=mean-cvar 时发送）。 */
   cvar_confidence?: number;
   bl?: BLConfigInput | null;
+  /** LDI 负债参数（仅 method=surplus 时发送）。 */
+  surplus?: SurplusConfigInput | null;
   /** 提供时按该客户的风险等级注入资产组权重上限（仅经典 MVO）。 */
   profile_id?: number | null;
 }
@@ -266,6 +299,7 @@ export interface OptimizeResponse {
   allocation_chart: PlotlyFigure;
   asset_stats: AssetStat[];
   bl: BLInsight | null;
+  surplus: SurplusInsight | null;
   risk_constraints?: RiskConstraintsInfo | null;
 }
 

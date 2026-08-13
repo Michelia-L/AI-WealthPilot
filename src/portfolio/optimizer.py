@@ -1,18 +1,21 @@
 """
 Portfolio optimization engine: MVO, Efficient Frontier, Black-Litterman,
-Mean-CVaR.
+Mean-CVaR, and LDI surplus optimization.
 
 Implements Markowitz mean-variance optimization with SLSQP solver,
 resampled efficient frontiers (Michaud), the Black-Litterman
 Bayesian model for combining equilibrium returns with investor views,
-and Mean-CVaR optimization via the Rockafellar-Uryasev LP formulation
-(scenario-based, solved with scipy's HiGHS LP solver).
+Mean-CVaR optimization via the Rockafellar-Uryasev LP formulation
+(scenario-based, solved with scipy's HiGHS LP solver), and Sharpe-Tint
+surplus optimization for liability-driven investing.
 
 References:
     - Markowitz, H. (1952). Portfolio Selection. Journal of Finance.
     - Black & Litterman (1992). Global Portfolio Optimization. FAJ.
     - Rockafellar & Uryasev (2000). Optimization of Conditional
       Value-at-Risk. Journal of Risk.
+    - Sharpe & Tint (1990). Liabilities — A New Approach. Journal of
+      Portfolio Management.
 """
 
 import numpy as np
@@ -776,6 +779,205 @@ class PortfolioOptimizer:
             }
             row.update(result["weights"])
             frontier.append(row)
+        return pd.DataFrame(frontier)
+
+    # ------------------------------------------------------------------
+    # LDI surplus optimization (Sharpe-Tint)
+    # ------------------------------------------------------------------
+
+    def surplus_performance(
+        self,
+        weights: np.ndarray,
+        liability_ratio: float,
+        liability_mean: float,
+        liability_vol: float,
+        liability_cov: np.ndarray,
+    ) -> tuple[float, float, float]:
+        """Surplus (assets − liabilities) performance for given weights.
+
+        The liability enters as a fixed short position: with k = L/A,
+
+            E(R_S)   = w'μ − k·μ_L
+            Var(R_S) = w'Σw − 2k·w'c + k²σ_L²
+
+        The surplus Sharpe is E(R_S)/σ_S — the risk-free rate is NOT
+        subtracted, since a surplus is not an investment scalable at rf.
+
+        Args:
+            weights: Portfolio weight array (sums to 1).
+            liability_ratio: k = liability PV / asset value.
+            liability_mean: Annualized liability growth μ_L.
+            liability_vol: Annualized liability volatility σ_L.
+            liability_cov: Annualized asset-liability covariance vector.
+
+        Returns:
+            Tuple of (surplus_return, surplus_volatility, surplus_sharpe).
+        """
+        w = np.asarray(weights, dtype=float)
+        ret = float(np.dot(w, self.mean_returns)) - liability_ratio * liability_mean
+        var = (
+            float(w @ self.cov_values @ w)
+            - 2.0 * liability_ratio * float(w @ liability_cov)
+            + liability_ratio**2 * liability_vol**2
+        )
+        vol = np.sqrt(max(var, 0.0))
+        sharpe = ret / vol if vol > 0 else 0
+        return ret, float(vol), float(sharpe)
+
+    def minimize_surplus_volatility(
+        self,
+        liability_ratio: float,
+        liability_mean: float,
+        liability_vol: float,
+        liability_cov: np.ndarray,
+        target_return: Optional[float] = None,
+        allow_short: bool = False,
+    ) -> dict:
+        """Minimum surplus-volatility portfolio (Sharpe-Tint LDI).
+
+        Minimizes w'Σw − 2k·w'c (the k²σ_L² term is constant in w), which
+        tilts the portfolio toward assets positively correlated with the
+        liability — the classic liability-hedging demand.
+
+        Args:
+            liability_ratio: k = liability PV / asset value.
+            liability_mean: Annualized liability growth μ_L.
+            liability_vol: Annualized liability volatility σ_L.
+            liability_cov: Annualized asset-liability covariance vector.
+            target_return: Optional surplus-return floor (frontier points).
+            allow_short: Allow negative weights.
+
+        Returns:
+            Dict with 'weights', 'return', 'volatility', 'sharpe'
+            (surplus basis), 'success'.
+        """
+        k = liability_ratio
+        n = self.n_assets
+        init_weights = np.ones(n) / n
+        bounds = ((-1, 1) if allow_short else (0, 1),) * n
+        cov = self.cov_values
+        c = np.asarray(liability_cov, dtype=float)
+        mean_vals = self.mean_returns.values
+
+        constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1}]
+        if target_return is not None:
+            constraints.append({
+                "type": "ineq",
+                "fun": lambda w: np.dot(w, mean_vals) - k * liability_mean - target_return,
+            })
+
+        result = minimize(
+            fun=lambda w: w @ cov @ w - 2.0 * k * (w @ c),
+            jac=lambda w: 2.0 * cov @ w - 2.0 * k * c,
+            x0=init_weights,
+            method="SLSQP",
+            bounds=bounds,
+            constraints=constraints,
+        )
+
+        weights = result.x
+        ret, vol, sharpe = self.surplus_performance(
+            weights, k, liability_mean, liability_vol, liability_cov
+        )
+        return {
+            "weights": dict(zip(self.asset_names, weights)),
+            "return": ret,
+            "volatility": vol,
+            "sharpe": sharpe,
+            "success": result.success,
+        }
+
+    def maximize_surplus_sharpe(
+        self,
+        liability_ratio: float,
+        liability_mean: float,
+        liability_vol: float,
+        liability_cov: np.ndarray,
+        allow_short: bool = False,
+    ) -> dict:
+        """Maximum surplus-Sharpe portfolio (surplus-basis tangency).
+
+        Returns:
+            Dict with 'weights', 'return', 'volatility', 'sharpe'
+            (surplus basis), 'success'.
+        """
+        n = self.n_assets
+        init_weights = np.ones(n) / n
+        bounds = ((-1, 1) if allow_short else (0, 1),) * n
+        constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1}]
+
+        def neg_surplus_sharpe(w):
+            ret, vol, _ = self.surplus_performance(
+                w, liability_ratio, liability_mean, liability_vol, liability_cov
+            )
+            # Zero volatility is degenerate (perfect hedge); steer SLSQP
+            # away with a large penalty (same pattern as maximize_sharpe).
+            return -ret / vol if vol > 1e-12 else 1e10
+
+        result = minimize(
+            fun=neg_surplus_sharpe,
+            x0=init_weights,
+            method="SLSQP",
+            bounds=bounds,
+            constraints=constraints,
+        )
+
+        weights = result.x
+        ret, vol, sharpe = self.surplus_performance(
+            weights, liability_ratio, liability_mean, liability_vol, liability_cov
+        )
+        return {
+            "weights": dict(zip(self.asset_names, weights)),
+            "return": ret,
+            "volatility": vol,
+            "sharpe": sharpe,
+            "success": result.success,
+        }
+
+    def surplus_efficient_frontier(
+        self,
+        liability_ratio: float,
+        liability_mean: float,
+        liability_vol: float,
+        liability_cov: np.ndarray,
+        n_points: int = 50,
+        allow_short: bool = False,
+    ) -> pd.DataFrame:
+        """Surplus efficient frontier: min surplus-vol per return target.
+
+        Targets span the single-asset surplus returns s_i = μ_i − k·μ_L.
+        Rows carry the surplus-basis 'return', 'volatility', 'sharpe'
+        columns plus asset weights, matching the existing frontier chart
+        contract.
+
+        Returns:
+            DataFrame with 'return', 'volatility', 'sharpe', and asset
+            weight columns (all surplus-basis).
+        """
+        surplus_rets = self.mean_returns.values - liability_ratio * liability_mean
+        target_returns = np.linspace(surplus_rets.min(), surplus_rets.max(), n_points)
+
+        frontier = []
+        for target in target_returns:
+            try:
+                result = self.minimize_surplus_volatility(
+                    liability_ratio=liability_ratio,
+                    liability_mean=liability_mean,
+                    liability_vol=liability_vol,
+                    liability_cov=liability_cov,
+                    target_return=float(target),
+                    allow_short=allow_short,
+                )
+                if result["success"]:
+                    row = {
+                        "return": result["return"],
+                        "volatility": result["volatility"],
+                        "sharpe": result["sharpe"],
+                    }
+                    row.update(result["weights"])
+                    frontier.append(row)
+            except Exception:
+                continue
         return pd.DataFrame(frontier)
 
 

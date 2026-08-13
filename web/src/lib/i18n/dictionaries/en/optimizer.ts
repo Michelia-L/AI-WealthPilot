@@ -2,7 +2,7 @@
 export const optimizer = {
   title: "Portfolio Optimizer",
   description:
-    "Mean-variance optimization (MVO), Michaud resampled frontier, Black-Litterman Bayesian allocation, and Mean-CVaR tail-risk optimization — solving for optimal portfolios on the efficient frontier.",
+    "Mean-variance optimization (MVO), Michaud resampled frontier, Black-Litterman Bayesian allocation, Mean-CVaR tail-risk optimization, and LDI surplus optimization — solving for optimal portfolios on the efficient frontier.",
   /** ApiOffline `resource` prop shown when the asset universe cannot load. */
   assetUniverse: "optimization asset universe",
 
@@ -68,6 +68,34 @@ export const optimizer = {
   confidence: "Confidence",
   deleteViewAria: "Delete view",
 
+  // ---- Surplus (LDI) config ----
+  methodSurplus: "Surplus (LDI)",
+  surplusConfig: "Surplus (LDI) Configuration",
+  surplusSource: "Liability Source",
+  surplusSourceManual: "Manual",
+  surplusSourceProfile: "From Client Profile",
+  surplusProfileHint: (name: string) =>
+    `Liabilities discounted from ${name}'s investment goals (asset base = investable assets)`,
+  surplusNoClientHint:
+    "Select a client in the sidebar to derive liabilities from their goals",
+  surplusRatio: "Liability Ratio (L/A)",
+  surplusDuration: "Liability Duration",
+  durationYears: (v: number) => `${v} yrs`,
+  surplusProxy: "Hedge Proxy",
+  surplusGrowth: "Liability Growth",
+  growthInflation: "Inflation-linked",
+  growthRiskFree: "Risk-Free",
+  growthCustom: "Custom",
+  surplusCustomGrowthAria: "Custom liability growth (%)",
+  surplusInflationSegment: "Inflation Segment",
+  surplusPresetStandard: "Standard",
+  surplusPresetElderly: "Elderly",
+  surplusPresetLuxury: "Luxury",
+  surplusAutoPresetHint:
+    "The profile channel picks the segment by client age (elderly at 60+)",
+  surplusAssumptionHint:
+    "Liabilities are modeled by duration-scaling the bond proxy (approximate effective durations: AGG 6y, TLT 17y, TIP 7y); profile goals are discounted at the liability growth rate. These are stylized assumptions, not yield-curve pricing.",
+
   // ---- results ----
   groupEquity: "Equity",
   groupBond: "Fixed Income",
@@ -82,6 +110,7 @@ export const optimizer = {
   sharpeRatio: "Sharpe Ratio",
   cvarLabel: (conf: number) =>
     `${Math.round(conf * 100)}% CVaR (ann. expected shortfall)`,
+  fundingRatio: "Funding Ratio (A/L)",
   colAsset: "Asset",
   colAllocation: "Allocation",
   colWeightStd: "Weight σ",
@@ -101,6 +130,14 @@ export const optimizer = {
     `Params: ${p.period} window · ${p.tradingDays} trading days · risk-free rate ${p.riskFreeRate} · ${
       p.allowShort ? "shorting allowed" : "long only"
     }${p.nSimulations ? ` · ${p.nSimulations} resamples` : ""}`,
+  surplusAssumptions: (p: {
+    source: string;
+    ratio: string;
+    duration: string;
+    growth: string;
+    proxy: string;
+  }) =>
+    `LDI assumptions: ${p.source} · L/A=${p.ratio} · duration ${p.duration} · growth ${p.growth} · proxy ${p.proxy}`,
 
   // ---- backtest ----
   backtestTitle: "Portfolio Backtest",

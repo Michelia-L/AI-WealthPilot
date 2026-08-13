@@ -8,6 +8,7 @@ import type {
   OptimizeMode,
   OptimizeRequest,
   OptimizeResponse,
+  SurplusGrowthSource,
 } from "@/lib/api";
 import { OPTIMIZER_PERIOD_OPTIONS } from "@/lib/api";
 import { readSseStream } from "@/lib/sse";
@@ -30,6 +31,10 @@ import { NumInput } from "./ui/field";
 import EmptyState from "./ui/empty";
 import Group from "./optimizer/group";
 import BLConfigPanel from "./optimizer/bl-config-panel";
+import SurplusConfigPanel, {
+  type SurplusInflationPreset,
+  type SurplusSource,
+} from "./optimizer/surplus-config-panel";
 import OptimizerResults from "./optimizer/optimizer-results";
 
 const DEFAULT_ASSETS = ["US_EQUITY", "INTL_EQUITY", "US_BOND", "GOLD"];
@@ -56,6 +61,7 @@ export default function OptimizerWorkspace({
     { value: "resampled", label: t.optimizer.methodResampled },
     { value: "black-litterman", label: "Black-Litterman" },
     { value: "mean-cvar", label: "Mean-CVaR" },
+    { value: "surplus", label: t.optimizer.methodSurplus },
   ];
 
   const MODE_OPTIONS: { value: OptimizeMode; label: string }[] = [
@@ -74,6 +80,15 @@ export default function OptimizerWorkspace({
   const [rfManual, setRfManual] = useState("4.5");
   const [nSim, setNSim] = useState(200);
   const [cvarConf, setCvarConf] = useState(0.95);
+
+  const [surplusSource, setSurplusSource] = useState<SurplusSource>("manual");
+  const [liabRatio, setLiabRatio] = useState(1.0);
+  const [liabDuration, setLiabDuration] = useState(10);
+  const [surplusProxy, setSurplusProxy] = useState("US_BOND");
+  const [growthSource, setGrowthSource] = useState<SurplusGrowthSource>("inflation");
+  const [customGrowth, setCustomGrowth] = useState("3.0");
+  const [inflationPreset, setInflationPreset] =
+    useState<SurplusInflationPreset>("standard");
 
   const [blTau, setBlTau] = useState("0.025");
   const [blDelta, setBlDelta] = useState("2.5");
@@ -129,6 +144,25 @@ export default function OptimizerWorkspace({
     }
     if (method === "mean-cvar") {
       body.cvar_confidence = cvarConf;
+    }
+    if (method === "surplus") {
+      body.surplus = {
+        proxy: surplusProxy,
+        growth_source: growthSource,
+        ...(growthSource === "custom"
+          ? { custom_growth: (parseFloat(customGrowth || "0") || 0) / 100 }
+          : {}),
+        // 画像通道下通胀人群由后端按客户年龄自动建议
+        ...(growthSource === "inflation" && surplusSource === "manual"
+          ? { inflation_preset: inflationPreset }
+          : {}),
+        ...(surplusSource === "manual"
+          ? { liability_ratio: liabRatio, liability_duration: liabDuration }
+          : {}),
+      };
+      if (surplusSource === "profile" && clientId !== null) {
+        body.profile_id = clientId;
+      }
     }
     if (method === "mvo" && applyRisk && clientId !== null) {
       body.profile_id = clientId;
@@ -421,6 +455,29 @@ export default function OptimizerWorkspace({
             setMarketWeights={setMarketWeights}
             views={views}
             setViews={setViews}
+          />
+        )}
+
+        {/* ------------------------- LDI 盈余配置面板 ------------------------- */}
+        {method === "surplus" && (
+          <SurplusConfigPanel
+            assetClasses={assetClasses}
+            hasClient={clientId !== null}
+            clientName={clientName}
+            source={surplusSource}
+            setSource={setSurplusSource}
+            liabilityRatio={liabRatio}
+            setLiabilityRatio={setLiabRatio}
+            liabilityDuration={liabDuration}
+            setLiabilityDuration={setLiabDuration}
+            proxy={surplusProxy}
+            setProxy={setSurplusProxy}
+            growthSource={growthSource}
+            setGrowthSource={setGrowthSource}
+            customGrowth={customGrowth}
+            setCustomGrowth={setCustomGrowth}
+            inflationPreset={inflationPreset}
+            setInflationPreset={setInflationPreset}
           />
         )}
 

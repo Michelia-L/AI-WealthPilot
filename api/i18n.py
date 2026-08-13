@@ -173,6 +173,18 @@ _MESSAGES: dict[str, dict[str, dict[str, str]]] = {
             "zh": "Black-Litterman 需要至少一条投资者观点（bl.views 不能为空）。",
             "en": "Black-Litterman requires at least one investor view (bl.views must be non-empty).",
         },
+        "surplus_requires_inputs": {
+            "zh": "盈余优化需要负债参数（surplus.liability_ratio + surplus.liability_duration）或包含投资目标的客户画像（profile_id）。",
+            "en": "Surplus optimization requires liability inputs (surplus.liability_ratio + surplus.liability_duration) or a client profile with investment goals (profile_id).",
+        },
+        "surplus_profile_unusable": {
+            "zh": "该画像无法推导负债：需要至少一个目标金额为正的投资目标，且可投资资产大于零。",
+            "en": "Cannot derive liabilities from this profile: it needs at least one goal with a positive target amount and positive investable assets.",
+        },
+        "surplus_invalid_proxy": {
+            "zh": "无效的负债对冲代理：{proxy}（可选：{options}）。",
+            "en": "Invalid liability hedge proxy: {proxy} (available: {options}).",
+        },
         "min_assets": {
             "zh": "至少需要 2 个有效资产类别。可选：{keys}",
             "en": "At least 2 valid asset classes are required. Valid keys: {keys}",

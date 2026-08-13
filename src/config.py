@@ -124,6 +124,18 @@ PERSONAL_INFLATION_DELTAS = {
 # Client age at/above which the IPS pipeline defaults to the elderly preset.
 PERSONAL_INFLATION_ELDERLY_MIN_AGE = 60
 
+# LDI surplus optimization (Sharpe-Tint): bond proxies usable as liability
+# hedges, with approximate effective durations in years. The liability
+# return model duration-scales the proxy (r_L = g + λ·(r_p − μ_p),
+# λ = D_L / D_proxy), so only these documented approximate durations are
+# needed — no yield-curve feed.
+LDI_PROXY_DURATIONS = {
+    "US_BOND": 6.0,              # AGG ~ US aggregate bonds
+    "LONG_TREASURY_BOND": 17.0,  # TLT ~ 20+yr Treasuries
+    "TIPS": 7.0,                 # TIP ~ inflation-protected Treasuries
+}
+LDI_DEFAULT_PROXY = "US_BOND"
+
 # Tushare Pro data provider (paid CN backbone, P16)
 # yfinance ticker → tushare ts_code. Routed tickers are served by Tushare
 # Pro (daily bars); yfinance remains the fallback when Tushare is absent

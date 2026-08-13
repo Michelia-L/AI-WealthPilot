@@ -2,7 +2,7 @@
 export const optimizer = {
   title: "组合优化器",
   description:
-    "均值-方差优化（MVO）、Michaud 重采样前沿、Black-Litterman 贝叶斯配置与 Mean-CVaR 尾部风险优化，求解有效前沿上的最优资产组合。",
+    "均值-方差优化（MVO）、Michaud 重采样前沿、Black-Litterman 贝叶斯配置、Mean-CVaR 尾部风险优化与 LDI 盈余优化，求解有效前沿上的最优资产组合。",
   /** ApiOffline `resource` prop shown when the asset universe cannot load. */
   assetUniverse: "优化资产宇宙",
 
@@ -63,6 +63,32 @@ export const optimizer = {
   confidence: "置信度",
   deleteViewAria: "删除观点",
 
+  // ---- Surplus (LDI) config ----
+  methodSurplus: "盈余优化 (LDI)",
+  surplusConfig: "盈余优化（LDI）配置",
+  surplusSource: "负债来源",
+  surplusSourceManual: "手动输入",
+  surplusSourceProfile: "客户画像推导",
+  surplusProfileHint: (name: string) =>
+    `负债由客户「${name}」的投资目标折现推导（资产基数 = 可投资资产）`,
+  surplusNoClientHint: "在侧边栏选择客户后，可由其投资目标自动推导负债",
+  surplusRatio: "负债比率（L/A）",
+  surplusDuration: "负债久期",
+  durationYears: (v: number) => `${v} 年`,
+  surplusProxy: "对冲代理",
+  surplusGrowth: "负债增长率",
+  growthInflation: "通胀联动",
+  growthRiskFree: "无风险利率",
+  growthCustom: "自定义",
+  surplusCustomGrowthAria: "自定义负债增长率（%）",
+  surplusInflationSegment: "通胀人群",
+  surplusPresetStandard: "标准",
+  surplusPresetElderly: "老年",
+  surplusPresetLuxury: "奢华",
+  surplusAutoPresetHint: "画像通道按客户年龄自动选择通胀人群（≥60 岁为老年）",
+  surplusAssumptionHint:
+    "负债经久期缩放债券代理建模（近似有效久期：AGG 6 年、TLT 17 年、TIP 7 年）；画像目标按负债增长率折现。以上为简化假设，非真实收益率曲线定价。",
+
   // ---- results ----
   groupEquity: "权益",
   groupBond: "固收",
@@ -76,6 +102,7 @@ export const optimizer = {
   sharpeRatio: "夏普比率",
   cvarLabel: (conf: number) =>
     `${Math.round(conf * 100)}% CVaR（年化预期尾部损失）`,
+  fundingRatio: "资金充足率（A/L）",
   colAsset: "资产",
   colAllocation: "配置权重",
   colWeightStd: "权重波动 σ",
@@ -95,6 +122,14 @@ export const optimizer = {
     `参数：${p.period} 窗口 · ${p.tradingDays} 个交易日 · 无风险利率 ${p.riskFreeRate} · ${
       p.allowShort ? "允许做空" : "仅多头"
     }${p.nSimulations ? ` · ${p.nSimulations} 次重采样` : ""}`,
+  surplusAssumptions: (p: {
+    source: string;
+    ratio: string;
+    duration: string;
+    growth: string;
+    proxy: string;
+  }) =>
+    `LDI 假设：${p.source} · 负债比率 L/A=${p.ratio} · 久期 ${p.duration} · 增长率 ${p.growth} · 对冲代理 ${p.proxy}`,
 
   // ---- backtest ----
   backtestTitle: "组合回测",

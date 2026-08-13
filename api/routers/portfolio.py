@@ -2,9 +2,10 @@
 Portfolio optimization endpoints.
 
 POST /api/portfolio/optimize wraps the MVO / Resampled-MVO / Black-Litterman
-engines in src.portfolio.optimizer, mirroring the call sequence of the
-Streamlit optimizer page. Returns portfolio metrics plus Plotly figures
-(efficient frontier + CAL, allocation pie) ready for plotly.js.
+/ Mean-CVaR / LDI-surplus engines in src.portfolio.optimizer, mirroring the
+call sequence of the Streamlit optimizer page. Returns portfolio metrics
+plus Plotly figures (efficient frontier + CAL, allocation pie) ready for
+plotly.js.
 
 POST /api/portfolio/optimize/async runs the same computation as a background
 task (Phase 5c) with SSE progress on GET /api/portfolio/tasks/{id}/events —
@@ -42,6 +43,7 @@ from api.schemas import (
     PortfolioTaskCreatedResponse,
     RecommendationResponse,
     RiskConstraintsInfo,
+    SurplusInsight,
 )
 from api.tasks import (
     BackgroundTask,
@@ -49,13 +51,21 @@ from api.tasks import (
     task_events_stream,
 )
 from src.agents.portfolio_recommender import recommend_portfolio
-from src.config import BASE_CURRENCY, DEFAULT_ASSET_CLASSES
+from src.config import (
+    BASE_CURRENCY,
+    CME_INFLATION_ASSUMPTION,
+    DEFAULT_ASSET_CLASSES,
+    LDI_DEFAULT_PROXY,
+    LDI_PROXY_DURATIONS,
+)
 from src.data.market_data import (
     compute_returns,
     fetch_price_history,
     fetch_risk_free_rate,
 )
 from src.portfolio.backtest import InsufficientDataError, run_backtest
+from src.portfolio.inflation import resolve_personal_inflation, suggest_inflation_preset
+from src.portfolio.liabilities import estimate_liability_stats, goals_to_liability
 from src.portfolio.optimizer import BlackLittermanOptimizer, PortfolioOptimizer
 from src.portfolio.risk_constraints import build_group_constraints, caps_for_tolerance
 from src.portfolio.views import ViewInput
@@ -306,6 +316,10 @@ def _resolve_risk_constraints(
     """
     if req.profile_id is None:
         return None
+    if req.method == "surplus":
+        # With the surplus method, profile_id drives liability derivation
+        # (see _resolve_surplus_raw), not risk-level group caps.
+        return None
     record = session.get(ProfileRecord, req.profile_id)
     if record is None:
         raise HTTPException(
@@ -325,6 +339,79 @@ def _resolve_risk_constraints(
         profile_name=record.name,
         risk_level=tolerance_level,
         caps=caps,
+    )
+
+
+def _resolve_surplus_raw(
+    req: OptimizeRequest, session: Session, locale: str = "zh"
+) -> Optional[dict]:
+    """Resolve the raw liability inputs for the surplus method (fail fast).
+
+    Pure metadata resolved in the endpoint (DB access) so background
+    executors never touch a session — same pattern as
+    _resolve_risk_constraints. The liability growth rate is intentionally
+    NOT resolved here: the risk-free leg is only known after data prep.
+
+    Returns None for non-surplus methods. Raises 404 for a missing
+    profile, 422 for unusable liability inputs.
+    """
+    if req.method != "surplus":
+        return None
+
+    cfg = req.surplus  # None → defaults below
+    proxy = (cfg.proxy if cfg else None) or LDI_DEFAULT_PROXY
+    if proxy not in LDI_PROXY_DURATIONS:
+        raise HTTPException(
+            status_code=422,
+            detail=msg(
+                "portfolio.surplus_invalid_proxy", locale,
+                proxy=proxy, options=", ".join(LDI_PROXY_DURATIONS),
+            ),
+        )
+    growth_source = cfg.growth_source if cfg else "inflation"
+
+    # Explicit channel wins when both liability numbers are supplied.
+    if cfg and cfg.liability_ratio is not None and cfg.liability_duration is not None:
+        return {
+            "source": "manual",
+            "liability_ratio": float(cfg.liability_ratio),
+            "liability_duration": float(cfg.liability_duration),
+            "proxy": proxy,
+            "growth_source": growth_source,
+            "custom_growth": cfg.custom_growth,
+            "inflation_preset": cfg.inflation_preset,
+            "age": None,
+        }
+
+    # Profile channel: derive the liability stream from goals + assets.
+    if req.profile_id is not None:
+        record = session.get(ProfileRecord, req.profile_id)
+        if record is None:
+            raise HTTPException(
+                status_code=404,
+                detail=msg("common.profile_not_found", locale, id=req.profile_id),
+            )
+        goals = record.data.get("goals") or []
+        investable = float((record.data.get("financial") or {}).get("investable_assets", 0.0))
+        usable = any(float(g.get("target_amount", 0.0)) > 0 for g in goals) and investable > 0
+        if not usable:
+            raise HTTPException(
+                status_code=422,
+                detail=msg("portfolio.surplus_profile_unusable", locale),
+            )
+        return {
+            "source": "profile",
+            "goals": goals,
+            "investable_assets": investable,
+            "age": record.data.get("age"),
+            "proxy": proxy,
+            "growth_source": growth_source,
+            "custom_growth": cfg.custom_growth if cfg else None,
+            "inflation_preset": cfg.inflation_preset if cfg else None,
+        }
+
+    raise HTTPException(
+        status_code=422, detail=msg("portfolio.surplus_requires_inputs", locale)
     )
 
 
@@ -486,6 +573,79 @@ def _run_cvar(
     return optimizer, selected, max_sharpe, min_vol, frontier, random_ports, {}
 
 
+def _run_surplus(
+    returns: pd.DataFrame,
+    req: OptimizeRequest,
+    rf: float,
+    surplus_raw: dict,
+    proxy_returns: Optional[pd.Series],
+) -> tuple[PortfolioOptimizer, dict, dict, dict, pd.DataFrame, pd.DataFrame, dict]:
+    """LDI surplus optimization (Sharpe-Tint): assets minus liabilities.
+
+    Resolves the liability growth rate (inflation preset / risk-free /
+    custom), derives k and the duration (explicit or profile-goals
+    channel), estimates liability stats from the duration-scaled bond
+    proxy, and runs the surplus QP. Returns the standard tuple with a
+    SurplusInsight in the extra slot.
+    """
+    # Liability growth rate g
+    growth_source = surplus_raw["growth_source"]
+    if growth_source == "risk_free":
+        growth = rf
+    elif growth_source == "custom":
+        growth = float(surplus_raw["custom_growth"])
+    else:  # inflation — personal preset (age-suggested on the profile channel)
+        preset = surplus_raw.get("inflation_preset")
+        if preset is None:
+            preset = suggest_inflation_preset(surplus_raw.get("age"))
+        growth = resolve_personal_inflation(CME_INFLATION_ASSUMPTION, preset)
+
+    # Liability spec: ratio k = L/A and duration
+    if surplus_raw["source"] == "manual":
+        k = surplus_raw["liability_ratio"]
+        duration = surplus_raw["liability_duration"]
+    else:
+        pv, duration = goals_to_liability(surplus_raw["goals"], growth)
+        k = pv / surplus_raw["investable_assets"]
+
+    # Liability stats via the duration-scaled bond proxy
+    proxy_key = surplus_raw["proxy"]
+    if proxy_returns is None:
+        # Proxy already sits inside the requested universe.
+        proxy_returns = returns[DEFAULT_ASSET_CLASSES[proxy_key]["name"]]
+    mu_L, sigma_L, cov_vec = estimate_liability_stats(
+        proxy_returns,
+        returns,
+        proxy_duration=LDI_PROXY_DURATIONS[proxy_key],
+        liability_duration=duration,
+        growth_rate=growth,
+    )
+
+    optimizer = PortfolioOptimizer(returns, risk_free_rate=req.risk_free_rate)
+    max_sharpe = optimizer.maximize_surplus_sharpe(
+        k, mu_L, sigma_L, cov_vec, allow_short=req.allow_short
+    )
+    min_vol = optimizer.minimize_surplus_volatility(
+        k, mu_L, sigma_L, cov_vec, allow_short=req.allow_short
+    )
+    frontier = optimizer.surplus_efficient_frontier(
+        k, mu_L, sigma_L, cov_vec,
+        n_points=FRONTIER_POINTS, allow_short=req.allow_short,
+    )
+    selected = max_sharpe if req.mode == "max-sharpe" else min_vol
+    random_ports = optimizer.random_portfolios(n_portfolios=RANDOM_PORTFOLIOS)
+
+    insight = SurplusInsight(
+        liability_ratio=float(k),
+        funding_ratio=float(1.0 / k),
+        liability_duration=float(duration),
+        liability_growth=float(growth),
+        proxy=proxy_key,
+        source=surplus_raw["source"],
+    )
+    return optimizer, selected, max_sharpe, min_vol, frontier, random_ports, insight
+
+
 @router.post(
     "/optimize",
     response_model=OptimizeResponse,
@@ -496,18 +656,40 @@ def optimize(
 ) -> OptimizeResponse:
     locale = get_request_locale(request)
     risk_info = _resolve_risk_constraints(req, session, locale)
-    keys, returns, rf = _prepare_optimize(req, locale)
-    return _solve_optimize(req, keys, returns, rf, risk_info, locale)
+    surplus_raw = _resolve_surplus_raw(req, session, locale)
+    keys, returns, rf, proxy_returns = _prepare_optimize(req, locale)
+    return _solve_optimize(
+        req, keys, returns, rf, risk_info, locale, surplus_raw, proxy_returns
+    )
 
 
 def _prepare_optimize(
     req: OptimizeRequest, locale: str = "zh"
-) -> tuple[list[str], pd.DataFrame, float]:
-    """Resolve asset keys, fetch returns (TTL-cached) and the risk-free rate."""
+) -> tuple[list[str], pd.DataFrame, float, Optional[pd.Series]]:
+    """Resolve asset keys, fetch returns (TTL-cached) and the risk-free rate.
+
+    For the surplus method the bond proxy is appended to the same fetch
+    when it is not already in the universe, so its series is date-aligned
+    with the assets and shares the same TTL cache entry; the proxy column
+    is split back out (4th return value) before the optimizer sees the
+    frame. Non-surplus methods always return None for it.
+    """
     keys = _resolve_asset_keys(req.assets, locale)
-    returns = _fetch_returns(keys, req.period, locale)
+    fetch_keys = list(keys)
+    extra_proxy_key = None
+    if req.method == "surplus":
+        proxy_key = (req.surplus.proxy if req.surplus else None) or LDI_DEFAULT_PROXY
+        if proxy_key not in fetch_keys:
+            fetch_keys.append(proxy_key)
+            extra_proxy_key = proxy_key
+    returns = _fetch_returns(fetch_keys, req.period, locale)
+    proxy_returns = None
+    if extra_proxy_key is not None:
+        proxy_col = DEFAULT_ASSET_CLASSES[extra_proxy_key]["name"]
+        proxy_returns = returns[proxy_col]
+        returns = returns.drop(columns=[proxy_col])
     rf = _effective_risk_free_rate(req.risk_free_rate)
-    return keys, returns, rf
+    return keys, returns, rf, proxy_returns
 
 
 def _solve_optimize(
@@ -517,6 +699,8 @@ def _solve_optimize(
     rf: float,
     risk_constraints: Optional[RiskConstraintsInfo] = None,
     locale: str = "zh",
+    surplus_raw: Optional[dict] = None,
+    proxy_returns: Optional[pd.Series] = None,
 ) -> OptimizeResponse:
     """The CPU-heavy half: optimize, build charts, assemble the response."""
     req.risk_free_rate = rf
@@ -528,15 +712,19 @@ def _solve_optimize(
         group_constraints = build_group_constraints(risk_constraints.caps, keys)
 
     if req.method == "black-litterman":
-        optimizer, selected, max_sharpe, min_vol, frontier, random_ports, bl_extra = (
+        optimizer, selected, max_sharpe, min_vol, frontier, random_ports, extra = (
             _run_bl(returns, req, locale)
         )
     elif req.method == "mean-cvar":
-        optimizer, selected, max_sharpe, min_vol, frontier, random_ports, bl_extra = (
+        optimizer, selected, max_sharpe, min_vol, frontier, random_ports, extra = (
             _run_cvar(returns, req)
         )
+    elif req.method == "surplus":
+        optimizer, selected, max_sharpe, min_vol, frontier, random_ports, extra = (
+            _run_surplus(returns, req, rf, surplus_raw, proxy_returns)
+        )
     else:
-        optimizer, selected, max_sharpe, min_vol, frontier, random_ports, bl_extra = (
+        optimizer, selected, max_sharpe, min_vol, frontier, random_ports, extra = (
             _run_mvo(returns, req, group_constraints)
         )
 
@@ -554,7 +742,9 @@ def _solve_optimize(
         random_portfolios=random_ports,
         max_sharpe=max_sharpe,
         min_vol=min_vol,
-        risk_free_rate=req.risk_free_rate,
+        # No CAL on the surplus frontier: a surplus is not an investment
+        # scalable at the risk-free rate, so the ray would be misleading.
+        risk_free_rate=None if req.method == "surplus" else req.risk_free_rate,
     )
     allocation_fig = plot_allocation_pie(
         selected["weights"], title="Asset Allocation — Selected Portfolio"
@@ -594,7 +784,8 @@ def _solve_optimize(
         frontier_chart=_fig_json(frontier_fig),
         allocation_chart=_fig_json(allocation_fig),
         asset_stats=asset_stats,
-        bl=bl_extra if isinstance(bl_extra, BLInsight) else None,
+        bl=extra if isinstance(extra, BLInsight) else None,
+        surplus=extra if isinstance(extra, SurplusInsight) else None,
         risk_constraints=risk_constraints if group_constraints else None,
     )
 
@@ -611,18 +802,21 @@ async def _run_optimize_task(
     req: OptimizeRequest,
     risk_constraints: Optional[RiskConstraintsInfo] = None,
     locale: str = "zh",
+    surplus_raw: Optional[dict] = None,
 ) -> None:
     """Fetch data, then optimize in an executor (CPU-heavy) with progress events.
 
-    risk_constraints is resolved in the endpoint (DB access) before the task
-    is created, so the executor threads never touch a session.
+    risk_constraints / surplus_raw are resolved in the endpoint (DB access)
+    before the task is created, so the executor threads never touch a session.
     """
     try:
         loop = asyncio.get_running_loop()
         await task.publish(
             {"type": "node", "node": "fetch", "label": msg("portfolio.node_fetch", locale)}
         )
-        keys, returns, rf = await loop.run_in_executor(None, _prepare_optimize, req, locale)
+        keys, returns, rf, proxy_returns = await loop.run_in_executor(
+            None, _prepare_optimize, req, locale
+        )
         label = (
             msg("portfolio.node_solve_resampled", locale, n_simulations=req.n_simulations)
             if req.method == "resampled"
@@ -630,7 +824,8 @@ async def _run_optimize_task(
         )
         await task.publish({"type": "node", "node": "solve", "label": label})
         result = await loop.run_in_executor(
-            None, _solve_optimize, req, keys, returns, rf, risk_constraints, locale
+            None, _solve_optimize, req, keys, returns, rf, risk_constraints,
+            locale, surplus_raw, proxy_returns,
         )
         task.status = "completed"
         await task.publish({"type": "done", "result": result.model_dump(mode="json")})
@@ -664,10 +859,11 @@ async def optimize_async(
         )
     # Profile lookup + cap resolution happen here, not in the executor.
     risk_info = _resolve_risk_constraints(req, session, locale)
+    surplus_raw = _resolve_surplus_raw(req, session, locale)
     task = registry.create(
         "optimize", method=req.method, n_simulations=req.n_simulations
     )
-    asyncio.create_task(_run_optimize_task(task, req, risk_info, locale))
+    asyncio.create_task(_run_optimize_task(task, req, risk_info, locale, surplus_raw))
     return PortfolioTaskCreatedResponse(task_id=task.task_id)
 
 

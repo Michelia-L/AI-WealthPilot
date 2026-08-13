@@ -139,6 +139,45 @@ class BLConfigInput(BaseModel):
     views: list[BLViewInput] = Field(default_factory=list)
 
 
+class SurplusConfigInput(BaseModel):
+    """LDI surplus optimization inputs (method="surplus").
+
+    Liability spec precedence: explicit liability_ratio + liability_duration
+    win; otherwise profile_id drives derivation from the profile's goals.
+    """
+
+    liability_ratio: Optional[float] = Field(
+        default=None, gt=0,
+        description="k = liability PV / asset value (explicit channel)",
+    )
+    liability_duration: Optional[float] = Field(
+        default=None, gt=0, le=60,
+        description="Liability duration in years (explicit channel)",
+    )
+    proxy: str = Field(
+        default="US_BOND",
+        description="Bond proxy key for the liability hedge (LDI_PROXY_DURATIONS)",
+    )
+    growth_source: Literal["inflation", "risk_free", "custom"] = "inflation"
+    custom_growth: Optional[float] = Field(
+        default=None, ge=-0.1, le=0.3,
+        description="Liability growth rate when growth_source='custom'",
+    )
+    inflation_preset: Optional[Literal["standard", "elderly", "luxury", "custom"]] = Field(
+        default=None,
+        description="Personal inflation preset for growth_source='inflation'; "
+        "None resolves from the profile's age (profile channel) or 'standard'",
+    )
+
+    @model_validator(mode="after")
+    def _check_custom_growth(self) -> "SurplusConfigInput":
+        if self.growth_source == "custom" and self.custom_growth is None:
+            raise ValueError(
+                "custom_growth is required when growth_source is 'custom'"
+            )
+        return self
+
+
 class OptimizeRequest(BaseModel):
     assets: list[str] = Field(
         default=["US_EQUITY", "INTL_EQUITY", "US_BOND", "GOLD"],
@@ -148,7 +187,7 @@ class OptimizeRequest(BaseModel):
     risk_free_rate: Optional[float] = Field(
         default=None, description="Annualized decimal; None = fetch dynamically"
     )
-    method: Literal["mvo", "resampled", "black-litterman", "mean-cvar"] = "mvo"
+    method: Literal["mvo", "resampled", "black-litterman", "mean-cvar", "surplus"] = "mvo"
     mode: Literal["max-sharpe", "min-vol"] = "max-sharpe"
     allow_short: bool = False
     n_simulations: int = Field(default=200, ge=50, le=2000)
@@ -157,10 +196,12 @@ class OptimizeRequest(BaseModel):
         description="CVaR confidence level (mean-cvar method only)",
     )
     bl: Optional[BLConfigInput] = None
+    surplus: Optional[SurplusConfigInput] = None
     profile_id: Optional[int] = Field(
         default=None,
         description="Client profile id; applies the profile's risk-level group "
-        "caps to the selected portfolio (classic MVO only)",
+        "caps (classic MVO) or derives the liability stream from its goals "
+        "(surplus method)",
     )
 
 
@@ -195,6 +236,19 @@ class BLInsight(BaseModel):
     posterior_returns: dict[str, float]
 
 
+class SurplusInsight(BaseModel):
+    """LDI surplus assumptions actually applied (method="surplus")."""
+
+    liability_ratio: float = Field(description="k = liability PV / asset value")
+    funding_ratio: float = Field(description="A/L = 1/k")
+    liability_duration: float
+    liability_growth: float = Field(description="Resolved annual liability growth rate")
+    proxy: str = Field(description="Bond proxy key used for liability stats")
+    source: Literal["manual", "profile"] = Field(
+        description="How the liability spec was obtained"
+    )
+
+
 class RiskConstraintsInfo(BaseModel):
     """Risk-level group caps resolved from a client profile, when applied."""
 
@@ -214,6 +268,7 @@ class OptimizeResponse(BaseModel):
     allocation_chart: dict[str, Any]
     asset_stats: list[AssetStat]
     bl: Optional[BLInsight] = None
+    surplus: Optional[SurplusInsight] = None
     risk_constraints: Optional[RiskConstraintsInfo] = None
 
 
