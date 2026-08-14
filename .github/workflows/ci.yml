@@ -1,5 +1,5 @@
 # CI — 让 README 的 Build 徽章名副其实。
-# push 到 main 与 PR 时运行：Python 全套测试 + 前端 lint/build。
+# push 到 main 与 PR 时运行：Python 全套测试 + 前端 vitest/lint/build。
 
 name: CI
 
@@ -61,6 +61,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Test (vitest)
+        run: npm test
 
       - name: Build
         run: npm run build
