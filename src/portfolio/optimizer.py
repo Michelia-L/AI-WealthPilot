@@ -1,13 +1,14 @@
 """
 Portfolio optimization engine: MVO, Efficient Frontier, Black-Litterman,
-Mean-CVaR, and LDI surplus optimization.
+Mean-CVaR, LDI surplus optimization, and Risk Parity.
 
 Implements Markowitz mean-variance optimization with SLSQP solver,
 resampled efficient frontiers (Michaud), the Black-Litterman
 Bayesian model for combining equilibrium returns with investor views,
 Mean-CVaR optimization via the Rockafellar-Uryasev LP formulation
-(scenario-based, solved with scipy's HiGHS LP solver), and Sharpe-Tint
-surplus optimization for liability-driven investing.
+(scenario-based, solved with scipy's HiGHS LP solver), Sharpe-Tint
+surplus optimization for liability-driven investing, and Equal Risk
+Contribution risk parity (Spinu convex formulation).
 
 References:
     - Markowitz, H. (1952). Portfolio Selection. Journal of Finance.
@@ -16,6 +17,8 @@ References:
       Value-at-Risk. Journal of Risk.
     - Sharpe & Tint (1990). Liabilities — A New Approach. Journal of
       Portfolio Management.
+    - Spinu (2013). An Algorithm for Computing Risk Parity Weights.
+      SSRN 2297383.
 """
 
 import numpy as np
@@ -996,6 +999,76 @@ class PortfolioOptimizer:
             except Exception:
                 continue
         return pd.DataFrame(frontier)
+
+    # ------------------------------------------------------------------
+    # Risk Parity (Equal Risk Contribution, Spinu formulation)
+    # ------------------------------------------------------------------
+
+    def risk_contributions(self, weights: np.ndarray) -> np.ndarray:
+        """Fractional risk contributions of each asset, summing to 1.
+
+        RC_i = w_i·(Σw)_i / (w'Σw) — asset i's share of total portfolio
+        variance (the vol-normalized version of w_i·(Σw)_i / σ_p).
+
+        Args:
+            weights: Portfolio weight array (sums to 1).
+
+        Returns:
+            Array of fractional risk contributions (sums to 1).
+        """
+        w = np.asarray(weights, dtype=float)
+        marginal = self.cov_values @ w
+        variance = float(w @ marginal)
+        if variance <= 0:
+            return np.full(self.n_assets, 1.0 / self.n_assets)
+        return w * marginal / variance
+
+    def risk_parity(self) -> dict:
+        """Equal Risk Contribution portfolio via the Spinu convex program.
+
+        Solves min_w  ½·w'Σw − Σᵢ ln(wᵢ)  (w > 0), whose optimum equalizes
+        every asset's risk contribution at 1/N, then normalizes to weights
+        summing to 1. The log barrier makes the method long-only by
+        construction. Expected returns play no role in the weights; the
+        reported return/Sharpe come from the (possibly overridden) mean
+        vector for context only.
+
+        Returns:
+            Dict with 'weights', 'return', 'volatility', 'sharpe',
+            'success', and 'risk_contributions' (per-asset dict, each ≈
+            1/N at the ERC optimum).
+
+        References:
+            - Spinu (2013). An Algorithm for Computing Risk Parity
+              Weights. SSRN 2297383.
+        """
+        n = self.n_assets
+        cov = self.cov_values
+
+        result = minimize(
+            fun=lambda w: 0.5 * w @ cov @ w - np.sum(np.log(w)),
+            jac=lambda w: cov @ w - 1.0 / w,
+            x0=np.ones(n) / n,
+            method="SLSQP",
+            bounds=[(1e-10, None)] * n,
+        )
+        if not result.success:
+            raise ValueError(
+                f"Risk-parity solve failed (status {result.status}: "
+                f"{result.message})"
+            )
+
+        weights = result.x / np.sum(result.x)
+        ret, vol, sharpe = self.portfolio_performance(weights)
+        rc = self.risk_contributions(weights)
+        return {
+            "weights": dict(zip(self.asset_names, weights)),
+            "return": ret,
+            "volatility": vol,
+            "sharpe": sharpe,
+            "success": True,
+            "risk_contributions": dict(zip(self.asset_names, rc)),
+        }
 
 
 class BlackLittermanOptimizer(PortfolioOptimizer):

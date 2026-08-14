@@ -187,7 +187,7 @@ class OptimizeRequest(BaseModel):
     risk_free_rate: Optional[float] = Field(
         default=None, description="Annualized decimal; None = fetch dynamically"
     )
-    method: Literal["mvo", "resampled", "black-litterman", "mean-cvar", "surplus"] = "mvo"
+    method: Literal["mvo", "resampled", "black-litterman", "mean-cvar", "surplus", "risk-parity"] = "mvo"
     mode: Literal["max-sharpe", "min-vol"] = "max-sharpe"
     allow_short: bool = False
     n_simulations: int = Field(default=200, ge=50, le=2000)
@@ -223,6 +223,11 @@ class PortfolioResult(BaseModel):
         default=None,
         description="Mean-CVaR method only: annualized expected shortfall "
         "(loss) at the request's confidence level",
+    )
+    risk_contributions: Optional[dict[str, float]] = Field(
+        default=None,
+        description="Risk-parity method only: fractional contribution of each "
+        "asset to total portfolio variance (sums to 1; ≈1/N at the ERC optimum)",
     )
 
 

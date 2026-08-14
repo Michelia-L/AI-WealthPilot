@@ -853,3 +853,70 @@ class TestExpectedReturnsOverride:
             returns, risk_free_rate=0.0, expected_returns=override
         ).maximize_sharpe()["weights"]
         assert w_cme["B"] > 0.99
+
+
+# ============================================================
+# Risk Parity (Equal Risk Contribution, Spinu formulation)
+# ============================================================
+
+class TestRiskParity:
+    """
+    risk_parity() — Equal Risk Contribution via the Spinu convex program.
+    risk_parity() — 基于 Spinu 凸规划的等风险贡献组合。
+    """
+
+    def test_erc_identity(self, sample_returns):
+        """At the ERC optimum every asset contributes ≈ 1/N of variance."""
+        opt = PortfolioOptimizer(sample_returns)
+        result = opt.risk_parity()
+        n = sample_returns.shape[1]
+        rc = np.array(list(result["risk_contributions"].values()))
+        np.testing.assert_allclose(rc, np.full(n, 1.0 / n), atol=1e-3)
+
+    def test_weights_sum_to_one_and_positive(self, sample_returns):
+        """Log-barrier ⇒ strictly positive weights summing to 1."""
+        opt = PortfolioOptimizer(sample_returns)
+        result = opt.risk_parity()
+        assert result["success"]
+        assert abs(sum(result["weights"].values()) - 1.0) < 1e-8
+        assert all(w > 0 for w in result["weights"].values())
+
+    def test_risk_contributions_sum_to_one(self, sample_returns):
+        opt = PortfolioOptimizer(sample_returns)
+        w = np.array([0.4, 0.3, 0.2, 0.1])
+        rc = opt.risk_contributions(w)
+        assert rc.sum() == pytest.approx(1.0)
+
+    def test_diagonal_covariance_closed_form(self):
+        """Diagonal Σ ⇒ ERC weights are exactly w_i ∝ 1/σ_i."""
+        rng = np.random.default_rng(3)
+        n_days = 2000  # large sample keeps estimation noise below tolerance
+        sig = np.array([0.05, 0.10, 0.20])
+        returns = pd.DataFrame(
+            {f"A{i}": rng.normal(0, s, n_days) for i, s in enumerate(sig)}
+        )
+        result = PortfolioOptimizer(returns).risk_parity()
+        expected = (1 / sig) / (1 / sig).sum()
+        w = np.array(list(result["weights"].values()))
+        np.testing.assert_allclose(w, expected, atol=0.02)
+
+    def test_low_vol_asset_gets_more_weight(self):
+        """Independent assets ⇒ w_i ∝ 1/σ_i: the lowest-σ asset leads."""
+        rng = np.random.default_rng(9)
+        n_days = 2000
+        sig = {"HIGH_VOL": 0.020, "LOW_VOL": 0.005, "MID_VOL": 0.010}
+        returns = pd.DataFrame(
+            {name: rng.normal(0, s, n_days) for name, s in sig.items()}
+        )
+        result = PortfolioOptimizer(returns).risk_parity()
+        weights = result["weights"]
+        assert weights["LOW_VOL"] == max(weights.values())
+        assert weights["HIGH_VOL"] == min(weights.values())
+
+    def test_result_structure(self, sample_returns):
+        opt = PortfolioOptimizer(sample_returns)
+        result = opt.risk_parity()
+        for key in ("weights", "return", "volatility", "sharpe",
+                    "success", "risk_contributions"):
+            assert key in result
+        assert set(result["risk_contributions"]) == set(sample_returns.columns)

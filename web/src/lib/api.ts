@@ -196,7 +196,7 @@ export interface BLConfigInput {
   views: BLViewInput[];
 }
 
-export type OptimizeMethod = "mvo" | "resampled" | "black-litterman" | "mean-cvar" | "surplus";
+export type OptimizeMethod = "mvo" | "resampled" | "black-litterman" | "mean-cvar" | "surplus" | "risk-parity";
 export type OptimizeMode = "max-sharpe" | "min-vol";
 
 export type SurplusGrowthSource = "inflation" | "risk_free" | "custom";
@@ -258,6 +258,8 @@ export interface PortfolioResult {
   weight_std: Record<string, number> | null;
   /** mean-cvar 方法专属：该置信水平下的年化预期尾部损失。 */
   cvar?: number | null;
+  /** risk-parity 方法专属：各资产对组合方差的风险贡献（合计为 1）。 */
+  risk_contributions?: Record<string, number> | null;
 }
 
 export interface AssetStat {

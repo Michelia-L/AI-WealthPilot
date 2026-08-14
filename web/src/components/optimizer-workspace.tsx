@@ -62,6 +62,7 @@ export default function OptimizerWorkspace({
     { value: "black-litterman", label: "Black-Litterman" },
     { value: "mean-cvar", label: "Mean-CVaR" },
     { value: "surplus", label: t.optimizer.methodSurplus },
+    { value: "risk-parity", label: t.optimizer.methodRiskParity },
   ];
 
   const MODE_OPTIONS: { value: OptimizeMode; label: string }[] = [
@@ -124,7 +125,8 @@ export default function OptimizerWorkspace({
       period,
       method,
       mode,
-      allow_short: allowShort,
+      // 风险平价仅多头（log-barrier 公式），切换方法时防御性复位
+      allow_short: method === "risk-parity" ? false : allowShort,
       n_simulations: nSim,
       risk_free_rate: rfAuto ? null : parseFloat(rfManual || "0") / 100,
     };
@@ -353,12 +355,23 @@ export default function OptimizerWorkspace({
           </Group>
 
           <Group label={t.optimizer.objectiveLabel}>
-            <Segmented
-              size="sm"
-              options={MODE_OPTIONS}
-              value={mode}
-              onChange={setMode}
-            />
+            <span
+              className={
+                method === "risk-parity" ? "pointer-events-none opacity-50" : ""
+              }
+            >
+              <Segmented
+                size="sm"
+                options={MODE_OPTIONS}
+                value={mode}
+                onChange={setMode}
+              />
+            </span>
+            {method === "risk-parity" && (
+              <span className="mt-1 block text-[11px] text-mist-600">
+                {t.optimizer.rpModeHint}
+              </span>
+            )}
           </Group>
 
           <Group label={t.optimizer.riskFreeRate}>
@@ -387,11 +400,24 @@ export default function OptimizerWorkspace({
         </div>
 
         <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
-          <Toggle
-            checked={allowShort}
-            onChange={setAllowShort}
-            label={t.optimizer.allowShort}
-          />
+          <span className="flex items-center gap-2.5">
+            <span
+              className={
+                method === "risk-parity" ? "pointer-events-none opacity-50" : ""
+              }
+            >
+              <Toggle
+                checked={allowShort}
+                onChange={setAllowShort}
+                label={t.optimizer.allowShort}
+              />
+            </span>
+            {method === "risk-parity" && (
+              <span className="text-[11px] text-mist-600">
+                {t.optimizer.rpShortHint}
+              </span>
+            )}
+          </span>
           {method === "resampled" && (
             <Slider
               label={t.optimizer.simulations}

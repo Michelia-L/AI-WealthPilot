@@ -112,6 +112,9 @@ export default function OptimizerResults({
               {result.selected.weight_std && (
                 <TH className="text-right">{t.optimizer.colWeightStd}</TH>
               )}
+              {result.selected.risk_contributions && (
+                <TH className="text-right">{t.optimizer.colRiskContribution}</TH>
+              )}
               <TH className="text-right">{t.optimizer.annReturn}</TH>
               <TH className="text-right">{t.optimizer.annVolatility}</TH>
               {result.bl && (
@@ -148,6 +151,14 @@ export default function OptimizerResults({
                   {result.selected.weight_std && (
                     <TD className="text-right font-mono text-mist-400">
                       {fmtPct(result.selected.weight_std[s.name] ?? null, 1)}
+                    </TD>
+                  )}
+                  {result.selected.risk_contributions && (
+                    <TD className="text-right font-mono text-gold-300">
+                      {fmtPct(
+                        result.selected.risk_contributions[s.name] ?? null,
+                        1
+                      )}
                     </TD>
                   )}
                   <TD className="text-right font-mono">
@@ -206,6 +217,12 @@ export default function OptimizerResults({
           </Panel>
         ))}
       </div>
+
+      {result.params.method === "risk-parity" && (
+        <p className="text-xs leading-5 text-mist-500">
+          {t.optimizer.rpBenchmarkHint}
+        </p>
+      )}
 
       {result.surplus && (
         <p className="text-xs leading-5 text-mist-500">

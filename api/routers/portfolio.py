@@ -292,6 +292,7 @@ def _result_payload(result: dict, asset_names: list[str]) -> PortfolioResult:
     """Normalize an optimizer result-dict into the API schema."""
     weight_std = result.get("weight_std")
     cvar = result.get("cvar")
+    risk_rc = result.get("risk_contributions")
     return PortfolioResult(
         weights={k: float(v) for k, v in result["weights"].items()},
         ann_return=float(result["return"]),
@@ -304,6 +305,11 @@ def _result_payload(result: dict, asset_names: list[str]) -> PortfolioResult:
             else None
         ),
         cvar=float(cvar) if cvar is not None else None,
+        risk_contributions=(
+            {k: float(v) for k, v in risk_rc.items()}
+            if risk_rc is not None
+            else None
+        ),
     )
 
 
@@ -697,10 +703,41 @@ def _run_surplus(
     return optimizer, selected, max_sharpe, min_vol, frontier, random_ports, insight
 
 
+def _run_risk_parity(
+    returns: pd.DataFrame,
+    req: OptimizeRequest,
+    expected_returns: Optional[pd.Series] = None,
+    locale: str = "zh",
+) -> tuple[PortfolioOptimizer, dict, dict, dict, pd.DataFrame, pd.DataFrame, dict]:
+    """Risk parity (Equal Risk Contribution).
+
+    The ERC portfolio is return-agnostic, so mode does not apply: the
+    selected slot carries the ERC portfolio while the max_sharpe/min_vol
+    slots hold classic MVO portfolios as benchmarks on the same efficient
+    frontier. Long-only by construction (Spinu log-barrier).
+    """
+    if req.allow_short:
+        raise HTTPException(
+            status_code=422, detail=msg("portfolio.rp_long_only", locale)
+        )
+    optimizer = PortfolioOptimizer(
+        returns, risk_free_rate=req.risk_free_rate,
+        expected_returns=expected_returns,
+    )
+    selected = optimizer.risk_parity()
+    max_sharpe = optimizer.maximize_sharpe(allow_short=False)
+    min_vol = optimizer.minimize_volatility(allow_short=False)
+    frontier = optimizer.efficient_frontier(
+        n_points=FRONTIER_POINTS, allow_short=False
+    )
+    random_ports = optimizer.random_portfolios(n_portfolios=RANDOM_PORTFOLIOS)
+    return optimizer, selected, max_sharpe, min_vol, frontier, random_ports, {}
+
+
 @router.post(
     "/optimize",
     response_model=OptimizeResponse,
-    summary="Run portfolio optimization (MVO / Resampled / Black-Litterman / Mean-CVaR)",
+    summary="Run portfolio optimization (MVO / Resampled / Black-Litterman / Mean-CVaR / Surplus / Risk-Parity)",
 )
 def optimize(
     req: OptimizeRequest, request: Request, session: Session = Depends(get_session)
@@ -776,6 +813,10 @@ def _solve_optimize(
     elif req.method == "surplus":
         optimizer, selected, max_sharpe, min_vol, frontier, random_ports, extra = (
             _run_surplus(returns, req, rf, surplus_raw, proxy_returns, expected_returns)
+        )
+    elif req.method == "risk-parity":
+        optimizer, selected, max_sharpe, min_vol, frontier, random_ports, extra = (
+            _run_risk_parity(returns, req, expected_returns, locale)
         )
     else:
         optimizer, selected, max_sharpe, min_vol, frontier, random_ports, extra = (
@@ -917,6 +958,11 @@ async def optimize_async(
         raise HTTPException(
             status_code=422,
             detail=msg("portfolio.cme_source_not_bl", locale),
+        )
+    if req.method == "risk-parity" and req.allow_short:
+        raise HTTPException(
+            status_code=422,
+            detail=msg("portfolio.rp_long_only", locale),
         )
     # Profile lookup + cap resolution happen here, not in the executor.
     risk_info = _resolve_risk_constraints(req, session, locale)

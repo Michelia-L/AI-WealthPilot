@@ -193,6 +193,10 @@ _MESSAGES: dict[str, dict[str, dict[str, str]]] = {
             "zh": "资本市场预期（CME）全部数据源失效，无法提供预期收益，请改用历史样本或稍后重试。",
             "en": "All Capital Market Expectations data sources failed; expected returns are unavailable — use sample means or retry later.",
         },
+        "rp_long_only": {
+            "zh": "风险平价（ERC）仅支持多头组合（log-barrier 公式要求正权重）。",
+            "en": "Risk parity (ERC) supports long-only portfolios only (the log-barrier formulation requires positive weights).",
+        },
         "min_assets": {
             "zh": "至少需要 2 个有效资产类别。可选：{keys}",
             "en": "At least 2 valid asset classes are required. Valid keys: {keys}",

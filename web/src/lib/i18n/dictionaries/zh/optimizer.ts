@@ -2,7 +2,7 @@
 export const optimizer = {
   title: "组合优化器",
   description:
-    "均值-方差优化（MVO）、Michaud 重采样前沿、Black-Litterman 贝叶斯配置、Mean-CVaR 尾部风险优化与 LDI 盈余优化，求解有效前沿上的最优资产组合。",
+    "均值-方差优化（MVO）、Michaud 重采样前沿、Black-Litterman 贝叶斯配置、Mean-CVaR 尾部风险优化、LDI 盈余优化与风险平价（ERC），求解有效前沿上的最优资产组合。",
   /** ApiOffline `resource` prop shown when the asset universe cannot load. */
   assetUniverse: "优化资产宇宙",
 
@@ -94,6 +94,13 @@ export const optimizer = {
   surplusAutoPresetHint: "画像通道按客户年龄自动选择通胀人群（≥60 岁为老年）",
   surplusAssumptionHint:
     "负债经久期缩放债券代理建模（近似有效久期：AGG 6 年、TLT 17 年、TIP 7 年）；画像目标按负债增长率折现。以上为简化假设，非真实收益率曲线定价。",
+
+  // ---- Risk parity (ERC) ----
+  methodRiskParity: "风险平价 (ERC)",
+  rpModeHint: "风险平价与预期收益无关，目标不适用",
+  rpShortHint: "仅多头",
+  colRiskContribution: "风险贡献",
+  rpBenchmarkHint: "最大夏普 / 最小波动组合为经典 MVO 基准，供与 ERC 组合对照。",
 
   // ---- results ----
   groupEquity: "权益",

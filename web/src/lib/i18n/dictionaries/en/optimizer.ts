@@ -2,7 +2,7 @@
 export const optimizer = {
   title: "Portfolio Optimizer",
   description:
-    "Mean-variance optimization (MVO), Michaud resampled frontier, Black-Litterman Bayesian allocation, Mean-CVaR tail-risk optimization, and LDI surplus optimization — solving for optimal portfolios on the efficient frontier.",
+    "Mean-variance optimization (MVO), Michaud resampled frontier, Black-Litterman Bayesian allocation, Mean-CVaR tail-risk optimization, LDI surplus optimization, and risk parity (ERC) — solving for optimal portfolios on the efficient frontier.",
   /** ApiOffline `resource` prop shown when the asset universe cannot load. */
   assetUniverse: "optimization asset universe",
 
@@ -101,6 +101,14 @@ export const optimizer = {
     "The profile channel picks the segment by client age (elderly at 60+)",
   surplusAssumptionHint:
     "Liabilities are modeled by duration-scaling the bond proxy (approximate effective durations: AGG 6y, TLT 17y, TIP 7y); profile goals are discounted at the liability growth rate. These are stylized assumptions, not yield-curve pricing.",
+
+  // ---- Risk parity (ERC) ----
+  methodRiskParity: "Risk Parity (ERC)",
+  rpModeHint: "Return-agnostic — objective N/A",
+  rpShortHint: "Long-only",
+  colRiskContribution: "Risk Contrib.",
+  rpBenchmarkHint:
+    "The Max Sharpe / Min Volatility panels show classic MVO benchmarks for comparison with the ERC portfolio.",
 
   // ---- results ----
   groupEquity: "Equity",
