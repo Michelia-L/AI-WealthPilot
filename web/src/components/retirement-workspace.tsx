@@ -3,12 +3,14 @@
 import { useState } from "react";
 import type { InflationPreset, RetirementRequest, RetirementResponse } from "@/lib/api";
 import { SIMULATION_OPTIONS } from "@/lib/api";
+import { buildRetirementLdiHref } from "@/lib/optimizer-link";
 import { fmtMoney, fmtPct } from "@/lib/format";
 import { useT } from "@/components/locale-context";
 import PlotChart from "@/components/plot-chart";
 import {
   Badge,
   Button,
+  ButtonLink,
   EmptyState,
   Field,
   Icon,
@@ -54,6 +56,14 @@ export default function RetirementWorkspace() {
 
   const agesValid =
     form.retirement_age > form.current_age && form.life_expectancy > form.retirement_age;
+
+  // LDI 联动：把当前退休收入流预填进优化器的盈余退休通道
+  const ldiHref = buildRetirementLdiHref({
+    years_to_retirement: form.retirement_age - form.current_age,
+    distribution_years: form.life_expectancy - form.retirement_age,
+    annual_income: form.desired_annual_income,
+    asset_value: form.current_savings,
+  });
 
   async function run() {
     setLoading(true);
@@ -201,6 +211,11 @@ export default function RetirementWorkspace() {
             >
               {loading ? t.retirement.running : t.retirement.run}
             </Button>
+            {agesValid && (
+              <ButtonLink href={ldiHref} variant="secondary" trailingIcon="arrowRight">
+                {t.retirement.ldiLink}
+              </ButtonLink>
+            )}
             {!agesValid && (
               <span className="inline-flex items-center gap-1.5 text-sm text-cinnabar-300">
                 <Icon name="warning" size={14} />

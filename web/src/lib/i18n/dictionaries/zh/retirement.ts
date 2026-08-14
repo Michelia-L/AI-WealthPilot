@@ -31,6 +31,7 @@ export const retirement = {
   simulationCount: "模拟次数",
   run: "运行模拟",
   running: "模拟计算中…",
+  ldiLink: "用此收入流做 LDI 优化",
   ageConstraint: "需满足：当前年龄 < 退休年龄 < 预期寿命",
   requestFailed: (status: number) => `请求失败（HTTP ${status}）`,
 

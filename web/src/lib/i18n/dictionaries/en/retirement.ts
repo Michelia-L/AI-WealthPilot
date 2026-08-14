@@ -31,6 +31,7 @@ export const retirement = {
   simulationCount: "Simulations",
   run: "Run Simulation",
   running: "Simulating…",
+  ldiLink: "Optimize with LDI",
   ageConstraint: "Requires: current age < retirement age < life expectancy",
   requestFailed: (status: number) => `Request failed (HTTP ${status})`,
 

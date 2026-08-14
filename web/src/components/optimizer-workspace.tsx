@@ -11,6 +11,7 @@ import type {
   SurplusGrowthSource,
 } from "@/lib/api";
 import { OPTIMIZER_PERIOD_OPTIONS } from "@/lib/api";
+import type { OptimizerDeepLink } from "@/lib/optimizer-link";
 import { readSseStream } from "@/lib/sse";
 import {
   TaskGoneError,
@@ -48,10 +49,13 @@ const CVAR_CONFIDENCE_OPTIONS = [
 export default function OptimizerWorkspace({
   assetClasses,
   initialAssets,
+  deepLink,
 }: {
   assetClasses: Record<string, AssetClassInfo>;
   /** URL 深链（如监控页 SAA 联动）预填的资产选择。 */
   initialAssets?: string[];
+  /** URL 深链（退休页 LDI 联动）预填的方法与盈余通道参数。 */
+  deepLink?: OptimizerDeepLink;
 }) {
   const t = useT();
   const allKeys = Object.keys(assetClasses);
@@ -74,7 +78,7 @@ export default function OptimizerWorkspace({
     initialAssets && initialAssets.length >= 2 ? initialAssets : DEFAULT_ASSETS
   );
   const [period, setPeriod] = useState("5y");
-  const [method, setMethod] = useState<OptimizeMethod>("mvo");
+  const [method, setMethod] = useState<OptimizeMethod>(deepLink?.method ?? "mvo");
   const [mode, setMode] = useState<OptimizeMode>("max-sharpe");
   const [allowShort, setAllowShort] = useState(false);
   const [rfAuto, setRfAuto] = useState(true);
@@ -83,7 +87,9 @@ export default function OptimizerWorkspace({
   const [cvarConf, setCvarConf] = useState(0.95);
   const [erSource, setErSource] = useState<"sample" | "cme">("sample");
 
-  const [surplusSource, setSurplusSource] = useState<SurplusSource>("manual");
+  const [surplusSource, setSurplusSource] = useState<SurplusSource>(
+    deepLink?.surplusSource ?? "manual"
+  );
   const [liabRatio, setLiabRatio] = useState(1.0);
   const [liabDuration, setLiabDuration] = useState(10);
   const [surplusProxy, setSurplusProxy] = useState("US_BOND");
@@ -91,10 +97,18 @@ export default function OptimizerWorkspace({
   const [customGrowth, setCustomGrowth] = useState("3.0");
   const [inflationPreset, setInflationPreset] =
     useState<SurplusInflationPreset>("standard");
-  const [yearsToRetirement, setYearsToRetirement] = useState(20);
-  const [distributionYears, setDistributionYears] = useState(25);
-  const [annualIncome, setAnnualIncome] = useState("80000");
-  const [assetValue, setAssetValue] = useState("1000000");
+  const [yearsToRetirement, setYearsToRetirement] = useState(
+    deepLink?.yearsToRetirement ?? 20
+  );
+  const [distributionYears, setDistributionYears] = useState(
+    deepLink?.distributionYears ?? 25
+  );
+  const [annualIncome, setAnnualIncome] = useState(
+    deepLink?.annualIncome !== undefined ? String(deepLink.annualIncome) : "80000"
+  );
+  const [assetValue, setAssetValue] = useState(
+    deepLink?.assetValue !== undefined ? String(deepLink.assetValue) : "1000000"
+  );
 
   const [blTau, setBlTau] = useState("0.025");
   const [blDelta, setBlDelta] = useState("2.5");

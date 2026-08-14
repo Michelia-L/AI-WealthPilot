@@ -5,6 +5,7 @@ import OptimizerWorkspace from "@/components/optimizer-workspace";
 import SectionHeader from "@/components/ui/section-header";
 import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
 import { altLocale } from "@/lib/i18n/locale";
+import { parseOptimizerDeepLink } from "@/lib/optimizer-link";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getDict();
@@ -19,7 +20,9 @@ interface PageProps {
  * Portfolio Optimizer page. The workspace is a client component — form
  * state is inherently interactive, and the run button POSTs through the
  * same-origin proxy route.
- * ?assets=KEY1,KEY2（如从监控页联动跳入）预填资产选择。
+ * ?assets=KEY1,KEY2（如从监控页联动跳入）预填资产选择；
+ * ?method=surplus&source=retirement&ytr=…&dy=…&income=…（退休页 LDI 联动）
+ * 预填盈余优化退休收入流通道。
  */
 export default async function OptimizerPage({ searchParams }: PageProps) {
   const sp = await searchParams;
@@ -34,6 +37,7 @@ export default async function OptimizerPage({ searchParams }: PageProps) {
           .split(",")
           .filter((k) => k in assetClasses.asset_classes)
       : undefined;
+  const deepLink = parseOptimizerDeepLink(sp);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-10">
@@ -49,6 +53,7 @@ export default async function OptimizerPage({ searchParams }: PageProps) {
           initialAssets={
             initialAssets && initialAssets.length >= 2 ? initialAssets : undefined
           }
+          deepLink={deepLink}
         />
       ) : (
         <ApiOffline resource={t.optimizer.assetUniverse} />
