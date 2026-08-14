@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { retirement } from "@/lib/i18n/dictionaries/en/retirement";
 import RetirementWorkspace from "./retirement-workspace";
 
@@ -9,6 +9,56 @@ vi.mock("@/components/locale-context", () => ({
   useT: () => ({ retirement }),
 }));
 vi.mock("@/components/plot-chart", () => ({ default: () => null }));
+
+const fetchMock = vi.fn();
+vi.stubGlobal("fetch", fetchMock);
+
+const RETIREMENT_RESULT = {
+  as_of: "2026-08-14T00:00:00Z",
+  params: {
+    expected_return: 0.07,
+    volatility: 0.15,
+    inflation_rate: 0.025,
+    distribution_inflation_rate: 0.0325,
+    n_simulations: 10000,
+    seed: 42,
+  },
+  survival_rate: 0.82,
+  accumulation_years: 30,
+  distribution_years: 25,
+  terminal_at_retirement: {
+    mean: 900000,
+    median: 850000,
+    p5: 400000,
+    p25: 650000,
+    p75: 1100000,
+    p95: 1500000,
+  },
+  accumulation_chart: { data: [] },
+  distribution_chart: { data: [] },
+  depletion: {
+    never_depleted_pct: 0.82,
+    depleted_within_10y_pct: 0.03,
+    median_depletion_year: 20,
+  },
+  sensitivity: [],
+  comparison: {
+    fixed_survival_rate: 0.7,
+    guardrails_survival_rate: 0.82,
+    survival_lift: 0.12,
+    guardrail_band: 0.2,
+    guardrail_adjust: 0.1,
+  },
+};
+
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), { status });
+}
+
+beforeEach(() => {
+  fetchMock.mockReset();
+  fetchMock.mockResolvedValue(jsonResponse(RETIREMENT_RESULT));
+});
 
 describe("RetirementWorkspace LDI deep link", () => {
   it("links the current income stream into the optimizer's retirement channel", () => {
@@ -22,5 +72,70 @@ describe("RetirementWorkspace LDI deep link", () => {
     expect(href).toContain("dy=25");
     expect(href).toContain("income=80000");
     expect(href).toContain("asset_value=100000");
+  });
+});
+
+describe("RetirementWorkspace form behavior", () => {
+  it("shows the custom inflation slider only for the custom preset", () => {
+    render(<RetirementWorkspace />);
+    expect(screen.queryByText("Distribution-Phase Inflation")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Elderly" }));
+    expect(screen.queryByText("Distribution-Phase Inflation")).not.toBeInTheDocument();
+    expect(screen.getByText(/segment-adjusted rate/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Custom" }));
+    expect(screen.getByText("Distribution-Phase Inflation")).toBeInTheDocument();
+  });
+
+  it("reveals guardrail sliders and sends the strategy payload", async () => {
+    render(<RetirementWorkspace />);
+    expect(screen.queryByText("Guardrail Band")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
+    expect(screen.getByText("Guardrail Band")).toBeInTheDocument();
+    expect(screen.getByText("Adjustment")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Run Simulation" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body as string);
+    expect(body.withdrawal_strategy).toBe("guardrails");
+    expect(body.guardrail_band).toBe(0.2);
+    expect(body.guardrail_adjust).toBe(0.1);
+  });
+
+  it("blocks the run and warns when ages are inconsistent", () => {
+    render(<RetirementWorkspace />);
+    const sliders = screen.getAllByRole("slider");
+    // Slider order: current age, retirement age, life expectancy, ...
+    fireEvent.change(sliders[1], { target: { value: "25" } });
+    expect(screen.getByText(/current age < retirement age/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run Simulation" })).toBeDisabled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("RetirementWorkspace results", () => {
+  it("renders the guardrails comparison tiles when present", async () => {
+    render(<RetirementWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
+    fireEvent.click(screen.getByRole("button", { name: "Run Simulation" }));
+
+    expect(await screen.findByText("Fixed-Strategy Survival")).toBeInTheDocument();
+    expect(screen.getByText("Survival Lift")).toBeInTheDocument();
+    expect(screen.getByText("70.0%")).toBeInTheDocument();
+    expect(screen.getByText("+12.0 pp")).toBeInTheDocument();
+  });
+
+  it("surfaces API errors as localized messages", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ detail: "retirement_age must be greater than current_age." }, 422)
+    );
+    render(<RetirementWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: "Run Simulation" }));
+    expect(
+      await screen.findByText(/retirement_age must be greater/)
+    ).toBeInTheDocument();
   });
 });
