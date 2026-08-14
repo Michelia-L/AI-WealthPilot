@@ -7,6 +7,9 @@ monkeypatched — tushare's yc_cb is a separately-permissioned interface
 and akshare is disabled in this suite's conftest by default.
 """
 
+import sys
+import types
+
 import pandas as pd
 import pytest
 
@@ -96,9 +99,13 @@ class TestAkshareTier:
         monkeypatch.setattr(
             "src.data.akshare_provider.is_available", lambda: True
         )
-        monkeypatch.setattr(
-            "akshare.bond_china_yield", lambda start_date, end_date: _fake_akshare_frame()
+        # Inject a fake akshare module: akshare is an optional local-only
+        # dependency and is not installed in CI.
+        fake_ak = types.ModuleType("akshare")
+        fake_ak.bond_china_yield = (
+            lambda start_date, end_date: _fake_akshare_frame()
         )
+        monkeypatch.setitem(sys.modules, "akshare", fake_ak)
         curve = yield_curve._from_akshare()
         assert curve is not None
         assert curve[0.25] == pytest.approx(0.0119)
