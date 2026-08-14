@@ -229,6 +229,7 @@ export interface SurplusInsight {
   liability_duration: number;
   liability_growth: number;
   discount_rate: number;
+  discount_source: "china_treasury_curve" | "flat_risk_free";
   proxy: string;
   source: "manual" | "profile" | "retirement";
   cash_flows: number | null;
@@ -239,6 +240,7 @@ export const SURPLUS_PROXY_OPTIONS = [
   "US_BOND",
   "LONG_TREASURY_BOND",
   "TIPS",
+  "CN_TREASURY",
 ] as const;
 
 export interface OptimizeRequest {

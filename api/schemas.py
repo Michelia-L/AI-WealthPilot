@@ -277,6 +277,11 @@ class SurplusInsight(BaseModel):
     discount_rate: float = Field(
         default=0.0, description="Liability discount rate y (risk-free leg)"
     )
+    discount_source: Literal["china_treasury_curve", "flat_risk_free"] = Field(
+        default="flat_risk_free",
+        description="How liabilities were discounted: per-tenor ChinaBond "
+        "treasury curve, or the flat risk-free rate",
+    )
     proxy: str = Field(description="Bond proxy key used for liability stats")
     source: Literal["manual", "profile", "retirement"] = Field(
         description="How the liability spec was obtained"

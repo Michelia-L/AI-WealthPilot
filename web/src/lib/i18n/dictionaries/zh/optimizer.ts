@@ -147,10 +147,13 @@ export const optimizer = {
     duration: string;
     growth: string;
     discount: string;
+    discountSource: string;
     horizon: string | null;
     proxy: string;
   }) =>
-    `LDI 假设：${p.source} · 负债比率 L/A=${p.ratio} · 久期 ${p.duration} · 折现率 ${p.discount} · 漂移 ${p.growth}${p.horizon ? ` · 负债期限 ${p.horizon}` : ""} · 对冲代理 ${p.proxy}`,
+    `LDI 假设：${p.source} · 负债比率 L/A=${p.ratio} · 久期 ${p.duration} · 折现率 ${p.discount}（${p.discountSource}） · 漂移 ${p.growth}${p.horizon ? ` · 负债期限 ${p.horizon}` : ""} · 对冲代理 ${p.proxy}`,
+  discountSourceCurve: "中债国债收益率曲线",
+  discountSourceFlat: "统一无风险利率",
 
   // ---- backtest ----
   backtestTitle: "组合回测",

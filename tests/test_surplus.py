@@ -117,6 +117,24 @@ class TestStreamToLiability:
         with pytest.raises(ValueError):
             stream_to_liability([(0.0, 5)], 0.02)
 
+    def test_curve_discounting_per_tenor(self):
+        """A curve dict discounts each flow at its interpolated y(t)."""
+        curve = {1.0: 0.01, 10.0: 0.02, 30.0: 0.03}
+        flows = [(100_000, 1), (100_000, 10)]
+        pv, duration = stream_to_liability(flows, curve)
+        pv1 = 100_000 / 1.01
+        pv10 = 100_000 / 1.02**10
+        assert pv == pytest.approx(pv1 + pv10)
+        assert duration == pytest.approx((pv1 + 10 * pv10) / (pv1 + pv10))
+
+    def test_curve_vs_flat_differs_when_sloped(self):
+        """An upward-sloping curve prices long flows cheaper than a flat 1y rate."""
+        curve = {1.0: 0.01, 30.0: 0.04}
+        flows = [(100_000, 20)]
+        pv_curve, _ = stream_to_liability(flows, curve)
+        pv_flat, _ = stream_to_liability(flows, 0.01)
+        assert pv_curve < pv_flat
+
 
 class TestRetirementIncomeStream:
     """retirement_income_stream shape."""

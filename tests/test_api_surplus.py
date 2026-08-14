@@ -207,6 +207,70 @@ def test_surplus_retirement_channel_requires_asset_base(client, monkeypatch):
     assert resp.status_code == 422
 
 
+def test_surplus_china_treasury_curve_discounting(client, monkeypatch):
+    """When the curve cascade yields data, each flow discounts at y(t).
+
+    Fixed curve {1y: 1%, 30y: 3%}: t=6..25 flows interpolate between the
+    two nodes; discount_source and the representative rate are disclosed.
+    """
+    from src.data.yield_curve import rate_at
+
+    _patch_returns(monkeypatch, _fake_returns())
+    curve = {1.0: 0.01, 30.0: 0.03}
+    monkeypatch.setattr(
+        "api.routers.portfolio._effective_discount_curve",
+        lambda: (curve, "china_treasury_curve"),
+    )
+    cfg = {
+        "growth_source": "inflation",
+        "years_to_retirement": 5,
+        "distribution_years": 20,
+        "annual_income": 80000,
+        "asset_value": 1_000_000,
+    }
+    resp = client.post("/api/portfolio/optimize", json=_body(surplus=cfg))
+    assert resp.status_code == 200
+    surplus = resp.json()["surplus"]
+
+    pvs = {
+        t: 80000 * 1.025**t / (1.0 + rate_at(curve, t)) ** t
+        for t in range(6, 26)
+    }
+    pv_total = sum(pvs.values())
+    expected_duration = sum(t * p for t, p in pvs.items()) / pv_total
+
+    assert surplus["discount_source"] == "china_treasury_curve"
+    assert surplus["liability_ratio"] == pytest.approx(pv_total / 1_000_000, rel=1e-4)
+    assert surplus["liability_duration"] == pytest.approx(expected_duration, rel=1e-4)
+    assert surplus["discount_rate"] == pytest.approx(
+        rate_at(curve, expected_duration), rel=1e-4
+    )
+
+
+def test_surplus_cn_treasury_proxy(client, monkeypatch):
+    """The CN bond proxy is fetched alongside and split out of the universe."""
+    rng = np.random.default_rng(7)
+    names = [DEFAULT_ASSET_CLASSES[k]["name"] for k in ASSETS]
+    data = {
+        name: rng.normal(STATS[key][0], STATS[key][1], 504)
+        for key, name in zip(ASSETS, names)
+    }
+    data[DEFAULT_ASSET_CLASSES["CN_TREASURY"]["name"]] = rng.normal(0.0001, 0.002, 504)
+    _patch_returns(monkeypatch, pd.DataFrame(data))
+
+    cfg = {
+        "liability_ratio": 1.0,
+        "liability_duration": 10.0,
+        "proxy": "CN_TREASURY",
+    }
+    resp = client.post("/api/portfolio/optimize", json=_body(surplus=cfg))
+    assert resp.status_code == 200
+    data_resp = resp.json()
+    assert data_resp["surplus"]["proxy"] == "CN_TREASURY"
+    # The proxy column must not leak into the optimized universe.
+    assert set(data_resp["selected"]["weights"]) == set(names)
+
+
 def test_surplus_profile_without_goals_422(client, monkeypatch):
     _patch_returns(monkeypatch, _fake_returns())
     created = client.post("/api/profiles", json=sample_payload(goals=[]))

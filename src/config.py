@@ -73,6 +73,7 @@ DEFAULT_ASSET_CLASSES = {
     "REIT": {"ticker": "VNQ", "name": "Real Estate (REITs)"},
     "CRYPTO": {"ticker": "BTC-USD", "name": "Bitcoin"},
     "CASH": {"ticker": "BIL", "name": "Cash Equivalents (BIL)"},
+    "CN_TREASURY": {"ticker": "511010.SS", "name": "China 5Y Treasury ETF"},
 }
 
 # Portfolio Optimization Defaults
@@ -133,6 +134,7 @@ LDI_PROXY_DURATIONS = {
     "US_BOND": 6.0,              # AGG ~ US aggregate bonds
     "LONG_TREASURY_BOND": 17.0,  # TLT ~ 20+yr Treasuries
     "TIPS": 7.0,                 # TIP ~ inflation-protected Treasuries
+    "CN_TREASURY": 4.3,          # 511010.SS ~ SSE 5Y treasury index ETF
 }
 LDI_DEFAULT_PROXY = "US_BOND"
 

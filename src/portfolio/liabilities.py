@@ -4,8 +4,9 @@ Liability modeling for LDI surplus optimization (Sharpe & Tint 1990).
 Every liability is a cash-flow stream ``[(amount, years), ...]`` with two
 distinct rates:
 
-- the **discount rate** y — the liability discount rate, i.e. the
-  effective risk-free leg, used to present-value the stream;
+- the **discount rate** y — the liability discount rate (flat risk-free
+  leg, or the ChinaBond treasury curve {tenor: y(t)} when available),
+  used to present-value the stream;
 - the **growth rate** g — the escalation rate of inflation-linked cash
   flows (e.g. retirement income stated in today's money).
 
@@ -35,6 +36,7 @@ import numpy as np
 import pandas as pd
 
 from src.config import TRADING_DAYS_PER_YEAR
+from src.data.yield_curve import rate_at
 
 # One liability cash flow: (amount, years_from_now). Amounts are nominal
 # unless the caller grows them via stream_to_liability's growth_rate.
@@ -43,20 +45,23 @@ Flow = tuple[float, int]
 
 def stream_to_liability(
     flows: list[Flow],
-    discount_rate: float,
+    discount_rate: "float | dict[float, float]",
     growth_rate: float = 0.0,
 ) -> tuple[float, float]:
     """Present value and Macaulay duration of a cash-flow stream.
 
     Each flow ``(amount, t)`` is first grown at ``growth_rate`` (use a
     non-zero rate only for amounts stated in today's money — inflation-
-    linked liabilities such as retirement income) and then discounted at
-    ``discount_rate`` (the liability discount rate, i.e. the risk-free
-    leg): PV_t = amount·(1+g)^t / (1+y)^t.
+    linked liabilities such as retirement income) and then discounted:
+    PV_t = amount·(1+g)^t / (1+y)^t, where y is either the flat
+    ``discount_rate`` or the curve-interpolated y(t) when
+    ``discount_rate`` is a {tenor: rate} dict.
 
     Args:
         flows: List of (amount, years_from_now) tuples.
-        discount_rate: Annual liability discount rate y.
+        discount_rate: Flat annual liability discount rate, or a yield
+            curve {tenor_years: rate_decimal} (e.g. the ChinaBond
+            treasury curve from src.data.yield_curve).
         growth_rate: Annual escalation rate g of the cash flows (0 for
             nominal fixed amounts).
 
@@ -75,7 +80,12 @@ def stream_to_liability(
     weighted_years = 0.0
     for amount, years in positive:
         nominal = amount * (1.0 + growth_rate) ** years
-        discounted = nominal / (1.0 + discount_rate) ** years
+        y = (
+            rate_at(discount_rate, years)
+            if isinstance(discount_rate, dict)
+            else discount_rate
+        )
+        discounted = nominal / (1.0 + y) ** years
         pv += discounted
         weighted_years += years * discounted
 
@@ -111,18 +121,19 @@ def retirement_income_stream(
 
 def goals_to_liability(
     goals: list[dict],
-    discount_rate: float,
+    discount_rate: "float | dict[float, float]",
 ) -> tuple[float, float]:
     """Present value and Macaulay duration of a goal liability stream.
 
     Each goal is a single nominal cash flow: ``target_amount`` due in
     ``years`` years (consistent with the IPS TVM treatment — nominal
-    targets, no growth), discounted at the liability discount rate.
+    targets, no growth), discounted at the flat rate or curve supplied.
 
     Args:
         goals: List of dicts with 'target_amount' and 'years' keys
             (the shape stored in a client profile).
-        discount_rate: Annual liability discount rate (the risk-free leg).
+        discount_rate: Flat annual liability discount rate, or a yield
+            curve {tenor_years: rate_decimal}.
 
     Returns:
         Tuple of (present_value, macaulay_duration_years).

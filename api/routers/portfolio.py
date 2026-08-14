@@ -68,6 +68,7 @@ from src.data.market_data import (
 from src.portfolio.backtest import InsufficientDataError, run_backtest
 from src.portfolio.cme_engine import compute_cme
 from src.portfolio.inflation import resolve_personal_inflation, suggest_inflation_preset
+from src.data.yield_curve import fetch_china_treasury_curve, rate_at
 from src.portfolio.liabilities import (
     estimate_liability_stats,
     goals_to_liability,
@@ -89,10 +90,12 @@ router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 _prices_cache: TTLCache = TTLCache()
 _rf_cache: TTLCache = TTLCache()
 _backtest_cache: TTLCache = TTLCache()
+_curve_cache: TTLCache = TTLCache()
 
 PRICES_TTL_SECONDS = 300
 RISK_FREE_RATE_TTL_SECONDS = 3600
 BACKTEST_TTL_SECONDS = 600
+YIELD_CURVE_TTL_SECONDS = 3600
 FRONTIER_POINTS = 50
 RESAMPLED_FRONTIER_POINTS = 20
 RANDOM_PORTFOLIOS = 1000
@@ -291,6 +294,24 @@ def _effective_risk_free_rate(override: Optional[float]) -> float:
         RISK_FREE_RATE_TTL_SECONDS,
         lambda: fetch_risk_free_rate(currency=BASE_CURRENCY),
     )
+
+
+def _effective_discount_curve() -> tuple[Optional[dict[float, float]], str]:
+    """ChinaBond treasury curve for LDI liability discounting.
+
+    Successful fetches are TTL-cached; a miss is evicted so the next
+    request retries instead of pinning the flat fallback for a whole
+    TTL window. Returns (curve, source_label) — (None, "flat_risk_free")
+    when the provider cascade has nothing.
+    """
+    result = _curve_cache.get_or_set(
+        "cgb_curve", YIELD_CURVE_TTL_SECONDS, fetch_china_treasury_curve
+    )
+    if result is None:
+        _curve_cache.invalidate("cgb_curve")
+        return None, "flat_risk_free"
+    curve, _provider = result
+    return curve, "china_treasury_curve"
 
 
 def _result_payload(result: dict, asset_names: list[str]) -> PortfolioResult:
@@ -714,6 +735,11 @@ def _run_surplus(
         growth = resolve_personal_inflation(CME_INFLATION_ASSUMPTION, preset)
 
     # Liability spec per channel: ratio k = L/A, duration, drift μ_L.
+    # Discounting: ChinaBond treasury curve when the provider cascade has
+    # one, otherwise the flat risk-free leg.
+    curve, discount_source = _effective_discount_curve()
+    discount = curve if curve is not None else rf
+
     source = surplus_raw["source"]
     cash_flows: Optional[int] = None
     horizon: Optional[float] = None
@@ -722,7 +748,7 @@ def _run_surplus(
         duration = surplus_raw["liability_duration"]
         mu_L = growth
     elif source == "profile":
-        pv, duration = goals_to_liability(surplus_raw["goals"], rf)
+        pv, duration = goals_to_liability(surplus_raw["goals"], discount)
         k = pv / surplus_raw["investable_assets"]
         mu_L = rf
         positive = [
@@ -737,11 +763,16 @@ def _run_surplus(
             surplus_raw["distribution_years"],
             surplus_raw["annual_income"],
         )
-        pv, duration = stream_to_liability(flows, rf, growth)
+        pv, duration = stream_to_liability(flows, discount, growth)
         k = pv / surplus_raw["asset_value"]
         mu_L = growth
         cash_flows = len(flows)
         horizon = float(flows[-1][1])
+
+    # Representative discount rate: curve rate at the liability duration.
+    discount_rate_value = (
+        float(rate_at(curve, duration)) if curve is not None else float(rf)
+    )
 
     # Liability stats via the duration-scaled bond proxy
     proxy_key = surplus_raw["proxy"]
@@ -775,7 +806,8 @@ def _run_surplus(
         funding_ratio=float(1.0 / k),
         liability_duration=float(duration),
         liability_growth=float(mu_L),
-        discount_rate=float(rf),
+        discount_rate=discount_rate_value,
+        discount_source=discount_source,
         proxy=proxy_key,
         source=source,
         cash_flows=cash_flows,

@@ -239,6 +239,10 @@ export default function OptimizerResults({
             ),
             growth: fmtPct(result.surplus.liability_growth, 1),
             discount: fmtPct(result.surplus.discount_rate, 1),
+            discountSource:
+              result.surplus.discount_source === "china_treasury_curve"
+                ? t.optimizer.discountSourceCurve
+                : t.optimizer.discountSourceFlat,
             horizon:
               result.surplus.horizon_years != null
                 ? t.optimizer.durationYears(

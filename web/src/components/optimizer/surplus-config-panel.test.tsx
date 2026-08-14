@@ -18,6 +18,7 @@ const ASSET_CLASSES: Record<string, AssetClassInfo> = {
   US_BOND: { ticker: "AGG", name: "US Aggregate Bonds" },
   LONG_TREASURY_BOND: { ticker: "TLT", name: "Long-Term US Treasuries" },
   TIPS: { ticker: "TIP", name: "Treasury Inflation-Protected" },
+  CN_TREASURY: { ticker: "511010.SS", name: "China 5Y Treasury ETF" },
 };
 
 function Harness({ hasClient = false }: { hasClient?: boolean }) {
@@ -111,6 +112,15 @@ describe("SurplusConfigPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Custom" }));
     expect(
       screen.getByLabelText("Custom liability growth (%)")
+    ).toBeInTheDocument();
+  });
+
+  it("offers all four hedge proxies incl. the CN treasury ETF", () => {
+    render(<Harness />);
+    const select = screen.getByLabelText("Hedge Proxy") as HTMLSelectElement;
+    expect(select.options).toHaveLength(4);
+    expect(
+      screen.getByRole("option", { name: "China 5Y Treasury ETF" })
     ).toBeInTheDocument();
   });
 });
