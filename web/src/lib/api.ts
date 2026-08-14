@@ -212,6 +212,14 @@ export interface SurplusConfigInput {
   growth_source?: SurplusGrowthSource;
   custom_growth?: number | null;
   inflation_preset?: InflationPreset | null;
+  /** 退休收入流通道：距退休年数。 */
+  years_to_retirement?: number | null;
+  /** 退休收入流通道：支取年数。 */
+  distribution_years?: number | null;
+  /** 退休收入流通道：年收入（今日购买力）。 */
+  annual_income?: number | null;
+  /** 退休收入流通道：无画像时的资产基数。 */
+  asset_value?: number | null;
 }
 
 /** 盈余优化实际采用的假设回显。 */
@@ -220,8 +228,11 @@ export interface SurplusInsight {
   funding_ratio: number;
   liability_duration: number;
   liability_growth: number;
+  discount_rate: number;
   proxy: string;
-  source: "manual" | "profile";
+  source: "manual" | "profile" | "retirement";
+  cash_flows: number | null;
+  horizon_years: number | null;
 }
 
 export const SURPLUS_PROXY_OPTIONS = [

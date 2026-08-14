@@ -91,6 +91,10 @@ export default function OptimizerWorkspace({
   const [customGrowth, setCustomGrowth] = useState("3.0");
   const [inflationPreset, setInflationPreset] =
     useState<SurplusInflationPreset>("standard");
+  const [yearsToRetirement, setYearsToRetirement] = useState(20);
+  const [distributionYears, setDistributionYears] = useState(25);
+  const [annualIncome, setAnnualIncome] = useState("80000");
+  const [assetValue, setAssetValue] = useState("1000000");
 
   const [blTau, setBlTau] = useState("0.025");
   const [blDelta, setBlDelta] = useState("2.5");
@@ -159,15 +163,30 @@ export default function OptimizerWorkspace({
         ...(growthSource === "custom"
           ? { custom_growth: (parseFloat(customGrowth || "0") || 0) / 100 }
           : {}),
-        // 画像通道下通胀人群由后端按客户年龄自动建议
-        ...(growthSource === "inflation" && surplusSource === "manual"
+        // 画像/退休+客户通道下通胀人群由后端按客户年龄自动建议
+        ...(growthSource === "inflation" &&
+        (surplusSource === "manual" ||
+          (surplusSource === "retirement" && clientId === null))
           ? { inflation_preset: inflationPreset }
           : {}),
         ...(surplusSource === "manual"
           ? { liability_ratio: liabRatio, liability_duration: liabDuration }
-          : {}),
+          : surplusSource === "retirement"
+            ? {
+                years_to_retirement: yearsToRetirement,
+                distribution_years: distributionYears,
+                annual_income: parseFloat(annualIncome || "0") || 0,
+                ...(clientId === null
+                  ? { asset_value: parseFloat(assetValue || "0") || 0 }
+                  : {}),
+              }
+            : {}),
       };
-      if (surplusSource === "profile" && clientId !== null) {
+      // 画像通道取目标；退休通道取资产基数与年龄（通胀人群建议）
+      if (
+        (surplusSource === "profile" || surplusSource === "retirement") &&
+        clientId !== null
+      ) {
         body.profile_id = clientId;
       }
     }
@@ -536,6 +555,14 @@ export default function OptimizerWorkspace({
             setCustomGrowth={setCustomGrowth}
             inflationPreset={inflationPreset}
             setInflationPreset={setInflationPreset}
+            yearsToRetirement={yearsToRetirement}
+            setYearsToRetirement={setYearsToRetirement}
+            distributionYears={distributionYears}
+            setDistributionYears={setDistributionYears}
+            annualIncome={annualIncome}
+            setAnnualIncome={setAnnualIncome}
+            assetValue={assetValue}
+            setAssetValue={setAssetValue}
           />
         )}
 

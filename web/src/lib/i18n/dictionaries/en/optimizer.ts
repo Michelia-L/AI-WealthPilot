@@ -99,8 +99,15 @@ export const optimizer = {
   surplusPresetLuxury: "Luxury",
   surplusAutoPresetHint:
     "The profile channel picks the segment by client age (elderly at 60+)",
+  surplusSourceRetirement: "Retirement Stream",
+  yearsToRetirement: "Years to Retirement",
+  distributionYears: "Distribution Years",
+  annualIncome: "Annual Income (today's money)",
+  assetValueLabel: "Asset Base",
+  surplusProfileBaseHint:
+    "Asset base and inflation segment come from the selected client profile",
   surplusAssumptionHint:
-    "Liabilities are modeled by duration-scaling the bond proxy (approximate effective durations: AGG 6y, TLT 17y, TIP 7y); profile goals are discounted at the liability growth rate. These are stylized assumptions, not yield-curve pricing.",
+    "Liabilities are discounted at the risk-free rate and modeled by duration-scaling the bond proxy (approximate effective durations: AGG 6y, TLT 17y, TIP 7y); the retirement income stream escalates at the inflation growth rate. These are stylized assumptions, not yield-curve pricing.",
 
   // ---- Risk parity (ERC) ----
   methodRiskParity: "Risk Parity (ERC)",
@@ -149,9 +156,11 @@ export const optimizer = {
     ratio: string;
     duration: string;
     growth: string;
+    discount: string;
+    horizon: string | null;
     proxy: string;
   }) =>
-    `LDI assumptions: ${p.source} · L/A=${p.ratio} · duration ${p.duration} · growth ${p.growth} · proxy ${p.proxy}`,
+    `LDI assumptions: ${p.source} · L/A=${p.ratio} · duration ${p.duration} · discount ${p.discount} · drift ${p.growth}${p.horizon ? ` · horizon ${p.horizon}` : ""} · proxy ${p.proxy}`,
 
   // ---- backtest ----
   backtestTitle: "Portfolio Backtest",

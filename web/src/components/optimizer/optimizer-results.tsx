@@ -230,12 +230,21 @@ export default function OptimizerResults({
             source:
               result.surplus.source === "profile"
                 ? t.optimizer.surplusSourceProfile
-                : t.optimizer.surplusSourceManual,
+                : result.surplus.source === "retirement"
+                  ? t.optimizer.surplusSourceRetirement
+                  : t.optimizer.surplusSourceManual,
             ratio: result.surplus.liability_ratio.toFixed(2),
             duration: t.optimizer.durationYears(
               Math.round(result.surplus.liability_duration)
             ),
             growth: fmtPct(result.surplus.liability_growth, 1),
+            discount: fmtPct(result.surplus.discount_rate, 1),
+            horizon:
+              result.surplus.horizon_years != null
+                ? t.optimizer.durationYears(
+                    Math.round(result.surplus.horizon_years)
+                  )
+                : null,
             proxy: result.surplus.proxy,
           })}
         </p>

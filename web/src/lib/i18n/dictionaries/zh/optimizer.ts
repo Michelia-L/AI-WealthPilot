@@ -92,8 +92,14 @@ export const optimizer = {
   surplusPresetElderly: "老年",
   surplusPresetLuxury: "奢华",
   surplusAutoPresetHint: "画像通道按客户年龄自动选择通胀人群（≥60 岁为老年）",
+  surplusSourceRetirement: "退休收入流",
+  yearsToRetirement: "距退休年数",
+  distributionYears: "支取年数",
+  annualIncome: "退休年收入（今日购买力）",
+  assetValueLabel: "资产基数",
+  surplusProfileBaseHint: "资产基数与通胀人群取自选中客户画像",
   surplusAssumptionHint:
-    "负债经久期缩放债券代理建模（近似有效久期：AGG 6 年、TLT 17 年、TIP 7 年）；画像目标按负债增长率折现。以上为简化假设，非真实收益率曲线定价。",
+    "负债现值按无风险利率折现，经久期缩放债券代理建模（近似有效久期：AGG 6 年、TLT 17 年、TIP 7 年）；退休收入流按通胀增长率逐年放大。以上为简化假设，非真实收益率曲线定价。",
 
   // ---- Risk parity (ERC) ----
   methodRiskParity: "风险平价 (ERC)",
@@ -140,9 +146,11 @@ export const optimizer = {
     ratio: string;
     duration: string;
     growth: string;
+    discount: string;
+    horizon: string | null;
     proxy: string;
   }) =>
-    `LDI 假设：${p.source} · 负债比率 L/A=${p.ratio} · 久期 ${p.duration} · 增长率 ${p.growth} · 对冲代理 ${p.proxy}`,
+    `LDI 假设：${p.source} · 负债比率 L/A=${p.ratio} · 久期 ${p.duration} · 折现率 ${p.discount} · 漂移 ${p.growth}${p.horizon ? ` · 负债期限 ${p.horizon}` : ""} · 对冲代理 ${p.proxy}`,
 
   // ---- backtest ----
   backtestTitle: "组合回测",

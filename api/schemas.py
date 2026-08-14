@@ -168,6 +168,24 @@ class SurplusConfigInput(BaseModel):
         description="Personal inflation preset for growth_source='inflation'; "
         "None resolves from the profile's age (profile channel) or 'standard'",
     )
+    # --- Retirement-income channel (inflation-linked cash-flow stream) ---
+    years_to_retirement: Optional[int] = Field(
+        default=None, ge=0, le=50,
+        description="Years from today until retirement (retirement channel)",
+    )
+    distribution_years: Optional[int] = Field(
+        default=None, ge=1, le=60,
+        description="Years of retirement withdrawals (retirement channel)",
+    )
+    annual_income: Optional[float] = Field(
+        default=None, gt=0,
+        description="Desired annual retirement income in today's money",
+    )
+    asset_value: Optional[float] = Field(
+        default=None, gt=0,
+        description="Asset base A for the retirement channel when no "
+        "profile supplies investable_assets",
+    )
 
     @model_validator(mode="after")
     def _check_custom_growth(self) -> "SurplusConfigInput":
@@ -252,10 +270,22 @@ class SurplusInsight(BaseModel):
     liability_ratio: float = Field(description="k = liability PV / asset value")
     funding_ratio: float = Field(description="A/L = 1/k")
     liability_duration: float
-    liability_growth: float = Field(description="Resolved annual liability growth rate")
+    liability_growth: float = Field(
+        description="Liability drift μ_L actually used (growth g for "
+        "inflation-linked streams, the discount rate for nominal ones)"
+    )
+    discount_rate: float = Field(
+        default=0.0, description="Liability discount rate y (risk-free leg)"
+    )
     proxy: str = Field(description="Bond proxy key used for liability stats")
-    source: Literal["manual", "profile"] = Field(
+    source: Literal["manual", "profile", "retirement"] = Field(
         description="How the liability spec was obtained"
+    )
+    cash_flows: Optional[int] = Field(
+        default=None, description="Number of liability cash flows (stream channels)"
+    )
+    horizon_years: Optional[float] = Field(
+        default=None, description="Year of the last liability cash flow (stream channels)"
     )
 
 

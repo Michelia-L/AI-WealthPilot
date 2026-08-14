@@ -14,7 +14,7 @@ import Slider from "../ui/slider";
 import { NumInput, Select } from "../ui/field";
 import Group from "./group";
 
-export type SurplusSource = "manual" | "profile";
+export type SurplusSource = "manual" | "profile" | "retirement";
 /** 面板里只允许三个内置 preset；custom 走 retirement 的自定义滑杆语义，此处不支持。 */
 export type SurplusInflationPreset = Exclude<InflationPreset, "custom">;
 
@@ -36,6 +36,14 @@ interface SurplusConfigPanelProps {
   setCustomGrowth: (v: string) => void;
   inflationPreset: SurplusInflationPreset;
   setInflationPreset: (v: SurplusInflationPreset) => void;
+  yearsToRetirement: number;
+  setYearsToRetirement: (v: number) => void;
+  distributionYears: number;
+  setDistributionYears: (v: number) => void;
+  annualIncome: string;
+  setAnnualIncome: (v: string) => void;
+  assetValue: string;
+  setAssetValue: (v: string) => void;
 }
 
 /** LDI 盈余优化配置面板 —— 负债来源、对冲代理、负债增长率。 */
@@ -57,6 +65,14 @@ export default function SurplusConfigPanel({
   setCustomGrowth,
   inflationPreset,
   setInflationPreset,
+  yearsToRetirement,
+  setYearsToRetirement,
+  distributionYears,
+  setDistributionYears,
+  annualIncome,
+  setAnnualIncome,
+  assetValue,
+  setAssetValue,
 }: SurplusConfigPanelProps) {
   const t = useT();
 
@@ -73,6 +89,7 @@ export default function SurplusConfigPanel({
             options={[
               { value: "manual" as const, label: t.optimizer.surplusSourceManual },
               { value: "profile" as const, label: t.optimizer.surplusSourceProfile },
+              { value: "retirement" as const, label: t.optimizer.surplusSourceRetirement },
             ]}
             value={source}
             onChange={(v) => {
@@ -117,7 +134,7 @@ export default function SurplusConfigPanel({
           {t.optimizer.surplusProfileHint(clientName ?? "")}
         </p>
       )}
-      {!hasClient && (
+      {!hasClient && source !== "retirement" && (
         <p className="text-xs text-mist-600">{t.optimizer.surplusNoClientHint}</p>
       )}
 
@@ -144,8 +161,57 @@ export default function SurplusConfigPanel({
         </div>
       )}
 
+      {source === "retirement" && (
+        <>
+          <div className="grid gap-5 md:grid-cols-3">
+            <Slider
+              label={t.optimizer.yearsToRetirement}
+              value={yearsToRetirement}
+              min={0}
+              max={50}
+              step={1}
+              onChange={setYearsToRetirement}
+              format={t.optimizer.durationYears}
+            />
+            <Slider
+              label={t.optimizer.distributionYears}
+              value={distributionYears}
+              min={1}
+              max={60}
+              step={1}
+              onChange={setDistributionYears}
+              format={t.optimizer.durationYears}
+            />
+            <Group label={t.optimizer.annualIncome}>
+              <NumInput
+                min={0}
+                step={10000}
+                value={annualIncome}
+                onChange={(e) => setAnnualIncome(e.target.value)}
+              />
+            </Group>
+          </div>
+          {hasClient ? (
+            <p className="flex items-center gap-1.5 text-xs text-mist-500">
+              <Icon name="users" size={13} className="text-gold-400" />
+              {t.optimizer.surplusProfileBaseHint}
+            </p>
+          ) : (
+            <Group label={t.optimizer.assetValueLabel}>
+              <NumInput
+                min={0}
+                step={100000}
+                value={assetValue}
+                onChange={(e) => setAssetValue(e.target.value)}
+                className="w-44"
+              />
+            </Group>
+          )}
+        </>
+      )}
+
       {growthSource === "inflation" &&
-        (source === "profile" ? (
+        (source === "profile" || (source === "retirement" && hasClient) ? (
           <p className="text-[11px] text-mist-600">
             {t.optimizer.surplusAutoPresetHint}
           </p>

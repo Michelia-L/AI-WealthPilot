@@ -113,7 +113,11 @@ def test_surplus_elderly_inflation_preset(client, monkeypatch):
 
 
 def test_surplus_profile_channel(client, monkeypatch):
-    """profile_id derives k and duration from goals + investable assets."""
+    """profile_id derives k and duration from goals + investable assets.
+
+    v2 convention: nominal goals are discounted at the risk-free leg
+    (rf=0 in the body) and drift at μ_L = rf.
+    """
     _patch_returns(monkeypatch, _fake_returns())
     created = client.post("/api/profiles", json=sample_payload())
     assert created.status_code == 201
@@ -126,27 +130,81 @@ def test_surplus_profile_channel(client, monkeypatch):
     surplus = resp.json()["surplus"]
 
     assert surplus["source"] == "profile"
-    # sample_payload: single 2M goal at 30y, investable 200k, age 30
-    expected_k = (2_000_000 / 1.025**30) / 200_000
+    # sample_payload: single 2M goal at 30y, investable 200k; rf=0 ⇒ PV=2M
+    expected_k = 2_000_000 / 200_000
     assert surplus["liability_ratio"] == pytest.approx(expected_k, rel=1e-4)
     assert surplus["liability_duration"] == pytest.approx(30.0)
-    # age 30 → standard preset
-    assert surplus["liability_growth"] == pytest.approx(0.025)
+    # Nominal goals drift at the discount rate, not the inflation growth.
+    assert surplus["liability_growth"] == pytest.approx(0.0)
+    assert surplus["discount_rate"] == pytest.approx(0.0)
+    assert surplus["cash_flows"] == 1
+    assert surplus["horizon_years"] == pytest.approx(30.0)
     # The profile channel must not trigger MVO risk caps.
     assert resp.json()["risk_constraints"] is None
 
 
-def test_surplus_profile_age_suggests_elderly(client, monkeypatch):
-    """A 65-year-old profile gets the CPI-E-uplifted liability growth."""
+def test_surplus_retirement_channel_age_suggests_elderly(client, monkeypatch):
+    """A 65-year-old profile gets the CPI-E-uplifted stream growth."""
     _patch_returns(monkeypatch, _fake_returns())
     created = client.post("/api/profiles", json=sample_payload(age=65))
     pid = created.json()["id"]
 
     body = _body(profile_id=pid)
-    body["surplus"] = {"growth_source": "inflation"}
+    body["surplus"] = {
+        "growth_source": "inflation",
+        "years_to_retirement": 5,
+        "distribution_years": 20,
+        "annual_income": 80000,
+    }
     resp = client.post("/api/portfolio/optimize", json=body)
     assert resp.status_code == 200
-    assert resp.json()["surplus"]["liability_growth"] == pytest.approx(0.0325)
+    surplus = resp.json()["surplus"]
+    assert surplus["source"] == "retirement"
+    assert surplus["liability_growth"] == pytest.approx(0.0325)
+
+
+def test_surplus_retirement_channel_manual_base(client, monkeypatch):
+    """Retirement stream with explicit asset_value: hand-checked PV and k.
+
+    t0=5, n=20, income=80k, g=2.5% (standard), rf=0 ⇒
+    PV = 80k × Σ_{t=6}^{25} 1.025^t, duration = Σ t·PV_t / PV.
+    """
+    _patch_returns(monkeypatch, _fake_returns())
+    cfg = {
+        "growth_source": "inflation",
+        "years_to_retirement": 5,
+        "distribution_years": 20,
+        "annual_income": 80000,
+        "asset_value": 1_000_000,
+    }
+    resp = client.post("/api/portfolio/optimize", json=_body(surplus=cfg))
+    assert resp.status_code == 200
+    surplus = resp.json()["surplus"]
+
+    pvs = {t: 80000 * 1.025**t for t in range(6, 26)}
+    pv_total = sum(pvs.values())
+    expected_duration = sum(t * p for t, p in pvs.items()) / pv_total
+
+    assert surplus["source"] == "retirement"
+    assert surplus["liability_ratio"] == pytest.approx(pv_total / 1_000_000, rel=1e-4)
+    assert surplus["liability_duration"] == pytest.approx(expected_duration, rel=1e-4)
+    assert surplus["liability_growth"] == pytest.approx(0.025)
+    assert surplus["discount_rate"] == pytest.approx(0.0)
+    assert surplus["cash_flows"] == 20
+    assert surplus["horizon_years"] == pytest.approx(25.0)
+
+
+def test_surplus_retirement_channel_requires_asset_base(client, monkeypatch):
+    """No profile and no asset_value ⇒ 422."""
+    _patch_returns(monkeypatch, _fake_returns())
+    cfg = {
+        "growth_source": "inflation",
+        "years_to_retirement": 5,
+        "distribution_years": 20,
+        "annual_income": 80000,
+    }
+    resp = client.post("/api/portfolio/optimize", json=_body(surplus=cfg))
+    assert resp.status_code == 422
 
 
 def test_surplus_profile_without_goals_422(client, monkeypatch):

@@ -10,7 +10,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.portfolio.liabilities import estimate_liability_stats, goals_to_liability
+from src.portfolio.liabilities import (
+    estimate_liability_stats,
+    goals_to_liability,
+    retirement_income_stream,
+    stream_to_liability,
+)
 from src.portfolio.optimizer import PortfolioOptimizer
 
 
@@ -69,6 +74,66 @@ class TestGoalsToLiability:
             goals_to_liability([], 0.03)
         with pytest.raises(ValueError):
             goals_to_liability([{"target_amount": 0, "years": 5}], 0.03)
+
+
+# ============================================================
+# stream_to_liability / retirement_income_stream (LDI v2)
+# ============================================================
+
+class TestStreamToLiability:
+    """Cash-flow stream discounting with separate growth/discount rates."""
+
+    def test_ungrown_single_flow_hand_calc(self):
+        """growth_rate=0 ⇒ plain discounting at y."""
+        pv, duration = stream_to_liability([(1_000_000, 10)], 0.03)
+        assert pv == pytest.approx(1_000_000 / 1.03**10)
+        assert duration == pytest.approx(10.0)
+
+    def test_grown_flows_hand_calc(self):
+        """Today's-money flows grow at g, then discount at y."""
+        flows = [(100_000, 5), (100_000, 10)]
+        pv, duration = stream_to_liability(flows, discount_rate=0.02, growth_rate=0.025)
+        pv1 = 100_000 * 1.025**5 / 1.02**5
+        pv2 = 100_000 * 1.025**10 / 1.02**10
+        assert pv == pytest.approx(pv1 + pv2)
+        assert duration == pytest.approx((5 * pv1 + 10 * pv2) / (pv1 + pv2))
+
+    def test_equal_growth_and_discount_neutralizes(self):
+        """g == y ⇒ growth and discounting cancel: PV = Σ base amounts."""
+        flows = [(80_000, t) for t in range(6, 26)]
+        pv, duration = stream_to_liability(flows, 0.025, 0.025)
+        assert pv == pytest.approx(80_000 * 20)
+        assert duration == pytest.approx(sum(range(6, 26)) / 20)
+
+    def test_zero_discount_keeps_nominal_sum(self):
+        """rf = 0 ⇒ PV = Σ grown amounts (retirement-channel test convention)."""
+        flows = [(80_000, t) for t in range(6, 26)]
+        pv, _ = stream_to_liability(flows, 0.0, 0.025)
+        assert pv == pytest.approx(sum(80_000 * 1.025**t for t in range(6, 26)))
+
+    def test_empty_stream_raises(self):
+        with pytest.raises(ValueError):
+            stream_to_liability([], 0.02)
+        with pytest.raises(ValueError):
+            stream_to_liability([(0.0, 5)], 0.02)
+
+
+class TestRetirementIncomeStream:
+    """retirement_income_stream shape."""
+
+    def test_year_range_and_amounts(self):
+        flows = retirement_income_stream(
+            years_to_retirement=20, distribution_years=25, annual_income=80_000
+        )
+        assert len(flows) == 25
+        assert flows[0] == (80_000.0, 21)
+        assert flows[-1] == (80_000.0, 45)
+        assert all(amount == 80_000.0 for amount, _ in flows)
+
+    def test_immediate_retirement_starts_next_year(self):
+        flows = retirement_income_stream(0, 10, 50_000)
+        assert flows[0][1] == 1
+        assert flows[-1][1] == 10
 
 
 # ============================================================

@@ -68,7 +68,12 @@ from src.data.market_data import (
 from src.portfolio.backtest import InsufficientDataError, run_backtest
 from src.portfolio.cme_engine import compute_cme
 from src.portfolio.inflation import resolve_personal_inflation, suggest_inflation_preset
-from src.portfolio.liabilities import estimate_liability_stats, goals_to_liability
+from src.portfolio.liabilities import (
+    estimate_liability_stats,
+    goals_to_liability,
+    retirement_income_stream,
+    stream_to_liability,
+)
 from src.portfolio.optimizer import BlackLittermanOptimizer, PortfolioOptimizer
 from src.portfolio.risk_constraints import build_group_constraints, caps_for_tolerance
 from src.portfolio.views import ViewInput
@@ -435,6 +440,53 @@ def _resolve_surplus_raw(
             "age": None,
         }
 
+    # Retirement-income channel: an inflation-linked stream from explicit
+    # parameters; the asset base comes from the profile's investable
+    # assets (when profile_id is given) or the explicit asset_value.
+    if (
+        cfg
+        and cfg.years_to_retirement is not None
+        and cfg.distribution_years is not None
+        and cfg.annual_income is not None
+    ):
+        asset_value: Optional[float] = None
+        age = None
+        if req.profile_id is not None:
+            record = session.get(ProfileRecord, req.profile_id)
+            if record is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=msg("common.profile_not_found", locale, id=req.profile_id),
+                )
+            asset_value = float(
+                (record.data.get("financial") or {}).get("investable_assets", 0.0)
+            )
+            age = record.data.get("age")
+            if asset_value <= 0:
+                raise HTTPException(
+                    status_code=422,
+                    detail=msg("portfolio.surplus_profile_unusable", locale),
+                )
+        elif cfg.asset_value is not None:
+            asset_value = float(cfg.asset_value)
+        if asset_value is None:
+            raise HTTPException(
+                status_code=422,
+                detail=msg("portfolio.surplus_requires_inputs", locale),
+            )
+        return {
+            "source": "retirement",
+            "years_to_retirement": int(cfg.years_to_retirement),
+            "distribution_years": int(cfg.distribution_years),
+            "annual_income": float(cfg.annual_income),
+            "asset_value": asset_value,
+            "age": age,
+            "proxy": proxy,
+            "growth_source": growth_source,
+            "custom_growth": cfg.custom_growth,
+            "inflation_preset": cfg.inflation_preset,
+        }
+
     # Profile channel: derive the liability stream from goals + assets.
     if req.profile_id is not None:
         record = session.get(ProfileRecord, req.profile_id)
@@ -639,31 +691,57 @@ def _run_surplus(
 ) -> tuple[PortfolioOptimizer, dict, dict, dict, pd.DataFrame, pd.DataFrame, dict]:
     """LDI surplus optimization (Sharpe-Tint): assets minus liabilities.
 
-    Resolves the liability growth rate (inflation preset / risk-free /
-    custom), derives k and the duration (explicit or profile-goals
-    channel), estimates liability stats from the duration-scaled bond
-    proxy, and runs the surplus QP. Returns the standard tuple with a
+    Three liability channels — explicit ratio/duration, profile goals
+    (nominal, discounted at rf, drift μ_L = rf), and the retirement
+    income stream (inflation-linked at the resolved growth g, discounted
+    at rf, drift μ_L = g). Liability risk stats come from the
+    duration-scaled bond proxy; returns the standard tuple with a
     SurplusInsight in the extra slot.
     """
-    # Liability growth rate g
+    # Liability growth rate g — the escalation rate of inflation-linked
+    # cash flows (the retirement stream; the manual channel also uses it
+    # as drift). The liability discount rate y is always the risk-free
+    # leg rf, and nominal goal streams drift at y — see liabilities.py.
     growth_source = surplus_raw["growth_source"]
     if growth_source == "risk_free":
         growth = rf
     elif growth_source == "custom":
         growth = float(surplus_raw["custom_growth"])
-    else:  # inflation — personal preset (age-suggested on the profile channel)
+    else:  # inflation — personal preset (age-suggested on profile channels)
         preset = surplus_raw.get("inflation_preset")
         if preset is None:
             preset = suggest_inflation_preset(surplus_raw.get("age"))
         growth = resolve_personal_inflation(CME_INFLATION_ASSUMPTION, preset)
 
-    # Liability spec: ratio k = L/A and duration
-    if surplus_raw["source"] == "manual":
+    # Liability spec per channel: ratio k = L/A, duration, drift μ_L.
+    source = surplus_raw["source"]
+    cash_flows: Optional[int] = None
+    horizon: Optional[float] = None
+    if source == "manual":
         k = surplus_raw["liability_ratio"]
         duration = surplus_raw["liability_duration"]
-    else:
-        pv, duration = goals_to_liability(surplus_raw["goals"], growth)
+        mu_L = growth
+    elif source == "profile":
+        pv, duration = goals_to_liability(surplus_raw["goals"], rf)
         k = pv / surplus_raw["investable_assets"]
+        mu_L = rf
+        positive = [
+            g for g in surplus_raw["goals"]
+            if float(g.get("target_amount", 0.0)) > 0
+        ]
+        cash_flows = len(positive)
+        horizon = float(max(int(g.get("years", 0)) for g in positive))
+    else:  # retirement — inflation-linked income stream
+        flows = retirement_income_stream(
+            surplus_raw["years_to_retirement"],
+            surplus_raw["distribution_years"],
+            surplus_raw["annual_income"],
+        )
+        pv, duration = stream_to_liability(flows, rf, growth)
+        k = pv / surplus_raw["asset_value"]
+        mu_L = growth
+        cash_flows = len(flows)
+        horizon = float(flows[-1][1])
 
     # Liability stats via the duration-scaled bond proxy
     proxy_key = surplus_raw["proxy"]
@@ -675,7 +753,7 @@ def _run_surplus(
         returns,
         proxy_duration=LDI_PROXY_DURATIONS[proxy_key],
         liability_duration=duration,
-        growth_rate=growth,
+        growth_rate=mu_L,
     )
 
     optimizer = PortfolioOptimizer(returns, risk_free_rate=req.risk_free_rate, expected_returns=expected_returns)
@@ -696,9 +774,12 @@ def _run_surplus(
         liability_ratio=float(k),
         funding_ratio=float(1.0 / k),
         liability_duration=float(duration),
-        liability_growth=float(growth),
+        liability_growth=float(mu_L),
+        discount_rate=float(rf),
         proxy=proxy_key,
-        source=surplus_raw["source"],
+        source=source,
+        cash_flows=cash_flows,
+        horizon_years=horizon,
     )
     return optimizer, selected, max_sharpe, min_vol, frontier, random_ports, insight
 
