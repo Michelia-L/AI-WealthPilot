@@ -821,3 +821,45 @@ class TestViewDiagnostics:
         warnings = vp.divergence_warnings([far], prior, sigma)
         assert "diverges from the prior" in warnings[0]
 
+
+# ============================================================
+# Confidence exactness of the closed-form Omega (view space)
+# ============================================================
+
+class TestConfidenceExactness:
+    """ω = (1/c − 1)·P'τΣP is exact in view space: for a single view the
+    posterior mean of the viewed portfolio sits exactly c of the way from
+    prior to view — P·(μ_BL − Π) = c·(Q − P·Π). Regression-locks the
+    confidence semantics (multi-view posteriors interact and are not
+    required to satisfy this per-view)."""
+
+    def test_absolute_view_exact_in_view_space(self, sample_returns, market_cap_weights):
+        view = ViewInput(view_type="absolute", asset_long="US_EQ",
+                         expected_return=0.12, confidence=60.0)
+        opt = BlackLittermanOptimizer(
+            sample_returns, risk_free_rate=0.02,
+            market_cap_weights=market_cap_weights, delta=2.5,
+        )
+        Pi = opt.Pi.copy()
+        opt.apply_views([view])
+
+        P = np.zeros(4); P[0] = 1.0
+        lhs = float(P @ (opt.mu_bl - Pi))
+        rhs = 0.6 * (0.12 - float(P @ Pi))
+        assert lhs == pytest.approx(rhs, abs=1e-6)
+
+    def test_relative_view_exact_in_view_space(self, sample_returns, market_cap_weights):
+        view = ViewInput(view_type="relative", asset_long="US_EQ",
+                         asset_short="BONDS", expected_return=0.04,
+                         confidence=70.0)
+        opt = BlackLittermanOptimizer(
+            sample_returns, risk_free_rate=0.02,
+            market_cap_weights=market_cap_weights, delta=2.5,
+        )
+        Pi = opt.Pi.copy()
+        opt.apply_views([view])
+
+        P = np.zeros(4); P[0] = 1.0; P[2] = -1.0
+        lhs = float(P @ (opt.mu_bl - Pi))
+        rhs = 0.7 * (0.04 - float(P @ Pi))
+        assert lhs == pytest.approx(rhs, abs=1e-6)

@@ -181,6 +181,17 @@ class ViewProcessor:
     ) -> np.ndarray:
         """Construct the diagonal Omega matrix using Idzorek's confidence method.
 
+        ω_kk = (1/c − 1)·P_k'τΣP_k gives the exact confidence semantics
+        in view space: for a single view, the posterior mean of the
+        viewed portfolio sits exactly c of the way from prior to view —
+
+            P_k·(μ_BL − Π) = c·(Q_k − P_k·Π)
+
+        Portfolio-space calibration à la Idzorek's original tilts is
+        ill-posed here (the tilt direction and the implied-weight
+        direction differ, and neither sums to 1), so the closed form is
+        kept. Confidence extremes are clamped.
+
         Args:
             P: Pick matrix (K x N).
             cov_matrix: Annualized covariance matrix (N x N).
