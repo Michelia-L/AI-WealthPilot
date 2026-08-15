@@ -5,7 +5,10 @@
 # Web:  http://localhost:3000  (Next.js)
 # API:  http://localhost:8000  (FastAPI, docs at /docs)
 #
-# The stack is host-agnostic: point it at a VPS later and it works unchanged.
+# Ports bind to 127.0.0.1 on purpose: the API has no authentication, so it
+# must not be reachable from the LAN. If you ever need to expose it (VPS,
+# LAN sharing), override ports in a docker-compose.override.yml — and add
+# authentication first.
 
 services:
   api:
@@ -18,7 +21,7 @@ services:
     volumes:
       - ./data:/app/data  # CME cache, profiles, reports stay on the host
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     healthcheck:
       test:
         - CMD
@@ -37,7 +40,7 @@ services:
       # Server Components fetch the API over the internal compose network.
       API_ORIGIN: http://api:8000
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       api:
         condition: service_healthy
