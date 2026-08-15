@@ -1,0 +1,20 @@
+# Dependabot — weekly dependency update PRs.
+# pip-audit in CI gates the pinned Python set against known CVEs; Dependabot
+# supplies the bump PRs when a fix version exists.
+
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: npm
+    directory: "/web"
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly

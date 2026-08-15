@@ -41,6 +41,14 @@ services:
       API_ORIGIN: http://api:8000
     ports:
       - "127.0.0.1:3000:3000"
+    healthcheck:
+      # node:22-alpine ships busybox wget; "/" renders (degraded) even when
+      # the API is down, so a 200 here means the web server itself is up.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     depends_on:
       api:
         condition: service_healthy
