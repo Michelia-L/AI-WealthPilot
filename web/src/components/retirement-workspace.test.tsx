@@ -57,7 +57,11 @@ function jsonResponse(data: unknown, status = 200): Response {
 
 beforeEach(() => {
   fetchMock.mockReset();
-  fetchMock.mockResolvedValue(jsonResponse(RETIREMENT_RESULT));
+  // Fresh Response per call: the workspace fetches the CME suggestion on
+  // mount AND the simulation on run — a shared Response body drains once.
+  fetchMock.mockImplementation(() =>
+    Promise.resolve(jsonResponse(RETIREMENT_RESULT))
+  );
 });
 
 describe("RetirementWorkspace LDI deep link", () => {
@@ -97,8 +101,17 @@ describe("RetirementWorkspace form behavior", () => {
     expect(screen.getByText("Adjustment")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Run Simulation" }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    const [, init] = fetchMock.mock.calls[0];
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          (url as string).includes("/simulate")
+        )
+      ).toBe(true)
+    );
+    const simCall = fetchMock.mock.calls.find(([url]) =>
+      (url as string).includes("/simulate")
+    )!;
+    const [, init] = simCall;
     const body = JSON.parse(init.body as string);
     expect(body.withdrawal_strategy).toBe("guardrails");
     expect(body.guardrail_band).toBe(0.2);
@@ -112,7 +125,10 @@ describe("RetirementWorkspace form behavior", () => {
     fireEvent.change(sliders[1], { target: { value: "25" } });
     expect(screen.getByText(/current age < retirement age/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Run Simulation" })).toBeDisabled();
-    expect(fetchMock).not.toHaveBeenCalled();
+    // The CME suggestion fetch on mount is fine; the simulate POST must not fire.
+    expect(
+      fetchMock.mock.calls.some(([url]) => (url as string).includes("/simulate"))
+    ).toBe(false);
   });
 });
 
@@ -129,13 +145,70 @@ describe("RetirementWorkspace results", () => {
   });
 
   it("surfaces API errors as localized messages", async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse({ detail: "retirement_age must be greater than current_age." }, 422)
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse({ detail: "retirement_age must be greater than current_age." }, 422)
+      )
     );
     render(<RetirementWorkspace />);
     fireEvent.click(screen.getByRole("button", { name: "Run Simulation" }));
     expect(
       await screen.findByText(/retirement_age must be greater/)
     ).toBeInTheDocument();
+  });
+});
+
+describe("RetirementWorkspace CME suggestion", () => {
+  const SUGGESTION = {
+    expected_return: 0.064,
+    volatility: 0.12,
+    allocation: { "Fixed Income": 0.4 },
+    as_of_date: "2026-08-14",
+    cache_status: "fresh",
+  };
+
+  it("adopts the suggested μ/σ into the simulation request", async () => {
+    fetchMock.mockImplementation((url: string) =>
+      url.includes("/cme-suggestion")
+        ? Promise.resolve(jsonResponse(SUGGESTION))
+        : Promise.resolve(jsonResponse(RETIREMENT_RESULT))
+    );
+    render(<RetirementWorkspace />);
+
+    const adopt = await screen.findByRole("button", { name: "Adopt" });
+    fireEvent.click(adopt);
+
+    fireEvent.click(screen.getByRole("button", { name: "Run Simulation" }));
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          (url as string).includes("/simulate")
+        )
+      ).toBe(true)
+    );
+    const simCall = fetchMock.mock.calls.find(([url]) =>
+      (url as string).includes("/simulate")
+    )!;
+    const body = JSON.parse((simCall[1] as RequestInit).body as string);
+    expect(body.expected_return).toBeCloseTo(0.064);
+    expect(body.volatility).toBeCloseTo(0.12);
+  });
+
+  it("hides the card when the suggestion endpoint fails", async () => {
+    fetchMock.mockImplementation((url: string) =>
+      url.includes("/cme-suggestion")
+        ? Promise.resolve(jsonResponse({ detail: "boom" }, 502))
+        : Promise.resolve(jsonResponse(RETIREMENT_RESULT))
+    );
+    render(<RetirementWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: "Run Simulation" }));
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          (url as string).includes("/simulate")
+        )
+      ).toBe(true)
+    );
+    expect(screen.queryByRole("button", { name: "Adopt" })).not.toBeInTheDocument();
   });
 });

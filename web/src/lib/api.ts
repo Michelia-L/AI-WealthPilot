@@ -364,6 +364,15 @@ export const getRecommendation = (profileId: number) =>
 
 export type InflationPreset = "standard" | "elderly" | "luxury" | "custom";
 
+/** CME-derived μ/σ suggestion for the retirement planner. */
+export interface CmeSuggestion {
+  expected_return: number;
+  volatility: number;
+  allocation: Record<string, number>;
+  as_of_date: string;
+  cache_status: string;
+}
+
 export interface RetirementRequest {
   current_age: number;
   retirement_age: number;

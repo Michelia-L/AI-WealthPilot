@@ -34,6 +34,7 @@ from src.config import (
     CME_DATA_INTERVAL,
     CME_IV_BLENDING_TAU,
     CME_FORWARD_BLENDING_OMEGA,
+    CME_REFERENCE_ALLOCATION,
     IPS_ASSET_CLASS_TICKERS,
     TRADING_DAYS_PER_YEAR,
 )
@@ -635,3 +636,79 @@ def format_cme_for_prompt(report: CMEReport) -> str:
     lines.append(f"方法论：{report.methodology_notes}")
 
     return "\n".join(lines)
+
+
+# Reference-Portfolio Suggestion (retirement planning)
+
+def reference_portfolio_suggestion(
+    report: CMEReport,
+    allocation: Optional[dict[str, float]] = None,
+) -> Optional[dict]:
+    """Portfolio-level forward μ/σ for a reference allocation.
+
+    Combines the report's blended expected returns, blended volatilities
+    and correlation matrix into a single suggestion for the retirement
+    planner's GBM inputs:
+
+        μ_p = Σᵢ wᵢ·E(Rᵢ)
+        σ_p = √( Σᵢⱼ wᵢwⱼ σᵢσⱼ ρᵢⱼ )
+
+    Correlation edges missing from the matrix are treated as 0
+    (uncorrelated) — conservative and honest about coverage gaps.
+
+    Args:
+        report: The CME report (cached or fresh).
+        allocation: {IPS asset-class key: weight}; defaults to
+            CME_REFERENCE_ALLOCATION. Classes absent from the report are
+            dropped and the remaining weights renormalized.
+
+    Returns:
+        {"expected_return", "volatility", "allocation": {name: weight}}
+        with the actual (renormalized) weights, or None when fewer than
+        two asset classes are available.
+    """
+    if allocation is None:
+        allocation = CME_REFERENCE_ALLOCATION
+
+    by_name = {ac.name: ac for ac in report.asset_classes}
+    entries = []  # (name, weight, mu, sigma)
+    for key, w in allocation.items():
+        info = IPS_ASSET_CLASS_TICKERS.get(key)
+        if not info or float(w) <= 0:
+            continue
+        ac = by_name.get(info["name"])
+        if ac is None:
+            continue
+        sigma = (
+            ac.blended_volatility
+            if ac.blended_volatility is not None
+            else ac.volatility
+        )
+        entries.append((ac.name, float(w), ac.expected_return, float(sigma)))
+
+    if len(entries) < 2:
+        return None
+
+    total = sum(w for _, w, _, _ in entries)
+    weights = [w / total for _, w, _, _ in entries]
+    names = [e[0] for e in entries]
+
+    mu = sum(w * e[2] for w, e in zip(weights, entries))
+    var = 0.0
+    for i in range(len(entries)):
+        for j in range(len(entries)):
+            rho = (
+                1.0
+                if i == j
+                else report.correlation_matrix.get(names[i], {}).get(names[j], 0.0)
+            )
+            var += weights[i] * weights[j] * entries[i][3] * entries[j][3] * rho
+    sigma = float(np.sqrt(max(var, 0.0)))
+
+    return {
+        "expected_return": round(mu, 6),
+        "volatility": round(sigma, 6),
+        "allocation": {
+            names[i]: round(weights[i], 4) for i in range(len(entries))
+        },
+    }

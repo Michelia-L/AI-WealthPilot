@@ -224,6 +224,19 @@ CME_FORWARD_GROWTH_ASSUMPTIONS = {
     "VNQ": 0.035,        # REITs: dividend growth
 }
 
+# Reference allocation for the retirement CME suggestion card: a balanced
+# blend over the CME asset classes (documented assumption, not
+# client-specific). Keys are IPS_ASSET_CLASS_TICKERS keys; weights sum to 1.
+CME_REFERENCE_ALLOCATION = {
+    "domestic_equity": 0.25,
+    "international_equity_dm": 0.20,
+    "international_equity_hk": 0.05,
+    "fixed_income": 0.30,
+    "alternative_gold": 0.10,
+    "alternative_reit": 0.05,
+    "cash": 0.05,
+}
+
 # SAA Validation thresholds
 SAA_VOLATILITY_TOLERANCE_PP = 0.03  # Accept if vol within +3pp of efficient frontier
 

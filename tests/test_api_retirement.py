@@ -138,3 +138,59 @@ class TestRetirementGuardrails:
             ),
         )
         assert res.status_code == 422
+
+
+class TestCmeSuggestion:
+    """GET /api/retirement/cme-suggestion."""
+
+    @staticmethod
+    def _report(n_classes: int = 2):
+        from src.portfolio.cme_models import AssetClassCME, CMEReport
+
+        classes = [
+            AssetClassCME(
+                name="固定收益", ticker="AGG", expected_return=0.04,
+                volatility=0.06, sharpe_ratio=0.0, max_drawdown=-0.1,
+                var_95=0.01, cvar_95=0.02, blended_volatility=0.06,
+            ),
+            AssetClassCME(
+                name="另类-黄金", ticker="GLD", expected_return=0.10,
+                volatility=0.15, sharpe_ratio=0.0, max_drawdown=-0.2,
+                var_95=0.02, cvar_95=0.03, blended_volatility=0.15,
+            ),
+        ][:n_classes]
+        return CMEReport(
+            as_of_date="2026-08-15", data_lookback_years=5,
+            risk_free_rate=0.02, inflation_assumption=0.025,
+            asset_classes=classes, correlation_matrix={},
+        )
+
+    def test_happy_path(self, client, monkeypatch):
+        report = self._report()
+        monkeypatch.setattr(
+            "api.routers.retirement.compute_cme", lambda: (report, "cached")
+        )
+        res = client.get("/api/retirement/cme-suggestion")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["cache_status"] == "cached"
+        assert data["as_of_date"] == "2026-08-15"
+        # Default allocation: bonds 0.30 / gold 0.10 → renormalized 0.75/0.25
+        assert data["expected_return"] == pytest.approx(0.75 * 0.04 + 0.25 * 0.10)
+        assert sum(data["allocation"].values()) == pytest.approx(1.0)
+
+    def test_502_when_cme_fails(self, client, monkeypatch):
+        def boom():
+            raise RuntimeError("no cache, no fallback")
+
+        monkeypatch.setattr("api.routers.retirement.compute_cme", boom)
+        res = client.get("/api/retirement/cme-suggestion")
+        assert res.status_code == 502
+
+    def test_502_when_too_few_classes(self, client, monkeypatch):
+        report = self._report(n_classes=1)
+        monkeypatch.setattr(
+            "api.routers.retirement.compute_cme", lambda: (report, "fresh")
+        )
+        res = client.get("/api/retirement/cme-suggestion")
+        assert res.status_code == 502

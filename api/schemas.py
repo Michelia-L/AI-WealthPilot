@@ -344,6 +344,24 @@ class PortfolioTaskCreatedResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class CmeSuggestionResponse(BaseModel):
+    """Reference-portfolio μ/σ suggestion derived from the CME report."""
+
+    expected_return: float = Field(
+        description="Suggested annualized expected return (w'·μ_CME)"
+    )
+    volatility: float = Field(
+        description="Suggested annualized volatility (blended vols + CME correlations)"
+    )
+    allocation: dict[str, float] = Field(
+        description="Actual (renormalized) reference weights by asset-class name"
+    )
+    as_of_date: str = Field(description="CME data as-of date")
+    cache_status: str = Field(
+        description="CME cache status: fresh / cached / stale / fallback"
+    )
+
+
 class RetirementRequest(BaseModel):
     current_age: int = Field(default=30, ge=18, le=80)
     retirement_age: int = Field(default=60, ge=19, le=90)

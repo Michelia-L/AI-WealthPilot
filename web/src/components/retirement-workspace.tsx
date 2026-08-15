@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import type { InflationPreset, RetirementRequest, RetirementResponse } from "@/lib/api";
+import { useEffect, useState } from "react";
+import type { CmeSuggestion, InflationPreset, RetirementRequest, RetirementResponse } from "@/lib/api";
 import { SIMULATION_OPTIONS } from "@/lib/api";
 import { buildRetirementLdiHref } from "@/lib/optimizer-link";
 import { fmtMoney, fmtPct } from "@/lib/format";
@@ -50,6 +50,38 @@ export default function RetirementWorkspace() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RetirementResponse | null>(null);
+  const [suggestion, setSuggestion] = useState<CmeSuggestion | null>(null);
+
+  // CME 建议卡：挂载时拉取组合级前视 μ/σ（失败静默，不挡主流程）
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/retirement/cme-suggestion")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (
+          !cancelled &&
+          data &&
+          typeof data.expected_return === "number" &&
+          typeof data.volatility === "number"
+        ) {
+          setSuggestion(data as CmeSuggestion);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Slider ranges: expected_return 0.02–0.15, volatility 0.05–0.30
+  const clamp01 = (v: number, lo: number, hi: number) =>
+    Math.min(hi, Math.max(lo, v));
+
+  function adoptSuggestion() {
+    if (!suggestion) return;
+    set("expected_return", clamp01(suggestion.expected_return, 0.02, 0.15));
+    set("volatility", clamp01(suggestion.volatility, 0.05, 0.3));
+  }
 
   const set = <K extends keyof RetirementRequest>(key: K, value: RetirementRequest[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -132,6 +164,24 @@ export default function RetirementWorkspace() {
                 onChange={(e) => set("desired_annual_income", Math.max(0, parseFloat(e.target.value) || 0))} />
             </Field>
           </div>
+
+          {suggestion && (
+            <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-gold-700/30 bg-gold-500/5 px-4 py-3">
+              <span className="text-xs font-medium text-gold-300">
+                {t.retirement.cmeSuggestion(
+                  fmtPct(suggestion.expected_return, 1),
+                  fmtPct(suggestion.volatility, 1),
+                  suggestion.as_of_date
+                )}
+              </span>
+              <span className="text-[11px] text-mist-500">
+                {t.retirement.cmeSuggestionBasis}
+              </span>
+              <Button size="sm" variant="secondary" onClick={adoptSuggestion}>
+                {t.retirement.cmeSuggestionAdopt}
+              </Button>
+            </div>
+          )}
 
           <div className="grid gap-5 md:grid-cols-4">
             <Slider label={t.retirement.expectedReturn} value={form.expected_return} min={0.02} max={0.15} step={0.005}

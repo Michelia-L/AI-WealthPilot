@@ -28,6 +28,7 @@ from src.portfolio.cme_models import AssetClassCME, CMEReport, SAAValidationResu
 from src.portfolio.cme_engine import (
     compute_cme,
     format_cme_for_prompt,
+    reference_portfolio_suggestion,
     _load_fallback_cme,
     _fetch_risk_free_rate_with_source,
     _classify_vol_regime,
@@ -798,3 +799,71 @@ class TestForwardReturnBlending:
         h3 = CMECacheManager.compute_params_hash(5, 0.025, tickers, 0.5, 0.5)
         assert h1 != h2
         assert h1 == h3
+
+
+# ============================================================
+# Reference-Portfolio Suggestion (retirement planner)
+# ============================================================
+
+class TestReferenceSuggestion:
+    """reference_portfolio_suggestion: w'μ and √(w'Σw) from a CMEReport."""
+
+    @staticmethod
+    def _ac(name, ticker, er, vol) -> AssetClassCME:
+        return AssetClassCME(
+            name=name, ticker=ticker, expected_return=er, volatility=vol,
+            sharpe_ratio=0.0, max_drawdown=-0.1, var_95=0.01, cvar_95=0.02,
+            blended_volatility=vol,
+        )
+
+    def _report(self, with_corr: bool = True) -> CMEReport:
+        fi = self._ac("固定收益", "AGG", 0.04, 0.06)
+        gold = self._ac("另类-黄金", "GLD", 0.10, 0.15)
+        corr = (
+            {
+                "固定收益": {"固定收益": 1.0, "另类-黄金": 0.2},
+                "另类-黄金": {"固定收益": 0.2, "另类-黄金": 1.0},
+            }
+            if with_corr
+            else {}
+        )
+        return CMEReport(
+            as_of_date="2026-08-15", data_lookback_years=5,
+            risk_free_rate=0.02, inflation_assumption=0.025,
+            asset_classes=[fi, gold], correlation_matrix=corr,
+        )
+
+    def test_mu_sigma_math(self):
+        result = reference_portfolio_suggestion(
+            self._report(),
+            allocation={"fixed_income": 0.6, "alternative_gold": 0.4},
+        )
+        assert result is not None
+        # μ = 0.6·4% + 0.4·10%
+        assert result["expected_return"] == pytest.approx(0.064)
+        # σ² = .36·.0036 + .16·.0225 + 2·.6·.4·.06·.15·.2
+        assert result["volatility"] == pytest.approx(np.sqrt(0.00576), abs=1e-6)
+        assert result["allocation"] == {"固定收益": 0.6, "另类-黄金": 0.4}
+
+    def test_default_allocation_renormalizes(self):
+        """Report covering only bonds+gold: default weights 0.30/0.10 → 0.75/0.25."""
+        result = reference_portfolio_suggestion(self._report())
+        assert result is not None
+        assert result["allocation"] == {
+            "固定收益": pytest.approx(0.75),
+            "另类-黄金": pytest.approx(0.25),
+        }
+        assert result["expected_return"] == pytest.approx(0.75 * 0.04 + 0.25 * 0.10)
+
+    def test_missing_correlation_edge_treated_as_zero(self):
+        result = reference_portfolio_suggestion(
+            self._report(with_corr=False),
+            allocation={"fixed_income": 0.6, "alternative_gold": 0.4},
+        )
+        # σ² = .36·.0036 + .16·.0225 (no covariance term)
+        assert result["volatility"] == pytest.approx(np.sqrt(0.004896), abs=1e-6)
+
+    def test_fewer_than_two_classes_returns_none(self):
+        report = self._report()
+        report.asset_classes = report.asset_classes[:1]
+        assert reference_portfolio_suggestion(report) is None

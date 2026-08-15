@@ -12,10 +12,12 @@ from datetime import datetime, timezone
 from typing import Any
 
 import numpy as np
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from api.routers.market import _fig_json
+from api.i18n import get_request_locale, msg
 from api.schemas import (
+    CmeSuggestionResponse,
     DepletionAnalysis,
     RetirementRequest,
     RetirementResponse,
@@ -23,6 +25,7 @@ from api.schemas import (
     StrategyComparison,
     TerminalStats,
 )
+from src.portfolio.cme_engine import compute_cme, reference_portfolio_suggestion
 from src.portfolio.inflation import resolve_personal_inflation
 from src.portfolio.simulator import MonteCarloSimulator
 from src.visualization.charts import plot_monte_carlo_paths
@@ -33,6 +36,38 @@ SEED = 42  # Fixed seed for reproducibility (same as the Streamlit planner)
 SAVINGS_MULTIPLIERS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
 SENSITIVITY_SIMULATIONS = 5_000
 CHART_DISPLAY_PATHS = 200
+
+
+@router.get(
+    "/cme-suggestion",
+    response_model=CmeSuggestionResponse,
+    summary="CME-derived μ/σ suggestion for the retirement planner",
+)
+def cme_suggestion(request: Request) -> CmeSuggestionResponse:
+    """Reference-portfolio expected return and volatility from the CME report.
+
+    No extra market fetches — computed from the cached CMEReport's blended
+    expected returns, blended volatilities and correlation matrix.
+    """
+    locale = get_request_locale(request)
+    try:
+        report, cache_status = compute_cme()
+    except RuntimeError:
+        raise HTTPException(
+            status_code=502, detail=msg("portfolio.cme_unavailable", locale)
+        ) from None
+    suggestion = reference_portfolio_suggestion(report)
+    if suggestion is None:
+        raise HTTPException(
+            status_code=502, detail=msg("portfolio.cme_unavailable", locale)
+        )
+    return CmeSuggestionResponse(
+        expected_return=suggestion["expected_return"],
+        volatility=suggestion["volatility"],
+        allocation=suggestion["allocation"],
+        as_of_date=report.as_of_date,
+        cache_status=cache_status,
+    )
 
 
 def _distribution_inflation(req: RetirementRequest) -> float:

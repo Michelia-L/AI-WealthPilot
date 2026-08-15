@@ -13,6 +13,11 @@ export const retirement = {
   desiredIncome: "Desired Annual Income in Retirement",
   expectedReturn: "Expected Annual Return",
   volatility: "Annualized Volatility",
+  cmeSuggestion: (mu: string, sigma: string, asOf: string) =>
+    `CME suggestion (balanced reference portfolio): return ${mu} · volatility ${sigma} · as of ${asOf}`,
+  cmeSuggestionBasis:
+    "Synthesized from CME forward expected returns, blended volatilities and correlations at static reference weights — a starting point only",
+  cmeSuggestionAdopt: "Adopt",
   inflationRate: "Inflation Rate",
   inflationSegment: "Spending Segment",
   inflationPresetStandard: "Standard",

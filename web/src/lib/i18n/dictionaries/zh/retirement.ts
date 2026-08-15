@@ -13,6 +13,11 @@ export const retirement = {
   desiredIncome: "退休后期望年收入",
   expectedReturn: "预期年化收益",
   volatility: "年化波动率",
+  cmeSuggestion: (mu: string, sigma: string, asOf: string) =>
+    `CME 建议（均衡参考组合）：预期收益 ${mu} · 波动率 ${sigma} · 截至 ${asOf}`,
+  cmeSuggestionBasis:
+    "由 CME 前视预期收益、混合波动率与相关矩阵按静态参考权重合成，仅供参考起点",
+  cmeSuggestionAdopt: "采用建议",
   inflationRate: "通胀率",
   inflationSegment: "支出结构人群",
   inflationPresetStandard: "标准",
