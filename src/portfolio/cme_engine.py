@@ -33,10 +33,12 @@ from src.config import (
     CME_INFLATION_ASSUMPTION,
     CME_DATA_INTERVAL,
     CME_IV_BLENDING_TAU,
+    CME_FORWARD_BLENDING_OMEGA,
     IPS_ASSET_CLASS_TICKERS,
     TRADING_DAYS_PER_YEAR,
 )
 from src.portfolio.cme_cache import CMECacheManager
+from src.portfolio.forward_returns import fetch_forward_returns
 from src.data.market_data import (
     fetch_price_history,
     compute_returns,
@@ -70,12 +72,14 @@ def compute_cme(
     inflation: float = CME_INFLATION_ASSUMPTION,
     asset_tickers: Optional[dict] = None,
     iv_blending_tau: float = CME_IV_BLENDING_TAU,
+    forward_blending_omega: float = CME_FORWARD_BLENDING_OMEGA,
     force_refresh: bool = False,
     cache_ttl_days: Optional[int] = None,
 ) -> tuple[CMEReport, str]:
     """
     Compute Capital Market Expectations from historical market data,
-    enhanced with forward-looking implied volatility via weighted blending.
+    enhanced with forward-looking implied volatility via weighted blending
+    and forward-looking building-blocks expected returns.
 
     This is the main entry point for CME generation. It supports a
     file-based caching layer: cached results are returned instantly
@@ -95,6 +99,10 @@ def compute_cme(
         iv_blending_tau: Blending weight for implied volatility.
             0.0 = pure historical, 1.0 = pure implied.
             Defaults to CME_IV_BLENDING_TAU from config (0.5).
+        forward_blending_omega: Blending weight for forward-looking
+            building-blocks expected returns. 0.0 = pure historical,
+            1.0 = pure forward. Defaults to CME_FORWARD_BLENDING_OMEGA
+            from config (0.5).
         force_refresh: If True, bypass cache and recompute from scratch.
         cache_ttl_days: Override cache TTL in days.
             Defaults to CME_CACHE_TTL_DAYS from config.
@@ -116,6 +124,7 @@ def compute_cme(
     cache = CMECacheManager(ttl_days=cache_ttl_days)
     params_hash = CMECacheManager.compute_params_hash(
         lookback_years, inflation, asset_tickers, iv_blending_tau,
+        forward_blending_omega=forward_blending_omega,
         base_currency=BASE_CURRENCY,
     )
 
@@ -142,6 +151,7 @@ def compute_cme(
         inflation=inflation,
         asset_tickers=asset_tickers,
         iv_blending_tau=iv_blending_tau,
+        forward_blending_omega=forward_blending_omega,
     )
 
     if report is not None:
@@ -168,6 +178,7 @@ def _compute_cme_fresh(
     inflation: float,
     asset_tickers: dict,
     iv_blending_tau: float,
+    forward_blending_omega: float,
 ) -> Optional[CMEReport]:
     """
     Perform the actual CME computation from live market data.
@@ -180,6 +191,8 @@ def _compute_cme_fresh(
         inflation: Long-term inflation rate assumption.
         asset_tickers: Asset class ticker mapping.
         iv_blending_tau: Blending weight for implied volatility.
+        forward_blending_omega: Blending weight for forward-looking
+            building-blocks expected returns.
 
     Returns:
         CMEReport on success, None on failure.
@@ -223,6 +236,17 @@ def _compute_cme_fresh(
     else:
         logger.info("No IV data available, using pure historical volatility")
 
+    # Step 3.6: Compute forward-looking expected returns (building blocks)
+    forward_data = fetch_forward_returns(tickers, inflation, rf_rate)
+    forward_available = any(v is not None for v in forward_data.values())
+    if forward_available:
+        logger.info(
+            "Forward returns computed for %d asset classes",
+            sum(1 for v in forward_data.values() if v is not None),
+        )
+    else:
+        logger.info("No forward returns available, using pure historical means")
+
     # Step 4: Compute per-asset-class metrics (enhanced with IV blending)
     asset_cme_list = []
     for key, info in asset_tickers.items():
@@ -251,6 +275,20 @@ def _compute_cme_fresh(
         var95 = value_at_risk(asset_returns, confidence=0.95)
         cvar95 = conditional_var(asset_returns, confidence=0.95)
 
+        # --- forward-looking expected return blending ---
+        ticker_fwd = forward_data.get(ticker)
+        if ticker_fwd is not None:
+            expected_return = (
+                forward_blending_omega * ticker_fwd.forward_return
+                + (1 - forward_blending_omega) * ann_return
+            )
+            fwd_return = ticker_fwd.forward_return
+            fwd_basis = ticker_fwd.basis
+        else:
+            expected_return = ann_return  # Graceful degradation
+            fwd_return = None
+            fwd_basis = None
+
         # --- weighted blending with implied volatility ---
         ticker_iv = iv_data.get(ticker)
         if ticker_iv is not None:
@@ -276,7 +314,7 @@ def _compute_cme_fresh(
         asset_cme_list.append(AssetClassCME(
             name=name,
             ticker=ticker,
-            expected_return=round(ann_return, 6),
+            expected_return=round(expected_return, 6),
             volatility=round(ann_vol, 6),
             sharpe_ratio=round(sr, 4),
             max_drawdown=round(mdd["max_drawdown"], 4),
@@ -287,6 +325,9 @@ def _compute_cme_fresh(
             iv_source=iv_source_label,
             blended_volatility=round(blended_vol, 6),
             volatility_regime=regime,
+            historical_return=round(ann_return, 6),
+            forward_return=round(fwd_return, 6) if fwd_return is not None else None,
+            forward_basis=fwd_basis,
         ))
 
     if not asset_cme_list:
@@ -326,9 +367,22 @@ def _compute_cme_fresh(
     else:
         iv_note = "未获取到隐含波动率数据，仅使用历史波动率。"
 
+    if forward_available:
+        fwd_count = sum(1 for v in forward_data.values() if v is not None)
+        fwd_note = (
+            f"预期收益率采用 building-blocks 前视法与历史均值混合"
+            f"（{fwd_count} 个资产类别有前视输入，ω={forward_blending_omega:.1f}）："
+            f"权益=股息率+长期增长假设，固收=到期收益率代理，"
+            f"黄金=通胀假设，现金=无风险利率；"
+            f"前视输入不可用的资产类别回退为历史均值。"
+            f"前视收益按资产本地货币计算，汇率预期变动假设为零。"
+        )
+    else:
+        fwd_note = "预期收益率采用历史算术平均年化收益率（前视输入均不可用）。"
+
     methodology = (
         f"基于 {lookback_years} 年历史数据（截至 {as_of}）计算。"
-        f"预期收益率采用历史算术平均年化收益率。"
+        f"{fwd_note}"
         f"波动率采用加权混合方法：blended_vol = τ·σ_IV + (1-τ)·σ_hist。"
         f"{iv_note}"
         f"相关性矩阵基于简单收益率的 Pearson 相关系数。"
@@ -352,6 +406,7 @@ def _compute_cme_fresh(
         methodology_notes=methodology,
         iv_blending_tau=iv_blending_tau,
         iv_data_available=iv_available,
+        forward_blending_omega=forward_blending_omega,
     )
 
     logger.info(
@@ -482,23 +537,31 @@ def format_cme_for_prompt(report: CMEReport) -> str:
         ac.implied_volatility is not None for ac in report.asset_classes
     )
     has_regime = any(ac.volatility_regime is not None for ac in report.asset_classes)
+    has_fwd = any(ac.forward_return is not None for ac in report.asset_classes)
+    fwd_header = f" {'前视收益':>10}" if has_fwd else ""
 
     if has_iv:
         lines.append(
-            f"{'资产类别':<24} {'预期收益率':>10} {'历史σ':>10} "
+            f"{'资产类别':<24} {'预期收益率':>10}{fwd_header} {'历史σ':>10} "
             f"{'隐含σ':>10} {'混合σ':>10} {'夏普比率':>10} {'最大回撤':>10}"
         )
     else:
         lines.append(
-            f"{'资产类别':<24} {'预期收益率':>10} {'波动率':>10} "
+            f"{'资产类别':<24} {'预期收益率':>10}{fwd_header} {'波动率':>10} "
             f"{'夏普比率':>10} {'最大回撤':>10}"
         )
     lines.append("─" * 100)
 
     for ac in report.asset_classes:
+        fwd_display = (
+            f"{ac.forward_return:>10.2%}" if ac.forward_return is not None
+            else f"{'N/A':>10}"
+        )
         base_cols = (
             f"{ac.name:<24} {ac.expected_return:>10.2%} "
         )
+        if has_fwd:
+            base_cols += f"{fwd_display} "
 
         if has_iv:
             iv_display = f"{ac.implied_volatility:>10.2%}" if ac.implied_volatility is not None else f"{'N/A':>10}"
@@ -516,6 +579,18 @@ def format_cme_for_prompt(report: CMEReport) -> str:
             )
 
         lines.append(base_cols)
+
+    if has_fwd:
+        lines.append("")
+        lines.append("## 前视收益构成（building blocks）")
+        lines.append("")
+        for ac in report.asset_classes:
+            if ac.forward_return is not None and ac.forward_basis:
+                lines.append(f"- {ac.name}：{ac.forward_basis}")
+        lines.append(
+            "预期收益率 = ω × 前视 + (1-ω) × 历史均值"
+            f"（ω={report.forward_blending_omega:.1f}）"
+        )
 
     lines.append("")
     lines.append("## 相关性矩阵")
@@ -541,7 +616,9 @@ def format_cme_for_prompt(report: CMEReport) -> str:
     lines.append("")
     usage = [
         "以上数据供 IPS 资产配置参考。LLM 在制定 SAA 时：\n"
-        "1. 各资产类别的预期收益率必须参考上表数值\n"
+        "1. 各资产类别的预期收益率必须参考上表数值（该值为前视 building-blocks "
+        "与历史均值的混合，前视构成见「前视收益构成」一节；无前视输入的资产类别"
+        "为纯历史均值）\n"
         "2. 无风险利率和通胀率必须使用上述 CME 数值，不得自行假设\n"
         "3. 组合预期收益率 = Σ(权重_i × 预期收益率_i)，必须基于上表计算\n"
         "4. 优先使用「混合波动率」（blended_volatility）衡量风险，"

@@ -62,6 +62,7 @@ export async function CmeSection() {
             <tr>
               <TH>{t.market.thAssetClass}</TH>
               <TH className="text-right">{t.market.thExpectedReturn}</TH>
+              <TH className="text-right">{t.market.thForwardReturn}</TH>
               <TH className="text-right">{t.market.thAnnVol}</TH>
               <TH className="text-right">{t.market.thBlendedVol}</TH>
               <TH className="text-right">{t.market.thSharpe}</TH>
@@ -80,6 +81,15 @@ export async function CmeSection() {
                 </TD>
                 <TD className="text-right font-mono">
                   {fmtPct(a.expected_return)}
+                </TD>
+                <TD className="text-right font-mono">
+                  {a.forward_return != null ? (
+                    <span title={a.forward_basis ?? undefined}>
+                      {fmtPct(a.forward_return)}
+                    </span>
+                  ) : (
+                    <span className="text-mist-600">—</span>
+                  )}
                 </TD>
                 <TD className="text-right font-mono">{fmtPct(a.volatility)}</TD>
                 <TD className="text-right font-mono">

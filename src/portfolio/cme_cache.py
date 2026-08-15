@@ -209,6 +209,7 @@ class CMECacheManager:
         inflation: float,
         asset_tickers: dict,
         iv_blending_tau: float,
+        forward_blending_omega: Optional[float] = None,
         base_currency: Optional[str] = None,
     ) -> str:
         """
@@ -222,6 +223,8 @@ class CMECacheManager:
             inflation: Long-term inflation assumption.
             asset_tickers: Asset class → ticker mapping dict.
             iv_blending_tau: Bayesian blending weight.
+            forward_blending_omega: Blending weight on forward-looking
+                building-blocks expected returns.
             base_currency: Currency basis of the return computation
                 (e.g. "CNY"). Included so caches computed under a
                 different currency basis invalidate naturally.
@@ -238,6 +241,8 @@ class CMECacheManager:
         )
 
         content = f"{lookback_years}|{inflation}|{ticker_repr}|{iv_blending_tau}"
+        if forward_blending_omega is not None:
+            content += f"|{forward_blending_omega}"
         if base_currency is not None:
             content += f"|{base_currency}"
         return hashlib.md5(content.encode()).hexdigest()[:8]

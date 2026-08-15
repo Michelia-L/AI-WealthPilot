@@ -28,7 +28,10 @@ class AssetClassCME(BaseModel):
         description="Proxy ticker used for data, e.g. '000300.SS'"
     )
     expected_return: float = Field(
-        description="Annualized expected return (arithmetic mean), e.g. 0.08 for 8%"
+        description="Annualized expected return, e.g. 0.08 for 8%. Blended: "
+                    "ω × forward (building blocks) + (1-ω) × historical mean; "
+                    "equals the historical mean when forward inputs are "
+                    "unavailable."
     )
     volatility: float = Field(
         ge=0,
@@ -74,6 +77,24 @@ class AssetClassCME(BaseModel):
         default=None,
         description="Qualitative regime label: 'low', 'normal', 'elevated', 'high'. "
                     "Derived from IV/HV ratio."
+    )
+
+    # --- Forward-looking expected return fields (building blocks)
+    historical_return: Optional[float] = Field(
+        default=None,
+        description="Historical arithmetic-mean annualized return, kept for "
+                    "disclosure once expected_return becomes the blended value."
+    )
+    forward_return: Optional[float] = Field(
+        default=None,
+        description="Forward-looking building-blocks expected return "
+                    "(income + growth / YTM proxy / inflation / risk-free). "
+                    "None when forward inputs are unavailable."
+    )
+    forward_basis: Optional[str] = Field(
+        default=None,
+        description="Short composition label of the forward return, e.g. "
+                    "'股息率1.8%+增长6.0%'."
     )
 
 
@@ -123,6 +144,11 @@ class CMEReport(BaseModel):
     iv_data_available: bool = Field(
         default=False,
         description="Whether any implied volatility data was successfully fetched."
+    )
+    forward_blending_omega: float = Field(
+        default=0.5,
+        description="Blending weight ω on forward-looking building-blocks "
+                    "expected returns. 0.0 = pure historical, 1.0 = pure forward."
     )
 
 

@@ -88,6 +88,9 @@ export interface AssetClassCME {
   iv_source: string | null;
   blended_volatility: number | null;
   volatility_regime: string | null;
+  historical_return: number | null;
+  forward_return: number | null;
+  forward_basis: string | null;
 }
 
 export interface CMEReport {

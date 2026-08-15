@@ -51,6 +51,7 @@ export const market = {
   thAnnReturn: "Annualized Return",
   thAnnVol: "Annualized Volatility",
   thExpectedReturn: "Expected Return",
+  thForwardReturn: "Forward Return",
   thBlendedVol: "Blended Vol (IV)",
   thSharpe: "Sharpe",
   thMaxDrawdown: "Max Drawdown",

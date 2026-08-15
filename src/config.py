@@ -204,6 +204,26 @@ IPS_ASSET_CLASS_TICKERS = {
 
 CME_IV_BLENDING_TAU = 0.5
 
+# Forward-Looking Expected Returns (building blocks)
+# Blending weight for forward-looking vs historical expected returns:
+#   expected_return = ω × forward + (1-ω) × historical
+#   ω = 0.0 → pure historical mean (backward-looking only)
+#   ω = 0.5 → equal weight (default)
+#   ω = 1.0 → pure building-blocks (forward-looking only)
+# Per-asset degradation: assets whose forward inputs are unavailable
+# keep their historical mean regardless of ω.
+CME_FORWARD_BLENDING_OMEGA = 0.5
+
+# Long-run nominal earnings/dividend growth assumptions by CME proxy
+# ticker (building-blocks income + growth model). These are documented
+# assumptions, not fetched data.
+CME_FORWARD_GROWTH_ASSUMPTIONS = {
+    "000300.SS": 0.06,   # CN equity: nominal GDP-linked
+    "EFA": 0.04,         # DM equity
+    "EWH": 0.045,        # HK equity
+    "VNQ": 0.035,        # REITs: dividend growth
+}
+
 # SAA Validation thresholds
 SAA_VOLATILITY_TOLERANCE_PP = 0.03  # Accept if vol within +3pp of efficient frontier
 

@@ -48,6 +48,7 @@ export const market = {
   thAnnReturn: "年化收益",
   thAnnVol: "年化波动",
   thExpectedReturn: "预期收益",
+  thForwardReturn: "前瞻收益",
   thBlendedVol: "混合波动 (IV)",
   thSharpe: "夏普",
   thMaxDrawdown: "最大回撤",

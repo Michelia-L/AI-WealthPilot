@@ -33,6 +33,20 @@ from src.portfolio.cme_engine import (
     _classify_vol_regime,
 )
 from src.data.implied_volatility import ImpliedVolData
+from src.portfolio.forward_returns import ForwardReturnData
+
+
+@pytest.fixture(autouse=True)
+def _no_forward_returns(monkeypatch):
+    """Default all computation tests to pure-historical expected returns.
+
+    Forward-return inputs involve yfinance info calls; individual tests
+    override this by monkeypatching the same symbol again.
+    """
+    monkeypatch.setattr(
+        "src.portfolio.cme_engine.fetch_forward_returns",
+        lambda tickers, inflation, risk_free_rate: {t: None for t in tickers},
+    )
 
 
 # ============================================================
@@ -666,3 +680,121 @@ class TestCMEWithIVBlending:
         assert min(hist, iv) <= blended <= max(hist, iv), (
             f"Expected {min(hist, iv):.6f} ≤ {blended:.6f} ≤ {max(hist, iv):.6f}"
         )
+
+
+# ============================================================
+# Test Forward-Looking Expected Return Blending
+# ============================================================
+
+class TestForwardReturnBlending:
+    """Tests for ω-blending of building-blocks forward returns."""
+
+    @patch("src.portfolio.cme_engine.fetch_implied_volatility")
+    @patch("src.portfolio.cme_engine.fetch_price_history")
+    @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
+    @patch("src.portfolio.cme_engine.compute_correlation_matrix")
+    def test_forward_blending_applied(
+        self, mock_corr, mock_rf, mock_prices, mock_iv,
+        mock_price_data, monkeypatch,
+    ):
+        """expected_return = ω·forward + (1-ω)·historical when forward exists."""
+        mock_prices.return_value = mock_price_data
+        mock_rf.return_value = (0.043, "mock")
+        mock_iv.return_value = {"AGG": None}
+        mock_corr.return_value = mock_price_data.pct_change().dropna().corr()
+
+        monkeypatch.setattr(
+            "src.portfolio.cme_engine.fetch_forward_returns",
+            lambda tickers, inflation, risk_free_rate: {
+                "AGG": ForwardReturnData(
+                    ticker="AGG",
+                    forward_return=0.04,
+                    basis="到期收益率代理4.0%",
+                    source="yfinance fund yield",
+                ),
+            },
+        )
+
+        report, _ = compute_cme(
+            asset_tickers={"fixed_income": {"ticker": "AGG", "name": "固定收益"}},
+            forward_blending_omega=0.5,
+            force_refresh=True,
+        )
+        agg = report.asset_classes[0]
+
+        assert agg.forward_return == pytest.approx(0.04)
+        assert agg.forward_basis == "到期收益率代理4.0%"
+        assert agg.historical_return is not None
+        assert agg.expected_return == pytest.approx(
+            0.5 * 0.04 + 0.5 * agg.historical_return, abs=1e-6
+        )
+        assert report.forward_blending_omega == 0.5
+
+    @patch("src.portfolio.cme_engine.fetch_implied_volatility")
+    @patch("src.portfolio.cme_engine.fetch_price_history")
+    @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
+    @patch("src.portfolio.cme_engine.compute_correlation_matrix")
+    def test_pure_historical_when_omega_zero(
+        self, mock_corr, mock_rf, mock_prices, mock_iv,
+        mock_price_data, monkeypatch,
+    ):
+        """ω=0 keeps the historical mean even when forward data exists."""
+        mock_prices.return_value = mock_price_data
+        mock_rf.return_value = (0.043, "mock")
+        mock_iv.return_value = {"AGG": None}
+        mock_corr.return_value = mock_price_data.pct_change().dropna().corr()
+
+        monkeypatch.setattr(
+            "src.portfolio.cme_engine.fetch_forward_returns",
+            lambda tickers, inflation, risk_free_rate: {
+                "AGG": ForwardReturnData(
+                    ticker="AGG", forward_return=0.04,
+                    basis="b", source="s",
+                ),
+            },
+        )
+
+        report, _ = compute_cme(
+            asset_tickers={"fixed_income": {"ticker": "AGG", "name": "固定收益"}},
+            forward_blending_omega=0.0,
+            force_refresh=True,
+        )
+        agg = report.asset_classes[0]
+        assert agg.expected_return == pytest.approx(agg.historical_return)
+        # forward fields still populated for disclosure
+        assert agg.forward_return == pytest.approx(0.04)
+
+    @patch("src.portfolio.cme_engine.fetch_implied_volatility")
+    @patch("src.portfolio.cme_engine.fetch_price_history")
+    @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
+    @patch("src.portfolio.cme_engine.compute_correlation_matrix")
+    def test_degrades_to_historical_when_forward_unavailable(
+        self, mock_corr, mock_rf, mock_prices, mock_iv, mock_price_data,
+    ):
+        """No forward input → expected_return equals the historical mean."""
+        mock_prices.return_value = mock_price_data
+        mock_rf.return_value = (0.043, "mock")
+        mock_iv.return_value = {"AGG": None}
+        mock_corr.return_value = mock_price_data.pct_change().dropna().corr()
+        # autouse fixture already makes fetch_forward_returns return all-None
+
+        report, _ = compute_cme(
+            asset_tickers={"fixed_income": {"ticker": "AGG", "name": "固定收益"}},
+            force_refresh=True,
+        )
+        agg = report.asset_classes[0]
+        assert agg.forward_return is None
+        assert agg.forward_basis is None
+        assert agg.expected_return == pytest.approx(agg.historical_return)
+        assert "历史算术平均" in report.methodology_notes
+
+    def test_params_hash_includes_omega(self):
+        """Different ω must produce different cache params hashes."""
+        from src.portfolio.cme_cache import CMECacheManager
+
+        tickers = {"fixed_income": {"ticker": "AGG", "name": "固定收益"}}
+        h1 = CMECacheManager.compute_params_hash(5, 0.025, tickers, 0.5, 0.5)
+        h2 = CMECacheManager.compute_params_hash(5, 0.025, tickers, 0.5, 0.8)
+        h3 = CMECacheManager.compute_params_hash(5, 0.025, tickers, 0.5, 0.5)
+        assert h1 != h2
+        assert h1 == h3
