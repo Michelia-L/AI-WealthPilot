@@ -1,24 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   AssetClassInfo,
-  BLViewInput,
   OptimizeMethod,
   OptimizeMode,
-  OptimizeRequest,
-  OptimizeResponse,
-  SurplusGrowthSource,
 } from "@/lib/api";
 import { OPTIMIZER_PERIOD_OPTIONS } from "@/lib/api";
 import type { OptimizerDeepLink } from "@/lib/optimizer-link";
-import { readSseStream } from "@/lib/sse";
-import {
-  TaskGoneError,
-  clearActiveTask,
-  loadActiveTask,
-  saveActiveTask,
-} from "@/lib/task-resume";
 import { useClient } from "./client-context";
 import { useT } from "@/components/locale-context";
 import Button from "./ui/button";
@@ -32,13 +20,10 @@ import { NumInput } from "./ui/field";
 import EmptyState from "./ui/empty";
 import Group from "./optimizer/group";
 import BLConfigPanel from "./optimizer/bl-config-panel";
-import SurplusConfigPanel, {
-  type SurplusInflationPreset,
-  type SurplusSource,
-} from "./optimizer/surplus-config-panel";
+import SurplusConfigPanel from "./optimizer/surplus-config-panel";
 import OptimizerResults from "./optimizer/optimizer-results";
-
-const DEFAULT_ASSETS = ["US_EQUITY", "INTL_EQUITY", "US_BOND", "GOLD"];
+import { useOptimizerForm } from "./optimizer/use-optimizer-form";
+import { useOptimizeRun } from "./optimizer/use-optimize-run";
 
 const CVAR_CONFIDENCE_OPTIONS = [
   { value: 0.9, label: "90%" },
@@ -59,6 +44,70 @@ export default function OptimizerWorkspace({
 }) {
   const t = useT();
   const allKeys = Object.keys(assetClasses);
+  // 全局客户上下文：选中客户后可把其风险等级注入为权重约束
+  const { clientId, clientName } = useClient();
+
+  const form = useOptimizerForm({ initialAssets, deepLink });
+  const { loading, error, result, progressLabel, run } = useOptimizeRun({
+    buildBody: form.buildBody,
+    method: form.method,
+  });
+  const {
+    assets,
+    toggleAsset,
+    period,
+    setPeriod,
+    method,
+    setMethod,
+    mode,
+    setMode,
+    allowShort,
+    setAllowShort,
+    rfAuto,
+    setRfAuto,
+    rfManual,
+    setRfManual,
+    nSim,
+    setNSim,
+    cvarConf,
+    setCvarConf,
+    erSource,
+    setErSource,
+    surplusSource,
+    setSurplusSource,
+    liabRatio,
+    setLiabRatio,
+    liabDuration,
+    setLiabDuration,
+    surplusProxy,
+    setSurplusProxy,
+    growthSource,
+    setGrowthSource,
+    customGrowth,
+    setCustomGrowth,
+    inflationPreset,
+    setInflationPreset,
+    yearsToRetirement,
+    setYearsToRetirement,
+    distributionYears,
+    setDistributionYears,
+    annualIncome,
+    setAnnualIncome,
+    assetValue,
+    setAssetValue,
+    blTau,
+    setBlTau,
+    blDelta,
+    setBlDelta,
+    equalWeights,
+    setEqualWeights,
+    marketWeights,
+    setMarketWeights,
+    views,
+    setViews,
+    applyRisk,
+    setApplyRisk,
+  } = form;
 
   const METHOD_OPTIONS: { value: OptimizeMethod; label: string }[] = [
     { value: "mvo", label: t.optimizer.methodMvo },
@@ -73,282 +122,6 @@ export default function OptimizerWorkspace({
     { value: "max-sharpe", label: t.optimizer.modeMaxSharpe },
     { value: "min-vol", label: t.optimizer.modeMinVol },
   ];
-
-  const [assets, setAssets] = useState<string[]>(
-    initialAssets && initialAssets.length >= 2 ? initialAssets : DEFAULT_ASSETS
-  );
-  const [period, setPeriod] = useState("5y");
-  const [method, setMethod] = useState<OptimizeMethod>(deepLink?.method ?? "mvo");
-  const [mode, setMode] = useState<OptimizeMode>("max-sharpe");
-  const [allowShort, setAllowShort] = useState(false);
-  const [rfAuto, setRfAuto] = useState(true);
-  const [rfManual, setRfManual] = useState("4.5");
-  const [nSim, setNSim] = useState(200);
-  const [cvarConf, setCvarConf] = useState(0.95);
-  const [erSource, setErSource] = useState<"sample" | "cme">("sample");
-
-  const [surplusSource, setSurplusSource] = useState<SurplusSource>(
-    deepLink?.surplusSource ?? "manual"
-  );
-  const [liabRatio, setLiabRatio] = useState(1.0);
-  const [liabDuration, setLiabDuration] = useState(10);
-  const [surplusProxy, setSurplusProxy] = useState("US_BOND");
-  const [growthSource, setGrowthSource] = useState<SurplusGrowthSource>("inflation");
-  const [customGrowth, setCustomGrowth] = useState("3.0");
-  const [inflationPreset, setInflationPreset] =
-    useState<SurplusInflationPreset>("standard");
-  const [yearsToRetirement, setYearsToRetirement] = useState(
-    deepLink?.yearsToRetirement ?? 20
-  );
-  const [distributionYears, setDistributionYears] = useState(
-    deepLink?.distributionYears ?? 25
-  );
-  const [annualIncome, setAnnualIncome] = useState(
-    deepLink?.annualIncome !== undefined ? String(deepLink.annualIncome) : "80000"
-  );
-  const [assetValue, setAssetValue] = useState(
-    deepLink?.assetValue !== undefined ? String(deepLink.assetValue) : "1000000"
-  );
-
-  const [blTau, setBlTau] = useState("0.025");
-  const [blDelta, setBlDelta] = useState("2.5");
-  const [equalWeights, setEqualWeights] = useState(true);
-  const [marketWeights, setMarketWeights] = useState<Record<string, string>>(
-    {}
-  );
-  const [views, setViews] = useState<BLViewInput[]>([]);
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<OptimizeResponse | null>(null);
-  const [progressLabel, setProgressLabel] = useState<string | null>(null);
-
-  // 全局客户上下文：选中客户后可把其风险等级注入为权重约束
-  const { clientId, clientName } = useClient();
-  const [applyRisk, setApplyRisk] = useState(true);
-
-  function toggleAsset(key: string) {
-    setAssets((prev) => {
-      if (prev.includes(key)) {
-        if (prev.length <= 2) return prev; // API requires >= 2
-        return prev.filter((k) => k !== key);
-      }
-      return [...prev, key];
-    });
-  }
-
-  function buildBody(): OptimizeRequest {
-    const body: OptimizeRequest = {
-      assets,
-      period,
-      method,
-      mode,
-      // 风险平价仅多头（log-barrier 公式），切换方法时防御性复位
-      allow_short: method === "risk-parity" ? false : allowShort,
-      n_simulations: nSim,
-      risk_free_rate: rfAuto ? null : parseFloat(rfManual || "0") / 100,
-    };
-    if (method === "black-litterman") {
-      body.bl = {
-        tau: parseFloat(blTau) || 0.025,
-        delta: parseFloat(blDelta) || 2.5,
-        market_weights: equalWeights
-          ? null
-          : Object.fromEntries(
-              assets.map((k) => [
-                k,
-                (parseFloat(marketWeights[k] ?? "0") || 0) / 100,
-              ])
-            ),
-        views,
-      };
-    }
-    if (method === "mean-cvar") {
-      body.cvar_confidence = cvarConf;
-    }
-    // BL 下 CME 作为先验（替代均衡收益），与 MVO/CVaR/LDI 同一开关
-    if (erSource === "cme") {
-      body.expected_return_source = "cme";
-    }
-    if (method === "surplus") {
-      body.surplus = {
-        proxy: surplusProxy,
-        growth_source: growthSource,
-        ...(growthSource === "custom"
-          ? { custom_growth: (parseFloat(customGrowth || "0") || 0) / 100 }
-          : {}),
-        // 画像/退休+客户通道下通胀人群由后端按客户年龄自动建议
-        ...(growthSource === "inflation" &&
-        (surplusSource === "manual" ||
-          (surplusSource === "retirement" && clientId === null))
-          ? { inflation_preset: inflationPreset }
-          : {}),
-        ...(surplusSource === "manual"
-          ? { liability_ratio: liabRatio, liability_duration: liabDuration }
-          : surplusSource === "retirement"
-            ? {
-                years_to_retirement: yearsToRetirement,
-                distribution_years: distributionYears,
-                annual_income: parseFloat(annualIncome || "0") || 0,
-                ...(clientId === null
-                  ? { asset_value: parseFloat(assetValue || "0") || 0 }
-                  : {}),
-              }
-            : {}),
-      };
-      // 画像通道取目标；退休通道取资产基数与年龄（通胀人群建议）
-      if (
-        (surplusSource === "profile" || surplusSource === "retirement") &&
-        clientId !== null
-      ) {
-        body.profile_id = clientId;
-      }
-    }
-    if (method === "mvo" && applyRisk && clientId !== null) {
-      body.profile_id = clientId;
-    }
-    return body;
-  }
-
-  // 当前事件流的取消句柄：切页卸载时断开（服务端任务独立运行，重挂载后凭
-  // sessionStorage 里的 task_id 重连，后端会从持久化事件完整回放）。
-  const streamAbort = useRef<AbortController | null>(null);
-
-  /** Open the task event stream and pump it; resolves with the final result. */
-  const streamTaskEvents = useCallback(
-    async (
-      taskId: string,
-      signal: AbortSignal,
-      onOpen?: () => void
-    ): Promise<OptimizeResponse> => {
-      const eventsRes = await fetch(`/api/portfolio/tasks/${taskId}/events`, {
-        signal,
-      });
-      if (!eventsRes.ok || !eventsRes.body) {
-        if (eventsRes.status === 404) {
-          clearActiveTask("portfolio");
-          throw new TaskGoneError();
-        }
-        const err = await eventsRes.json().catch(() => null);
-        throw new Error(
-          err && typeof err.detail === "string"
-            ? err.detail
-            : t.optimizer.progressUnavailable
-        );
-      }
-      onOpen?.();
-      let finalResult: OptimizeResponse | null = null;
-      let streamError: string | null = null;
-      await readSseStream(eventsRes.body, (event) => {
-        if (event.type === "node") {
-          setProgressLabel(String(event.label ?? ""));
-        } else if (event.type === "done") {
-          finalResult = event.result as OptimizeResponse;
-          clearActiveTask("portfolio");
-        } else if (event.type === "error") {
-          streamError = String(event.message ?? t.optimizer.optimizeFailed);
-          clearActiveTask("portfolio");
-        }
-      });
-      if (streamError) throw new Error(streamError);
-      if (!finalResult) throw new Error(t.optimizer.streamEnded);
-      return finalResult;
-    },
-    [t]
-  );
-
-  // 挂载时恢复未完成的任务（切页返回的场景）：重连事件流重建进度与结果。
-  useEffect(() => {
-    const taskId = loadActiveTask("portfolio");
-    if (!taskId) return;
-    const controller = new AbortController();
-    streamAbort.current = controller;
-    void (async () => {
-      try {
-        const result = await streamTaskEvents(taskId, controller.signal, () => {
-          // fetch 返回后的异步边界里再 setState，避免 effect 内同步 setState
-          setLoading(true);
-          setError(null);
-          setProgressLabel(null);
-        });
-        setResult(result);
-      } catch (e) {
-        if (e instanceof TaskGoneError || controller.signal.aborted) return;
-        setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-          setProgressLabel(null);
-        }
-      }
-    })();
-    return () => controller.abort();
-  }, [streamTaskEvents]);
-
-  // 卸载时断开事件流（任务在服务端继续，句柄保留供重连）
-  useEffect(() => () => streamAbort.current?.abort(), []);
-
-  /** Resampled MVO path: async task + SSE progress (minute-level compute). */
-  async function runAsync(
-    body: OptimizeRequest,
-    signal: AbortSignal
-  ): Promise<OptimizeResponse> {
-    const res = await fetch("/api/portfolio/optimize/async", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal,
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(
-        typeof data.detail === "string"
-          ? data.detail
-          : t.optimizer.createTaskFailed(res.status)
-      );
-    }
-    saveActiveTask("portfolio", String(data.task_id));
-    return streamTaskEvents(String(data.task_id), signal);
-  }
-
-  async function run() {
-    const controller = new AbortController();
-    streamAbort.current?.abort();
-    streamAbort.current = controller;
-    setLoading(true);
-    setError(null);
-    setProgressLabel(null);
-    try {
-      const body = buildBody();
-      if (method === "resampled") {
-        setResult(await runAsync(body, controller.signal));
-      } else {
-        const res = await fetch("/api/portfolio/optimize", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(
-            typeof data.detail === "string"
-              ? data.detail
-              : t.optimizer.requestFailed(res.status)
-          );
-        }
-        setResult(data as OptimizeResponse);
-      }
-    } catch (e) {
-      if (controller.signal.aborted) return;
-      setError(e instanceof Error ? e.message : String(e));
-      setResult(null);
-    } finally {
-      if (!controller.signal.aborted) {
-        setLoading(false);
-        setProgressLabel(null);
-      }
-    }
-  }
 
   return (
     <div className="flex flex-col gap-8">
