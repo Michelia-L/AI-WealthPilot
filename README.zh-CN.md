@@ -250,20 +250,25 @@ AI-WealthPilot/
 │   ├── config.py                 # 核心配置（13类资产配置）、超参数与系统设置
 │   ├── utils.py                  # 文件名清洗工具函数
 │   ├── portfolio/                # 【量化计算引擎】
-│   │   ├── optimizer.py          # MVO 求解器、切点优化、狄利克雷随机散点生成
+│   │   ├── optimizer.py          # MVO 求解器、切点优化、LDI 盈余求解器、狄利克雷随机散点生成
 │   │   ├── simulator.py          # GBM 模拟器、退休两阶段生命周期生成器
 │   │   ├── risk_metrics.py       # 风险指标计算（Sharpe, Sortino, VaR, CVaR）
 │   │   ├── views.py              # Black-Litterman 观点编码（P/Q/Omega 矩阵，Idzorek 置信度法）
-│   │   ├── cme_engine.py         # 资本市场预期 (CME) 引擎与无风险利率三级级联
+│   │   ├── cme_engine.py         # 资本市场预期 (CME) 引擎与无风险利率级联
+│   │   ├── forward_returns.py    # 前视 building-blocks 预期收益（与历史均值 ω 混合）
 │   │   ├── cme_models.py         # CME Pydantic 数据模型（CMEReport, SAAValidationResult）
-│   │   └── cme_cache.py          # CME 预期数据缓存管理与本地持久化工具
+│   │   ├── cme_cache.py          # CME 预期数据缓存管理与本地持久化工具
 │   │   ├── backtest.py           # 月初再平衡回测引擎与危机情景压力测试
+│   │   ├── attribution.py        # Brinson-Fachler 业绩归因与 Carino 对数链接
+│   │   ├── liabilities.py        # LDI 负债现金流建模（Sharpe-Tint 盈余优化）
+│   │   ├── inflation.py          # 个人（人群 / 生活方式）通胀预设
 │   │   ├── monitoring.py         # SAA 漂移监控与复衡信号
 │   │   └── risk_constraints.py   # 风险等级 → 资产组权重上限映射
 │   ├── data/                     # 【数据拉取模块】
 │   │   ├── market_data.py        # 多源路由行情拉取、多币种汇率转换与相关性矩阵计算
 │   │   ├── tushare_provider.py   # Tushare Pro A 股指数主干（付费，可选）
 │   │   ├── akshare_provider.py   # akshare A 股降级源（免费，可选）
+│   │   ├── yield_curve.py        # 中债国债收益率曲线级联（tushare → akshare）
 │   │   └── implied_volatility.py # VIX/MOVE 隐含波动率拉取与混合代理映射器
 │   ├── visualization/            # 【图表渲染组件】
 │   │   └── charts.py             # Plotly 交互式专业图表
@@ -271,6 +276,10 @@ AI-WealthPilot/
 │   │   ├── profiler.py           # 客户档案解析与行为金融偏差检测 Agent
 │   │   ├── advisor.py            # DeepSeek V4 Pro 建议书生成 Agent（流式）
 │   │   ├── portfolio_recommender.py # 客户画像-资产类别风险匹配 Agent
+│   │   ├── rebalance_advisor.py  # LLM 复衡建议生成 Agent（由监控结果驱动）
+│   │   ├── llm_config.py         # LLM 端点解析（DB 设置优先于环境变量）
+│   │   ├── demo_mode.py          # DEMO_MODE 演示模式夹具回放
+│   │   ├── demo_fixtures/        # 录制的虚构样例（顾问 / IPS / 复衡建议）
 │   │   ├── report_storage.py     # 多格式（HTML/Markdown/JSON）建议书序列化存储与导出
 │   │   ├── ips_models.py         # IPS 核心 Pydantic 强类型数据模型（18个模型，含 CurrencyPolicy、FeeSchedule）
 │   │   ├── ips_agents.py         # 基于 PydanticAI 的生成/多审查员/修订 Agent 定义
@@ -278,14 +287,17 @@ AI-WealthPilot/
 │   │   └── ips_storage.py        # 投资政策声明书及审计历史的本地存储与 MD 导出器
 ├── api/                          # 【FastAPI 薄壳 — 仅作 src/ 的传输层】
 │   ├── main.py                   # 应用入口：CORS、路由挂载、/api/health、生命周期（建表 + 首启自动导入）
-│   ├── routers/                  # market / cme / portfolio / retirement / profiles / advisor / ips
+│   ├── routers/                  # market / cme / portfolio / retirement / profiles / advisor / ips / monitoring / settings
+│   ├── schemas.py                # 集中式 Pydantic 请求/响应模型
+│   ├── i18n.py                   # 中英双语用户文案消息表与 locale 解析
+│   ├── cache.py                  # 进程内 TTL 缓存（昂贵的只读计算）
 │   ├── db.py                     # SQLModel + SQLite 持久化（data/wealthpilot.db）
 │   ├── tasks.py                  # 通用进程内后台任务注册表 + SSE 事件流
 │   ├── profile_convert.py        # ClientProfile 载荷 ↔ dataclass 转换助手
 │   ├── migrate_profiles.py       # 旧版 JSON 画像导入工具（首启自动播种）
 │   └── Dockerfile                # API 镜像（构建上下文 = 仓库根，运行时 requirements.txt）
 ├── web/                          # 【Next.js 前端】
-│   ├── src/app/                  # App Router 页面（仪表盘、优化器、退休规划、画像、顾问、IPS）
+│   ├── src/app/                  # App Router 页面（总览、市场、优化器、退休规划、画像、顾问、IPS、交付物、监控、设置）
 │   ├── src/components/           # 工作区组件、Plotly 封装、Markdown 渲染器
 │   ├── src/lib/                  # 类型化 API 客户端、SSE 助手、同源代理
 │   └── Dockerfile                # Web 镜像（standalone 输出）
@@ -300,13 +312,24 @@ AI-WealthPilot/
 │   ├── test_market_data.py       # 异步行情接口、多币种汇率转换及缓存加载测试
 │   ├── test_cme_cache.py         # CME 缓存逻辑与过期机制测试
 │   ├── test_cme_engine.py        # CME 计算、IV 混合、静态回退与无风险利率级联测试
+│   ├── test_forward_returns.py   # 前视 building-blocks 收益混合测试
 │   ├── test_implied_volatility.py # 隐含波动率拉取、代理映射与降级处理测试
+│   ├── test_backtest.py          # 回测引擎与危机情景复盘测试
+│   ├── test_attribution.py       # Brinson-Fachler 归因与 Carino 链接测试
+│   ├── test_surplus.py           # LDI 盈余优化与负债流测试
+│   ├── test_yield_curve.py       # 中债收益率曲线级联测试
+│   ├── test_inflation.py         # 个人通胀预设测试
+│   ├── test_tushare_provider.py  # Tushare Pro 数据层测试
+│   ├── test_akshare_provider.py  # akshare 数据层测试
+│   ├── test_rebalance_advisor.py # 复衡建议生成测试
+│   ├── test_locale_generation.py # LLM 提示词与文档按 locale 生成测试
 │   ├── test_ips_models.py        # IPS Pydantic 模型的严格约束边界测试
 │   ├── test_ips_storage.py       # IPS 文档导出与 JSON/Markdown 本地存储验证测试
 │   ├── test_ips_workflow.py      # LangGraph 状态机生成-审查-修订循环测试
 │   ├── test_portfolio_recommender.py # 资产配置推荐建议一致性测试
 │   ├── test_comparison_export.py # 画像对比数据导出与格式化测试
-│   └── test_phase3_features.py   # 阶段3功能端到端集成测试
+│   ├── test_phase3_features.py   # 阶段3功能端到端集成测试
+│   └── test_api_*.py             # FastAPI 端点测试套件（组合、回测、盈余、风险平价、监控、任务、i18n、设置、演示模式等）
 ├── examples/                     # 【示例与演示脚本】
 │   ├── demo_quick.py             # 快速入门演示（MVO + BL + 蒙特卡洛）
 │   ├── demo_comprehensive.py     # 完整可视化演示（在浏览器中打开交互式 Plotly 图表）
@@ -344,6 +367,8 @@ AI-WealthPilot/
    # 您可在 DeepSeek 开放平台获取：https://platform.deepseek.com
    # 可选：配置 TUSHARE_TOKEN，让沪深300 等映射指数走 Tushare Pro 付费主干
    # （未配置时自动降级 akshare / yfinance）。
+   # 没有 DeepSeek key？可设 DEMO_MODE=1 回放录制的虚构样例
+   # （顾问建议书 / IPS 生成 / 复衡建议），所有页面照常完整可演示。
    ```
 
    也可以在启动后通过侧边栏「设置」页直接配置任何 OpenAI 兼容端点

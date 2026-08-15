@@ -254,20 +254,25 @@ AI-WealthPilot/
 │   ├── config.py                 # Core assets (13 classes), hyperparameters & configs
 │   ├── utils.py                  # Filename sanitization utility
 │   ├── portfolio/                # [Quantitative Engine]
-│   │   ├── optimizer.py          # MVO solver, Tangency finder, Dirichlet weight simulator
+│   │   ├── optimizer.py          # MVO solver, Tangency finder, LDI surplus solvers, Dirichlet weight simulator
 │   │   ├── simulator.py          # GBM simulator & retirement life-cycle generator
 │   │   ├── risk_metrics.py       # Risk calculators (Sharpe, Sortino, VaR, CVaR)
 │   │   ├── views.py              # Black-Litterman view encoding (P/Q/Omega, Idzorek confidence)
 │   │   ├── cme_engine.py         # Capital Market Expectations engine & risk-free rate cascade
+│   │   ├── forward_returns.py    # Forward building-blocks expected returns (ω-blended with historical means)
 │   │   ├── cme_models.py         # CME Pydantic data models (CMEReport, SAAValidationResult)
 │   │   ├── cme_cache.py          # CME cache management and local file persistence
 │   │   ├── backtest.py           # Monthly-rebalanced backtest engine & crisis stress tests
+│   │   ├── attribution.py        # Brinson-Fachler performance attribution & Carino linking
+│   │   ├── liabilities.py        # LDI liability cash-flow modeling (Sharpe-Tint surplus optimization)
+│   │   ├── inflation.py          # Personal (demographic / lifestyle) inflation presets
 │   │   ├── monitoring.py         # SAA drift monitoring & rebalance signals
 │   │   └── risk_constraints.py   # Risk-level → group weight caps mapping
 │   ├── data/                     # [Data Pipeline]
 │   │   ├── market_data.py        # Routed multi-provider fetcher, FX conversion & correlation calculations
 │   │   ├── tushare_provider.py   # Tushare Pro CN index backbone (paid, optional)
 │   │   ├── akshare_provider.py   # akshare CN fallback tier (free, optional)
+│   │   ├── yield_curve.py        # ChinaBond treasury yield curve cascade (tushare → akshare)
 │   │   └── implied_volatility.py # VIX/MOVE implied volatility fetcher & blend proxy mapper
 │   ├── visualization/            # [Chart Renderer]
 │   │   └── charts.py             # Plotly interactive chart components
@@ -275,6 +280,10 @@ AI-WealthPilot/
 │   │   ├── profiler.py           # Client profile parser agent & behavioral bias identification
 │   │   ├── advisor.py            # DeepSeek V4 Pro report generator agent (streaming)
 │   │   ├── portfolio_recommender.py # Personalized asset allocator agent
+│   │   ├── rebalance_advisor.py  # LLM rebalancing advice generator (monitoring-driven)
+│   │   ├── llm_config.py         # LLM endpoint resolution (DB settings override env defaults)
+│   │   ├── demo_mode.py          # DEMO_MODE fixture replay for LLM endpoints
+│   │   ├── demo_fixtures/        # Recorded fictional fixtures (advisor / IPS / rebalance advice)
 │   │   ├── report_storage.py     # Multi-format (HTML/Markdown/JSON) report serializer & storage
 │   │   ├── ips_models.py         # IPS Pydantic schemas (18 models incl. CurrencyPolicy, FeeSchedule)
 │   │   ├── ips_agents.py         # PydanticAI agent definitions for generator, reviewer, reviser
@@ -282,14 +291,17 @@ AI-WealthPilot/
 │   │   └── ips_storage.py        # Persistence and exports for IPS and audit trail reports
 ├── api/                          # [FastAPI Shell — transport-only over src/]
 │   ├── main.py                   # App entry: CORS, routers, /api/health, lifespan (init_db + auto-import)
-│   ├── routers/                  # market / cme / portfolio / retirement / profiles / advisor / ips
+│   ├── routers/                  # market / cme / portfolio / retirement / profiles / advisor / ips / monitoring / settings
+│   ├── schemas.py                # Centralized Pydantic request/response models
+│   ├── i18n.py                   # Bilingual (en/zh) user-facing message table & locale resolution
+│   ├── cache.py                  # In-process TTL cache for expensive read-only computations
 │   ├── db.py                     # SQLModel + SQLite persistence (data/wealthpilot.db)
 │   ├── tasks.py                  # Generic in-process background task registry + SSE drain
 │   ├── profile_convert.py        # ClientProfile payload ↔ dataclass conversion helpers
 │   ├── migrate_profiles.py       # Legacy JSON profile importer (first-boot auto-seed)
 │   └── Dockerfile                # API image (context = repo root, runtime requirements.txt)
 ├── web/                          # [Next.js Frontend]
-│   ├── src/app/                  # App Router pages (overview, market, optimizer, retirement, profiles, advisor, ips, deliverables, monitoring)
+│   ├── src/app/                  # App Router pages (overview, market, optimizer, retirement, profiles, advisor, ips, deliverables, monitoring, settings)
 │   ├── src/components/           # Workspace components, Plotly wrapper, Markdown renderer
 │   ├── src/lib/                  # Typed API client, SSE helpers, same-origin proxy
 │   └── Dockerfile                # Web image (standalone output)
@@ -304,13 +316,24 @@ AI-WealthPilot/
 │   ├── test_market_data.py       # Async data fetching, currency conversion & cache testing
 │   ├── test_cme_cache.py         # CME caching behavior and expiry logic tests
 │   ├── test_cme_engine.py        # CME computation, IV blending, fallback & risk-free rate cascade tests
+│   ├── test_forward_returns.py   # Forward building-blocks return blending tests
 │   ├── test_implied_volatility.py # Implied volatility fetching, proxy mapping & degradation tests
+│   ├── test_backtest.py          # Backtest engine & crisis replay tests
+│   ├── test_attribution.py       # Brinson-Fachler attribution & Carino linking tests
+│   ├── test_surplus.py           # LDI surplus optimization & liability stream tests
+│   ├── test_yield_curve.py       # ChinaBond yield curve cascade tests
+│   ├── test_inflation.py         # Personal inflation preset tests
+│   ├── test_tushare_provider.py  # Tushare Pro provider tier tests
+│   ├── test_akshare_provider.py  # akshare provider tier tests
+│   ├── test_rebalance_advisor.py # Rebalance advice generation tests
+│   ├── test_locale_generation.py # Locale-aware LLM prompt & document generation tests
 │   ├── test_ips_models.py        # IPS data structures schemas tests
 │   ├── test_ips_storage.py       # IPS document exports and JSON/Markdown storage validations
 │   ├── test_ips_workflow.py      # LangGraph Generate-Review-Revise loop execution tests
 │   ├── test_portfolio_recommender.py # Portfolio recommendation logic consistency tests
 │   ├── test_comparison_export.py # Profile comparison data exports tests
-│   └── test_phase3_features.py   # End-to-end features integration tests
+│   ├── test_phase3_features.py   # End-to-end features integration tests
+│   └── test_api_*.py             # FastAPI endpoint suites (portfolio, backtest, surplus, risk parity, monitoring, tasks, i18n, settings, demo mode, …)
 ├── examples/                     # [Demo & Showcase Scripts]
 │   ├── demo_quick.py             # Simple quick demo (MVO + BL + Monte Carlo)
 │   ├── demo_comprehensive.py     # Complete visual demo with Plotly charts opening in browser
@@ -318,7 +341,7 @@ AI-WealthPilot/
 │   └── demo_ips_generator.py     # Multi-Agent LangGraph workflow execution terminal demo
 └── data/
     ├── cache/                    # Local market data query and FRED API caches
-    ├── profiles/                 # Client profiles (JSON document store)
+    ├── profiles/                 # Legacy client profile JSON (auto-imported into SQLite on first boot)
     ├── reports/                  # Generated AI proposals (JSON)
     ├── ips/                      # Standardized IPS and audit trail storage folder
     └── sample/                   # Offline benchmark caches

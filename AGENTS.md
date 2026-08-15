@@ -56,6 +56,6 @@ docker compose up --build
 
 ## 环境
 
-- `.env` 配 `DEEPSEEK_API_KEY`（AI 顾问 / IPS 必需）、`FRED_API_KEY`（可选，无风险利率首选源）。
+- `.env` 配 `DEEPSEEK_API_KEY`（AI 顾问 / IPS 必需）、`FRED_API_KEY`（可选，无风险利率首选源）、`TUSHARE_TOKEN`（可选，A 股映射指数与中债收益率曲线的付费主干源，未配置时自动降级 akshare / yfinance）。
 - LLM 端点可在 /settings 页面改用任意 OpenAI 兼容服务：保存进 `app_settings` 表后按字段覆盖 env 默认（DB 非空值优先，见 `src/agents/llm_config.py` 的 `get_llm_config()`，所有 LLM 消费方统一走它）；清空 API Key 即删行回退 env。
 - 未配置 DeepSeek key 时量化功能照常可用，LLM 端点返回 503；除非 `.env` 设 `DEMO_MODE=1`（phase 20 演示模式），此时三个 LLM 端点无条件回放 `src/agents/demo_fixtures/` 的虚构样例（`src/agents/demo_mode.py`），零网络调用，启动时若画像表为空还会种子一个虚构客户「林晓兰」。
