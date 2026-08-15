@@ -331,6 +331,7 @@ AI-WealthPilot/
 │   ├── test_comparison_export.py # 画像对比数据导出与格式化测试
 │   ├── test_phase3_features.py   # 阶段3功能端到端集成测试
 │   ├── test_optimize_service.py  # 优化方法执行器服务层测试（STARR 零 CVaR 守卫）
+│   ├── test_charts.py            # Plotly 图表构建的结构化测试（配色、trace 数量、CAL 数值）
 │   └── test_api_*.py             # FastAPI 端点测试套件（组合、回测、盈余、风险平价、监控、任务、i18n、设置、演示模式等）
 ├── examples/                     # 【示例与演示脚本】
 │   ├── demo_quick.py             # 快速入门演示（MVO + BL + 蒙特卡洛）

@@ -335,6 +335,7 @@ AI-WealthPilot/
 │   ├── test_comparison_export.py # Profile comparison data exports tests
 │   ├── test_phase3_features.py   # End-to-end features integration tests
 │   ├── test_optimize_service.py  # Method-runner service layer tests (STARR zero-CVaR guard)
+│   ├── test_charts.py            # Plotly figure builder structural tests (colors, traces, CAL math)
 │   └── test_api_*.py             # FastAPI endpoint suites (portfolio, backtest, surplus, risk parity, monitoring, tasks, i18n, settings, demo mode, …)
 ├── examples/                     # [Demo & Showcase Scripts]
 │   ├── demo_quick.py             # Simple quick demo (MVO + BL + Monte Carlo)
