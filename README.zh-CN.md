@@ -263,7 +263,8 @@ AI-WealthPilot/
 │   │   ├── liabilities.py        # LDI 负债现金流建模（Sharpe-Tint 盈余优化）
 │   │   ├── inflation.py          # 个人（人群 / 生活方式）通胀预设
 │   │   ├── monitoring.py         # SAA 漂移监控与复衡信号
-│   │   └── risk_constraints.py   # 风险等级 → 资产组权重上限映射
+│   │   ├── risk_constraints.py   # 风险等级 → 资产组权重上限映射
+│   │   └── optimize_service.py   # /portfolio/optimize 的方法执行器（MVO/BL/CVaR/盈余/ERC 分派）
 │   ├── data/                     # 【数据拉取模块】
 │   │   ├── market_data.py        # 多源路由行情拉取、多币种汇率转换与相关性矩阵计算
 │   │   ├── tushare_provider.py   # Tushare Pro A 股指数主干（付费，可选）
@@ -329,6 +330,7 @@ AI-WealthPilot/
 │   ├── test_portfolio_recommender.py # 资产配置推荐建议一致性测试
 │   ├── test_comparison_export.py # 画像对比数据导出与格式化测试
 │   ├── test_phase3_features.py   # 阶段3功能端到端集成测试
+│   ├── test_optimize_service.py  # 优化方法执行器服务层测试（STARR 零 CVaR 守卫）
 │   └── test_api_*.py             # FastAPI 端点测试套件（组合、回测、盈余、风险平价、监控、任务、i18n、设置、演示模式等）
 ├── examples/                     # 【示例与演示脚本】
 │   ├── demo_quick.py             # 快速入门演示（MVO + BL + 蒙特卡洛）

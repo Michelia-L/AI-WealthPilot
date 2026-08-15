@@ -267,7 +267,8 @@ AI-WealthPilot/
 │   │   ├── liabilities.py        # LDI liability cash-flow modeling (Sharpe-Tint surplus optimization)
 │   │   ├── inflation.py          # Personal (demographic / lifestyle) inflation presets
 │   │   ├── monitoring.py         # SAA drift monitoring & rebalance signals
-│   │   └── risk_constraints.py   # Risk-level → group weight caps mapping
+│   │   ├── risk_constraints.py   # Risk-level → group weight caps mapping
+│   │   └── optimize_service.py   # Optimization method runners behind /portfolio/optimize (MVO/BL/CVaR/surplus/ERC dispatch)
 │   ├── data/                     # [Data Pipeline]
 │   │   ├── market_data.py        # Routed multi-provider fetcher, FX conversion & correlation calculations
 │   │   ├── tushare_provider.py   # Tushare Pro CN index backbone (paid, optional)
@@ -333,6 +334,7 @@ AI-WealthPilot/
 │   ├── test_portfolio_recommender.py # Portfolio recommendation logic consistency tests
 │   ├── test_comparison_export.py # Profile comparison data exports tests
 │   ├── test_phase3_features.py   # End-to-end features integration tests
+│   ├── test_optimize_service.py  # Method-runner service layer tests (STARR zero-CVaR guard)
 │   └── test_api_*.py             # FastAPI endpoint suites (portfolio, backtest, surplus, risk parity, monitoring, tasks, i18n, settings, demo mode, …)
 ├── examples/                     # [Demo & Showcase Scripts]
 │   ├── demo_quick.py             # Simple quick demo (MVO + BL + Monte Carlo)
