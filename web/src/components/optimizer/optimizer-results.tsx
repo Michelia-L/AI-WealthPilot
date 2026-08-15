@@ -243,6 +243,10 @@ export default function OptimizerResults({
               result.surplus.discount_source === "china_treasury_curve"
                 ? t.optimizer.discountSourceCurve
                 : t.optimizer.discountSourceFlat,
+            sigmaSource:
+              result.surplus.sigma_l_source === "china_treasury_curve"
+                ? t.optimizer.sigmaSourceCurve
+                : t.optimizer.sigmaSourceProxy,
             horizon:
               result.surplus.horizon_years != null
                 ? t.optimizer.durationYears(

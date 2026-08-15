@@ -32,6 +32,9 @@ def isolate_storage_dirs(tmp_path, monkeypatch):
     # Never exercise the paid provider with the developer's real token from
     # .env — tests stub the provider explicitly when they need it.
     monkeypatch.setattr("src.data.tushare_provider.TUSHARE_TOKEN", "")
+    # Same guard for the yield-curve module, which imports the token from
+    # src.config (where the real .env value is loaded).
+    monkeypatch.setattr("src.data.yield_curve.TUSHARE_TOKEN", "")
     # The optional CN fallback tier is off by default; tests enable it.
     monkeypatch.setattr("src.data.akshare_provider.is_available", lambda: False)
     # Demo mode (P20) is opt-in per test; a developer .env with DEMO_MODE=1

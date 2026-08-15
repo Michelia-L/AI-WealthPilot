@@ -283,6 +283,12 @@ class SurplusInsight(BaseModel):
         "treasury curve, or the flat risk-free rate",
     )
     proxy: str = Field(description="Bond proxy key used for liability stats")
+    sigma_l_source: Literal["china_treasury_curve", "bond_proxy"] = Field(
+        default="bond_proxy",
+        description="How σ_L and the asset-liability covariances were "
+        "estimated: first-order duration exposure to ChinaBond curve "
+        "history, or the duration-scaled bond proxy",
+    )
     source: Literal["manual", "profile", "retirement"] = Field(
         description="How the liability spec was obtained"
     )

@@ -158,12 +158,15 @@ export const optimizer = {
     growth: string;
     discount: string;
     discountSource: string;
+    sigmaSource: string;
     horizon: string | null;
     proxy: string;
   }) =>
-    `LDI assumptions: ${p.source} · L/A=${p.ratio} · duration ${p.duration} · discount ${p.discount} (${p.discountSource}) · drift ${p.growth}${p.horizon ? ` · horizon ${p.horizon}` : ""} · proxy ${p.proxy}`,
+    `LDI assumptions: ${p.source} · L/A=${p.ratio} · duration ${p.duration} · discount ${p.discount} (${p.discountSource}) · drift ${p.growth}${p.horizon ? ` · horizon ${p.horizon}` : ""} · σ from ${p.sigmaSource} · proxy ${p.proxy}`,
   discountSourceCurve: "ChinaBond treasury curve",
   discountSourceFlat: "flat risk-free rate",
+  sigmaSourceCurve: "ChinaBond curve",
+  sigmaSourceProxy: "bond proxy",
 
   // ---- backtest ----
   backtestTitle: "Portfolio Backtest",

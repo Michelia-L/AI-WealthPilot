@@ -233,6 +233,7 @@ export interface SurplusInsight {
   liability_growth: number;
   discount_rate: number;
   discount_source: "china_treasury_curve" | "flat_risk_free";
+  sigma_l_source: "china_treasury_curve" | "bond_proxy";
   proxy: string;
   source: "manual" | "profile" | "retirement";
   cash_flows: number | null;

@@ -19,18 +19,29 @@ Three input channels feed the same downstream math:
 - retirement income: annual income in today's money from year t0+1 to
   t0+n, inflation-linked at g — PV-discounted at y, drift μ_L = g.
 
-The liability *return* process is modeled by duration-scaling a bond
-proxy (no yield-curve feed):
+The liability *return* process has two estimators, tried in order:
 
-    r_L = μ_L + λ · (r_p − μ_p),   λ = D_L / D_proxy
+1. **Curve-based** (preferred, ``estimate_liability_stats_from_curve``):
+   first-order duration exposure to the ChinaBond curve history —
 
-so that σ_L = λ·σ_p and Cov(assets, L) = λ·Cov(assets, proxy) — every
-quantity is estimated from the fetched proxy series rather than
-hand-set correlations.
+       r_L,t ≈ −D_L · Δy_t(D_L)
+
+   where y_t(D_L) is the curve rate interpolated at the liability
+   duration each day. σ_L and the asset-liability covariances come
+   straight from yield changes (same source as discounting);
+2. **Duration-scaled bond proxy** (fallback, ``estimate_liability_stats``):
+
+       r_L = μ_L + λ · (r_p − μ_p),   λ = D_L / D_proxy
+
+   so that σ_L = λ·σ_p and Cov(assets, L) = λ·Cov(assets, proxy) —
+   every quantity is estimated from the fetched proxy series rather
+   than hand-set correlations.
 
 All annualization follows the optimizer's convention: mean × 252,
 covariance × 252 on daily simple returns.
 """
+
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -186,5 +197,77 @@ def estimate_liability_stats(
 
     # Annualized asset-proxy covariance vector, then duration scaling.
     cov_vec = lam * cov_matrix[:-1, -1] * TRADING_DAYS_PER_YEAR
+
+    return growth_rate, sigma_L, cov_vec
+
+
+def _date_index(idx) -> pd.DatetimeIndex:
+    """Normalize a date-like index to tz-naive midnight timestamps."""
+    idx = pd.to_datetime(idx)
+    if idx.tz is not None:
+        idx = idx.tz_localize(None)
+    return idx.normalize()
+
+
+def estimate_liability_stats_from_curve(
+    curve_history: pd.DataFrame,
+    assets_daily: pd.DataFrame,
+    liability_duration: float,
+    growth_rate: float,
+    min_points: int = 60,
+) -> Optional[tuple[float, float, np.ndarray]]:
+    """Liability return statistics from yield-curve history.
+
+    First-order duration exposure: the liability PV moves opposite to
+    yield changes at its duration point,
+
+        r_L,t = −D_L · Δy_t(D_L)
+
+    where y_t(D_L) is the curve rate interpolated at
+    ``liability_duration`` on each curve date (``rate_at`` semantics:
+    linear between nodes, flat beyond the ends). Convexity is ignored
+    — disclosed as a first-order approximation.
+
+    Args:
+        curve_history: Daily yield history, date index × float tenor
+            columns, decimal rates (fetch_china_treasury_curve_history).
+        assets_daily: Daily simple returns of the investable assets.
+        liability_duration: Liability duration D_L in years.
+        growth_rate: The liability drift μ_L (unchanged semantics:
+            growth g for inflation-linked streams, y for nominal ones).
+        min_points: Minimum aligned trading days required; below this
+            the estimate is considered unreliable.
+
+    Returns:
+        Tuple of (mu_L, sigma_L, cov_vector) — annualized, cov_vector
+        aligned to ``assets_daily.columns`` — or None when the aligned
+        overlap is shorter than ``min_points`` (caller then falls back
+        to the duration-scaled proxy model).
+    """
+    if curve_history is None or curve_history.empty:
+        return None
+
+    y_t = curve_history.apply(
+        lambda row: rate_at(row.dropna().to_dict(), liability_duration),
+        axis=1,
+    ).dropna()
+    r_l = (-liability_duration * y_t.diff()).dropna()
+    r_l.index = _date_index(r_l.index)
+    r_l = r_l[~r_l.index.duplicated(keep="last")]
+    if len(r_l) < min_points:
+        return None
+
+    assets = assets_daily.copy()
+    assets.index = _date_index(assets.index)
+    joined = assets.join(r_l.rename("__liab__"), how="inner").dropna()
+    if len(joined) < min_points:
+        return None
+
+    asset_vals = joined[assets_daily.columns].values  # (S, N)
+    liab_vals = joined["__liab__"].values
+    cov_matrix = np.cov(asset_vals.T, liab_vals)  # (N+1, N+1)
+
+    sigma_L = float(np.sqrt(cov_matrix[-1, -1] * TRADING_DAYS_PER_YEAR))
+    cov_vec = cov_matrix[:-1, -1] * TRADING_DAYS_PER_YEAR
 
     return growth_rate, sigma_L, cov_vec

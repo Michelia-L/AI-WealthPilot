@@ -349,3 +349,39 @@ def test_other_methods_have_no_surplus(client, monkeypatch):
     resp = client.post("/api/portfolio/optimize", json=body)
     assert resp.status_code == 200
     assert resp.json()["surplus"] is None
+
+
+def _fake_returns_dated(n: int = 300, seed: int = 7) -> pd.DataFrame:
+    """Fake returns on a business-day index, for curve-history alignment."""
+    idx = pd.bdate_range("2025-01-06", periods=n)
+    return _fake_returns(n, seed).set_axis(idx)
+
+
+def _fake_curve_history(idx: pd.DatetimeIndex) -> pd.DataFrame:
+    rng = np.random.default_rng(3)
+    y10 = 0.02 + np.cumsum(rng.normal(0.0, 0.0004, len(idx)))
+    return pd.DataFrame({1.0: y10 - 0.005, 10.0: y10}, index=idx)
+
+
+def test_surplus_sigma_from_curve(client, monkeypatch):
+    """Curve history available → σ_L estimated from yield changes."""
+    returns = _fake_returns_dated()
+    _patch_returns(monkeypatch, returns)
+    monkeypatch.setattr(
+        "api.routers.portfolio._curve_history",
+        lambda: _fake_curve_history(returns.index),
+    )
+    resp = client.post("/api/portfolio/optimize", json=_body())
+    assert resp.status_code == 200
+    surplus = resp.json()["surplus"]
+    assert surplus["sigma_l_source"] == "china_treasury_curve"
+    assert abs(sum(resp.json()["selected"]["weights"].values()) - 1.0) < 1e-6
+
+
+def test_surplus_sigma_proxy_fallback(client, monkeypatch):
+    """No curve history → duration-scaled proxy model, as before."""
+    _patch_returns(monkeypatch, _fake_returns())
+    monkeypatch.setattr("api.routers.portfolio._curve_history", lambda: None)
+    resp = client.post("/api/portfolio/optimize", json=_body())
+    assert resp.status_code == 200
+    assert resp.json()["surplus"]["sigma_l_source"] == "bond_proxy"

@@ -68,9 +68,14 @@ from src.data.market_data import (
 from src.portfolio.backtest import InsufficientDataError, run_backtest
 from src.portfolio.cme_engine import compute_cme
 from src.portfolio.inflation import resolve_personal_inflation, suggest_inflation_preset
-from src.data.yield_curve import fetch_china_treasury_curve, rate_at
+from src.data.yield_curve import (
+    fetch_china_treasury_curve,
+    fetch_china_treasury_curve_history,
+    rate_at,
+)
 from src.portfolio.liabilities import (
     estimate_liability_stats,
+    estimate_liability_stats_from_curve,
     goals_to_liability,
     retirement_income_stream,
     stream_to_liability,
@@ -312,6 +317,26 @@ def _effective_discount_curve() -> tuple[Optional[dict[float, float]], str]:
         return None, "flat_risk_free"
     curve, _provider = result
     return curve, "china_treasury_curve"
+
+
+def _curve_history() -> Optional[pd.DataFrame]:
+    """ChinaBond curve history for curve-based liability statistics.
+
+    Same TTL-cache pattern as _effective_discount_curve: a miss is
+    evicted so the next request retries. Returns None when the
+    provider cascade has nothing (caller falls back to the
+    duration-scaled bond proxy).
+    """
+    result = _curve_cache.get_or_set(
+        "cgb_curve_history",
+        YIELD_CURVE_TTL_SECONDS,
+        fetch_china_treasury_curve_history,
+    )
+    if result is None:
+        _curve_cache.invalidate("cgb_curve_history")
+        return None
+    history, _provider = result
+    return history
 
 
 def _result_payload(result: dict, asset_names: list[str]) -> PortfolioResult:
@@ -715,9 +740,10 @@ def _run_surplus(
     Three liability channels — explicit ratio/duration, profile goals
     (nominal, discounted at rf, drift μ_L = rf), and the retirement
     income stream (inflation-linked at the resolved growth g, discounted
-    at rf, drift μ_L = g). Liability risk stats come from the
-    duration-scaled bond proxy; returns the standard tuple with a
-    SurplusInsight in the extra slot.
+    at rf, drift μ_L = g). Liability risk stats prefer the curve-based
+    estimator (ChinaBond yield-change history at the liability duration),
+    falling back to the duration-scaled bond proxy; returns the standard
+    tuple with a SurplusInsight in the extra slot.
     """
     # Liability growth rate g — the escalation rate of inflation-linked
     # cash flows (the retirement stream; the manual channel also uses it
@@ -774,18 +800,35 @@ def _run_surplus(
         float(rate_at(curve, duration)) if curve is not None else float(rf)
     )
 
-    # Liability stats via the duration-scaled bond proxy
+    # Liability risk stats: prefer the curve-based estimator (first-order
+    # duration exposure to ChinaBond yield changes — same source as
+    # discounting); fall back to the duration-scaled bond proxy when the
+    # curve history is unavailable or too short to align.
+    sigma_l_source = "bond_proxy"
     proxy_key = surplus_raw["proxy"]
-    if proxy_returns is None:
-        # Proxy already sits inside the requested universe.
-        proxy_returns = returns[DEFAULT_ASSET_CLASSES[proxy_key]["name"]]
-    mu_L, sigma_L, cov_vec = estimate_liability_stats(
-        proxy_returns,
-        returns,
-        proxy_duration=LDI_PROXY_DURATIONS[proxy_key],
-        liability_duration=duration,
-        growth_rate=mu_L,
-    )
+    stats = None
+    history = _curve_history()
+    if history is not None:
+        stats = estimate_liability_stats_from_curve(
+            history,
+            returns,
+            liability_duration=duration,
+            growth_rate=mu_L,
+        )
+    if stats is not None:
+        mu_L, sigma_L, cov_vec = stats
+        sigma_l_source = "china_treasury_curve"
+    else:
+        if proxy_returns is None:
+            # Proxy already sits inside the requested universe.
+            proxy_returns = returns[DEFAULT_ASSET_CLASSES[proxy_key]["name"]]
+        mu_L, sigma_L, cov_vec = estimate_liability_stats(
+            proxy_returns,
+            returns,
+            proxy_duration=LDI_PROXY_DURATIONS[proxy_key],
+            liability_duration=duration,
+            growth_rate=mu_L,
+        )
 
     optimizer = PortfolioOptimizer(returns, risk_free_rate=req.risk_free_rate, expected_returns=expected_returns)
     max_sharpe = optimizer.maximize_surplus_sharpe(
@@ -808,6 +851,7 @@ def _run_surplus(
         liability_growth=float(mu_L),
         discount_rate=discount_rate_value,
         discount_source=discount_source,
+        sigma_l_source=sigma_l_source,
         proxy=proxy_key,
         source=source,
         cash_flows=cash_flows,

@@ -12,6 +12,7 @@ import pytest
 
 from src.portfolio.liabilities import (
     estimate_liability_stats,
+    estimate_liability_stats_from_curve,
     goals_to_liability,
     retirement_income_stream,
     stream_to_liability,
@@ -187,6 +188,69 @@ class TestEstimateLiabilityStats:
         assert mu_L == 0.02
         assert sigma_L == 0.0
         np.testing.assert_allclose(cov_vec, 0.0)
+
+
+# ============================================================
+# estimate_liability_stats_from_curve
+# ============================================================
+
+class TestEstimateLiabilityStatsFromCurve:
+    """Curve-based model: r_L = −D_L · Δy(D_L) on the curve history."""
+
+    def _inputs(self, n=300, seed=5):
+        """Random-walk yield history + two assets with known exposure to Δy."""
+        idx = pd.bdate_range("2025-01-06", periods=n)
+        rng = np.random.default_rng(seed)
+        dy = rng.normal(0.0, 0.0004, n)          # daily yield innovations
+        y10 = 0.02 + np.cumsum(dy)               # 10y node (random walk)
+        hist = pd.DataFrame({1.0: y10 - 0.005, 10.0: y10}, index=idx)
+        # bond_like gains when yields fall; equity_like gains when they rise
+        assets = pd.DataFrame({
+            "BOND_LIKE": -np.array(dy),
+            "EQ_LIKE": np.array(dy),
+        }, index=idx)
+        return hist, assets, dy
+
+    def test_sigma_and_cov_signs(self):
+        hist, assets, dy = self._inputs()
+        duration = 12.0  # beyond the 10y node → rate_at flattens to y10
+        result = estimate_liability_stats_from_curve(
+            hist, assets, liability_duration=duration, growth_rate=0.03,
+        )
+        assert result is not None
+        mu_L, sigma_L, cov_vec = result
+        assert mu_L == 0.03
+
+        # r_L = −D·Δy10; join drops the first (NaN diff) day
+        dy_aligned = np.diff(0.02 + np.cumsum(dy))
+        expected_sigma = duration * np.std(dy_aligned, ddof=1) * np.sqrt(252)
+        assert sigma_L == pytest.approx(expected_sigma)
+
+        # cov(asset, r_L) = −D·cov(asset, Δy): bond_like (−Δy) hedges the
+        # liability (positive cov), equity_like (+Δy) co-moves against it.
+        var_dy = np.var(dy_aligned, ddof=1) * 252
+        assert cov_vec[0] == pytest.approx(duration * var_dy, rel=1e-3)
+        assert cov_vec[1] == pytest.approx(-duration * var_dy, rel=1e-3)
+
+    def test_too_few_aligned_points_returns_none(self):
+        hist, assets, _ = self._inputs(n=30)  # < min_points=60
+        assert estimate_liability_stats_from_curve(
+            hist, assets, liability_duration=10.0, growth_rate=0.03,
+        ) is None
+
+    def test_disjoint_dates_return_none(self):
+        hist, assets, _ = self._inputs()
+        assets.index = pd.bdate_range("2030-01-01", periods=len(assets))
+        assert estimate_liability_stats_from_curve(
+            hist, assets, liability_duration=10.0, growth_rate=0.03,
+        ) is None
+
+    def test_empty_history_returns_none(self):
+        _, assets, _ = self._inputs()
+        empty = pd.DataFrame()
+        assert estimate_liability_stats_from_curve(
+            empty, assets, liability_duration=10.0, growth_rate=0.03,
+        ) is None
 
 
 # ============================================================
