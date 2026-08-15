@@ -423,6 +423,14 @@ AI-WealthPilot/
 python -m pytest -v
 ```
 
+前端单元/组件测试与全栈 e2e（Playwright 自动拉起演示模式 API 与生产版前端，独立端口与临时数据库，无需网络或 API Key）：
+
+```bash
+cd web
+npm test              # Vitest 单元/组件测试
+npm run test:e2e      # Playwright 全栈 e2e
+```
+
 ---
 
 ## 运行演示脚本

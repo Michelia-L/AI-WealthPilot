@@ -428,6 +428,14 @@ To run the automated tests covering portfolio mathematics, client profiling scor
 python -m pytest -v
 ```
 
+Frontend unit/component tests and the full-stack e2e suite (Playwright boots a demo-mode API and a production web build on dedicated ports — no network or API key needed):
+
+```bash
+cd web
+npm test              # Vitest
+npm run test:e2e      # Playwright (builds and boots the stack automatically)
+```
+
 ---
 
 ## Running Demos
