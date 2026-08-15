@@ -36,6 +36,6 @@ fpdf2==2.8.7
 
 # API Layer
 fastapi==0.136.1
-uvicorn[standard]==0.46.0
+uvicorn[standard]==0.52.1
 sqlmodel==0.0.39  # SQLite persistence (client profiles, future user tables)
 tushare==1.4.29
