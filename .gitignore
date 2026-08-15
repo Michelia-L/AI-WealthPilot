@@ -63,6 +63,7 @@ data/profiles/
 data/reports/
 data/ips/
 data/*.db
+data/test_export.pdf
 
 # Node / Next.js (web/)
 node_modules/
