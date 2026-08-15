@@ -172,6 +172,76 @@ class TestFetchPriceHistory:
         np.testing.assert_array_almost_equal(result["000300.SS"].values, [7000.0, 7100.0, 7200.0])
         np.testing.assert_array_almost_equal(result["^GSPC"].values, [700.0, 717.1, 734.4])
 
+    @patch("src.data.market_data.yf.download")
+    def test_fetch_price_history_with_currency_adjustment_gbp_to_usd(self, mock_download):
+        """GBP=X is quoted USD-per-GBP, so GBP prices must be multiplied, not divided."""
+        tickers = ["^FTSE"]
+        expected_download = ["^FTSE", "GBP=X"]
+
+        dates = pd.date_range(start="2026-06-01", periods=3)
+        mock_data = {
+            ("Close", "^FTSE"): [8000.0, 8100.0, 8200.0],
+            ("Close", "GBP=X"): [1.25, 1.25, 1.25]
+        }
+        mock_df = pd.DataFrame(mock_data, index=dates)
+        mock_df.columns = pd.MultiIndex.from_tuples(mock_df.columns)
+        mock_download.return_value = mock_df
+
+        result = fetch_price_history(tickers, base_currency="USD", adjust_currency=True)
+
+        called_args = mock_download.call_args[0][0]
+        assert set(called_args) == set(expected_download)
+        assert list(result.columns) == tickers
+
+        np.testing.assert_array_almost_equal(result["^FTSE"].values, [10000.0, 10125.0, 10250.0])
+
+    @patch("src.data.market_data.yf.download")
+    def test_fetch_price_history_with_currency_adjustment_eur_to_cny(self, mock_download):
+        """EUR prices convert via the USD-per-EUR rate, then USD to CNY via the units-per-USD rate."""
+        tickers = ["^GDAXI"]
+        expected_download = ["^GDAXI", "EUR=X", "CNY=X"]
+
+        dates = pd.date_range(start="2026-06-01", periods=3)
+        mock_data = {
+            ("Close", "^GDAXI"): [1000.0, 1100.0, 1200.0],
+            ("Close", "EUR=X"): [1.10, 1.10, 1.10],
+            ("Close", "CNY=X"): [7.0, 7.0, 7.0]
+        }
+        mock_df = pd.DataFrame(mock_data, index=dates)
+        mock_df.columns = pd.MultiIndex.from_tuples(mock_df.columns)
+        mock_download.return_value = mock_df
+
+        result = fetch_price_history(tickers, base_currency="CNY", adjust_currency=True)
+
+        called_args = mock_download.call_args[0][0]
+        assert set(called_args) == set(expected_download)
+        assert list(result.columns) == tickers
+
+        np.testing.assert_array_almost_equal(result["^GDAXI"].values, [7700.0, 8470.0, 9240.0])
+
+    @patch("src.data.market_data.yf.download")
+    def test_fetch_price_history_with_currency_adjustment_usd_to_gbp_base(self, mock_download):
+        """A USD-per-unit base currency converts USD prices by dividing, not multiplying."""
+        tickers = ["^GSPC"]
+        expected_download = ["^GSPC", "GBP=X"]
+
+        dates = pd.date_range(start="2026-06-01", periods=3)
+        mock_data = {
+            ("Close", "^GSPC"): [100.0, 200.0, 400.0],
+            ("Close", "GBP=X"): [1.25, 1.25, 1.25]
+        }
+        mock_df = pd.DataFrame(mock_data, index=dates)
+        mock_df.columns = pd.MultiIndex.from_tuples(mock_df.columns)
+        mock_download.return_value = mock_df
+
+        result = fetch_price_history(tickers, base_currency="GBP", adjust_currency=True)
+
+        called_args = mock_download.call_args[0][0]
+        assert set(called_args) == set(expected_download)
+        assert list(result.columns) == tickers
+
+        np.testing.assert_array_almost_equal(result["^GSPC"].values, [80.0, 160.0, 320.0])
+
 
 class TestComputeReturns:
     """

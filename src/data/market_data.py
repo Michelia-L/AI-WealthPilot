@@ -98,6 +98,12 @@ def _fetch_cn_routed(
 # CN holiday stretch to avoid false positives.
 MAX_STALENESS_DAYS = 12
 
+# Yahoo "{CCY}=X" rates for these currencies are quoted USD-per-unit
+# (e.g. GBP=X means 1 GBP = ~1.27 USD); all other currencies are quoted
+# units-per-USD (e.g. CNY=X means 1 USD = ~7.2 CNY). The conversion
+# direction differs between the two groups.
+FX_USD_PER_UNIT = {"EUR", "GBP", "AUD", "NZD"}
+
 
 def _assert_fresh(panel: pd.DataFrame, tickers: list[str]) -> None:
     """Reject provider frames whose newest price is too old (stale snapshot).
@@ -129,7 +135,12 @@ def _fetch_price_history_yf(
     base_currency: Optional[str] = None,
     adjust_currency: bool = True,
 ) -> pd.DataFrame:
-    """Fetch adjusted close prices with optional currency translation to base currency."""
+    """Fetch adjusted close prices with optional currency translation to base currency.
+
+    Yahoo "{CCY}=X" rates are quoted USD-per-unit for EUR/GBP/AUD/NZD and
+    units-per-USD for all other currencies; both translation steps below
+    pick the multiply/divide direction via FX_USD_PER_UNIT accordingly.
+    """
 
     if base_currency is None:
         base_currency = BASE_CURRENCY
@@ -195,13 +206,19 @@ def _fetch_price_history_yf(
             if curr not in ["Index", "Rate", "USD"]:
                 fx_t = f"{curr}=X"
                 if fx_t in prices.columns:
-                    prices[t] = prices[t] / prices[fx_t]
+                    if curr in FX_USD_PER_UNIT:
+                        prices[t] = prices[t] * prices[fx_t]
+                    else:
+                        prices[t] = prices[t] / prices[fx_t]
 
             # Step 2: if base_currency is not USD, convert USD prices to base currency
             if base_currency != "USD" and curr not in ["Index", "Rate"]:
                 base_fx_t = f"{base_currency}=X"
                 if base_fx_t in prices.columns:
-                    prices[t] = prices[t] * prices[base_fx_t]
+                    if base_currency in FX_USD_PER_UNIT:
+                        prices[t] = prices[t] / prices[base_fx_t]
+                    else:
+                        prices[t] = prices[t] * prices[base_fx_t]
 
     # Keep only the requested tickers, filtering out temporary exchange rates
     prices = prices[tickers]
