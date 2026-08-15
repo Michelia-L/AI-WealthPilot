@@ -16,7 +16,7 @@ scikit-learn==1.8.0
 yfinance==1.4.0
 
 # Visualization (figures are generated server-side, streamed as JSON)
-plotly==6.6.0
+plotly==6.9.0
 
 # AI / LLM (DeepSeek V4 Pro — OpenAI-compatible API)
 openai==2.41.0
