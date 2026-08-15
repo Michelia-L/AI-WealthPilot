@@ -39,6 +39,7 @@ import numpy as np
 import pandas as pd
 
 from src.data.market_data import fetch_price_history, fetch_risk_free_rate
+from src.portfolio.attribution import brinson_attribution, monthly_group_series
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +139,10 @@ _BT_STRINGS: dict[str, dict[str, str]] = {
     "stress_too_short": {
         "zh": "压力测试「{name}」（{window}）窗口内有效交易日不足，已跳过。",
         "en": "Stress scenario \"{name}\" ({window}) has too few valid trading days and was skipped.",
+    },
+    "attribution_gross": {
+        "zh": "业绩归因按费前（毛收益）口径计算：费用拖累不属于配置/选择效应，已在费用块单列。",
+        "en": "Attribution is computed on the gross (pre-fee) basis: the fee drag is neither an allocation nor a selection effect and is reported separately in the fee block.",
     },
 }
 
@@ -276,6 +281,13 @@ def run_backtest(
 
     stress = _run_stress_scenarios(aligned, port, bench, notes, locale)
 
+    # Brinson-Fachler attribution on the gross basis (fees are neither an
+    # allocation nor a selection effect; they are reported in the fee block).
+    attribution = brinson_attribution(
+        monthly_group_series(aligned, port),
+        monthly_group_series(aligned, bench),
+    )
+
     if fee > 0.0:
         source_label = {
             "ips_fee_schedule": _bt("fee_source_ips", locale),
@@ -291,6 +303,7 @@ def run_backtest(
             )
         )
         notes.append(_bt("stress_fee_free", locale))
+        notes.append(_bt("attribution_gross", locale))
     else:
         notes.append(_bt("no_fee", locale))
 
@@ -322,6 +335,7 @@ def run_backtest(
             "cumulative_impact_pp": gross_total_return - net_total_return,
         },
         "notes": notes,
+        "attribution": attribution,
         # Raw frames for the API layer to chart (popped before responding).
         "_equity": equity,
         "_drawdown": pd.DataFrame(

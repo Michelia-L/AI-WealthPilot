@@ -908,6 +908,33 @@ class BacktestFeeInfo(BaseModel):
     )
 
 
+class BrinsonGroupRow(BaseModel):
+    """Per-group Brinson-Fachler effects (Carino-linked cumulative)."""
+
+    group: str = Field(
+        description="Asset group key: equity / bond / alternative / cash / other"
+    )
+    avg_weight_portfolio: float
+    avg_weight_benchmark: float
+    allocation: float = Field(description="Allocation effect (BF basis)")
+    selection: float = Field(description="Selection effect")
+    interaction: float = Field(description="Interaction effect")
+    total: float = Field(description="allocation + selection + interaction")
+
+
+class BacktestAttribution(BaseModel):
+    """Brinson-Fachler attribution of the cumulative active return."""
+
+    months: int = Field(description="Number of monthly spans attributed")
+    active_return: float = Field(
+        description="Cumulative portfolio-minus-benchmark return (gross)"
+    )
+    allocation: float
+    selection: float
+    interaction: float
+    groups: list[BrinsonGroupRow] = Field(default_factory=list)
+
+
 class BacktestResponse(BaseModel):
     document_id: str
     client_name: str
@@ -924,6 +951,11 @@ class BacktestResponse(BaseModel):
     stress: list[BacktestStressResult] = Field(default_factory=list)
     fee: BacktestFeeInfo
     notes: list[str] = Field(default_factory=list)
+    attribution: Optional[BacktestAttribution] = Field(
+        default=None,
+        description="Brinson-Fachler attribution (gross basis); None when "
+        "fewer than two monthly spans are available",
+    )
 
 
 class GoalFeasibility(BaseModel):
@@ -1008,6 +1040,11 @@ class PortfolioBacktestResponse(BaseModel):
     stress: list[BacktestStressResult] = Field(default_factory=list)
     fee: BacktestFeeInfo
     notes: list[str] = Field(default_factory=list)
+    attribution: Optional[BacktestAttribution] = Field(
+        default=None,
+        description="Brinson-Fachler attribution (gross basis); None when "
+        "fewer than two monthly spans are available",
+    )
 
 
 # ---------------------------------------------------------------------------

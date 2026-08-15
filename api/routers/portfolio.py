@@ -232,6 +232,7 @@ def backtest_weights(
             stress=result["stress"],
             fee=result["fee"],
             notes=result["notes"],
+            attribution=result["attribution"],
         )
 
     return _backtest_cache.get_or_set(cache_key, BACKTEST_TTL_SECONDS, _compute)

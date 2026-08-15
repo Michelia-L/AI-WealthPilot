@@ -912,6 +912,27 @@ export interface BacktestFeeInfo {
   cumulative_impact_pp: number;
 }
 
+/** Brinson-Fachler 归因：单组一行（Carino 链接累计）。 */
+export interface BrinsonGroupRow {
+  group: string;
+  avg_weight_portfolio: number;
+  avg_weight_benchmark: number;
+  allocation: number;
+  selection: number;
+  interaction: number;
+  total: number;
+}
+
+/** 业绩归因块：累计超额收益 = 配置 + 选择 + 交互（精确成立）。 */
+export interface BacktestAttribution {
+  months: number;
+  active_return: number;
+  allocation: number;
+  selection: number;
+  interaction: number;
+  groups: BrinsonGroupRow[];
+}
+
 export interface BacktestResponse {
   document_id: string;
   client_name: string;
@@ -926,6 +947,7 @@ export interface BacktestResponse {
   stress: BacktestStressRow[];
   fee: BacktestFeeInfo;
   notes: string[];
+  attribution: BacktestAttribution | null;
 }
 
 export const getBacktest = (documentId: string, period: string, locale?: string) =>

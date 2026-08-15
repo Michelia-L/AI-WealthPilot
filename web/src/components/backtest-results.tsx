@@ -35,6 +35,13 @@ export default function BacktestResults({
 }) {
   const t = useT();
   const labels = t.common.backtest;
+  const GROUP_LABELS: Record<string, string> = {
+    equity: labels.attrGroupEquity,
+    bond: labels.attrGroupBond,
+    alternative: labels.attrGroupAlternative,
+    cash: labels.attrGroupCash,
+    other: labels.attrGroupOther,
+  };
   const bm = bt.benchmark;
   const fee = bt.fee;
   const hasFee = fee.annual_rate > 0;
@@ -180,6 +187,70 @@ export default function BacktestResults({
           </Table>
         </Panel>
       </div>
+
+      {bt.attribution && (
+        <Panel pad={false} innerClassName="overflow-hidden">
+          <div className="border-b border-white/[0.05] px-5 py-3 text-xs font-medium text-mist-300">
+            {labels.attrTitle}
+          </div>
+          <Table>
+            <THead>
+              <tr>
+                <TH>{labels.attrGroup}</TH>
+                <TH className="text-right">{labels.attrAvgWeightP}</TH>
+                <TH className="text-right">{labels.attrAvgWeightB}</TH>
+                <TH className="text-right">{labels.attrAllocation}</TH>
+                <TH className="text-right">{labels.attrSelection}</TH>
+                <TH className="text-right">{labels.attrInteraction}</TH>
+                <TH className="text-right">{labels.attrTotal}</TH>
+              </tr>
+            </THead>
+            <tbody>
+              {bt.attribution.groups.map((g) => (
+                <TR key={g.group}>
+                  <TD className="font-medium text-mist-100">
+                    {GROUP_LABELS[g.group] ?? g.group}
+                  </TD>
+                  <TD className="text-right font-mono text-mist-400">
+                    {fmtPct(g.avg_weight_portfolio, 1)}
+                  </TD>
+                  <TD className="text-right font-mono text-mist-400">
+                    {fmtPct(g.avg_weight_benchmark, 1)}
+                  </TD>
+                  <TD className={cx("text-right font-mono", retClass(g.allocation))}>
+                    {signedPct(g.allocation)}
+                  </TD>
+                  <TD className={cx("text-right font-mono", retClass(g.selection))}>
+                    {signedPct(g.selection)}
+                  </TD>
+                  <TD className={cx("text-right font-mono", retClass(g.interaction))}>
+                    {signedPct(g.interaction)}
+                  </TD>
+                  <TD className={cx("text-right font-mono", retClass(g.total))}>
+                    {signedPct(g.total)}
+                  </TD>
+                </TR>
+              ))}
+              <TR className="border-t border-white/[0.08]">
+                <TD className="font-medium text-gold-300">{labels.attrActiveReturn}</TD>
+                <TD /><TD />
+                <TD className={cx("text-right font-mono", retClass(bt.attribution.allocation))}>
+                  {signedPct(bt.attribution.allocation)}
+                </TD>
+                <TD className={cx("text-right font-mono", retClass(bt.attribution.selection))}>
+                  {signedPct(bt.attribution.selection)}
+                </TD>
+                <TD className={cx("text-right font-mono", retClass(bt.attribution.interaction))}>
+                  {signedPct(bt.attribution.interaction)}
+                </TD>
+                <TD className={cx("text-right font-mono font-medium", retClass(bt.attribution.active_return))}>
+                  {signedPct(bt.attribution.active_return)}
+                </TD>
+              </TR>
+            </tbody>
+          </Table>
+        </Panel>
+      )}
 
       {bt.notes.length > 0 && (
         <div className="rounded-xl border border-gold-700/30 bg-gold-500/[0.05] px-5 py-4">

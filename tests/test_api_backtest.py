@@ -300,3 +300,46 @@ def test_backtest_fee_outlier_ter_clipped(client, ips_dir, monkeypatch):
     assert body["fee"]["annual_rate"] == 0.10
     assert body["fee"]["source"] == "ips_fee_schedule"
     assert any("截断" in n for n in body["notes"])
+
+
+# ---------------------------------------------------------------------------
+# Brinson-Fachler attribution block
+# ---------------------------------------------------------------------------
+
+
+def test_backtest_includes_attribution(client, ips_dir, monkeypatch):
+    """The response carries a Carino-consistent attribution block."""
+    _stub_market(monkeypatch)
+    doc_id = _write_ips_doc(
+        ips_dir, "ips_bt_attr_20260601_093000", _saa_two_way()
+    )
+
+    resp = client.get(f"/api/monitoring/{doc_id}/backtest?period=5y")
+    assert resp.status_code == 200
+    attr = resp.json()["attribution"]
+
+    assert attr is not None
+    assert attr["months"] >= 24
+    # Carino-linked effects sum exactly to the cumulative active return.
+    assert (
+        attr["allocation"] + attr["selection"] + attr["interaction"]
+        == pytest.approx(attr["active_return"])
+    )
+    # Benchmark legs (SPY/AGG) + portfolio sleeves group as expected.
+    groups = {g["group"] for g in attr["groups"]}
+    assert {"equity", "bond"} <= groups
+
+
+def test_backtest_attribution_gross_note_with_fee(client, ips_dir, monkeypatch):
+    """With a fee drag, notes disclose the gross attribution basis."""
+    _stub_market(monkeypatch)
+    doc_id = _write_ips_doc(
+        ips_dir, "ips_bt_attr_fee_20260601_093000", _saa_two_way(),
+        fee_schedule={"total_expense_ratio": 0.012},
+    )
+
+    resp = client.get(f"/api/monitoring/{doc_id}/backtest?period=5y")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["attribution"] is not None
+    assert any("毛收益" in n and "归因" in n for n in body["notes"])

@@ -213,6 +213,7 @@ def get_backtest(
             stress=result["stress"],
             fee=result["fee"],
             notes=saa["notes"] + fee_notes + result["notes"],
+            attribution=result["attribution"],
         )
 
     # Locale is part of the key because the notes payload is localized.

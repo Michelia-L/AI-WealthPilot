@@ -14,7 +14,7 @@ from src.config import DEFAULT_ASSET_CLASSES
 # Asset-group membership keyed by DEFAULT_ASSET_CLASSES keys.
 ASSET_GROUPS: dict[str, list[str]] = {
     "equity": ["US_EQUITY", "INTL_EQUITY", "EM_EQUITY", "CHINA_EQUITY"],
-    "bond": ["US_BOND", "LONG_TREASURY_BOND", "HIGH_YIELD_BOND", "EM_BOND", "TIPS"],
+    "bond": ["US_BOND", "LONG_TREASURY_BOND", "HIGH_YIELD_BOND", "EM_BOND", "TIPS", "CN_TREASURY"],
     "alternative": ["GOLD", "COMMODITIES", "REIT", "CRYPTO"],
     "cash": ["CASH"],
 }
