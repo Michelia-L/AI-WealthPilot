@@ -15,6 +15,12 @@ export const retirement = {
   volatility: "Annualized Volatility",
   cmeSuggestion: (mu: string, sigma: string, asOf: string) =>
     `CME suggestion (balanced reference portfolio): return ${mu} · volatility ${sigma} · as of ${asOf}`,
+  cmeSuggestionForLevel: (level: string, mu: string, sigma: string, asOf: string) =>
+    `CME suggestion (${level} reference portfolio): return ${mu} · volatility ${sigma} · as of ${asOf}`,
+  clientField: "Client",
+  clientManual: "Manual parameters (no client)",
+  clientPrefillHint:
+    "Age, savings and income/expenses prefilled from the profile — adjust freely",
   cmeSuggestionBasis:
     "Synthesized from CME forward expected returns, blended volatilities and correlations at static reference weights — a starting point only",
   cmeSuggestionAdopt: "Adopt",

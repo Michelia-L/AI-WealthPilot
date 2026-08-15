@@ -867,3 +867,48 @@ class TestReferenceSuggestion:
         report = self._report()
         report.asset_classes = report.asset_classes[:1]
         assert reference_portfolio_suggestion(report) is None
+
+
+# ============================================================
+# Risk-Level-Keyed Reference Allocation
+# ============================================================
+
+class TestReferenceAllocationForLevel:
+    """reference_allocation_for_level: caps-derived reference weights."""
+
+    def test_weights_sum_to_one_for_every_level(self):
+        from src.portfolio.cme_engine import reference_allocation_for_level
+        from src.portfolio.risk_constraints import RISK_LEVEL_CAPS
+
+        for level in RISK_LEVEL_CAPS:
+            alloc = reference_allocation_for_level(level)
+            assert alloc is not None
+            assert sum(alloc.values()) == pytest.approx(1.0), level
+
+    def test_equity_share_monotonic_in_risk_level(self):
+        from src.portfolio.cme_engine import reference_allocation_for_level
+
+        equity_keys = {"domestic_equity", "international_equity_dm",
+                       "international_equity_hk"}
+
+        def equity_share(level: str) -> float:
+            alloc = reference_allocation_for_level(level)
+            return sum(v for k, v in alloc.items() if k in equity_keys)
+
+        # 保守型 caps sum to 0.25 ≤ 0.95 → sits exactly at the equity cap
+        assert equity_share("保守型") == pytest.approx(0.15)
+        # Monotonic across the ladder (进取型 caps sum to 1.20 → scaled)
+        shares = [equity_share(lv) for lv in ("保守型", "稳健型", "平衡型", "成长型", "进取型")]
+        assert shares == sorted(shares)
+        assert shares[-1] > shares[0]
+
+    def test_bilingual_label_resolves_by_stem(self):
+        from src.portfolio.cme_engine import reference_allocation_for_level
+
+        assert reference_allocation_for_level("Moderate / 平衡型") is not None
+
+    def test_unknown_label_returns_none(self):
+        from src.portfolio.cme_engine import reference_allocation_for_level
+
+        assert reference_allocation_for_level("未评估") is None
+        assert reference_allocation_for_level("") is None

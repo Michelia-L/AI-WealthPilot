@@ -360,6 +360,12 @@ class CmeSuggestionResponse(BaseModel):
     cache_status: str = Field(
         description="CME cache status: fresh / cached / stale / fallback"
     )
+    risk_level: Optional[str] = Field(
+        default=None,
+        description="The client's bilingual risk-level label when the "
+        "reference allocation was keyed to a profile; None for the "
+        "static balanced allocation",
+    )
 
 
 class RetirementRequest(BaseModel):

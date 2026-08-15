@@ -9,11 +9,13 @@ identical results — reproducibility beats novelty for financial plans.
 """
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlmodel import Session
 
+from api.db import ProfileRecord, get_session
 from api.routers.market import _fig_json
 from api.i18n import get_request_locale, msg
 from api.schemas import (
@@ -25,7 +27,11 @@ from api.schemas import (
     StrategyComparison,
     TerminalStats,
 )
-from src.portfolio.cme_engine import compute_cme, reference_portfolio_suggestion
+from src.portfolio.cme_engine import (
+    compute_cme,
+    reference_allocation_for_level,
+    reference_portfolio_suggestion,
+)
 from src.portfolio.inflation import resolve_personal_inflation
 from src.portfolio.simulator import MonteCarloSimulator
 from src.visualization.charts import plot_monte_carlo_paths
@@ -43,20 +49,42 @@ CHART_DISPLAY_PATHS = 200
     response_model=CmeSuggestionResponse,
     summary="CME-derived μ/σ suggestion for the retirement planner",
 )
-def cme_suggestion(request: Request) -> CmeSuggestionResponse:
+def cme_suggestion(
+    request: Request,
+    profile_id: Optional[int] = None,
+    session: Session = Depends(get_session),
+) -> CmeSuggestionResponse:
     """Reference-portfolio expected return and volatility from the CME report.
 
-    No extra market fetches — computed from the cached CMEReport's blended
-    expected returns, blended volatilities and correlation matrix.
+    With ``profile_id``, the reference allocation is keyed to the client's
+    risk tolerance level (derived from RISK_LEVEL_CAPS); without it, the
+    static balanced allocation is used. No extra market fetches — computed
+    from the cached CMEReport's blended expected returns, blended
+    volatilities and correlation matrix.
     """
     locale = get_request_locale(request)
+
+    allocation: Optional[dict[str, float]] = None
+    risk_level: Optional[str] = None
+    if profile_id is not None:
+        record = session.get(ProfileRecord, profile_id)
+        if record is None:
+            raise HTTPException(
+                status_code=404,
+                detail=msg("common.profile_not_found", locale, id=profile_id),
+            )
+        if record.risk_level:
+            allocation = reference_allocation_for_level(record.risk_level)
+            if allocation is not None:
+                risk_level = record.risk_level
+
     try:
         report, cache_status = compute_cme()
     except RuntimeError:
         raise HTTPException(
             status_code=502, detail=msg("portfolio.cme_unavailable", locale)
         ) from None
-    suggestion = reference_portfolio_suggestion(report)
+    suggestion = reference_portfolio_suggestion(report, allocation)
     if suggestion is None:
         raise HTTPException(
             status_code=502, detail=msg("portfolio.cme_unavailable", locale)
@@ -67,6 +95,7 @@ def cme_suggestion(request: Request) -> CmeSuggestionResponse:
         allocation=suggestion["allocation"],
         as_of_date=report.as_of_date,
         cache_status=cache_status,
+        risk_level=risk_level,
     )
 
 

@@ -371,6 +371,7 @@ export interface CmeSuggestion {
   allocation: Record<string, number>;
   as_of_date: string;
   cache_status: string;
+  risk_level: string | null;
 }
 
 export interface RetirementRequest {

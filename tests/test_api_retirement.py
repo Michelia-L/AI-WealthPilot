@@ -194,3 +194,55 @@ class TestCmeSuggestion:
         )
         res = client.get("/api/retirement/cme-suggestion")
         assert res.status_code == 502
+
+
+class TestCmeSuggestionByProfile:
+    """GET /api/retirement/cme-suggestion?profile_id=..."""
+
+    def _patch_cme(self, monkeypatch):
+        report = TestCmeSuggestion._report()
+        monkeypatch.setattr(
+            "api.routers.retirement.compute_cme", lambda: (report, "cached")
+        )
+
+    def test_profile_keyed_allocation(self, client, monkeypatch):
+        """A client's risk level drives the reference allocation."""
+        from tests.test_api_profiles import sample_payload
+
+        created = client.post("/api/profiles", json=sample_payload())
+        assert created.status_code == 201
+        pid = created.json()["id"]
+
+        self._patch_cme(monkeypatch)
+        res = client.get(f"/api/retirement/cme-suggestion?profile_id={pid}")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["risk_level"] is not None
+        assert sum(data["allocation"].values()) == pytest.approx(1.0)
+        # Level-keyed (conservative: more bonds) ≠ default balanced μ (0.055)
+        assert data["expected_return"] != pytest.approx(0.055)
+
+    def test_unknown_profile_404(self, client, monkeypatch):
+        self._patch_cme(monkeypatch)
+        res = client.get("/api/retirement/cme-suggestion?profile_id=999")
+        assert res.status_code == 404
+
+    def test_unassessed_profile_falls_back_to_default(self, client, monkeypatch):
+        """Zero risk scores → unassessed label → default balanced allocation."""
+        from tests.test_api_profiles import sample_payload
+
+        created = client.post(
+            "/api/profiles",
+            json=sample_payload(
+                name="No Risk", risk_scores={"ability_score": 0, "willingness_score": 0}
+            ),
+        )
+        assert created.status_code == 201
+        pid = created.json()["id"]
+
+        self._patch_cme(monkeypatch)
+        res = client.get(f"/api/retirement/cme-suggestion?profile_id={pid}")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["risk_level"] is None
+        assert data["expected_return"] == pytest.approx(0.055)

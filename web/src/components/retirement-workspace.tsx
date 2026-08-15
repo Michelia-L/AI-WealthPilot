@@ -1,11 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { CmeSuggestion, InflationPreset, RetirementRequest, RetirementResponse } from "@/lib/api";
+import type {
+  CmeSuggestion,
+  InflationPreset,
+  ProfileDetailResponse,
+  ProfileSummary,
+  RetirementRequest,
+  RetirementResponse,
+} from "@/lib/api";
 import { SIMULATION_OPTIONS } from "@/lib/api";
 import { buildRetirementLdiHref } from "@/lib/optimizer-link";
 import { fmtMoney, fmtPct } from "@/lib/format";
-import { useT } from "@/components/locale-context";
+import { useClient } from "@/components/client-context";
+import { useLocale, useT } from "@/components/locale-context";
 import PlotChart from "@/components/plot-chart";
 import {
   Badge,
@@ -17,6 +25,7 @@ import {
   NumInput,
   Panel,
   Segmented,
+  Select,
   Slider,
   StatTile,
   Table,
@@ -28,8 +37,14 @@ import {
 
 const QUANTILE_KEYS = ["p5", "p25", "median", "p75", "p95", "mean"] as const;
 
-export default function RetirementWorkspace() {
+export default function RetirementWorkspace({
+  profiles = null,
+}: {
+  profiles?: ProfileSummary[] | null;
+}) {
   const t = useT();
+  const { locale } = useLocale();
+  const { clientId, select } = useClient();
   const [form, setForm] = useState<RetirementRequest>({
     current_age: 30,
     retirement_age: 60,
@@ -51,27 +66,70 @@ export default function RetirementWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RetirementResponse | null>(null);
   const [suggestion, setSuggestion] = useState<CmeSuggestion | null>(null);
+  // null = manual parameters (no client channel)
+  const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  // CME 建议卡：挂载时拉取组合级前视 μ/σ（失败静默，不挡主流程）
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/retirement/cme-suggestion")
+  // CME 建议卡拉取（失败静默，不挡主流程）；带客户时按其风险等级推导参考组合
+  function loadSuggestion(profileId?: number) {
+    const qs = profileId != null ? `?profile_id=${profileId}` : "";
+    fetch(`/api/retirement/cme-suggestion${qs}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (
-          !cancelled &&
           data &&
           typeof data.expected_return === "number" &&
           typeof data.volatility === "number"
         ) {
           setSuggestion(data as CmeSuggestion);
+        } else {
+          setSuggestion(null);
         }
       })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
+      .catch(() => setSuggestion(null));
+  }
+
+  // 挂载：全局客户若在画像列表中则自动选中（预填 + 等级建议），否则拉默认建议
+  useEffect(() => {
+    if (clientId !== null && profiles?.some((p) => p.id === clientId)) {
+      selectClient(clientId);
+    } else {
+      loadSuggestion();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅挂载时执行一次
   }, []);
+
+  /** risk_level 为 "English / 中文" 双语数据串，按当前语言取对应一半。 */
+  function riskLabel(riskLevel: string): string {
+    return riskLevel.split(" / ")[locale === "zh" ? 1 : 0] ?? riskLevel;
+  }
+
+  /** 选中客户：预填表单（年龄/储蓄/收入）+ 等级化建议 + 回写全局上下文。 */
+  function selectClient(id: number) {
+    setSelectedId(id);
+    const p = profiles?.find((pr) => pr.id === id);
+    if (p) select(p.id, p.name);
+    loadSuggestion(id);
+    fetch(`/api/profiles/${id}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: ProfileDetailResponse | null) => {
+        if (!data) return;
+        const fin = data.profile.financial;
+        setForm((prev) => ({
+          ...prev,
+          current_age: data.profile.age,
+          current_savings: fin.investable_assets,
+          annual_savings: Math.max(0, fin.annual_income - fin.annual_expenses),
+          // 期望退休收入 ≈ 当前年度支出（今日购买力口径）
+          desired_annual_income: fin.annual_expenses,
+        }));
+      })
+      .catch(() => {});
+  }
+
+  function selectManual() {
+    setSelectedId(null);
+    loadSuggestion();
+  }
 
   // Slider ranges: expected_return 0.02–0.15, volatility 0.05–0.30
   const clamp01 = (v: number, lo: number, hi: number) =>
@@ -141,6 +199,34 @@ export default function RetirementWorkspace() {
       {/* ------------------------------ 参数表单 ------------------------------ */}
       <Panel>
         <div className="flex flex-col gap-6">
+          {profiles && profiles.length > 0 && (
+            <div className="flex flex-wrap items-end gap-x-8 gap-y-4 border-b border-white/[0.05] pb-5">
+              <Field label={t.retirement.clientField} className="min-w-64">
+                <Select
+                  value={selectedId ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "") selectManual();
+                    else selectClient(Number(v));
+                  }}
+                >
+                  <option value="">{t.retirement.clientManual}</option>
+                  {profiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                      {p.risk_level ? ` · ${riskLabel(p.risk_level)}` : ""}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              {selectedId !== null && (
+                <p className="pb-1 text-[11px] leading-4 text-mist-500">
+                  {t.retirement.clientPrefillHint}
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="grid gap-5 md:grid-cols-3">
             <Slider label={t.retirement.currentAge} value={form.current_age} min={18} max={80} step={1}
               onChange={(v) => set("current_age", v)} format={t.retirement.ageYears} />
@@ -168,11 +254,18 @@ export default function RetirementWorkspace() {
           {suggestion && (
             <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-gold-700/30 bg-gold-500/5 px-4 py-3">
               <span className="text-xs font-medium text-gold-300">
-                {t.retirement.cmeSuggestion(
-                  fmtPct(suggestion.expected_return, 1),
-                  fmtPct(suggestion.volatility, 1),
-                  suggestion.as_of_date
-                )}
+                {suggestion.risk_level
+                  ? t.retirement.cmeSuggestionForLevel(
+                      riskLabel(suggestion.risk_level),
+                      fmtPct(suggestion.expected_return, 1),
+                      fmtPct(suggestion.volatility, 1),
+                      suggestion.as_of_date
+                    )
+                  : t.retirement.cmeSuggestion(
+                      fmtPct(suggestion.expected_return, 1),
+                      fmtPct(suggestion.volatility, 1),
+                      suggestion.as_of_date
+                    )}
               </span>
               <span className="text-[11px] text-mist-500">
                 {t.retirement.cmeSuggestionBasis}

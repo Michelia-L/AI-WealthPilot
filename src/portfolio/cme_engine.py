@@ -712,3 +712,76 @@ def reference_portfolio_suggestion(
             names[i]: round(weights[i], 4) for i in range(len(entries))
         },
     }
+
+
+# Risk-Level-Keyed Reference Allocation
+
+# Intra-group splits for the risk-level reference allocation (documented
+# assumptions): the equity budget is split across the three CME equity
+# classes, the alternative budget across gold/REITs, and the remainder
+# across fixed income + cash.
+_LEVEL_EQUITY_SPLIT = {
+    "domestic_equity": 0.5,
+    "international_equity_dm": 0.4,
+    "international_equity_hk": 0.1,
+}
+_LEVEL_ALT_SPLIT = {
+    "alternative_gold": 0.75,
+    "alternative_reit": 0.25,
+}
+_LEVEL_DEFENSIVE_SPLIT = {
+    "fixed_income": 0.85,
+    "cash": 0.15,
+}
+
+
+def reference_allocation_for_level(
+    tolerance_level: str,
+) -> Optional[dict[str, float]]:
+    """Risk-level-keyed reference allocation derived from RISK_LEVEL_CAPS.
+
+    The equity/alternative groups share a risk budget derived from their
+    per-level caps (capped at 95% combined — caps are maxima and can
+    exceed 100%, so aggressive levels are scaled proportionally); the
+    remainder goes to fixed income + cash. Conservative levels whose
+    caps sum to ≤ 95% sit exactly at their caps.
+
+    Args:
+        tolerance_level: Bilingual label, e.g. "Moderate / 平衡型".
+
+    Returns:
+        {IPS asset-class key: weight} summing to 1, or None when the
+        label is unknown — callers then fall back to the static
+        CME_REFERENCE_ALLOCATION.
+    """
+    from src.portfolio.risk_constraints import caps_for_tolerance
+
+    try:
+        caps = caps_for_tolerance(tolerance_level)
+    except ValueError:
+        return None
+
+    # Caps are per-group *maxima* and can exceed 100% combined (进取型:
+    # equity .90 + alternative .30 = 1.20), so they cannot be targets
+    # directly. The risk budget is capped at 95% (some defensive ballast
+    # is always kept) and split between the two groups proportionally to
+    # their caps; conservative levels (E+A ≤ 0.95) sit at their caps.
+    equity_cap = caps.get("equity", 0.0)
+    alt_cap = caps.get("alternative", 0.0)
+    risky_budget = min(equity_cap + alt_cap, 0.95)
+    risky_cap_total = equity_cap + alt_cap
+    if risky_cap_total > 0:
+        equity = risky_budget * equity_cap / risky_cap_total
+        alternative = risky_budget * alt_cap / risky_cap_total
+    else:
+        equity = alternative = 0.0
+    defensive = 1.0 - equity - alternative
+
+    allocation: dict[str, float] = {}
+    for key, share in _LEVEL_EQUITY_SPLIT.items():
+        allocation[key] = equity * share
+    for key, share in _LEVEL_ALT_SPLIT.items():
+        allocation[key] = alternative * share
+    for key, share in _LEVEL_DEFENSIVE_SPLIT.items():
+        allocation[key] = defensive * share
+    return allocation
