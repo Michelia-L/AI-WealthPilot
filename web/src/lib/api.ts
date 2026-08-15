@@ -287,11 +287,19 @@ export interface AssetStat {
   ann_volatility: number;
 }
 
+export interface ViewImpact {
+  label: string;
+  impact: number;
+}
+
 export interface BLInsight {
   equilibrium_returns: Record<string, number>;
   posterior_returns: Record<string, number>;
   prior_source: "equilibrium" | "cme";
   prior_returns: Record<string, number> | null;
+  warnings: string[];
+  view_impacts: ViewImpact[];
+  market_weights_source: "equal" | "aum" | "custom";
 }
 
 /** 按客户风险等级应用的资产组权重上限（method=mvo 时生效）。 */

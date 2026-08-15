@@ -265,6 +265,33 @@ export default function OptimizerResults({
         </p>
       )}
 
+      {result.bl && (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs leading-5 text-mist-500">
+            {result.bl.market_weights_source === "aum"
+              ? t.optimizer.blWeightsAum
+              : result.bl.market_weights_source === "custom"
+                ? t.optimizer.blWeightsCustom
+                : t.optimizer.blWeightsEqual}
+          </p>
+          {result.bl.view_impacts.length > 0 && (
+            <p className="text-xs leading-5 text-mist-500">
+              {t.optimizer.blImpacts(
+                result.bl.view_impacts
+                  .map((v) => `${v.label} ${fmtPct(v.impact, 1)}`)
+                  .join(" · ")
+              )}
+            </p>
+          )}
+          {result.bl.warnings.map((w, i) => (
+            <p key={i} className="flex items-start gap-1.5 text-xs leading-5 text-gold-400">
+              <Icon name="warning" size={13} className="mt-0.5 shrink-0" />
+              {w}
+            </p>
+          ))}
+        </div>
+      )}
+
       {result.params.cme_fallback_assets != null &&
         result.params.cme_fallback_assets.length > 0 && (
           <p className="text-xs leading-5 text-mist-500">

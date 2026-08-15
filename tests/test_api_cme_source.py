@@ -70,6 +70,10 @@ def _patch(monkeypatch, cme_impl=None) -> None:
         "api.routers.portfolio.compute_cme",
         cme_impl or (lambda **_: (_fake_cme_report(), "fresh")),
     )
+    # BL market-cap weights: no real yfinance AUM calls in tests.
+    monkeypatch.setattr(
+        "api.routers.portfolio.fetch_fund_aum", lambda tickers: None
+    )
 
 
 def _body(**overrides) -> dict:

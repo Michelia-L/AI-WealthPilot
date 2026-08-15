@@ -44,6 +44,7 @@ from api.schemas import (
     RecommendationResponse,
     RiskConstraintsInfo,
     SurplusInsight,
+    ViewImpact,
 )
 from api.tasks import (
     BackgroundTask,
@@ -62,6 +63,7 @@ from src.config import (
 )
 from src.data.market_data import (
     compute_returns,
+    fetch_fund_aum,
     fetch_price_history,
     fetch_risk_free_rate,
 )
@@ -82,7 +84,7 @@ from src.portfolio.liabilities import (
 )
 from src.portfolio.optimizer import BlackLittermanOptimizer, PortfolioOptimizer
 from src.portfolio.risk_constraints import build_group_constraints, caps_for_tolerance
-from src.portfolio.views import ViewInput
+from src.portfolio.views import ViewInput, ViewProcessor
 from src.visualization.charts import (
     plot_allocation_pie,
     plot_backtest_equity,
@@ -337,6 +339,75 @@ def _curve_history() -> Optional[pd.DataFrame]:
         return None
     history, _provider = result
     return history
+
+
+_aum_cache: TTLCache = TTLCache()
+AUM_TTL_SECONDS = 86400  # fund AUM drifts slowly — cache for a day
+
+
+def _aum_market_weights(keys: list[str]) -> Optional[np.ndarray]:
+    """ETF AUM-based market-cap weights for the BL equilibrium prior.
+
+    Rough proxy: fund assets under management stand in for asset-class
+    market caps. TTL-cached (daily); any ticker without an AUM figure
+    (indices, CN-listed funds) misses the whole set so the caller falls
+    back to equal weights.
+    """
+    tickers = [DEFAULT_ASSET_CLASSES[k]["ticker"] for k in keys]
+    cache_key = "aum:" + ",".join(sorted(tickers))
+    aum = _aum_cache.get_or_set(
+        cache_key, AUM_TTL_SECONDS, lambda: fetch_fund_aum(tickers)
+    )
+    if aum is None:
+        _aum_cache.invalidate(cache_key)
+        return None
+    total = sum(aum[t] for t in tickers)
+    return np.array([aum[t] / total for t in tickers], dtype=float)
+
+
+def _bl_view_impacts(
+    returns: pd.DataFrame,
+    req: OptimizeRequest,
+    optimizer: BlackLittermanOptimizer,
+    view_inputs: list[ViewInput],
+    names: list[str],
+    locale: str,
+) -> list[ViewImpact]:
+    """Per-view impact: L1 weight distance between the prior portfolio
+    (max-Sharpe under the bare prior) and the max-Sharpe portfolio with
+    only that single view applied.
+
+    Disclosure only — the combined posterior above is what gets
+    optimized; this answers "how much did each view actually move".
+    """
+    prior_series = pd.Series(optimizer.Pi, index=names)
+    base = PortfolioOptimizer(
+        returns,
+        risk_free_rate=req.risk_free_rate,
+        expected_returns=prior_series,
+    )
+    w0 = base.maximize_sharpe(allow_short=req.allow_short)["weights"]
+
+    impacts: list[ViewImpact] = []
+    for v in view_inputs:
+        single = BlackLittermanOptimizer(
+            returns,
+            risk_free_rate=req.risk_free_rate,
+            market_cap_weights=optimizer.market_cap_weights,
+            delta=optimizer.delta,
+            tau=optimizer.tau,
+        )
+        if optimizer.prior_source != "equilibrium":
+            single.use_prior(optimizer.Pi, optimizer.prior_source)
+        single.apply_views([v], locale=locale)
+        w1 = single.bl_maximize_sharpe(allow_short=req.allow_short)["weights"]
+        impact = float(sum(abs(w1[n] - w0[n]) for n in names))
+        if v.view_type == "relative":
+            label = f"{v.asset_long} > {v.asset_short} ({v.expected_return:+.1%})"
+        else:
+            label = f"{v.asset_long} → {v.expected_return:.1%}"
+        impacts.append(ViewImpact(label=label, impact=impact))
+    return impacts
 
 
 def _result_payload(result: dict, asset_names: list[str]) -> PortfolioResult:
@@ -637,10 +708,18 @@ def _run_bl(
     name_of = dict(zip(keys, names))
 
     market_weights = None
+    weights_source = "equal"
     if bl_cfg and bl_cfg.market_weights:
         w = np.array([bl_cfg.market_weights.get(k, 0.0) for k in keys], dtype=float)
         if w.sum() > 0:
             market_weights = w / w.sum()
+            weights_source = "custom"
+    if market_weights is None:
+        # ETF AUM as a rough market-cap proxy for the equilibrium prior
+        aum = _aum_market_weights(keys)
+        if aum is not None:
+            market_weights = aum
+            weights_source = "aum"
 
     optimizer = BlackLittermanOptimizer(
         returns,
@@ -691,6 +770,17 @@ def _run_bl(
 
     equilibrium = optimizer.implied_equilibrium_returns()
     posterior = optimizer.mu_bl
+
+    # Diagnostics: contradictory relative-view cycles + far-from-prior views
+    view_processor = ViewProcessor(names, locale)
+    sigma_vec = np.sqrt(np.diag(optimizer.cov_matrix.values))
+    bl_warnings = view_processor.detect_relative_cycles(
+        view_inputs
+    ) + view_processor.divergence_warnings(view_inputs, optimizer.Pi, sigma_vec)
+    view_impacts = _bl_view_impacts(
+        returns, req, optimizer, view_inputs, names, locale
+    )
+
     insight = BLInsight(
         equilibrium_returns={n: float(r) for n, r in zip(names, equilibrium)},
         posterior_returns={n: float(r) for n, r in zip(names, posterior)},
@@ -700,6 +790,9 @@ def _run_bl(
             if optimizer.prior_source == "cme"
             else None
         ),
+        warnings=bl_warnings,
+        view_impacts=view_impacts,
+        market_weights_source=weights_source,
     )
     return optimizer, selected, max_sharpe, min_vol, frontier, random_ports, insight
 

@@ -41,6 +41,14 @@ _VIEW_STRINGS: dict[str, dict[str, str]] = {
         "zh": "观点{k}：置信度{confidence}%超出[0, 100]范围。",
         "en": "View {k}: confidence {confidence}% is outside [0, 100].",
     },
+    "relative_cycle": {
+        "zh": "相对观点存在循环矛盾：{cycle}。请检查观点一致性。",
+        "en": "Circular contradiction among relative views: {cycle}. Please review view consistency.",
+    },
+    "prior_divergence": {
+        "zh": "观点{k}（{asset} 目标 {view}）与先验 {prior} 背离超过 3 倍波动率，后验将大幅倾斜。",
+        "en": "View {k} ({asset} target {view}) diverges from the prior {prior} by more than 3σ — the posterior will tilt heavily.",
+    },
 }
 
 
@@ -213,6 +221,7 @@ class ViewProcessor:
 
         return Omega
 
+
     def validate_views(self, views: list[ViewInput]) -> list[str]:
         """Validate views and return warnings for potential issues.
 
@@ -267,4 +276,116 @@ class ViewProcessor:
                     )
                 )
 
+        return warnings
+
+    def detect_relative_cycles(self, views: list[ViewInput]) -> list[str]:
+        """Detect circular contradictions among relative views.
+
+        Builds the long→short directed graph (A>B is an edge A→B) and
+        reports every strongly connected component with more than one
+        member — a cycle means the views are mutually inconsistent
+        (A>B>C>A can never hold). Direct flips (A>B, B>A) are 2-cycles.
+
+        Args:
+            views: List of ViewInput objects.
+
+        Returns:
+            Warning strings, one per contradictory cycle (empty if none).
+        """
+        edges: dict[str, set[str]] = {}
+        for v in views:
+            if v.view_type == "relative" and v.asset_short is not None:
+                edges.setdefault(v.asset_long, set()).add(v.asset_short)
+
+        # Tarjan SCC (iterative)
+        index_of: dict[str, int] = {}
+        lowlink: dict[str, int] = {}
+        on_stack: set[str] = set()
+        stack: list[str] = []
+        counter = [0]
+        sccs: list[list[str]] = []
+
+        def strongconnect(root: str) -> None:
+            work = [(root, iter(sorted(edges.get(root, ()))))]
+            index_of[root] = lowlink[root] = counter[0]
+            counter[0] += 1
+            stack.append(root)
+            on_stack.add(root)
+            while work:
+                node, it = work[-1]
+                advanced = False
+                for succ in it:
+                    if succ not in index_of:
+                        index_of[succ] = lowlink[succ] = counter[0]
+                        counter[0] += 1
+                        stack.append(succ)
+                        on_stack.add(succ)
+                        work.append((succ, iter(sorted(edges.get(succ, ())))))
+                        advanced = True
+                        break
+                    elif succ in on_stack:
+                        lowlink[node] = min(lowlink[node], index_of[succ])
+                if not advanced:
+                    work.pop()
+                    if work:
+                        parent = work[-1][0]
+                        lowlink[parent] = min(lowlink[parent], lowlink[node])
+                    if lowlink[node] == index_of[node]:
+                        scc = []
+                        while True:
+                            member = stack.pop()
+                            on_stack.discard(member)
+                            scc.append(member)
+                            if member == node:
+                                break
+                        if len(scc) > 1:
+                            sccs.append(sorted(scc))
+
+        for root in sorted(edges):
+            if root not in index_of:
+                strongconnect(root)
+
+        return [
+            _vs("relative_cycle", self.locale, cycle=" ↔ ".join(scc))
+            for scc in sccs
+        ]
+
+    def divergence_warnings(
+        self,
+        views: list[ViewInput],
+        prior: np.ndarray,
+        sigma: np.ndarray,
+    ) -> list[str]:
+        """Warn on absolute views that diverge far from the prior.
+
+        An absolute target more than 3σ away from the asset's prior
+        return tilts the posterior heavily — surfaced as a warning for
+        sanity-checking (not an error).
+
+        Args:
+            views: List of ViewInput objects.
+            prior: Prior return vector Π (annualized, asset order).
+            sigma: Per-asset annualized volatilities (diag of Σ).
+
+        Returns:
+            Warning strings (empty if all views are within 3σ).
+        """
+        warnings: list[str] = []
+        for k, v in enumerate(views):
+            if v.view_type != "absolute":
+                continue
+            idx = self.asset_to_idx.get(v.asset_long)
+            if idx is None:
+                continue  # unknown assets are rejected upstream
+            if sigma[idx] > 0 and abs(v.expected_return - prior[idx]) > 3 * sigma[idx]:
+                warnings.append(
+                    _vs(
+                        "prior_divergence",
+                        self.locale,
+                        k=k + 1,
+                        asset=v.asset_long,
+                        view=f"{v.expected_return:.1%}",
+                        prior=f"{prior[idx]:.1%}",
+                    )
+                )
         return warnings

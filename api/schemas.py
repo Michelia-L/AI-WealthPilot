@@ -257,6 +257,16 @@ class AssetStat(BaseModel):
     ann_volatility: float
 
 
+class ViewImpact(BaseModel):
+    """One view's impact on the BL posterior portfolio."""
+
+    label: str = Field(description="Human-readable view label")
+    impact: float = Field(
+        description="L1 weight distance between the prior max-Sharpe "
+        "portfolio and the single-view posterior portfolio"
+    )
+
+
 class BLInsight(BaseModel):
     """Equilibrium (implied) vs posterior returns, per asset name."""
 
@@ -271,6 +281,20 @@ class BLInsight(BaseModel):
         default=None,
         description="The actual prior vector when prior_source='cme' "
         "(None for the equilibrium prior — see equilibrium_returns)",
+    )
+    warnings: list[str] = Field(
+        default_factory=list,
+        description="View diagnostics: relative-view cycles, far-from-prior "
+        "divergence (bilingual per request locale)",
+    )
+    view_impacts: list[ViewImpact] = Field(
+        default_factory=list,
+        description="Per-view weight impact on the posterior portfolio",
+    )
+    market_weights_source: Literal["equal", "aum", "custom"] = Field(
+        default="equal",
+        description="How the equilibrium market weights were set: equal "
+        "weights, ETF-AUM proxy, or user-provided",
     )
 
 

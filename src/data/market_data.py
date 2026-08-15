@@ -378,3 +378,26 @@ if __name__ == "__main__":
     # Print correlation matrix to observe inter-asset correlation (basis for diversification analysis)
     print("\nCorrelation matrix:")
     print(compute_correlation_matrix(prices))
+
+
+def fetch_fund_aum(tickers: list[str]) -> Optional[dict[str, float]]:
+    """Fund AUM (totalAssets) per ticker — a rough market-cap proxy.
+
+    ETF assets under management stand in for asset-class market caps in
+    the Black-Litterman equilibrium prior. All-or-nothing: any ticker
+    missing the figure (indices, CN-listed funds) returns None so the
+    caller falls back to equal weights.
+    """
+    aum: dict[str, float] = {}
+    try:
+        for ticker in tickers:
+            info = yf.Ticker(ticker).info
+            value = info.get("totalAssets") if isinstance(info, dict) else None
+            if value is None or float(value) <= 0:
+                logger.info("AUM unavailable for %s", ticker)
+                return None
+            aum[ticker] = float(value)
+    except Exception as e:
+        logger.warning("AUM fetch failed: %s", e)
+        return None
+    return aum

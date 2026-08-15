@@ -760,3 +760,64 @@ class TestUsePrior:
             return opt.mu_bl[2]  # BONDS
 
         assert bonds_posterior(0.06) > bonds_posterior(0.0)
+
+
+# ============================================================
+# View diagnostics: cycle detection + prior divergence
+# ============================================================
+
+class TestViewDiagnostics:
+    """ViewProcessor.detect_relative_cycles / divergence_warnings."""
+
+    def test_detects_two_cycle(self, view_processor):
+        views = [
+            ViewInput(view_type="relative", asset_long="US_EQ",
+                      asset_short="BONDS", expected_return=0.02),
+            ViewInput(view_type="relative", asset_long="BONDS",
+                      asset_short="US_EQ", expected_return=0.01),
+        ]
+        warnings = view_processor.detect_relative_cycles(views)
+        assert len(warnings) == 1
+        assert "循环矛盾" in warnings[0]
+
+    def test_detects_three_cycle(self, view_processor):
+        views = [
+            ViewInput(view_type="relative", asset_long="US_EQ",
+                      asset_short="BONDS", expected_return=0.02),
+            ViewInput(view_type="relative", asset_long="BONDS",
+                      asset_short="GOLD", expected_return=0.01),
+            ViewInput(view_type="relative", asset_long="GOLD",
+                      asset_short="US_EQ", expected_return=0.01),
+        ]
+        warnings = view_processor.detect_relative_cycles(views)
+        assert len(warnings) == 1
+
+    def test_consistent_chain_no_warning(self, view_processor):
+        views = [
+            ViewInput(view_type="relative", asset_long="US_EQ",
+                      asset_short="BONDS", expected_return=0.02),
+            ViewInput(view_type="relative", asset_long="BONDS",
+                      asset_short="GOLD", expected_return=0.01),
+        ]
+        assert view_processor.detect_relative_cycles(views) == []
+
+    def test_divergence_warning_beyond_3_sigma(self, view_processor, sample_returns):
+        prior = np.array([0.08, 0.06, 0.03, 0.04])
+        sigma = np.array([0.20, 0.15, 0.06, 0.15])
+        far = ViewInput(view_type="absolute", asset_long="US_EQ",
+                        expected_return=0.90)  # 0.82 away >> 3σ=0.60
+        near = ViewInput(view_type="absolute", asset_long="BONDS",
+                         expected_return=0.05)
+        warnings = view_processor.divergence_warnings([far, near], prior, sigma)
+        assert len(warnings) == 1
+        assert "US_EQ" in warnings[0]
+
+    def test_divergence_en_locale(self, sample_returns):
+        vp = ViewProcessor(["US_EQ", "INTL_EQ", "BONDS", "GOLD"], locale="en")
+        prior = np.array([0.08, 0.06, 0.03, 0.04])
+        sigma = np.array([0.20, 0.15, 0.06, 0.15])
+        far = ViewInput(view_type="absolute", asset_long="BONDS",
+                        expected_return=0.50)
+        warnings = vp.divergence_warnings([far], prior, sigma)
+        assert "diverges from the prior" in warnings[0]
+
