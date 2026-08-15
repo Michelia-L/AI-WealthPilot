@@ -47,6 +47,11 @@ data/cache/
 logs/
 *.log
 
+# Test & coverage artifacts
+.coverage
+coverage.xml
+.pytest_cache/
+
 # Distribution
 *.tar.gz
 *.whl
