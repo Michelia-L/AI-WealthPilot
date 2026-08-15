@@ -1,39 +1,41 @@
 # Runtime dependencies — FastAPI shell + quant core (this is the exact set
 # the API Docker image installs). Dev extras (pytest) live in
 # requirements-dev.txt.
+#
+# Versions are pinned to the set the test suite (880 tests) was verified
+# against; bump deliberately after re-running the suite. pip-audit in CI
+# guards the pinned set against newly disclosed CVEs.
 
 # Core
-numpy>=1.24.0
-pandas>=2.0.0
-scipy>=1.11.0
-scikit-learn>=1.2.0
+numpy==2.2.6
+pandas==2.3.3
+scipy==1.17.1
+scikit-learn==1.8.0
 
 # Data Sources
-yfinance>=0.2.28
+yfinance==1.4.0
 
 # Visualization (figures are generated server-side, streamed as JSON)
-plotly>=5.18.0
+plotly==6.6.0
 
 # AI / LLM (DeepSeek V4 Pro — OpenAI-compatible API)
-openai>=1.0.0
+openai==2.41.0
 
 # Agent Orchestration — IPS Generator (LangGraph + PydanticAI)
-langgraph>=0.2.0
-langgraph-checkpoint>=2.0.0
-# pydantic-ai 1.107+ removed the deprecated OpenAIModel alias; the code uses
-# the canonical OpenAIChatModel, so no upper bound is needed below 2.0.
-pydantic-ai>=1.107.0,<2.0.0
-pydantic>=2.0.0
+langgraph==1.2.4
+langgraph-checkpoint==4.1.1
+pydantic-ai==1.107.1
+pydantic==2.12.5
 
 # Utilities
-python-dotenv>=1.0.0
-requests>=2.31.0
-markdown>=3.4.0
-nh3>=0.2.0  # HTML sanitizer for LLM-generated report content (XSS prevention)
-fpdf2>=2.8.0
+python-dotenv==1.2.2
+requests==2.33.0  # 2.33.0 fixes PYSEC-2026-2275 (pip-audit finding)
+markdown==3.10.2
+nh3==0.3.5  # HTML sanitizer for LLM-generated report content (XSS prevention)
+fpdf2==2.8.7
 
 # API Layer
-fastapi>=0.115.0
-uvicorn[standard]>=0.30.0
-sqlmodel>=0.0.22  # SQLite persistence (client profiles, future user tables)
-tushare>=1.4
+fastapi==0.136.1
+uvicorn[standard]==0.46.0
+sqlmodel==0.0.39  # SQLite persistence (client profiles, future user tables)
+tushare==1.4.29

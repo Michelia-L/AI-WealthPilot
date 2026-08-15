@@ -52,7 +52,7 @@ docker compose up --build
 
 - Conventional Commits，英文：`feat:` / `fix:` / `docs:` / `test:` / `chore:`，主题行小写，阶段功能标注 `(phase N)`。
 - 提交前确认：`python -m pytest -q`、`cd web && npm test`、`cd web && npm run lint && npm run build` 全绿。
-- CI（`.github/workflows/ci.yml`）在 push/PR 时跑同样的两道工序；推送前本地先过一遍。
+- CI（`.github/workflows/ci.yml`）在 push/PR 时跑同样的两道工序（pytest 带 `--cov-fail-under=87` 覆盖率门禁与 pip-audit CVE 扫描）；推送前本地先过一遍。
 
 ## 环境
 

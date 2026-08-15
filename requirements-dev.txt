@@ -1,7 +1,11 @@
 # Development dependencies — runtime set plus test tooling.
 #   pip install -r requirements-dev.txt
+#
+# Pinned like requirements.txt (see its header note).
 
 -r requirements.txt
 
-# Testing
-pytest>=7.4.0
+# Testing & CI quality gates (coverage + dependency CVE scan)
+pytest==9.0.3
+pytest-cov==7.1.0
+pip-audit==2.10.1
