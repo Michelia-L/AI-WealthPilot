@@ -437,6 +437,26 @@ class TestBlackLittermanPosterior:
         # US_EQ should have higher posterior return than INTL_EQ
         assert bl_optimizer.mu_bl[0] > bl_optimizer.mu_bl[1]
 
+    def test_posterior_survives_singular_matrices_via_pinv(self, bl_optimizer, absolute_view, monkeypatch):
+        """
+        If any matrix inversion is singular (e.g. extreme-confidence views
+        making the composite numerically rank-deficient), the pinv fallback
+        must still produce a finite posterior.
+        任何矩阵求逆奇异时（如极端置信度导致复合矩阵数值秩亏），pinv 兜底
+        仍应产出有限的后验结果。
+        """
+        def always_singular(_matrix):
+            raise np.linalg.LinAlgError("forced singular")
+
+        monkeypatch.setattr(np.linalg, "inv", always_singular)
+        bl_optimizer.apply_views([absolute_view])
+
+        assert np.all(np.isfinite(bl_optimizer.mu_bl))
+        assert np.all(np.isfinite(bl_optimizer.Sigma_bl))
+        assert bl_optimizer.Sigma_bl.shape == (
+            bl_optimizer.n_assets, bl_optimizer.n_assets
+        )
+
 
 class TestBlackLittermanOptimization:
     """

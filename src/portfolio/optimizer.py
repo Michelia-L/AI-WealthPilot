@@ -34,6 +34,21 @@ from src.config import RISK_FREE_RATE, TRADING_DAYS_PER_YEAR
 logger = logging.getLogger(__name__)
 
 
+def _neg_sharpe_objective(perf_fn, risk_free_rate: float):
+    """Build the negative-Sharpe SLSQP objective for a performance function.
+
+    Zero volatility is degenerate/infeasible. Returning a large positive
+    value steers SLSQP away rather than treating it as the global optimum
+    (0). See #5.
+    """
+
+    def objective(w):
+        ret, vol, _ = perf_fn(w)
+        return -(ret - risk_free_rate) / vol if vol > 0 else 1e10
+
+    return objective
+
+
 class PortfolioOptimizer:
     """Mean-Variance Portfolio Optimizer using scipy SLSQP.
 
@@ -286,12 +301,10 @@ class PortfolioOptimizer:
                     "fun": lambda w, idx=indices, m=max_weight: m - sum(w[i] for i in idx),
                 })
 
-        def neg_sharpe(w):
-            ret, vol, _ = self.portfolio_performance(w, mean_override)
-            # Zero volatility is degenerate/infeasible. Returning a large
-            # positive value steers SLSQP away rather than treating it as the
-            # global optimum (0). See #5.
-            return -(ret - self.risk_free_rate) / vol if vol > 0 else 1e10
+        neg_sharpe = _neg_sharpe_objective(
+            lambda w: self.portfolio_performance(w, mean_override),
+            self.risk_free_rate,
+        )
 
         result = minimize(
             fun=neg_sharpe,
@@ -1215,7 +1228,13 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
             tau_Sigma_inv = np.linalg.pinv(tau_Sigma)
             Omega_inv = np.linalg.pinv(Omega)
 
-        M = np.linalg.inv(tau_Sigma_inv + P.T @ Omega_inv @ P)
+        # Same guard as above: extreme-confidence views can make the
+        # composite numerically rank-deficient even though it is
+        # mathematically positive definite.
+        try:
+            M = np.linalg.inv(tau_Sigma_inv + P.T @ Omega_inv @ P)
+        except np.linalg.LinAlgError:
+            M = np.linalg.pinv(tau_Sigma_inv + P.T @ Omega_inv @ P)
         mu_bl = M @ (tau_Sigma_inv @ Pi + P.T @ Omega_inv @ Q)
         Sigma_bl = Sigma + M
         return mu_bl, Sigma_bl
@@ -1278,11 +1297,9 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
         bounds = ((-1, 1) if allow_short else (0, 1),) * n
         constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1}]
 
-        def neg_sharpe_bl(w):
-            ret, vol, _ = self.bl_portfolio_performance(w)
-            # Zero volatility is degenerate/infeasible; return a large penalty
-            # so SLSQP does not mistake it for the optimum (#5).
-            return -(ret - self.risk_free_rate) / vol if vol > 0 else 1e10
+        neg_sharpe_bl = _neg_sharpe_objective(
+            self.bl_portfolio_performance, self.risk_free_rate
+        )
 
         result = minimize(
             fun=neg_sharpe_bl, x0=init_weights,
