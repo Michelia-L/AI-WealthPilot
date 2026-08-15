@@ -25,9 +25,11 @@ export const optimizer = {
   expectedReturnSource: "预期收益来源",
   sourceSample: "历史样本",
   sourceCme: "CME 预期",
-  cmeBlHint: "BL 已内置均衡收益",
+  cmeBlHint: "BL 将以 CME 为先验",
   cmeFallbackHint: (names: string) =>
     `以下资产未被 CME 覆盖，已回退为历史样本均值：${names}`,
+  cmeFallbackHintBl: (names: string) =>
+    `以下资产未被 CME 覆盖，先验回退为均衡收益：${names}`,
   clientRiskConstraint: (name: string) => `客户风险约束（${name}）`,
   mvoOnlyHint: "仅传统 MVO 生效",
   selectClientHint: "在侧边栏选择客户后，可将其风险等级注入为权重约束",
@@ -126,6 +128,7 @@ export const optimizer = {
   colAllocation: "配置权重",
   colWeightStd: "权重波动 σ",
   colEquilibrium: "均衡收益",
+  colPriorCme: "先验 (CME)",
   colPosterior: "后验收益",
   currentSelected: "当前选中",
   returnLabel: "收益",

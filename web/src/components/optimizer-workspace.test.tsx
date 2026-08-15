@@ -134,9 +134,9 @@ describe("OptimizerWorkspace buildBody", () => {
     expect(body.n_simulations).toBe(200);
   });
 
-  it("black-litterman: suppresses a stale cme expected-return source", async () => {
+  it("black-litterman: sends cme as the expected-return source (BL prior)", async () => {
     renderWorkspace();
-    // Pick CME first, then switch to BL — the source must not leak into the body.
+    // Pick CME first, then switch to BL — the source is sent: BL uses it as its prior.
     fireEvent.click(screen.getByRole("button", { name: "CME" }));
     fireEvent.click(screen.getByRole("button", { name: "Black-Litterman" }));
     fireEvent.click(screen.getByRole("button", { name: "Add View" }));
@@ -148,7 +148,7 @@ describe("OptimizerWorkspace buildBody", () => {
       asset_long: "US_EQUITY",
       expected_return: 0.1,
     });
-    expect(body.expected_return_source).toBeUndefined();
+    expect(body.expected_return_source).toBe("cme");
   });
 
   it("mean-cvar: sends the confidence level", async () => {

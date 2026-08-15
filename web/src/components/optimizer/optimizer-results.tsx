@@ -119,7 +119,11 @@ export default function OptimizerResults({
               <TH className="text-right">{t.optimizer.annVolatility}</TH>
               {result.bl && (
                 <>
-                  <TH className="text-right">{t.optimizer.colEquilibrium}</TH>
+                  <TH className="text-right">
+                    {result.bl.prior_source === "cme"
+                      ? t.optimizer.colPriorCme
+                      : t.optimizer.colEquilibrium}
+                  </TH>
                   <TH className="text-right">{t.optimizer.colPosterior}</TH>
                 </>
               )}
@@ -170,7 +174,10 @@ export default function OptimizerResults({
                   {result.bl && (
                     <>
                       <TD className="text-right font-mono text-mist-400">
-                        {fmtPct(result.bl.equilibrium_returns[s.name] ?? null)}
+                        {fmtPct(
+                          (result.bl.prior_returns ??
+                            result.bl.equilibrium_returns)[s.name] ?? null
+                        )}
                       </TD>
                       <TD className="text-right font-mono text-gold-300">
                         {fmtPct(result.bl.posterior_returns[s.name] ?? null)}
@@ -261,7 +268,9 @@ export default function OptimizerResults({
       {result.params.cme_fallback_assets != null &&
         result.params.cme_fallback_assets.length > 0 && (
           <p className="text-xs leading-5 text-mist-500">
-            {t.optimizer.cmeFallbackHint(
+            {(result.bl
+              ? t.optimizer.cmeFallbackHintBl
+              : t.optimizer.cmeFallbackHint)(
               result.params.cme_fallback_assets.join(" · ")
             )}
           </p>

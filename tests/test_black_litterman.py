@@ -710,3 +710,53 @@ class TestEdgeCases:
                 sample_returns,
                 market_cap_weights=np.array([0.5, 0.5, 0.5, 0.5])  # Sums to 2.0
             )
+
+
+# ============================================================
+# External prior override (CME expected returns as BL prior)
+# ============================================================
+
+class TestUsePrior:
+    """use_prior replaces the equilibrium Π before views are applied."""
+
+    def test_prior_replaces_equilibrium(self, sample_returns):
+        opt = BlackLittermanOptimizer(
+            sample_returns, risk_free_rate=0.02, delta=2.5
+        )
+        eq = opt.implied_equilibrium_returns().copy()
+        assert opt.prior_source == "equilibrium"
+        np.testing.assert_allclose(opt.Pi, eq)
+
+        custom = eq + np.array([0.05, 0.0, 0.0, 0.0])
+        opt.use_prior(custom, source="cme")
+        assert opt.prior_source == "cme"
+        np.testing.assert_allclose(opt.Pi, custom)
+
+    def test_prior_validation(self, sample_returns):
+        opt = BlackLittermanOptimizer(sample_returns)
+        with pytest.raises(ValueError, match="must match number of assets"):
+            opt.use_prior(np.array([0.05, 0.04]))  # wrong length
+        with pytest.raises(ValueError, match="finite"):
+            opt.use_prior(np.full(4, np.nan))  # non-finite
+
+    def test_posterior_tilts_from_custom_prior(self, sample_returns):
+        """Boosting the BONDS prior lifts its posterior vs the equilibrium run."""
+        def bonds_posterior(prior_boost: float) -> float:
+            opt = BlackLittermanOptimizer(
+                sample_returns, risk_free_rate=0.02, delta=2.5
+            )
+            if prior_boost:
+                opt.use_prior(
+                    opt.implied_equilibrium_returns()
+                    + np.array([0.0, 0.0, prior_boost, 0.0]),
+                    source="cme",
+                )
+            opt.apply_views([
+                ViewInput(
+                    view_type="absolute", asset_long="US_EQ",
+                    expected_return=0.08, confidence=50.0,
+                )
+            ])
+            return opt.mu_bl[2]  # BONDS
+
+        assert bonds_posterior(0.06) > bonds_posterior(0.0)

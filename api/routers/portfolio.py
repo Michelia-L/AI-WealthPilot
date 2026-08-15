@@ -371,16 +371,13 @@ def _resolve_expected_returns(
 
     Maps CME asset classes onto the optimizer universe by proxy ticker
     (CME_TICKER_TO_OPTIMIZER_ASSET); uncovered assets keep their sample
-    mean and are reported for disclosure. Returns (None, None) under the
-    default sample source. Raises 422 for black-litterman (equilibrium μ
-    conflicts) and 502 when every CME data source has failed.
+    mean and are reported for disclosure (for black-litterman the caller
+    re-anchors those to equilibrium returns — the vector serves as the
+    BL prior). Returns (None, None) under the default sample source.
+    Raises 502 when every CME data source has failed.
     """
     if req.expected_return_source != "cme":
         return None, None
-    if req.method == "black-litterman":
-        raise HTTPException(
-            status_code=422, detail=msg("portfolio.cme_source_not_bl", locale)
-        )
     try:
         cme_report, _cache_status = compute_cme()
     except RuntimeError:
@@ -617,9 +614,16 @@ def _run_mvo(
 
 
 def _run_bl(
-    returns: pd.DataFrame, req: OptimizeRequest, locale: str = "zh"
+    returns: pd.DataFrame, req: OptimizeRequest, locale: str = "zh",
+    expected_returns: Optional[pd.Series] = None,
+    cme_fallback: Optional[list[str]] = None,
 ) -> tuple[PortfolioOptimizer, dict, dict, dict, pd.DataFrame, pd.DataFrame, dict]:
-    """Black-Litterman optimization. Requires at least one view."""
+    """Black-Litterman optimization. Requires at least one view.
+
+    Prior: CAPM equilibrium by default; when expected_return_source="cme"
+    the CME vector replaces it (uncovered assets re-anchor to their
+    equilibrium returns, disclosed via cme_fallback_assets).
+    """
     bl_cfg = req.bl
     views = bl_cfg.views if bl_cfg else []
     if not views:
@@ -645,6 +649,20 @@ def _run_bl(
         delta=bl_cfg.delta if bl_cfg else 2.5,
         tau=bl_cfg.tau if bl_cfg else 0.025,
     )
+
+    if expected_returns is not None:
+        # CME prior: covered assets take the CME value; uncovered ones
+        # re-anchor to their equilibrium return (BL-consistent fallback).
+        equilibrium = optimizer.implied_equilibrium_returns()
+        fallback = set(cme_fallback or [])
+        prior = np.array(
+            [
+                equilibrium[i] if name in fallback
+                else float(expected_returns[name])
+                for i, name in enumerate(names)
+            ]
+        )
+        optimizer.use_prior(prior, source="cme")
 
     view_inputs = [
         ViewInput(
@@ -676,6 +694,12 @@ def _run_bl(
     insight = BLInsight(
         equilibrium_returns={n: float(r) for n, r in zip(names, equilibrium)},
         posterior_returns={n: float(r) for n, r in zip(names, posterior)},
+        prior_source=optimizer.prior_source,
+        prior_returns=(
+            {n: float(r) for n, r in zip(names, optimizer.Pi)}
+            if optimizer.prior_source == "cme"
+            else None
+        ),
     )
     return optimizer, selected, max_sharpe, min_vol, frontier, random_ports, insight
 
@@ -961,7 +985,7 @@ def _solve_optimize(
 
     if req.method == "black-litterman":
         optimizer, selected, max_sharpe, min_vol, frontier, random_ports, extra = (
-            _run_bl(returns, req, locale)
+            _run_bl(returns, req, locale, expected_returns, cme_fallback)
         )
     elif req.method == "mean-cvar":
         optimizer, selected, max_sharpe, min_vol, frontier, random_ports, extra = (
@@ -1110,11 +1134,6 @@ async def optimize_async(
         raise HTTPException(
             status_code=422,
             detail=msg("portfolio.bl_requires_view", locale),
-        )
-    if req.method == "black-litterman" and req.expected_return_source == "cme":
-        raise HTTPException(
-            status_code=422,
-            detail=msg("portfolio.cme_source_not_bl", locale),
         )
     if req.method == "risk-parity" and req.allow_short:
         raise HTTPException(

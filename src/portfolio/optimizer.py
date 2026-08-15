@@ -1072,11 +1072,12 @@ class PortfolioOptimizer:
 
 
 class BlackLittermanOptimizer(PortfolioOptimizer):
-    """Black-Litterman optimizer: Bayesian blend of equilibrium and views.
+    """Black-Litterman optimizer: Bayesian blend of a prior and views.
 
-    Computes implied equilibrium returns from CAPM (Π = R_f + δΣw_mkt,
-    total-return basis), then combines with investor views via the BL
-    posterior formula.
+    The prior defaults to CAPM-implied equilibrium returns
+    (Π = R_f + δΣw_mkt, total-return basis) and can be replaced with an
+    external vector — e.g. CME expected returns — via ``use_prior``
+    before views are applied.
     """
 
     def __init__(
@@ -1130,6 +1131,7 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
             self.delta = (market_return - self.risk_free_rate) / market_variance if market_variance > 0 else 2.5
 
         self.Pi = self.implied_equilibrium_returns()
+        self.prior_source = "equilibrium"
         self.mu_bl = None
         self.Sigma_bl = None
         self.views_applied = False
@@ -1146,6 +1148,32 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
             Implied total return vector (N,).
         """
         return self.risk_free_rate + self.delta * self.cov_matrix.values @ self.market_cap_weights
+
+    def use_prior(self, prior: np.ndarray, source: str = "cme") -> None:
+        """Override the equilibrium prior with an external return vector.
+
+        The BL posterior formula blends views into ``self.Pi``; replacing
+        the CAPM equilibrium with e.g. CME expected returns lets views
+        tilt from a forward-looking anchor instead. Must be called before
+        apply_views.
+
+        Args:
+            prior: Annualized total-return vector, aligned to asset order.
+            source: Label recorded on ``prior_source`` for disclosure.
+
+        Raises:
+            ValueError: On length mismatch or non-finite values.
+        """
+        prior = np.asarray(prior, dtype=float)
+        if len(prior) != self.n_assets:
+            raise ValueError(
+                f"prior length ({len(prior)}) must match number of assets "
+                f"({self.n_assets})."
+            )
+        if not np.all(np.isfinite(prior)):
+            raise ValueError("prior must contain only finite values.")
+        self.Pi = prior
+        self.prior_source = source
 
     def bl_posterior_returns(
         self,

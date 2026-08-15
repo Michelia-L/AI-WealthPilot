@@ -115,8 +115,9 @@ def test_cme_source_changes_allocation(client, monkeypatch):
     assert w_cme > w_sample + 0.2
 
 
-def test_cme_source_black_litterman_422(client, monkeypatch):
-    """BL has its own equilibrium/posterior μ — CME source conflicts."""
+def test_cme_source_black_litterman_prior(client, monkeypatch):
+    """BL accepts the CME vector as its prior; uncovered assets re-anchor
+    to their equilibrium returns."""
     _patch(monkeypatch)
     body = _body(
         method="black-litterman",
@@ -132,11 +133,48 @@ def test_cme_source_black_litterman_422(client, monkeypatch):
         },
     )
     resp = client.post("/api/portfolio/optimize", json=body)
-    assert resp.status_code == 422
+    assert resp.status_code == 200
+    data = resp.json()
+    bl = data["bl"]
+
+    assert bl["prior_source"] == "cme"
+    # Covered assets take the CME values as prior.
+    bond_name = DEFAULT_ASSET_CLASSES["US_BOND"]["name"]
+    assert bl["prior_returns"][bond_name] == pytest.approx(CME_EXPECTED["AGG"])
+    # Uncovered SPY re-anchors to equilibrium and is disclosed.
+    spy_name = DEFAULT_ASSET_CLASSES["US_EQUITY"]["name"]
+    assert bl["prior_returns"][spy_name] == pytest.approx(
+        bl["equilibrium_returns"][spy_name]
+    )
+    assert data["params"]["cme_fallback_assets"] == [spy_name]
 
 
-def test_cme_source_black_litterman_async_422(client, monkeypatch):
-    """The async entry validates the same conflict before task creation."""
+def test_cme_source_black_litterman_equilibrium_default(client, monkeypatch):
+    """BL without the source field keeps the equilibrium prior."""
+    _patch(monkeypatch)
+    body = _body(
+        method="black-litterman",
+        bl={
+            "views": [
+                {
+                    "view_type": "absolute",
+                    "asset_long": "US_EQUITY",
+                    "expected_return": 0.1,
+                    "confidence": 70,
+                }
+            ]
+        },
+    )
+    del body["expected_return_source"]
+    resp = client.post("/api/portfolio/optimize", json=body)
+    assert resp.status_code == 200
+    bl = resp.json()["bl"]
+    assert bl["prior_source"] == "equilibrium"
+    assert bl["prior_returns"] is None
+
+
+def test_cme_source_black_litterman_async_accepted(client, monkeypatch):
+    """The async entry accepts BL + CME (prior mode) up front."""
     _patch(monkeypatch)
     body = _body(
         method="black-litterman",
@@ -152,7 +190,7 @@ def test_cme_source_black_litterman_async_422(client, monkeypatch):
         },
     )
     resp = client.post("/api/portfolio/optimize/async", json=body)
-    assert resp.status_code == 422
+    assert resp.status_code == 202
 
 
 def test_cme_unavailable_502(client, monkeypatch):

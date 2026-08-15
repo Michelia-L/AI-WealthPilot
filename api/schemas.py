@@ -262,6 +262,16 @@ class BLInsight(BaseModel):
 
     equilibrium_returns: dict[str, float]
     posterior_returns: dict[str, float]
+    prior_source: Literal["equilibrium", "cme"] = Field(
+        default="equilibrium",
+        description="Which prior the posterior blended views into: CAPM "
+        "equilibrium, or CME expected returns",
+    )
+    prior_returns: Optional[dict[str, float]] = Field(
+        default=None,
+        description="The actual prior vector when prior_source='cme' "
+        "(None for the equilibrium prior — see equilibrium_returns)",
+    )
 
 
 class SurplusInsight(BaseModel):

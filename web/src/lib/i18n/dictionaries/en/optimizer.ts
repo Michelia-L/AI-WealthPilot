@@ -26,9 +26,11 @@ export const optimizer = {
   expectedReturnSource: "Expected Returns",
   sourceSample: "Sample",
   sourceCme: "CME",
-  cmeBlHint: "BL uses its own equilibrium returns",
+  cmeBlHint: "BL will use CME as its prior",
   cmeFallbackHint: (names: string) =>
     `Not covered by the CME engine — sample means used for: ${names}`,
+  cmeFallbackHintBl: (names: string) =>
+    `Not covered by the CME engine — priors fall back to equilibrium returns for: ${names}`,
   clientRiskConstraint: (name: string) => `Client Risk Constraint (${name})`,
   mvoOnlyHint: "Classic MVO only",
   selectClientHint:
@@ -136,6 +138,7 @@ export const optimizer = {
   colAllocation: "Allocation",
   colWeightStd: "Weight σ",
   colEquilibrium: "Equilibrium Return",
+  colPriorCme: "Prior (CME)",
   colPosterior: "Posterior Return",
   currentSelected: "Selected",
   returnLabel: "Return",

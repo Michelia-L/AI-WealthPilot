@@ -185,10 +185,6 @@ _MESSAGES: dict[str, dict[str, dict[str, str]]] = {
             "zh": "无效的负债对冲代理：{proxy}（可选：{options}）。",
             "en": "Invalid liability hedge proxy: {proxy} (available: {options}).",
         },
-        "cme_source_not_bl": {
-            "zh": "CME 预期收益不适用于 Black-Litterman 方法（BL 已内置均衡收益与观点后验）。",
-            "en": "CME expected returns do not apply to Black-Litterman (BL already blends equilibrium returns with investor views).",
-        },
         "cme_unavailable": {
             "zh": "资本市场预期（CME）全部数据源失效，无法提供预期收益，请改用历史样本或稍后重试。",
             "en": "All Capital Market Expectations data sources failed; expected returns are unavailable — use sample means or retry later.",

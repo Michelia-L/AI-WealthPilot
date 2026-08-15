@@ -166,8 +166,8 @@ export default function OptimizerWorkspace({
     if (method === "mean-cvar") {
       body.cvar_confidence = cvarConf;
     }
-    // BL 自带均衡-后验 μ，发送 cme 会被后端 422
-    if (erSource === "cme" && method !== "black-litterman") {
+    // BL 下 CME 作为先验（替代均衡收益），与 MVO/CVaR/LDI 同一开关
+    if (erSource === "cme") {
       body.expected_return_source = "cme";
     }
     if (method === "surplus") {
@@ -499,7 +499,7 @@ export default function OptimizerWorkspace({
                 onChange={setErSource}
               />
             </span>
-            {method === "black-litterman" && (
+            {method === "black-litterman" && erSource === "cme" && (
               <span className="text-[11px] text-mist-600">
                 {t.optimizer.cmeBlHint}
               </span>
