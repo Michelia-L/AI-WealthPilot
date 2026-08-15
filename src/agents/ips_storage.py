@@ -150,64 +150,215 @@ def export_ips_markdown(
     Returns:
         Formatted Markdown string.
     """
-    if locale == "en":
-        return _export_ips_markdown_en(ips_dict, audit_trail_dict)
-    return _export_ips_markdown_zh(ips_dict, audit_trail_dict)
+    labels = _MD_LABELS["en" if locale == "en" else "zh"]
+    return _render_ips_markdown(ips_dict, audit_trail_dict, labels)
 
 
-def _export_ips_markdown_zh(ips_dict: dict, audit_trail_dict: Optional[dict] = None) -> str:
-    """Chinese scaffolding for export_ips_markdown (pre-i18n wording verbatim)."""
+# Markdown scaffolding labels per locale. The zh column preserves the
+# pre-i18n wording verbatim; the en column was added in Phase 22. Narrative
+# content stored in the IPS is emitted as-is either way.
+_MD_LABELS: dict[str, dict[str, str]] = {
+    "zh": {
+        "title": "# 投资政策声明书 (IPS)",
+        "client": "客户",
+        "prepared_by": "编制方",
+        "prep_date": "编制日期",
+        "version": "版本",
+        "sec_summary": "## 一、执行摘要",
+        "sec_background": "## 二、客户背景",
+        "sec_return": "## 三、收益目标",
+        "req_nominal": "所需名义年化收益率",
+        "req_real": "所需实际年化收益率",
+        "calc_basis": "计算依据",
+        "sec_risk": "## 四、风险承受能力",
+        "overall_risk": "综合风险等级",
+        "ability_h": "### 客观承受能力评估",
+        "willingness_h": "### 主观承担意愿评估",
+        "conflict_h": "### 冲突处理",
+        "quant_h": "### 量化风险指标",
+        "quant_th": "| 指标 | 阈值 |",
+        "quant_sep": "|------|------|",
+        "max_loss": "最大可接受年度亏损",
+        "vol_range": "目标波动率区间",
+        "var_tol": "95% VaR 容忍度（年化）",
+        "mdd_tol": "最大回撤容忍度",
+        "sec_horizon": "## 五、投资期限",
+        "total_horizon_fmt": "**总投资期限**: {years} 年",
+        "stage_fmt": "- **{name}**: {years} 年 — {desc}",
+        "sec_liquidity": "## 六、流动性约束",
+        "immediate": "即时流动性需求",
+        "ongoing": "持续性需求（年）",
+        "reserve_fmt": "- **应急储备**: {months} 个月",
+        "sec_tax": "## 七、税务约束",
+        "tax_status": "税务身份",
+        "sec_legal": "## 八、法律与监管约束",
+        "sec_unique": "## 九、特殊情况",
+        "esg": "ESG 偏好",
+        "sector": "行业限制",
+        "concentrated": "集中持仓",
+        "sec_guidelines": "## 十、投资指引与政策",
+        "saa_h": "### 战略性资产配置",
+        "alloc_th": "| 资产类别 | 目标权重 | 最低权重 | 最高权重 | 配置理由 |",
+        "alloc_sep": "|----------|----------|----------|----------|----------|",
+        "permitted": "允许的投资工具",
+        "prohibited": "禁止的投资工具",
+        "rebalancing": "再平衡政策",
+        "sec_fees": "## 十一、费用与成本披露",
+        "fee_th": "| 费用项目 | 费率 |",
+        "fee_sep": "|----------|------|",
+        "fee_mgmt": "投资管理费",
+        "fee_custody": "托管费",
+        "fee_trans": "预估交易成本",
+        "fee_ter": "**总费用率 (TER)**",
+        "net_impact": "净收益影响",
+        "mon_num_with_fee": "十二",
+        "mon_num_without_fee": "十一",
+        "disc_num_with_fee": "十三",
+        "disc_num_without_fee": "十二",
+        "mon_sec_fmt": "## {num}、监控与评估",
+        "review_freq": "审查频率",
+        "benchmarks_label": "**绩效基准**:",
+        "disc_sec_fmt": "## {num}、风险披露与合规声明",
+        "risk_disc_h": "### 风险披露",
+        "compliance_h": "### 合规声明",
+        "appendix_h": "## 附录：生成审计追踪",
+        "rounds": "修订轮次",
+        "final_status": "最终状态",
+        "model": "模型",
+        "completed_at": "完成时间",
+        "rev_round_fmt": "\n### 第 {n} 轮修订",
+        "rev_version_fmt": "- 版本: {before} → {after}",
+    },
+    "en": {
+        "title": "# Investment Policy Statement (IPS)",
+        "client": "Client",
+        "prepared_by": "Prepared by",
+        "prep_date": "Preparation date",
+        "version": "Version",
+        "sec_summary": "## 1. Executive Summary",
+        "sec_background": "## 2. Client Background",
+        "sec_return": "## 3. Return Objectives",
+        "req_nominal": "Required nominal annual return",
+        "req_real": "Required real annual return",
+        "calc_basis": "Calculation basis",
+        "sec_risk": "## 4. Risk Tolerance",
+        "overall_risk": "Overall risk level",
+        "ability_h": "### Ability Assessment (Objective)",
+        "willingness_h": "### Willingness Assessment (Subjective)",
+        "conflict_h": "### Conflict Resolution",
+        "quant_h": "### Quantitative Risk Anchors",
+        "quant_th": "| Metric | Threshold |",
+        "quant_sep": "|--------|-----------|",
+        "max_loss": "Maximum acceptable annual loss",
+        "vol_range": "Target volatility range",
+        "var_tol": "95% VaR tolerance (annualized)",
+        "mdd_tol": "Maximum drawdown tolerance",
+        "sec_horizon": "## 5. Time Horizon",
+        "total_horizon_fmt": "**Total horizon**: {years} years",
+        "stage_fmt": "- **{name}**: {years} years — {desc}",
+        "sec_liquidity": "## 6. Liquidity Constraints",
+        "immediate": "Immediate liquidity needs",
+        "ongoing": "Ongoing needs (annual)",
+        "reserve_fmt": "- **Emergency reserve**: {months} months",
+        "sec_tax": "## 7. Tax Constraints",
+        "tax_status": "Tax status",
+        "sec_legal": "## 8. Legal & Regulatory Constraints",
+        "sec_unique": "## 9. Unique Circumstances",
+        "esg": "ESG preferences",
+        "sector": "Sector restrictions",
+        "concentrated": "Concentrated positions",
+        "sec_guidelines": "## 10. Investment Guidelines & Policies",
+        "saa_h": "### Strategic Asset Allocation",
+        "alloc_th": "| Asset Class | Target Weight | Min Weight | Max Weight | Rationale |",
+        "alloc_sep": "|-------------|---------------|------------|------------|-----------|",
+        "permitted": "Permitted instruments",
+        "prohibited": "Prohibited instruments",
+        "rebalancing": "Rebalancing policy",
+        "sec_fees": "## 11. Fees & Cost Disclosure",
+        "fee_th": "| Fee Item | Rate |",
+        "fee_sep": "|----------|------|",
+        "fee_mgmt": "Investment management fee",
+        "fee_custody": "Custody fee",
+        "fee_trans": "Estimated transaction costs",
+        "fee_ter": "**Total Expense Ratio (TER)**",
+        "net_impact": "Net return impact",
+        "mon_num_with_fee": "12",
+        "mon_num_without_fee": "11",
+        "disc_num_with_fee": "13",
+        "disc_num_without_fee": "12",
+        "mon_sec_fmt": "## {num}. Monitoring & Review",
+        "review_freq": "Review frequency",
+        "benchmarks_label": "**Performance benchmarks**:",
+        "disc_sec_fmt": "## {num}. Risk Disclosure & Compliance Statement",
+        "risk_disc_h": "### Risk Disclosure",
+        "compliance_h": "### Compliance Statement",
+        "appendix_h": "## Appendix: Generation Audit Trail",
+        "rounds": "Revision rounds",
+        "final_status": "Final status",
+        "model": "Model",
+        "completed_at": "Completed at",
+        "rev_round_fmt": "\n### Revision Round {n}",
+        "rev_version_fmt": "- Version: {before} → {after}",
+    },
+}
+
+
+def _render_ips_markdown(
+    ips_dict: dict, audit_trail_dict: Optional[dict], labels: dict[str, str]
+) -> str:
+    """Render an IPS dict to Markdown with the given scaffolding labels."""
+    L = labels
     ips = ips_dict
     lines = []
 
     # Header
-    lines.append(f"# 投资政策声明书 (IPS)")
+    lines.append(L["title"])
     lines.append("")
-    lines.append(f"**客户**: {ips.get('client_name', 'N/A')}")
-    lines.append(f"**编制方**: {ips.get('prepared_by', 'N/A')}")
-    lines.append(f"**编制日期**: {ips.get('preparation_date', 'N/A')}")
-    lines.append(f"**版本**: {ips.get('version', 'N/A')}")
+    lines.append(f"**{L['client']}**: {ips.get('client_name', 'N/A')}")
+    lines.append(f"**{L['prepared_by']}**: {ips.get('prepared_by', 'N/A')}")
+    lines.append(f"**{L['prep_date']}**: {ips.get('preparation_date', 'N/A')}")
+    lines.append(f"**{L['version']}**: {ips.get('version', 'N/A')}")
     lines.append("")
     lines.append("---")
     lines.append("")
 
     # Executive Summary
-    lines.append("## 一、执行摘要")
+    lines.append(L["sec_summary"])
     lines.append("")
     lines.append(ips.get("executive_summary", ""))
     lines.append("")
 
     # Client Background
-    lines.append("## 二、客户背景")
+    lines.append(L["sec_background"])
     lines.append("")
     lines.append(ips.get("client_background", ""))
     lines.append("")
 
     # Return Objectives
     ret = ips.get("return_objective", {})
-    lines.append("## 三、收益目标")
+    lines.append(L["sec_return"])
     lines.append("")
-    lines.append(f"- **所需名义年化收益率**: {ret.get('required_nominal_return', 0):.2%}")
-    lines.append(f"- **所需实际年化收益率**: {ret.get('required_real_return', 0):.2%}")
-    lines.append(f"- **计算依据**: {ret.get('return_calculation_basis', '')}")
+    lines.append(f"- **{L['req_nominal']}**: {ret.get('required_nominal_return', 0):.2%}")
+    lines.append(f"- **{L['req_real']}**: {ret.get('required_real_return', 0):.2%}")
+    lines.append(f"- **{L['calc_basis']}**: {ret.get('return_calculation_basis', '')}")
     lines.append("")
     lines.append(ret.get("return_objective_narrative", ""))
     lines.append("")
 
     # Risk Tolerance
     risk = ips.get("risk_tolerance", {})
-    lines.append("## 四、风险承受能力")
+    lines.append(L["sec_risk"])
     lines.append("")
-    lines.append(f"**综合风险等级**: {risk.get('overall_risk_level', '')}")
+    lines.append(f"**{L['overall_risk']}**: {risk.get('overall_risk_level', '')}")
     lines.append("")
-    lines.append("### 客观承受能力评估")
+    lines.append(L["ability_h"])
     lines.append(risk.get("ability_assessment", ""))
     lines.append("")
-    lines.append("### 主观承担意愿评估")
+    lines.append(L["willingness_h"])
     lines.append(risk.get("willingness_assessment", ""))
     lines.append("")
     if risk.get("conflict_resolution"):
-        lines.append("### 冲突处理")
+        lines.append(L["conflict_h"])
         lines.append(risk["conflict_resolution"])
         lines.append("")
     lines.append(risk.get("risk_narrative", ""))
@@ -219,28 +370,32 @@ def _export_ips_markdown_zh(ips_dict: dict, audit_trail_dict: Optional[dict] = N
         "target_volatility_max", "var_tolerance_95", "max_drawdown_tolerance"
     ])
     if _has_quant:
-        lines.append("### 量化风险指标")
+        lines.append(L["quant_h"])
         lines.append("")
-        lines.append("| 指标 | 阈值 |")
-        lines.append("|------|------|")
+        lines.append(L["quant_th"])
+        lines.append(L["quant_sep"])
         if risk.get("max_acceptable_annual_loss") is not None:
-            lines.append(f"| 最大可接受年度亏损 | {risk['max_acceptable_annual_loss']:.2%} |")
+            lines.append(f"| {L['max_loss']} | {risk['max_acceptable_annual_loss']:.2%} |")
         if risk.get("target_volatility_min") is not None and risk.get("target_volatility_max") is not None:
-            lines.append(f"| 目标波动率区间 | {risk['target_volatility_min']:.2%} – {risk['target_volatility_max']:.2%} |")
+            lines.append(f"| {L['vol_range']} | {risk['target_volatility_min']:.2%} – {risk['target_volatility_max']:.2%} |")
         if risk.get("var_tolerance_95") is not None:
-            lines.append(f"| 95% VaR 容忍度（年化） | {risk['var_tolerance_95']:.2%} |")
+            lines.append(f"| {L['var_tol']} | {risk['var_tolerance_95']:.2%} |")
         if risk.get("max_drawdown_tolerance") is not None:
-            lines.append(f"| 最大回撤容忍度 | {risk['max_drawdown_tolerance']:.2%} |")
+            lines.append(f"| {L['mdd_tol']} | {risk['max_drawdown_tolerance']:.2%} |")
         lines.append("")
 
     # Time Horizon
     th = ips.get("time_horizon", {})
-    lines.append("## 五、投资期限")
+    lines.append(L["sec_horizon"])
     lines.append("")
-    lines.append(f"**总投资期限**: {th.get('overall_horizon_years', 0)} 年")
+    lines.append(L["total_horizon_fmt"].format(years=th.get("overall_horizon_years", 0)))
     lines.append("")
     for stage in th.get("stages", []):
-        lines.append(f"- **{stage.get('name', '')}**: {stage.get('years', 0)} 年 — {stage.get('description', '')}")
+        lines.append(L["stage_fmt"].format(
+            name=stage.get("name", ""),
+            years=stage.get("years", 0),
+            desc=stage.get("description", ""),
+        ))
     lines.append("")
     lines.append(th.get("horizon_narrative", ""))
     lines.append("")
@@ -251,27 +406,27 @@ def _export_ips_markdown_zh(ips_dict: dict, audit_trail_dict: Optional[dict] = N
     _currency_symbols = {"CNY": "¥", "USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "HKD": "HK$"}
     _base_curr = (ips.get("currency_policy") or {}).get("base_currency", "CNY")
     _curr_sym = _currency_symbols.get(_base_curr, _base_curr + " ")
-    lines.append("## 六、流动性约束")
+    lines.append(L["sec_liquidity"])
     lines.append("")
-    lines.append(f"- **即时流动性需求**: {_curr_sym}{liq.get('immediate_needs', 0):,.0f}")
-    lines.append(f"- **持续性需求（年）**: {_curr_sym}{liq.get('ongoing_needs', 0):,.0f}")
-    lines.append(f"- **应急储备**: {liq.get('emergency_reserve_months', 0)} 个月")
+    lines.append(f"- **{L['immediate']}**: {_curr_sym}{liq.get('immediate_needs', 0):,.0f}")
+    lines.append(f"- **{L['ongoing']}**: {_curr_sym}{liq.get('ongoing_needs', 0):,.0f}")
+    lines.append(L["reserve_fmt"].format(months=liq.get("emergency_reserve_months", 0)))
     lines.append("")
     lines.append(liq.get("liquidity_narrative", ""))
     lines.append("")
 
     # Tax
     tax = ips.get("tax", {})
-    lines.append("## 七、税务约束")
+    lines.append(L["sec_tax"])
     lines.append("")
-    lines.append(f"**税务身份**: {tax.get('tax_status', '')}")
+    lines.append(f"**{L['tax_status']}**: {tax.get('tax_status', '')}")
     lines.append("")
     lines.append(tax.get("tax_narrative", ""))
     lines.append("")
 
     # Legal
     legal = ips.get("legal", {})
-    lines.append("## 八、法律与监管约束")
+    lines.append(L["sec_legal"])
     lines.append("")
     for reg in legal.get("applicable_regulations", []):
         lines.append(f"- {reg}")
@@ -281,26 +436,26 @@ def _export_ips_markdown_zh(ips_dict: dict, audit_trail_dict: Optional[dict] = N
 
     # Unique Circumstances
     unique = ips.get("unique_circumstances", {})
-    lines.append("## 九、特殊情况")
+    lines.append(L["sec_unique"])
     lines.append("")
     if unique.get("esg_preferences"):
-        lines.append(f"- **ESG 偏好**: {unique['esg_preferences']}")
+        lines.append(f"- **{L['esg']}**: {unique['esg_preferences']}")
     if unique.get("sector_restrictions"):
-        lines.append(f"- **行业限制**: {', '.join(unique['sector_restrictions'])}")
+        lines.append(f"- **{L['sector']}**: {', '.join(unique['sector_restrictions'])}")
     if unique.get("concentrated_positions"):
-        lines.append(f"- **集中持仓**: {unique['concentrated_positions']}")
+        lines.append(f"- **{L['concentrated']}**: {unique['concentrated_positions']}")
     lines.append("")
     lines.append(unique.get("unique_narrative", ""))
     lines.append("")
 
     # Investment Guidelines
     guide = ips.get("investment_guidelines", {})
-    lines.append("## 十、投资指引与政策")
+    lines.append(L["sec_guidelines"])
     lines.append("")
-    lines.append("### 战略性资产配置")
+    lines.append(L["saa_h"])
     lines.append("")
-    lines.append("| 资产类别 | 目标权重 | 最低权重 | 最高权重 | 配置理由 |")
-    lines.append("|----------|----------|----------|----------|----------|")
+    lines.append(L["alloc_th"])
+    lines.append(L["alloc_sep"])
     for alloc in guide.get("strategic_allocation", []):
         lines.append(
             f"| {alloc.get('asset_class', '')} "
@@ -310,9 +465,9 @@ def _export_ips_markdown_zh(ips_dict: dict, audit_trail_dict: Optional[dict] = N
             f"| {alloc.get('rationale', '')} |"
         )
     lines.append("")
-    lines.append(f"**允许的投资工具**: {', '.join(guide.get('permitted_instruments', []))}")
-    lines.append(f"**禁止的投资工具**: {', '.join(guide.get('prohibited_instruments', []))}")
-    lines.append(f"**再平衡政策**: {guide.get('rebalancing_policy', '')}")
+    lines.append(f"**{L['permitted']}**: {', '.join(guide.get('permitted_instruments', []))}")
+    lines.append(f"**{L['prohibited']}**: {', '.join(guide.get('prohibited_instruments', []))}")
+    lines.append(f"**{L['rebalancing']}**: {guide.get('rebalancing_policy', '')}")
     lines.append("")
     lines.append(guide.get("guideline_narrative", ""))
     lines.append("")
@@ -320,36 +475,36 @@ def _export_ips_markdown_zh(ips_dict: dict, audit_trail_dict: Optional[dict] = N
     # Fee Schedule (if provided)
     fee = ips.get("fee_schedule")
     if fee:
-        lines.append("## 十一、费用与成本披露")
+        lines.append(L["sec_fees"])
         lines.append("")
-        lines.append("| 费用项目 | 费率 |")
-        lines.append("|----------|------|")
-        lines.append(f"| 投资管理费 | {fee.get('management_fee_rate', 0):.2%} |")
-        lines.append(f"| 托管费 | {fee.get('custody_fee_rate', 0):.2%} |")
-        lines.append(f"| 预估交易成本 | {fee.get('transaction_cost_estimate', 0):.2%} |")
-        lines.append(f"| **总费用率 (TER)** | **{fee.get('total_expense_ratio', 0):.2%}** |")
+        lines.append(L["fee_th"])
+        lines.append(L["fee_sep"])
+        lines.append(f"| {L['fee_mgmt']} | {fee.get('management_fee_rate', 0):.2%} |")
+        lines.append(f"| {L['fee_custody']} | {fee.get('custody_fee_rate', 0):.2%} |")
+        lines.append(f"| {L['fee_trans']} | {fee.get('transaction_cost_estimate', 0):.2%} |")
+        lines.append(f"| {L['fee_ter']} | **{fee.get('total_expense_ratio', 0):.2%}** |")
         lines.append("")
         if fee.get("net_return_impact"):
-            lines.append(f"**净收益影响**: {fee['net_return_impact']}")
+            lines.append(f"**{L['net_impact']}**: {fee['net_return_impact']}")
             lines.append("")
         lines.append(fee.get("fee_narrative", ""))
         lines.append("")
 
         # Adjust section numbering for subsequent sections
-        mon_section = "十二"
-        disclosure_section = "十三"
+        mon_section = L["mon_num_with_fee"]
+        disclosure_section = L["disc_num_with_fee"]
     else:
-        mon_section = "十一"
-        disclosure_section = "十二"
+        mon_section = L["mon_num_without_fee"]
+        disclosure_section = L["disc_num_without_fee"]
 
     # Monitoring
     mon = ips.get("monitoring", {})
-    lines.append(f"## {mon_section}、监控与评估")
+    lines.append(L["mon_sec_fmt"].format(num=mon_section))
     lines.append("")
-    lines.append(f"**审查频率**: {mon.get('review_frequency', '')}")
+    lines.append(f"**{L['review_freq']}**: {mon.get('review_frequency', '')}")
     lines.append("")
     if mon.get("benchmarks"):
-        lines.append("**绩效基准**:")
+        lines.append(L["benchmarks_label"])
         for bm in mon["benchmarks"]:
             lines.append(f"- {bm.get('asset_class', '')}: {bm.get('benchmark', '')}")
     lines.append("")
@@ -357,12 +512,12 @@ def _export_ips_markdown_zh(ips_dict: dict, audit_trail_dict: Optional[dict] = N
     lines.append("")
 
     # Risk Disclosure
-    lines.append(f"## {disclosure_section}、风险披露与合规声明")
+    lines.append(L["disc_sec_fmt"].format(num=disclosure_section))
     lines.append("")
-    lines.append("### 风险披露")
+    lines.append(L["risk_disc_h"])
     lines.append(ips.get("risk_disclosure", ""))
     lines.append("")
-    lines.append("### 合规声明")
+    lines.append(L["compliance_h"])
     lines.append(ips.get("compliance_statement", ""))
     lines.append("")
 
@@ -370,255 +525,20 @@ def _export_ips_markdown_zh(ips_dict: dict, audit_trail_dict: Optional[dict] = N
     if audit_trail_dict:
         lines.append("---")
         lines.append("")
-        lines.append("## 附录：生成审计追踪")
+        lines.append(L["appendix_h"])
         lines.append("")
-        lines.append(f"- **修订轮次**: {audit_trail_dict.get('total_rounds', 0)}")
-        lines.append(f"- **最终状态**: {audit_trail_dict.get('final_status', '')}")
+        lines.append(f"- **{L['rounds']}**: {audit_trail_dict.get('total_rounds', 0)}")
+        lines.append(f"- **{L['final_status']}**: {audit_trail_dict.get('final_status', '')}")
         meta = audit_trail_dict.get("generation_metadata", {})
-        lines.append(f"- **模型**: {meta.get('model', '')}")
-        lines.append(f"- **完成时间**: {meta.get('completed_at', '')}")
+        lines.append(f"- **{L['model']}**: {meta.get('model', '')}")
+        lines.append(f"- **{L['completed_at']}**: {meta.get('completed_at', '')}")
 
         for rev in audit_trail_dict.get("revision_history", []):
-            lines.append(f"\n### 第 {rev.get('round_number', '?')} 轮修订")
-            lines.append(f"- 版本: {rev.get('ips_version_before', '')} → {rev.get('ips_version_after', '')}")
-            for change in rev.get("changes_made", []):
-                if change:
-                    lines.append(f"  - {change}")
-
-    return "\n".join(lines)
-
-
-def _export_ips_markdown_en(ips_dict: dict, audit_trail_dict: Optional[dict] = None) -> str:
-    """English scaffolding for export_ips_markdown (Phase 22).
-
-    Mirrors _export_ips_markdown_zh section-for-section; only the fixed
-    chrome (headings, labels, table headers) is translated — the stored
-    narrative content is emitted as-is.
-    """
-    ips = ips_dict
-    lines = []
-
-    # Header
-    lines.append(f"# Investment Policy Statement (IPS)")
-    lines.append("")
-    lines.append(f"**Client**: {ips.get('client_name', 'N/A')}")
-    lines.append(f"**Prepared by**: {ips.get('prepared_by', 'N/A')}")
-    lines.append(f"**Preparation date**: {ips.get('preparation_date', 'N/A')}")
-    lines.append(f"**Version**: {ips.get('version', 'N/A')}")
-    lines.append("")
-    lines.append("---")
-    lines.append("")
-
-    # Executive Summary
-    lines.append("## 1. Executive Summary")
-    lines.append("")
-    lines.append(ips.get("executive_summary", ""))
-    lines.append("")
-
-    # Client Background
-    lines.append("## 2. Client Background")
-    lines.append("")
-    lines.append(ips.get("client_background", ""))
-    lines.append("")
-
-    # Return Objectives
-    ret = ips.get("return_objective", {})
-    lines.append("## 3. Return Objectives")
-    lines.append("")
-    lines.append(f"- **Required nominal annual return**: {ret.get('required_nominal_return', 0):.2%}")
-    lines.append(f"- **Required real annual return**: {ret.get('required_real_return', 0):.2%}")
-    lines.append(f"- **Calculation basis**: {ret.get('return_calculation_basis', '')}")
-    lines.append("")
-    lines.append(ret.get("return_objective_narrative", ""))
-    lines.append("")
-
-    # Risk Tolerance
-    risk = ips.get("risk_tolerance", {})
-    lines.append("## 4. Risk Tolerance")
-    lines.append("")
-    lines.append(f"**Overall risk level**: {risk.get('overall_risk_level', '')}")
-    lines.append("")
-    lines.append("### Ability Assessment (Objective)")
-    lines.append(risk.get("ability_assessment", ""))
-    lines.append("")
-    lines.append("### Willingness Assessment (Subjective)")
-    lines.append(risk.get("willingness_assessment", ""))
-    lines.append("")
-    if risk.get("conflict_resolution"):
-        lines.append("### Conflict Resolution")
-        lines.append(risk["conflict_resolution"])
-        lines.append("")
-    lines.append(risk.get("risk_narrative", ""))
-    lines.append("")
-
-    # Quantitative risk anchors (if any are provided)
-    _has_quant = any(risk.get(k) is not None for k in [
-        "max_acceptable_annual_loss", "target_volatility_min",
-        "target_volatility_max", "var_tolerance_95", "max_drawdown_tolerance"
-    ])
-    if _has_quant:
-        lines.append("### Quantitative Risk Anchors")
-        lines.append("")
-        lines.append("| Metric | Threshold |")
-        lines.append("|--------|-----------|")
-        if risk.get("max_acceptable_annual_loss") is not None:
-            lines.append(f"| Maximum acceptable annual loss | {risk['max_acceptable_annual_loss']:.2%} |")
-        if risk.get("target_volatility_min") is not None and risk.get("target_volatility_max") is not None:
-            lines.append(f"| Target volatility range | {risk['target_volatility_min']:.2%} – {risk['target_volatility_max']:.2%} |")
-        if risk.get("var_tolerance_95") is not None:
-            lines.append(f"| 95% VaR tolerance (annualized) | {risk['var_tolerance_95']:.2%} |")
-        if risk.get("max_drawdown_tolerance") is not None:
-            lines.append(f"| Maximum drawdown tolerance | {risk['max_drawdown_tolerance']:.2%} |")
-        lines.append("")
-
-    # Time Horizon
-    th = ips.get("time_horizon", {})
-    lines.append("## 5. Time Horizon")
-    lines.append("")
-    lines.append(f"**Total horizon**: {th.get('overall_horizon_years', 0)} years")
-    lines.append("")
-    for stage in th.get("stages", []):
-        lines.append(f"- **{stage.get('name', '')}**: {stage.get('years', 0)} years — {stage.get('description', '')}")
-    lines.append("")
-    lines.append(th.get("horizon_narrative", ""))
-    lines.append("")
-
-    # Liquidity
-    liq = ips.get("liquidity", {})
-    # Derive currency symbol from currency_policy or default to ¥ (CNY)
-    _currency_symbols = {"CNY": "¥", "USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "HKD": "HK$"}
-    _base_curr = (ips.get("currency_policy") or {}).get("base_currency", "CNY")
-    _curr_sym = _currency_symbols.get(_base_curr, _base_curr + " ")
-    lines.append("## 6. Liquidity Constraints")
-    lines.append("")
-    lines.append(f"- **Immediate liquidity needs**: {_curr_sym}{liq.get('immediate_needs', 0):,.0f}")
-    lines.append(f"- **Ongoing needs (annual)**: {_curr_sym}{liq.get('ongoing_needs', 0):,.0f}")
-    lines.append(f"- **Emergency reserve**: {liq.get('emergency_reserve_months', 0)} months")
-    lines.append("")
-    lines.append(liq.get("liquidity_narrative", ""))
-    lines.append("")
-
-    # Tax
-    tax = ips.get("tax", {})
-    lines.append("## 7. Tax Constraints")
-    lines.append("")
-    lines.append(f"**Tax status**: {tax.get('tax_status', '')}")
-    lines.append("")
-    lines.append(tax.get("tax_narrative", ""))
-    lines.append("")
-
-    # Legal
-    legal = ips.get("legal", {})
-    lines.append("## 8. Legal & Regulatory Constraints")
-    lines.append("")
-    for reg in legal.get("applicable_regulations", []):
-        lines.append(f"- {reg}")
-    lines.append("")
-    lines.append(legal.get("legal_narrative", ""))
-    lines.append("")
-
-    # Unique Circumstances
-    unique = ips.get("unique_circumstances", {})
-    lines.append("## 9. Unique Circumstances")
-    lines.append("")
-    if unique.get("esg_preferences"):
-        lines.append(f"- **ESG preferences**: {unique['esg_preferences']}")
-    if unique.get("sector_restrictions"):
-        lines.append(f"- **Sector restrictions**: {', '.join(unique['sector_restrictions'])}")
-    if unique.get("concentrated_positions"):
-        lines.append(f"- **Concentrated positions**: {unique['concentrated_positions']}")
-    lines.append("")
-    lines.append(unique.get("unique_narrative", ""))
-    lines.append("")
-
-    # Investment Guidelines
-    guide = ips.get("investment_guidelines", {})
-    lines.append("## 10. Investment Guidelines & Policies")
-    lines.append("")
-    lines.append("### Strategic Asset Allocation")
-    lines.append("")
-    lines.append("| Asset Class | Target Weight | Min Weight | Max Weight | Rationale |")
-    lines.append("|-------------|---------------|------------|------------|-----------|")
-    for alloc in guide.get("strategic_allocation", []):
-        lines.append(
-            f"| {alloc.get('asset_class', '')} "
-            f"| {alloc.get('target_weight', 0):.1%} "
-            f"| {alloc.get('min_weight', 0):.1%} "
-            f"| {alloc.get('max_weight', 0):.1%} "
-            f"| {alloc.get('rationale', '')} |"
-        )
-    lines.append("")
-    lines.append(f"**Permitted instruments**: {', '.join(guide.get('permitted_instruments', []))}")
-    lines.append(f"**Prohibited instruments**: {', '.join(guide.get('prohibited_instruments', []))}")
-    lines.append(f"**Rebalancing policy**: {guide.get('rebalancing_policy', '')}")
-    lines.append("")
-    lines.append(guide.get("guideline_narrative", ""))
-    lines.append("")
-
-    # Fee Schedule (if provided)
-    fee = ips.get("fee_schedule")
-    if fee:
-        lines.append("## 11. Fees & Cost Disclosure")
-        lines.append("")
-        lines.append("| Fee Item | Rate |")
-        lines.append("|----------|------|")
-        lines.append(f"| Investment management fee | {fee.get('management_fee_rate', 0):.2%} |")
-        lines.append(f"| Custody fee | {fee.get('custody_fee_rate', 0):.2%} |")
-        lines.append(f"| Estimated transaction costs | {fee.get('transaction_cost_estimate', 0):.2%} |")
-        lines.append(f"| **Total Expense Ratio (TER)** | **{fee.get('total_expense_ratio', 0):.2%}** |")
-        lines.append("")
-        if fee.get("net_return_impact"):
-            lines.append(f"**Net return impact**: {fee['net_return_impact']}")
-            lines.append("")
-        lines.append(fee.get("fee_narrative", ""))
-        lines.append("")
-
-        # Adjust section numbering for subsequent sections
-        mon_section = "12"
-        disclosure_section = "13"
-    else:
-        mon_section = "11"
-        disclosure_section = "12"
-
-    # Monitoring
-    mon = ips.get("monitoring", {})
-    lines.append(f"## {mon_section}. Monitoring & Review")
-    lines.append("")
-    lines.append(f"**Review frequency**: {mon.get('review_frequency', '')}")
-    lines.append("")
-    if mon.get("benchmarks"):
-        lines.append("**Performance benchmarks**:")
-        for bm in mon["benchmarks"]:
-            lines.append(f"- {bm.get('asset_class', '')}: {bm.get('benchmark', '')}")
-    lines.append("")
-    lines.append(mon.get("monitoring_narrative", ""))
-    lines.append("")
-
-    # Risk Disclosure
-    lines.append(f"## {disclosure_section}. Risk Disclosure & Compliance Statement")
-    lines.append("")
-    lines.append("### Risk Disclosure")
-    lines.append(ips.get("risk_disclosure", ""))
-    lines.append("")
-    lines.append("### Compliance Statement")
-    lines.append(ips.get("compliance_statement", ""))
-    lines.append("")
-
-    # Audit Trail Summary (if provided)
-    if audit_trail_dict:
-        lines.append("---")
-        lines.append("")
-        lines.append("## Appendix: Generation Audit Trail")
-        lines.append("")
-        lines.append(f"- **Revision rounds**: {audit_trail_dict.get('total_rounds', 0)}")
-        lines.append(f"- **Final status**: {audit_trail_dict.get('final_status', '')}")
-        meta = audit_trail_dict.get("generation_metadata", {})
-        lines.append(f"- **Model**: {meta.get('model', '')}")
-        lines.append(f"- **Completed at**: {meta.get('completed_at', '')}")
-
-        for rev in audit_trail_dict.get("revision_history", []):
-            lines.append(f"\n### Revision Round {rev.get('round_number', '?')}")
-            lines.append(f"- Version: {rev.get('ips_version_before', '')} → {rev.get('ips_version_after', '')}")
+            lines.append(L["rev_round_fmt"].format(n=rev.get("round_number", "?")))
+            lines.append(L["rev_version_fmt"].format(
+                before=rev.get("ips_version_before", ""),
+                after=rev.get("ips_version_after", ""),
+            ))
             for change in rev.get("changes_made", []):
                 if change:
                     lines.append(f"  - {change}")

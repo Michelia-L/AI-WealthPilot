@@ -17,7 +17,7 @@ import json
 import tempfile
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Generator, Optional
+from typing import Generator, Optional
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -35,6 +35,7 @@ from api.schemas import (
     ReportSummary,
     SaveReportRequest,
 )
+from api.tasks import sse
 from src.agents import report_storage
 from src.agents.advisor import (
     AdvisorReport,
@@ -46,10 +47,6 @@ from src.agents.llm_config import get_llm_config
 from src.utils import sanitize_filename
 
 router = APIRouter(prefix="/advisor", tags=["advisor"])
-
-
-def _sse(payload: dict[str, Any]) -> str:
-    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
 def _event_stream(record: ProfileRecord, locale: str) -> Generator[str, None, None]:
@@ -73,16 +70,16 @@ def _event_stream(record: ProfileRecord, locale: str) -> Generator[str, None, No
             # plain-string streams by wrapping them as token events.
             if not isinstance(event, dict):
                 event = {"type": "token", "text": event}
-            yield _sse(event)
+            yield sse(event)
     except Exception as e:  # defensive: src/ generator already swallows API errors
-        yield _sse({"type": "error", "message": msg("common.stream_interrupted", locale, error=e)})
+        yield sse({"type": "error", "message": msg("common.stream_interrupted", locale, error=e)})
         return
 
     if not holder:
-        yield _sse({"type": "error", "message": msg("common.no_report_generated", locale)})
+        yield sse({"type": "error", "message": msg("common.no_report_generated", locale)})
         return
     report = holder[0]
-    yield _sse(
+    yield sse(
         {
             "type": "done",
             "success": report.success,
@@ -209,6 +206,20 @@ def delete_report(report_id: str, request: Request) -> None:
 _EXPORT_FORMATS = ("html", "markdown", "json")
 
 
+def _attachment_disposition(base: str, ext: str) -> str:
+    """RFC 5987 Content-Disposition for a download named ``base.ext``.
+
+    The plain filename= fallback travels in a latin-1 HTTP header, so fold
+    non-ASCII (e.g. CJK client names) to '?'; the full UTF-8 name is
+    carried by the RFC 5987 filename* parameter.
+    """
+    ascii_base = base.encode("ascii", "replace").decode("ascii")
+    return (
+        f'attachment; filename="{ascii_base}.{ext}"; '
+        f"filename*=UTF-8''{quote(base)}.{ext}"
+    )
+
+
 @router.get("/reports/{report_id}/pdf")
 def get_report_pdf(report_id: str, request: Request) -> Response:
     """Render a stored report as a downloadable PDF (src export_report_pdf).
@@ -231,18 +242,10 @@ def get_report_pdf(report_id: str, request: Request) -> Response:
         )
         pdf_bytes = pdf_path.read_bytes()
     base = f"report_{sanitize_filename(report.client_name) or 'client'}_{report.report_id}"
-    # The plain filename= fallback travels in a latin-1 HTTP header, so fold
-    # non-ASCII (e.g. CJK client names) to '?'; the full UTF-8 name is
-    # carried by the RFC 5987 filename* parameter.
-    ascii_base = base.encode("ascii", "replace").decode("ascii")
-    disposition = (
-        f'attachment; filename="{ascii_base}.pdf"; '
-        f"filename*=UTF-8''{quote(base)}.pdf"
-    )
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": disposition},
+        headers={"Content-Disposition": _attachment_disposition(base, "pdf")},
     )
 
 
@@ -287,16 +290,8 @@ def export_report_file(
         body = json.dumps(data, ensure_ascii=False, indent=2)
         media_type, ext = "application/json", "json"
 
-    # The plain filename= fallback travels in a latin-1 HTTP header, so fold
-    # non-ASCII (e.g. CJK client names) to '?'; the full UTF-8 name is
-    # carried by the RFC 5987 filename* parameter.
-    ascii_base = base.encode("ascii", "replace").decode("ascii")
-    disposition = (
-        f'attachment; filename="{ascii_base}.{ext}"; '
-        f"filename*=UTF-8''{quote(base)}.{ext}"
-    )
     return Response(
         content=body,
         media_type=media_type,
-        headers={"Content-Disposition": disposition},
+        headers={"Content-Disposition": _attachment_disposition(base, ext)},
     )

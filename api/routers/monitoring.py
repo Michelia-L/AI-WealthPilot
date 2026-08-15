@@ -10,9 +10,8 @@ Server-Sent Events, reusing the advisor SSE protocol verbatim (reasoning
 and token events, then a terminal done/error event).
 """
 
-import json
 from datetime import date
-from typing import Any, Generator, Optional
+from typing import Generator, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -29,6 +28,7 @@ from api.schemas import (
     MonitoringResponse,
     RebalanceAdviceRequest,
 )
+from api.tasks import sse
 from src.agents.profiler import ClientProfile
 from src.agents.demo_mode import demo_rebalance_stream, is_demo_mode
 from src.agents.rebalance_advisor import (
@@ -227,10 +227,6 @@ def get_backtest(
 # ---------------------------------------------------------------------------
 
 
-def _sse(payload: dict[str, Any]) -> str:
-    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-
-
 def _advice_event_stream(
     monitoring: dict, profile: Optional[ClientProfile], locale: str
 ) -> Generator[str, None, None]:
@@ -253,16 +249,16 @@ def _advice_event_stream(
             # plain-string streams by wrapping them as token events.
             if not isinstance(event, dict):
                 event = {"type": "token", "text": event}
-            yield _sse(event)
+            yield sse(event)
     except Exception as e:  # defensive: src/ generator already swallows API errors
-        yield _sse({"type": "error", "message": msg("common.stream_interrupted", locale, error=e)})
+        yield sse({"type": "error", "message": msg("common.stream_interrupted", locale, error=e)})
         return
 
     if not holder:
-        yield _sse({"type": "error", "message": msg("common.no_report_generated", locale)})
+        yield sse({"type": "error", "message": msg("common.no_report_generated", locale)})
         return
     report = holder[0]
-    yield _sse(
+    yield sse(
         {
             "type": "done",
             "success": report.success,
