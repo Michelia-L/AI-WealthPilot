@@ -21,6 +21,16 @@ from src.portfolio.cme_models import AssetClassCME, CMEReport
 
 SAVED_AT = "2026-06-01T09:30:00"
 
+# Frozen clock for as_of assertions: the server reads datetime.now() inside
+# src.portfolio.monitoring, so a local datetime.now() assertion races midnight.
+FROZEN_DATE = "2026-06-15"
+
+
+class _FrozenDatetime(datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return cls(2026, 6, 15, 23, 59)
+
 
 # ---------------------------------------------------------------------------
 # Stub builders
@@ -153,6 +163,7 @@ def stub_cme(monkeypatch):
 
 def test_monitoring_full_chain(client, ips_dir, stub_cme, monkeypatch):
     """End-to-end 200: cash plug, CME alignment, drift, portfolio metrics."""
+    monkeypatch.setattr("src.portfolio.monitoring.datetime", _FrozenDatetime)
     monkeypatch.setattr(
         "src.portfolio.monitoring.fetch_price_history",
         _stub_fetch(_prices({
@@ -173,7 +184,7 @@ def test_monitoring_full_chain(client, ips_dir, stub_cme, monkeypatch):
     assert body["document_id"] == doc_id
     assert body["client_name"] == "测试客户"
     assert body["saved_at"] == SAVED_AT
-    assert body["as_of"] == datetime.now().date().isoformat()
+    assert body["as_of"] == FROZEN_DATE
     assert body["cme_cache_status"] == "cached"
 
     # Cash plug appended as a third holding
@@ -416,6 +427,7 @@ def _reset_fleet_status_cache():
 
 def test_fleet_status_full_chain(client, ips_dir, monkeypatch):
     """One breach doc + one ok doc; single shared fetch; saved_at desc."""
+    monkeypatch.setattr("src.portfolio.monitoring.datetime", _FrozenDatetime)
     counter = {"calls": 0}
     monkeypatch.setattr(
         "src.portfolio.monitoring.fetch_price_history",
@@ -436,7 +448,7 @@ def test_fleet_status_full_chain(client, ips_dir, monkeypatch):
     assert resp.status_code == 200
     body = resp.json()
 
-    assert body["as_of"] == datetime.now().date().isoformat()
+    assert body["as_of"] == FROZEN_DATE
     assert body["price_as_of"] == "2026-06-12"
     assert body["summary"] == {"total": 2, "breach": 1, "ok": 1, "unknown": 0}
     # One shared fetch for the union of tickers, not one per document
