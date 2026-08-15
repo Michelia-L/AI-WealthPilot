@@ -311,8 +311,8 @@ def fetch_risk_free_rate_detailed(
         USD: FRED DGS3MO -> yfinance ^IRX -> DEFAULT_RISK_FREE_RATE.
         CNY: akshare ChinaBond 1Y treasury yield -> DEFAULT_RISK_FREE_RATE_CNY.
 
-    Every external call degrades silently to the next tier, so the
-    function never raises on network/provider failures.
+    Every external call logs a warning and degrades to the next tier,
+    so the function never raises on network/provider failures.
 
     Returns:
         Tuple of (rate as decimal, source label). Labels: ``fred_api``
@@ -330,9 +330,8 @@ def fetch_risk_free_rate_detailed(
                 yield_pct = akshare_provider.fetch_cgb_yield_1y()
                 if yield_pct is not None and yield_pct > 0:
                     return float(yield_pct) / 100.0, "akshare_cgb_1y"
-            except Exception:
-                # Silent fallback to static CNY default
-                pass
+            except Exception as e:
+                logger.warning("akshare CGB 1Y yield fetch failed, using static fallback: %s", e)
         return fallback_cny, "static_fallback"
 
     # USD leg: FRED -> yfinance -> static default
@@ -358,9 +357,8 @@ def fetch_risk_free_rate_detailed(
                     val_str = observations[0].get("value")
                     if val_str and val_str != ".":
                         return float(val_str) / 100.0, "fred_api"
-        except Exception:
-            # Silent fallback to yfinance
-            pass
+        except Exception as e:
+            logger.warning("FRED DGS3MO fetch failed, falling back to yfinance ^IRX: %s", e)
 
     # 2. Try yfinance ^IRX (13-Week Treasury Bill)
     try:
@@ -376,9 +374,8 @@ def fetch_risk_free_rate_detailed(
             rate_val = hist["Close"].iloc[-1]
             if rate_val is not None and rate_val > 0:
                 return float(rate_val) / 100.0, "yfinance_irx"
-    except Exception:
-        # Silent fallback to static default
-        pass
+    except Exception as e:
+        logger.warning("yfinance ^IRX fetch failed, using static fallback: %s", e)
 
     # 3. Fallback to static default rate
     return fallback_rate, "static_fallback"

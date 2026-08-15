@@ -21,12 +21,17 @@ References:
       SSRN 2297383.
 """
 
+import logging
+
 import numpy as np
 import pandas as pd
 from scipy.optimize import linprog, minimize
 from typing import Optional
 
 from src.config import RISK_FREE_RATE, TRADING_DAYS_PER_YEAR
+
+
+logger = logging.getLogger(__name__)
 
 
 class PortfolioOptimizer:
@@ -348,7 +353,8 @@ class PortfolioOptimizer:
                     }
                     row.update(result["weights"])
                     frontier.append(row)
-            except Exception:
+            except Exception as e:
+                logger.debug("Frontier point failed to solve, skipping: %s", e)
                 continue
 
         return pd.DataFrame(frontier)
@@ -996,7 +1002,8 @@ class PortfolioOptimizer:
                     }
                     row.update(result["weights"])
                     frontier.append(row)
-            except Exception:
+            except Exception as e:
+                logger.debug("Frontier point failed to solve, skipping: %s", e)
                 continue
         return pd.DataFrame(frontier)
 
@@ -1369,7 +1376,8 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
                     }
                     row.update(result["weights"])
                     frontier.append(row)
-            except Exception:
+            except Exception as e:
+                logger.debug("Frontier point failed to solve, skipping: %s", e)
                 continue
         return pd.DataFrame(frontier)
 

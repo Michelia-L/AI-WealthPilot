@@ -7,6 +7,7 @@ Risk Tolerance = min(Ability, Willingness).
 """
 
 import json
+import logging
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
@@ -14,6 +15,8 @@ from typing import Optional
 
 from src.config import DATA_DIR
 from src.utils import sanitize_filename
+
+logger = logging.getLogger(__name__)
 
 
 def format_ratio(value: float) -> str:
@@ -394,7 +397,8 @@ def list_profiles() -> list[dict]:
                 "risk_level": profile.risk_profile.tolerance_level,
                 "updated_at": profile.updated_at,
             })
-        except Exception:
+        except Exception as e:
+            logger.warning("Skipping corrupt profile file %s: %s", filepath, e)
             continue
     return profiles
 
@@ -421,7 +425,8 @@ def delete_profile(filepath: Path) -> bool:
             filepath.unlink()
             return True
         return False
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to delete profile %s: %s", filepath, e)
         return False
 
 

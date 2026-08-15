@@ -3,11 +3,16 @@ AI WealthPilot - Visualization Module
 
 Plotly-based chart components for portfolio analysis dashboards.
 """
+import logging
+
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
 import numpy as np
 from typing import Optional
+
+
+logger = logging.getLogger(__name__)
 
 
 # Color Palette — Premium dark theme (Vantablack-Gold-Emerald)
@@ -81,8 +86,8 @@ def get_asset_color(name_or_ticker: str, index: int) -> str:
                 for cls_key, color in premium_colors.items():
                     if cls_key in key:
                         return color
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Asset-class color lookup failed, using fallback palette: %s", e)
 
     # 3. Fallback premium color palette
     fallback_palette = [
