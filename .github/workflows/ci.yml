@@ -31,6 +31,13 @@ jobs:
           python -m pip install --upgrade pip setuptools
           pip install -r requirements-dev.txt
 
+      # Fail fast on lint/format before the slow test suite starts.
+      - name: Ruff lint
+        run: ruff check
+
+      - name: Ruff format check
+        run: ruff format --check
+
       # IPS PDF tests render CJK text — without a CJK-capable font fpdf2
       # raises on non-latin-1 characters. Mirror api/Dockerfile: WenQuanYi
       # Micro Hei linked into the path _find_cjk_font probes.
