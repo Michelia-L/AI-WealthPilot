@@ -27,6 +27,7 @@ from src.agents.profiler import (
     RiskProfile,
     classify_risk_score,
 )
+from src.config import RISK_VOLATILITY_BANDS
 from src.portfolio.optimizer import PortfolioOptimizer
 
 # ============================================================
@@ -180,6 +181,16 @@ class TestRiskScoreMapping:
         vols = [_get_target_volatility(score) for score in [1.0, 2.0, 3.0, 4.0, 5.0]]
         for i in range(len(vols) - 1):
             assert vols[i] < vols[i + 1]
+
+    def test_endpoints_land_on_canonical_band_edges(self):
+        """Contract with config.RISK_VOLATILITY_BANDS (P25): the clamped
+        extremes interpolate to exactly the outer band edges."""
+        assert _get_target_volatility(1.0) == pytest.approx(
+            RISK_VOLATILITY_BANDS["conservative"][0]
+        )
+        assert _get_target_volatility(5.0) == pytest.approx(
+            RISK_VOLATILITY_BANDS["aggressive"][1]
+        )
 
     def test_classify_risk_levels(self):
         """Test risk level classification via shared classify_risk_score."""

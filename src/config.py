@@ -312,6 +312,35 @@ IPS_ASSET_CLASS_TICKERS = {
     },
 }
 
+# Asset-class alias table (P25): bilingual keyword lists per
+# IPS_ASSET_CLASS_TICKERS category key, in priority order (first hit wins).
+# Single source for monitoring's SAA->proxy mapping and the IPS workflow's
+# SAA<->CME same-category match. zh aliases first (pre-existing behavior
+# preserved verbatim); en aliases fix the en-locale coverage gap.
+ASSET_CLASS_ALIASES: dict[str, list[str]] = {
+    "domestic_equity": [
+        "国内权益",
+        "A股",
+        "沪深300",
+        "Domestic Equity",
+        "A-shares",
+        "A-share",
+        "CSI 300",
+    ],
+    "international_equity_dm": [
+        "国际权益",
+        "发达市场",
+        "International Equity",
+        "Developed Markets",
+        "EFA",
+    ],
+    "international_equity_hk": ["港股", "恒生", "Hong Kong", "Hang Seng", "EWH"],
+    "fixed_income": ["固定收益", "固收", "债", "Fixed Income", "Bond"],
+    "alternative_gold": ["黄金", "Gold", "GLD"],
+    "alternative_reit": ["REITs", "REIT", "房地产", "Real Estate"],
+    "cash": ["现金", "货币市场", "货币", "Cash", "Money Market", "BIL"],
+}
+
 # Implied Volatility Configuration
 # Bayesian blending weight for implied vs historical volatility.
 # τ (tau) controls the weight placed on forward-looking implied volatility:
@@ -353,6 +382,17 @@ CME_REFERENCE_ALLOCATION = {
     "alternative_gold": 0.10,
     "alternative_reit": 0.05,
     "cash": 0.05,
+}
+
+# Canonical risk-level → target annualized volatility band (P25 single
+# source). Consumers: validate_saa enforcement, recommender interpolation,
+# and the IPS agent prompts (composed at build time).
+RISK_VOLATILITY_BANDS = {
+    "conservative": (0.04, 0.08),
+    "moderately_conservative": (0.08, 0.12),
+    "moderate": (0.10, 0.15),
+    "moderately_aggressive": (0.13, 0.18),
+    "aggressive": (0.16, 0.25),
 }
 
 # SAA Validation thresholds

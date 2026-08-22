@@ -34,7 +34,7 @@ import numpy as np
 import pandas as pd
 
 from src.agents import ips_storage
-from src.config import IPS_ASSET_CLASS_TICKERS
+from src.config import ASSET_CLASS_ALIASES, IPS_ASSET_CLASS_TICKERS
 from src.data.market_data import fetch_price_history
 from src.portfolio.cme_engine import compute_cme
 from src.portfolio.cme_models import AssetClassCME
@@ -42,26 +42,11 @@ from src.portfolio.cme_models import AssetClassCME
 logger = logging.getLogger(__name__)
 
 
-# SAA Chinese display name -> IPS_ASSET_CLASS_TICKERS config key.
+# SAA display name -> IPS_ASSET_CLASS_TICKERS config key, flattened from the
+# shared ASSET_CLASS_ALIASES table (P25 single source; bilingual aliases).
 # Ordered: the first keyword contained in the SAA asset_class name wins.
 _SAA_KEYWORDS: list[tuple[str, str]] = [
-    ("国内权益", "domestic_equity"),
-    ("A股", "domestic_equity"),
-    ("沪深300", "domestic_equity"),
-    ("国际权益", "international_equity_dm"),
-    ("发达市场", "international_equity_dm"),
-    ("港股", "international_equity_hk"),
-    ("恒生", "international_equity_hk"),
-    ("固定收益", "fixed_income"),
-    ("固收", "fixed_income"),
-    ("债", "fixed_income"),
-    ("黄金", "alternative_gold"),
-    ("Gold", "alternative_gold"),
-    ("REIT", "alternative_reit"),
-    ("房地产", "alternative_reit"),
-    ("现金", "cash"),
-    ("货币", "cash"),
-    ("Cash", "cash"),
+    (alias, key) for key, aliases in ASSET_CLASS_ALIASES.items() for alias in aliases
 ]
 
 
@@ -355,7 +340,7 @@ def _find_ips_file(document_id: str) -> Optional[Path]:
 
 
 def _match_asset_class_key(name: str) -> Optional[str]:
-    """Map an SAA Chinese display name to an IPS_ASSET_CLASS_TICKERS key."""
+    """Map an SAA display name (zh or en) to an IPS_ASSET_CLASS_TICKERS key."""
     for keyword, key in _SAA_KEYWORDS:
         if keyword in name:
             return key

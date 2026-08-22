@@ -28,8 +28,10 @@ from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
 
+from src import config
 from src.agents.ips_models import IPSDocument, ReviewDimension, ReviewResult
 from src.agents.llm_config import get_llm_config
+from src.portfolio.risk_constraints import RISK_LEVEL_CAPS
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +116,7 @@ _GENERATOR_SYSTEM_PROMPT = """你是一名资深私人财富管理顾问，专�
 3. **风险承受能力双轨制**：严格执行"取较低值"原则
    - 必须填写 `risk_tolerance` 中的量化风险锚点字段：
      - `max_acceptable_annual_loss`: 基于风险等级的最大可接受年度亏损（保守:-5%, 稳健:-10%, 平衡:-15%, 成长:-20%, 进取:-30%）
-     - `target_volatility_min` / `target_volatility_max`: 目标波动率区间（保守:4-8%, 稳健:8-12%, 平衡:10-15%, 成长:13-18%, 进取:16-25%）
+     - `target_volatility_min` / `target_volatility_max`: 目标波动率区间（__VOL_BANDS__）
      - `var_tolerance_95`: 95% 置信水平下的年化 VaR 容忍度
      - `max_drawdown_tolerance`: 最大回撤容忍度
 4. **量化精确**：收益目标必须有明确的数学推导过程
@@ -178,7 +180,7 @@ Based on the provided client profile data and the IPS structural template, gener
 3. **Dual-track risk tolerance**: strictly apply the "use the lower score" principle
    - You MUST fill in the quantitative risk-anchor fields of `risk_tolerance`:
      - `max_acceptable_annual_loss`: maximum acceptable annual loss by risk level (conservative: -5%, moderately_conservative: -10%, moderate: -15%, moderately_aggressive: -20%, aggressive: -30%)
-     - `target_volatility_min` / `target_volatility_max`: target volatility band (conservative: 4-8%, moderately_conservative: 8-12%, moderate: 10-15%, moderately_aggressive: 13-18%, aggressive: 16-25%)
+     - `target_volatility_min` / `target_volatility_max`: target volatility band (__VOL_BANDS__)
      - `var_tolerance_95`: annualized VaR tolerance at the 95% confidence level
      - `max_drawdown_tolerance`: maximum drawdown tolerance
 4. **Quantitative precision**: return objectives must show an explicit mathematical derivation
@@ -323,11 +325,7 @@ _CONSISTENCY_REVIEW_PROMPT = """你是一名专业的 IPS 一致性审查员，�
 你需要逐项检查以下内容：
 
 1. **风险等级与配置一致性**：声明的风险等级是否与实际资产配置的风险水平一致
-   - 保守型：权益类 ≤ 30%
-   - 稳健型：权益类 ≤ 45%
-   - 平衡型：权益类 ≤ 60%
-   - 成长型：权益类 ≤ 75%
-   - 进取型：权益类 ≤ 90%
+__EQUITY_CAPS__
 2. **收益目标与配置一致性**：配置方案的预期收益率能否覆盖所需收益率
 3. **期限与配置一致性**：投资期限分析是否与配置逻辑一致
 4. **执行摘要一致性**：摘要内容是否与各章节一致
@@ -347,11 +345,7 @@ _CONSISTENCY_REVIEW_PROMPT_EN = """You are a professional IPS consistency review
 Check each of the following items:
 
 1. **Risk level vs allocation consistency**: whether the stated risk level matches the actual risk level of the asset allocation
-   - Conservative: equities ≤ 30%
-   - Moderately conservative: equities ≤ 45%
-   - Moderate: equities ≤ 60%
-   - Moderately aggressive: equities ≤ 75%
-   - Aggressive: equities ≤ 90%
+__EQUITY_CAPS__
 2. **Return objective vs allocation consistency**: whether the allocation's expected return can cover the required return
 3. **Horizon vs allocation consistency**: whether the time horizon analysis is consistent with the allocation logic
 4. **Executive summary consistency**: whether the summary content matches each section
@@ -435,10 +429,74 @@ _SYSTEM_PROMPTS_EN = {
 }
 
 
+# Prompt numeric-guidance composition (P25). The generator and
+# consistency prompt constants carry __VOL_BANDS__ / __EQUITY_CAPS__
+# placeholders (plain-text markers, so the constants stay free of
+# f-string escaping); get_system_prompt — the single access point —
+# fills them from the canonical config tables, keeping the LLM-facing
+# numbers in lockstep with the enforced ones. Level display names below
+# are pure presentation text; every number comes from config.
+
+# zh display names keyed by RISK_VOLATILITY_BANDS key (the en generator
+# prompt historically displays the snake_case keys themselves).
+_VOL_LEVEL_LABELS_ZH = {
+    "conservative": "保守",
+    "moderately_conservative": "稳健",
+    "moderate": "平衡",
+    "moderately_aggressive": "成长",
+    "aggressive": "进取",
+}
+
+# en display names keyed by RISK_LEVEL_CAPS key (Chinese level names).
+_EQUITY_LEVEL_LABELS_EN = {
+    "保守型": "Conservative",
+    "稳健型": "Moderately conservative",
+    "平衡型": "Moderate",
+    "成长型": "Moderately aggressive",
+    "进取型": "Aggressive",
+}
+
+
+def _vol_band_text(locale: str) -> str:
+    """Render the per-level volatility-band listing for generator prompts.
+
+    Keeps the pre-P25 formatting verbatim: zh labels take a bare colon
+    (``保守:4-8%``), en labels a colon plus space (``moderate: 10-15%``).
+    """
+    parts = []
+    for key, (lo, hi) in config.RISK_VOLATILITY_BANDS.items():
+        if locale == "en":
+            parts.append(f"{key}: {lo * 100:.0f}-{hi * 100:.0f}%")
+        else:
+            parts.append(f"{_VOL_LEVEL_LABELS_ZH[key]}:{lo * 100:.0f}-{hi * 100:.0f}%")
+    return ", ".join(parts)
+
+
+def _equity_caps_text(locale: str) -> str:
+    """Render the per-level equity-cap bullet lines for consistency prompts."""
+    lines = []
+    for key, caps in RISK_LEVEL_CAPS.items():
+        cap = f"{caps['equity']:.0%}"
+        if locale == "en":
+            lines.append(f"   - {_EQUITY_LEVEL_LABELS_EN[key]}: equities ≤ {cap}")
+        else:
+            lines.append(f"   - {key}：权益类 ≤ {cap}")
+    return "\n".join(lines)
+
+
 def get_system_prompt(role: str, locale: str = "zh") -> str:
-    """System prompt for an IPS workflow role in the report language."""
+    """System prompt for an IPS workflow role in the report language.
+
+    Fills the __VOL_BANDS__ / __EQUITY_CAPS__ placeholders (P25) from the
+    canonical config tables; roles without placeholders pass through
+    unchanged.
+    """
     table = _SYSTEM_PROMPTS_EN if locale == "en" else _SYSTEM_PROMPTS_ZH
-    return table[role]
+    return (
+        table[role]
+        .replace("__VOL_BANDS__", _vol_band_text(locale))
+        .replace("__EQUITY_CAPS__", _equity_caps_text(locale))
+    )
 
 
 # Shared Model Settings

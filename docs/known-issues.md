@@ -154,4 +154,4 @@ AI 顾问/调仓建议等流式生成等待数十秒，期间只看着正文逐�
 
 - profiler 的其余硬编码双语串：行为偏差（`identify_behavioral_biases`）、画像对比洞察（`_generate_comparison_insights`/`format_comparison_report`）、`format_ratio` 的「∞ (无资产但有负债)」（经 `build_derived` 透出到画像详情页）。风险等级标签（`RISK_LEVEL_LABELS`）作为持久化数据保持双语存储，前端经 `localizedRiskLabel` 按 locale 显示，属既有设计。
 - 存储记录（`data/ips/`、`data/reports/`）无语言字段：en 请求查看 zh 生成的文档会得到「英文骨架 + 中文正文」的混合体，属已知取舍；如需「按生成语言渲染」提示再单独立项。
-- DEMO_MODE 英文 IPS 夹具的资产类别名为英文，监控/回测的 `_SAA_KEYWORDS` 只覆盖部分英文关键词，en 演示链路下游映射不完整（走既有容错路径，不崩溃）。
+- ~~DEMO_MODE 英文 IPS 夹具的资产类别名为英文，监控/回测的 `_SAA_KEYWORDS` 只覆盖部分英文关键词，en 演示链路下游映射不完整（走既有容错路径，不崩溃）。~~（已解决 2026-08-22，P25：别名表上单源化为 `config.ASSET_CLASS_ALIASES`（双语关键词，有序首中），`monitoring._SAA_KEYWORDS` 由其展平派生、`ips_workflow._fuzzy_asset_match` 改为按类别键命中，en 夹具 SAA 名与 CME 中文名全部命中映射。）

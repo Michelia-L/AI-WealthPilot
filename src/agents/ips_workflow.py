@@ -752,16 +752,10 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
             )
 
             # Check volatility against client risk tolerance band
-            # Bands derived from RISK_VOLATILITY_MAP in portfolio_recommender
+            # Canonical per-level bands live in config.RISK_VOLATILITY_BANDS
+            # (P25 single source, shared with the recommender and prompts).
             risk_level = ips.get("risk_tolerance", {}).get("overall_risk_level", "")
-            vol_bands = {
-                "conservative": (0.04, 0.08),
-                "moderately_conservative": (0.08, 0.12),
-                "moderate": (0.10, 0.15),
-                "moderately_aggressive": (0.13, 0.18),
-                "aggressive": (0.16, 0.25),
-            }
-            band = vol_bands.get(risk_level)
+            band = config.RISK_VOLATILITY_BANDS.get(risk_level)
             is_vol_acceptable = True
             if band:
                 if portfolio_vol > band[1] * 1.2:
@@ -888,24 +882,33 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
 
 
 def _fuzzy_asset_match(saa_name: str, cme_name: str) -> bool:
-    """Fuzzy match SAA asset class name against CME asset class name."""
-    keywords_map = {
-        "国内权益": ["国内权益", "A股", "沪深300"],
-        "国际权益": ["国际权益", "发达市场", "EFA"],
-        "港股": ["港股", "恒生"],
-        "固定收益": ["固定收益", "固收", "债"],
-        "黄金": ["黄金", "Gold", "GLD"],
-        "REITs": ["REITs", "REIT", "房地产"],
-        "现金": ["现金", "货币市场", "Cash", "BIL"],
-    }
+    """Fuzzy match SAA asset class name against CME asset class name.
 
-    for _category, keywords in keywords_map.items():
-        saa_match = any(kw in saa_name for kw in keywords)
-        cme_match = any(kw in cme_name for kw in keywords)
+    Both names are resolved against the shared ``ASSET_CLASS_ALIASES``
+    table (P25 config single source; bilingual aliases — CME asset names
+    are always Chinese, SAA names follow the generation locale): hitting
+    the same category key counts as a match. Read via the config module
+    attribute so tests can monkeypatch the table.
+    """
+    for aliases in config.ASSET_CLASS_ALIASES.values():
+        saa_match = any(alias in saa_name for alias in aliases)
+        cme_match = any(alias in cme_name for alias in aliases)
         if saa_match and cme_match:
             return True
 
     return False
+
+
+def _aggregate_usage(records: list[dict]) -> dict[str, Any]:
+    """Aggregate per-node token usage records into an audit-trail summary (P24)."""
+    keys = ("requests", "input_tokens", "output_tokens", "total_tokens")
+    by_node: dict[str, dict[str, int]] = {}
+    for rec in records:
+        stats = by_node.setdefault(rec["node"], dict.fromkeys(keys, 0))
+        for key in keys:
+            stats[key] += int(rec.get(key) or 0)
+    totals = {key: sum(stats[key] for stats in by_node.values()) for key in keys}
+    return {**totals, "by_node": by_node}
 
 
 async def finalize_node(state: IPSWorkflowState) -> dict[str, Any]:
@@ -937,6 +940,7 @@ async def finalize_node(state: IPSWorkflowState) -> dict[str, Any]:
             "model": get_llm_config().model,
             "completed_at": datetime.now().isoformat(),
             "total_revision_rounds": state.revision_count,
+            "token_usage": _aggregate_usage(state.llm_usage),
             **cme_metadata,
         },
     )
@@ -1079,4 +1083,5 @@ async def generate_ips(
         "status": final_state.get("status", "unknown"),
         "revision_count": final_state.get("revision_count", 0),
         "error_message": final_state.get("error_message", ""),
+        "token_usage": _aggregate_usage(final_state.get("llm_usage", [])),
     }

@@ -59,7 +59,9 @@ from src.agents.report_storage import (
     export_report_markdown,
     export_report_pdf,
 )
+from src.config import RISK_VOLATILITY_BANDS
 from src.portfolio.cme_models import AssetClassCME, CMEReport
+from src.portfolio.risk_constraints import RISK_LEVEL_CAPS
 from tests.test_api_advisor import _parse_sse
 from tests.test_api_profiles import sample_payload
 
@@ -357,6 +359,43 @@ class TestIpsLocalePrompts:
         assert "ISSUES IDENTIFIED IN REVIEW" in en
         assert "当前 IPS 文档" not in en
         assert not _has_cjk(en)
+
+
+# ============================================================
+# Prompt numeric guidance composed from config (P25)
+# ============================================================
+
+
+class TestPromptNumericComposition:
+    """get_system_prompt fills __VOL_BANDS__ / __EQUITY_CAPS__ from the
+    canonical config tables, so prompts track the enforced numbers."""
+
+    ROLES = ("generator", "suitability", "compliance", "consistency", "reviser")
+
+    def test_no_placeholders_left_in_any_role(self):
+        for locale in ("zh", "en"):
+            for role in self.ROLES:
+                prompt = get_system_prompt(role, locale)
+                assert "__VOL_BANDS__" not in prompt
+                assert "__EQUITY_CAPS__" not in prompt
+
+    def test_generator_vol_bands_match_config(self):
+        zh = get_system_prompt("generator", "zh")
+        en = get_system_prompt("generator", "en")
+        assert "保守:4-8%" in zh
+        assert "moderate: 10-15%" in en
+        lo, hi = RISK_VOLATILITY_BANDS["moderately_aggressive"]
+        assert f"{lo * 100:.0f}-{hi * 100:.0f}%" in zh
+
+    def test_consistency_equity_caps_match_risk_level_caps(self):
+        """The review prompt quotes the enforced caps (15/30/50/70/90)."""
+        zh = get_system_prompt("consistency", "zh")
+        en = get_system_prompt("consistency", "en")
+        for level, caps in RISK_LEVEL_CAPS.items():
+            cap = f"{caps['equity']:.0%}"
+            assert f"{level}：权益类 ≤ {cap}" in zh
+        assert "Conservative: equities ≤ 15%" in en
+        assert "Aggressive: equities ≤ 90%" in en
 
 
 # ============================================================

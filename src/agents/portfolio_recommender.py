@@ -18,7 +18,7 @@ from src.agents.profiler import (
     ClientProfile,
     classify_risk_score,
 )
-from src.config import RISK_FREE_RATE
+from src.config import RISK_FREE_RATE, RISK_VOLATILITY_BANDS
 from src.portfolio.optimizer import PortfolioOptimizer
 
 # Goal priority ranking used to pick the primary (most important) goal.
@@ -66,44 +66,19 @@ class PortfolioRecommendation:
 
 # Risk Score to Target Volatility Mapping
 
-# Risk score → target volatility range (documentation constant).
-# Breakpoints align with RISK_SCORE_BREAKPOINTS from profiler.
-RISK_VOLATILITY_MAP = {
-    # Conservative: 1.0-1.5 → 5-8% volatility
-    "conservative": {
-        "min_score": 1.0,
-        "max_score": RISK_SCORE_BREAKPOINTS[0],
-        "target_vol": 0.06,
-    },
-    # Moderately Conservative: 1.5-2.5 → 8-12% volatility
-    "moderately_conservative": {
-        "min_score": RISK_SCORE_BREAKPOINTS[0],
-        "max_score": RISK_SCORE_BREAKPOINTS[1],
-        "target_vol": 0.10,
-    },
-    # Moderate: 2.5-3.5 → 12-15% volatility
-    "moderate": {
-        "min_score": RISK_SCORE_BREAKPOINTS[1],
-        "max_score": RISK_SCORE_BREAKPOINTS[2],
-        "target_vol": 0.13,
-    },
-    # Moderately Aggressive: 3.5-4.5 → 15-18% volatility
-    "moderately_aggressive": {
-        "min_score": RISK_SCORE_BREAKPOINTS[2],
-        "max_score": RISK_SCORE_BREAKPOINTS[3],
-        "target_vol": 0.16,
-    },
-    # Aggressive: 4.5-5.0 → 18-22% volatility
-    "aggressive": {
-        "min_score": RISK_SCORE_BREAKPOINTS[3],
-        "max_score": 5.0,
-        "target_vol": 0.20,
-    },
-}
+# Piecewise-linear interpolation over the canonical per-level bands
+# (config.RISK_VOLATILITY_BANDS, P25 single source — shared with
+# validate_saa enforcement and the IPS agent prompts). Segment
+# boundaries stay aligned with RISK_SCORE_BREAKPOINTS from profiler.
 
 
 def _get_target_volatility(risk_score: float) -> float:
     """Map client risk score to target portfolio volatility.
+
+    Each risk level's score segment — delimited by
+    ``RISK_SCORE_BREAKPOINTS`` — maps linearly onto that level's
+    canonical volatility band, so the extremes land exactly on the band
+    edges (score 1.0 → 4%, score 5.0 → 25%).
 
     Args:
         risk_score: Client's final risk score (1-5).
@@ -115,24 +90,14 @@ def _get_target_volatility(risk_score: float) -> float:
     # Risk scores outside this range indicate uninitialized or invalid profiles
     risk_score = max(1.0, min(5.0, risk_score))
 
-    # Linear interpolation between risk levels using shared breakpoints
-    bp = RISK_SCORE_BREAKPOINTS  # [1.5, 2.5, 3.5, 4.5]
-
-    if risk_score <= bp[0]:
-        # Conservative: 5-8% volatility
-        return 0.05 + (risk_score - 1.0) * 0.06
-    elif risk_score <= bp[1]:
-        # Moderately Conservative: 8-12% volatility
-        return 0.08 + (risk_score - bp[0]) * 0.04
-    elif risk_score <= bp[2]:
-        # Moderate: 12-15% volatility
-        return 0.12 + (risk_score - bp[1]) * 0.03
-    elif risk_score <= bp[3]:
-        # Moderately Aggressive: 15-18% volatility
-        return 0.15 + (risk_score - bp[2]) * 0.03
-    else:
-        # Aggressive: 18-22% volatility
-        return 0.18 + (risk_score - bp[3]) * 0.04
+    bands = list(RISK_VOLATILITY_BANDS.values())
+    edges = [1.0, *RISK_SCORE_BREAKPOINTS, 5.0]
+    for i, (band_lo, band_hi) in enumerate(bands):
+        seg_lo, seg_hi = edges[i], edges[i + 1]
+        if risk_score <= seg_hi:
+            frac = (risk_score - seg_lo) / (seg_hi - seg_lo)
+            return band_lo + frac * (band_hi - band_lo)
+    return bands[-1][1]  # Unreachable after clamping; defensive default.
 
 
 # Core Recommendation Function
