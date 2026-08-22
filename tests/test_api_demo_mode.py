@@ -9,6 +9,7 @@ and the boot-time demo client seeding.
 """
 
 import json
+import re
 
 import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
@@ -17,7 +18,7 @@ from api.db import ProfileRecord
 from api.main import _demo_profile_data, _seed_demo_profile
 from api.profile_convert import profile_from_data
 from src.agents import demo_mode, ips_storage
-from src.agents.demo_mode import DEMO_CLIENT_NAME, FIXTURES_DIR
+from src.agents.demo_mode import DEMO_CLIENT_NAME, DEMO_CLIENT_NAME_EN, FIXTURES_DIR
 from src.portfolio.monitoring import resolve_saa_weights
 from tests.test_api_advisor import _parse_sse
 from tests.test_api_profiles import sample_payload
@@ -295,6 +296,120 @@ def test_monitoring_advice_demo_document_not_found(client, demo_on, monkeypatch)
 
 
 # ---------------------------------------------------------------------------
+# Locale-aware fixture replay (en locale → English *_en fixtures)
+# ---------------------------------------------------------------------------
+
+_CJK_RE = re.compile(r"[一-鿿]")
+
+
+def test_fixture_name_selects_en_suffix_only_for_english():
+    assert demo_mode._fixture_name("advisor_report.md", "en") == "advisor_report_en.md"
+    assert demo_mode._fixture_name("ips_document.json", "en") == "ips_document_en.json"
+    assert demo_mode._fixture_name("advisor_report.md", "zh") == "advisor_report.md"
+    assert demo_mode._fixture_name("advisor_report.md", "") == "advisor_report.md"
+
+
+def test_advisor_stream_demo_en_locale_replays_english_fixture(bare_client, demo_on):
+    """No X-Locale header → API default en → the English fixtures replay."""
+    profile_id = _create_profile(bare_client)  # sample client "John Doe"
+
+    resp = bare_client.post(
+        "/api/advisor/report/stream", json={"profile_id": profile_id}
+    )
+    assert resp.status_code == 200
+
+    events = _parse_sse(resp.text)
+    reasoning_text = "".join(e["text"] for e in events if e["type"] == "reasoning")
+    text = "".join(e["text"] for e in events if e["type"] == "token")
+
+    # English fixture headings; no CJK anywhere in the replayed stream.
+    assert "Client Summary" in text
+    assert "Asset Allocation" in text
+    assert "Risk Disclosure" in text
+    assert not _CJK_RE.search(text)
+    assert not _CJK_RE.search(reasoning_text)
+    # The English placeholder name is substituted with the profile name.
+    assert "John Doe" in text
+    assert "John Doe" in reasoning_text
+    assert DEMO_CLIENT_NAME_EN not in text
+    assert DEMO_CLIENT_NAME_EN not in reasoning_text
+
+    done = events[-1]
+    assert done["type"] == "done"
+    assert done["success"] is True
+    assert "demo" in done["model"]
+
+
+def test_monitoring_advice_demo_en_locale_replays_english_fixture(
+    bare_client, demo_on, monkeypatch
+):
+    monkeypatch.setattr(
+        "api.routers.monitoring.compute_monitoring",
+        lambda document_id, locale="zh": {
+            "client_name": "John Doe",
+            "document_id": document_id,
+        },
+    )
+    profile_id = _create_profile(bare_client)
+
+    resp = bare_client.post(
+        "/api/monitoring/advice",
+        json={"document_id": DOC_ID, "profile_id": profile_id},
+    )
+    assert resp.status_code == 200
+
+    events = _parse_sse(resp.text)
+    reasoning_text = "".join(e["text"] for e in events if e["type"] == "reasoning")
+    text = "".join(e["text"] for e in events if e["type"] == "token")
+    assert "Drift Diagnosis" in text
+    assert "Rebalancing Recommendation" in text
+    assert not _CJK_RE.search(text)
+    assert not _CJK_RE.search(reasoning_text)
+    assert "John Doe" in text
+    assert DEMO_CLIENT_NAME_EN not in text
+
+    done = events[-1]
+    assert done["type"] == "done" and done["success"] is True
+
+
+def test_ips_generate_demo_en_locale_replays_english_fixture(
+    bare_client, demo_on, ips_dir, monkeypatch
+):
+    monkeypatch.setattr("src.agents.demo_mode.NODE_DELAY_RANGE", (0.0, 0.0))
+    profile_id = _create_profile(bare_client)  # "John Doe"
+
+    created = bare_client.post("/api/ips/generate", json={"profile_id": profile_id})
+    assert created.status_code == 202
+    task_id = created.json()["task_id"]
+
+    resp = bare_client.get(f"/api/ips/tasks/{task_id}/events")
+    assert resp.status_code == 200
+    events = _parse_sse(resp.text)
+
+    node_events = [e for e in events if e["type"] == "node"]
+    assert [e["node"] for e in node_events] == EXPECTED_NODES
+    assert all(e["label"] for e in node_events)  # English labels attached
+
+    done = events[-1]
+    assert done["type"] == "done" and done["success"] is True
+
+    # The English fixture document really landed in the (tmp) IPS store.
+    path = ips_dir / f"{done['document_id']}.json"
+    assert path.exists()
+    record = ips_storage.load_ips(path)
+    ips = record["ips"]
+    blob = json.dumps(ips, ensure_ascii=False)
+    assert ips["client_name"] == "John Doe"
+    assert "John Doe" in ips["executive_summary"]
+    assert DEMO_CLIENT_NAME_EN not in blob
+    assert not _CJK_RE.search(blob)
+
+    saa = ips["investment_guidelines"]["strategic_allocation"]
+    assert len(saa) >= 5
+    assert sum(a["target_weight"] for a in saa) == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
 # Fixture integrity (no API, no network)
 # ---------------------------------------------------------------------------
 
@@ -349,6 +464,72 @@ def test_fixture_reports_pass_content_validation():
 
     assert 2000 <= len(advisor_text) <= 3000
     assert 800 <= len(rebalance_text) <= 1200
+
+
+def test_fixture_en_ips_document_mirrors_zh_structure():
+    """The English IPS fixture keeps the zh key structure and values shape."""
+
+    def _assert_same_shape(a, b):
+        if isinstance(a, dict) and isinstance(b, dict):
+            assert set(a) == set(b)
+            for key in a:
+                _assert_same_shape(a[key], b[key])
+        elif isinstance(a, list) and isinstance(b, list):
+            assert len(a) == len(b)
+            for x, y in zip(a, b, strict=True):
+                _assert_same_shape(x, y)
+
+    zh_record = ips_storage.load_ips(FIXTURES_DIR / "ips_document.json")
+    en_record = ips_storage.load_ips(FIXTURES_DIR / "ips_document_en.json")
+    assert {"ips", "audit_trail", "metadata"} <= set(en_record)
+    _assert_same_shape(zh_record, en_record)
+
+    ips = en_record["ips"]
+    saa = ips["investment_guidelines"]["strategic_allocation"]
+    assert sum(a["target_weight"] for a in saa) == pytest.approx(1.0)
+    for alloc in saa:
+        assert alloc["min_weight"] <= alloc["target_weight"] <= alloc["max_weight"]
+    fee = ips["fee_schedule"]
+    assert fee["total_expense_ratio"] == pytest.approx(
+        fee["management_fee_rate"]
+        + fee["custody_fee_rate"]
+        + fee["transaction_cost_estimate"],
+        abs=1e-9,
+    )
+    assert ips["risk_tolerance"]["overall_risk_level"] == "moderate"
+    assert en_record["audit_trail"]["final_status"] == "approved"
+    # The English placeholder name is what run_demo_ips_task substitutes.
+    blob = json.dumps(en_record, ensure_ascii=False)
+    assert DEMO_CLIENT_NAME_EN in blob
+    assert not _CJK_RE.search(blob)
+
+
+def test_fixture_en_reports_pass_content_validation():
+    """English fixtures face the same validators as real LLM output."""
+    from src.agents.advisor import validate_report_content
+    from src.agents.rebalance_advisor import validate_rebalance_content
+
+    advisor_text = (FIXTURES_DIR / "advisor_report_en.md").read_text(encoding="utf-8")
+    rebalance_text = (FIXTURES_DIR / "rebalance_advice_en.md").read_text(
+        encoding="utf-8"
+    )
+    reasoning_text = (FIXTURES_DIR / "advisor_reasoning_en.txt").read_text(
+        encoding="utf-8"
+    )
+
+    ok, err = validate_report_content(advisor_text)
+    assert ok, err
+    ok, err = validate_rebalance_content(rebalance_text)
+    assert ok, err
+
+    assert 2000 <= len(advisor_text) <= 8000
+    assert 800 <= len(rebalance_text) <= 5000
+    # Purely English fixtures with the English placeholder name.
+    for text in (advisor_text, rebalance_text, reasoning_text):
+        assert not _CJK_RE.search(text)
+    assert DEMO_CLIENT_NAME_EN in advisor_text
+    assert DEMO_CLIENT_NAME_EN in rebalance_text
+    assert DEMO_CLIENT_NAME_EN in reasoning_text
 
 
 def test_demo_advice_stream_generator_contract():

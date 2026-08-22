@@ -57,7 +57,7 @@ def _event_stream(record: ProfileRecord, locale: str) -> Generator[str, None, No
     def _run() -> Generator[str, None, None]:
         # Demo mode (P20): replay the recorded fixture instead of the LLM.
         stream = (
-            demo_advice_stream(profile)
+            demo_advice_stream(profile, locale=locale)
             if is_demo_mode()
             else generate_advice_stream(profile, locale=locale)
         )

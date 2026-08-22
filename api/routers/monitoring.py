@@ -253,7 +253,7 @@ def _advice_event_stream(
     def _run() -> Generator[str, None, None]:
         # Demo mode (P20): replay the recorded fixture instead of the LLM.
         stream = (
-            demo_rebalance_stream(monitoring, profile)
+            demo_rebalance_stream(monitoring, profile, locale=locale)
             if is_demo_mode()
             else generate_rebalance_advice_stream(monitoring, profile, locale=locale)
         )

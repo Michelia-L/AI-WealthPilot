@@ -1,0 +1,249 @@
+{
+  "ips": {
+    "client_name": "Evelyn Lin",
+    "prepared_by": "AI WealthPilot IPS Generator (demonstration sample)",
+    "preparation_date": "2026-07-20",
+    "version": "1.0",
+    "executive_summary": "This Investment Policy Statement (IPS; demonstration sample, all content fictional) is prepared for Ms. Evelyn Lin (38, married, one child). The household earns CNY 800,000 per year, spends CNY 420,000, holds investable assets of CNY 2.6 million, and carries a mortgage balance of CNY 900,000. The core goals are the child's education fund (CNY 1.2 million in 10 years) and a retirement reserve (CNY 4.0 million in 22 years), a blended required nominal annualized return of about 4.4%. The client's overall risk tolerance is assessed as Moderate (objective capacity 3.4, subjective willingness 3.0, lower score governing under the prudence principle). Strategic asset allocation: 25% domestic equity, 20% international equity, 35% fixed income, 10% gold, 10% cash equivalents — an expected nominal return of about 5.4%, roughly 1.0 percentage point above the requirement, so the goals are feasible overall.",
+    "client_background": "Ms. Evelyn Lin, 38, is married with one child (age 6) and works in an R&D management role at a mid-sized technology company; her spouse holds a stable job. Combined household income is CNY 800,000 per year against annual spending of CNY 420,000 (including about CNY 110,000 of mortgage payments), leaving net annual savings of CNY 380,000 — a 47.5% savings rate. Investable assets total CNY 2.6 million; the outstanding mortgage is CNY 900,000, giving household net worth of CNY 1.7 million and a debt-to-asset ratio of 34.6%. An emergency reserve covering six months of spending (about CNY 210,000) is held in bank deposits outside this portfolio. Human capital analysis: the client is in her peak career years with roughly 22 working years ahead and fairly stable income; she has basic investment knowledge and five years of mutual fund experience, but her past investing lacked a systematic policy framework and she once panic-redeemed after a large paper loss. This is her first written investment policy statement.",
+    "return_objective": {
+      "required_nominal_return": 0.044,
+      "required_real_return": 0.0185,
+      "return_calculation_basis": "Two goals weighted by target amount: education requires 9.15% (weight 120/520), retirement requires 2.97% (weight 400/520); blended required nominal return = (120×9.15% + 400×2.97%) / 520 ≈ 4.4%. Real return = (1+4.4%)/(1+2.5%) − 1 ≈ 1.85%, using a 2.5% long-run inflation assumption.",
+      "return_objective_narrative": "The required returns of the two goals differ markedly: the education fund has only a 10-year horizon with CNY 500,000 earmarked, implying a required nominal annualized return of about 9.15% — too demanding for portfolio returns alone, so directing CNY 120,000 of each year's new savings into the education account cuts the requirement to about 6.5%. The retirement goal, with a 22-year horizon and CNY 2.1 million allocated, requires only about 2.97% — a comfortable margin of safety. Weighted by target amount, the blended required nominal return is about 4.4%, while the strategic allocation in this IPS carries an expected nominal return of about 5.4% based on capital market expectations (CME) — roughly 1.0 percentage point higher — so both goals are feasible overall. Annual reviews will keep tracking the return gap.",
+      "goal_level_requirements": [
+        {
+          "goal_name": "Child's Education Fund",
+          "target_amount": 1200000.0,
+          "current_allocation": 500000.0,
+          "time_horizon_years": 10,
+          "priority": "high",
+          "required_return": 0.0915,
+          "calculation_basis": "TVM: r = (FV/PV)^(1/n) − 1 = (1,200,000/500,000)^(1/10) − 1 ≈ 9.15%"
+        },
+        {
+          "goal_name": "Retirement Reserve",
+          "target_amount": 4000000.0,
+          "current_allocation": 2100000.0,
+          "time_horizon_years": 22,
+          "priority": "high",
+          "required_return": 0.0297,
+          "calculation_basis": "TVM: r = (FV/PV)^(1/n) − 1 = (4,000,000/2,100,000)^(1/22) − 1 ≈ 2.97%"
+        }
+      ],
+      "return_methodology": "Time value of money (TVM): r = (FV/PV)^(1/n) − 1, computed per goal and then blended by target-amount weights."
+    },
+    "risk_tolerance": {
+      "ability_assessment": "The client's objective risk capacity scores 3.4 (above average), based on: (1) income stability — both spouses hold stable jobs and the household savings rate of 47.5% implies highly resilient cash flow; (2) horizon — the primary horizon of 22 years is long, spanning multiple market cycles; (3) reserves — a six-month emergency fund means investments never need forced liquidation in extreme scenarios; (4) leverage — a 34.6% debt-to-asset ratio and mortgage payments of roughly 14% of income keep leverage moderate; (5) knowledge and experience — basic fund-investing knowledge and about five years of experience, with an understanding of NAV fluctuations.",
+      "willingness_assessment": "The client's subjective risk willingness scores 3.0 (moderate), based on: (1) loss reaction — choosing to hold through a 20% monthly portfolio decline shows basic psychological resilience, though no inclination to add against the trend; (2) comfort with volatility — accepting a moderate-return (8%), moderate-volatility portfolio shape; (3) speculative scenarios — a cautious attitude toward lottery-style high-risk opportunities; (4) tracking-error tolerance — accepting 5%–10% short-term underperformance versus the benchmark. The client once panic-redeemed after a paper loss, indicating some loss aversion at the willingness level.",
+      "conflict_resolution": "Objective capacity (3.4) and subjective willingness (3.0) differ by 0.4 points — not a material conflict, but under the prudence principle the lower score governs and the final score is 3.0. Willingness trailing capacity is common for growth-stage households and is no obstacle to the allocation; should willingness rise, the risk grade can be revisited at an annual review.",
+      "overall_risk_level": "moderate",
+      "risk_narrative": "Overall classification: Moderate. At this risk grade the portfolio rests on a balanced equity-bond base — 45% equities in total, 45% fixed income and cash, plus 10% gold for resilience. Quantitative risk anchors: maximum acceptable annual loss of −12%, target volatility band of 8%–13%, 95% VaR tolerance of about −18%, and maximum drawdown tolerance of −20%. Portfolio construction must ensure that annual losses in extreme scenarios do not materially breach these anchors.",
+      "max_acceptable_annual_loss": -0.12,
+      "target_volatility_min": 0.08,
+      "target_volatility_max": 0.13,
+      "var_tolerance_95": -0.18,
+      "max_drawdown_tolerance": -0.2
+    },
+    "time_horizon": {
+      "stages": [
+        {
+          "name": "Education Funding Stage",
+          "years": 10,
+          "description": "Ages 38 to 48. The binding constraint is the CNY 1.2 million education outlay in year 10 (undergraduate and overseas-study reserve), which is rigid and non-deferrable. The portfolio must balance growth with a gradual reduction of the education account's volatility exposure, migrating that account toward fixed income and cash as the withdrawal date approaches."
+        },
+        {
+          "name": "Retirement Accumulation Stage",
+          "years": 12,
+          "description": "Ages 48 to 60. Once the education goal is met, all new savings and the remaining education-account balance roll into the retirement goal, about 12 years from retirement. A Moderate allocation can be maintained early in this stage; after age 55 the equity weight steps down gradually in preparation for the decumulation phase."
+        }
+      ],
+      "overall_horizon_years": 22,
+      "horizon_narrative": "The client's total investment horizon is 22 years (to age 60) — a long, multi-stage structure: a 10-year first stage serving the education goal, then a 12-year second stage dedicated to retirement accumulation. The long horizon is the client's greatest investment advantage, allowing her to bear short- and medium-term volatility in exchange for long-run compounding; but the education goal's hard 10-year constraint requires independent glide-path management of that sub-account so equity exposure is not excessive near maturity. Inflation risk is material over 22 years: at 2.5% annual inflation, the CNY 4.0 million retirement target carries only about 58% of today's purchasing power — keeping 45% equities and 10% gold is the core long-run inflation hedge."
+    },
+    "liquidity": {
+      "immediate_needs": 0.0,
+      "ongoing_needs": 0.0,
+      "emergency_reserve_months": 6,
+      "liquidity_narrative": "The client plans no large cash outlays over the next 12 months and has no ongoing withdrawal needs; net annual savings of CNY 380,000 keep flowing in. The six-month emergency fund (about CNY 210,000) is held in bank deposits, independent of the portfolio. At the portfolio level, a 10% cash-equivalents allocation serves as a liquidity buffer and rebalancing dry powder; overall liquidity constraints are low, supporting the execution of a long-horizon strategic allocation. The education withdrawal (year 10) will be pre-funded gradually 2–3 years ahead via the education account's glide path."
+    },
+    "tax": {
+      "tax_status": "taxable",
+      "tax_considerations": "The client invests in a taxable environment. Under current Chinese tax rules: (1) distributions and redemption gains of public mutual funds are temporarily exempt from individual income tax; (2) listed-company dividends are taxed at differentiated rates (exempt when held longer than one year); (3) bank deposit interest is temporarily exempt from individual income tax. Tax optimization: prioritize public mutual funds and ETFs as allocation vehicles; the fixed-income sleeve can hold rate-bond index funds in moderation; keep trading frequency low — let the rebalancing discipline replace frequent market timing — to reduce taxable events and friction costs.",
+      "tax_narrative": "The tax environment for Chinese individual investors allocating through public mutual funds is relatively friendly, so taxes are not a primary constraint on asset allocation. The entire portfolio is implemented through public mutual funds and ETFs, fully using current tax preferences. Rebalancing trades are capped at an annual frequency to control trading friction."
+    },
+    "legal": {
+      "applicable_regulations": [
+        "Securities Investment Fund Law of the People's Republic of China",
+        "Measures for the Administration of Suitability of Securities and Futures Investors",
+        "Guiding Opinions on Regulating the Asset Management Business of Financial Institutions (the New Asset Management Rules)",
+        "Trial Measures for Overseas Securities Investment by Qualified Domestic Institutional Investors (QDII)"
+      ],
+      "legal_narrative": "The client's investment activities are governed by Chinese laws and regulations. International equity exposure is implemented through QDII funds, complying with cross-border investment rules; all vehicles are standardized products such as public mutual funds and ETFs, complying with the New Asset Management Rules. The client's risk grade is Moderate, and the product risk ratings recommended by this IPS (mainly R3 and below) match her suitability profile. All investment advice stays within the compliance framework and involves no leverage, derivatives, or other restricted instruments."
+    },
+    "unique_circumstances": {
+      "esg_preferences": null,
+      "sector_restrictions": [],
+      "concentrated_positions": null,
+      "other_circumstances": "The client carries a mortgage balance of CNY 900,000 (rate below the portfolio's expected return); after assessment, she will keep the regular repayment schedule rather than repay early, preserving the investment capital base. She once panic-redeemed funds after a paper loss and shows loss-aversion tendencies, so execution is paired with behavioral guardrails (a written rebalancing commitment and quarterly reviews in place of frequent market-watching).",
+      "unique_narrative": "The client has no ESG preferences, no sector exclusions, and no concentrated positions. Two circumstances are worth recording: (1) the mortgage arrangement — the loan rate sits below the portfolio's expected return, so keeping the loan and the investment capital is financially superior, but the arrangement should be reassessed if mortgage repricing pushes the rate above the expected return; (2) the behavioral dimension — the client's history of panic redemptions is exactly what this IPS's rebalancing discipline and review cadence (quarterly reviews, annual reassessment) are designed to guard against."
+    },
+    "investment_guidelines": {
+      "strategic_allocation": [
+        {
+          "asset_class": "Domestic Equity (A-shares / CSI 300)",
+          "target_weight": 0.25,
+          "min_weight": 0.15,
+          "max_weight": 0.35,
+          "rationale": "One of the portfolio's long-run growth engines. CME expected annualized return is about 8.5% with volatility of about 22%. The CSI 300 represents core large-cap A-share assets, valued near their long-run midpoint; the 25% target weight provides domestic growth exposure within a Moderate framework, and its low correlation with international equity adds diversification. The 15%–35% policy range keeps risk exposure from drifting above budget after an equity bull run."
+        },
+        {
+          "asset_class": "International Equity (Developed Markets)",
+          "target_weight": 0.2,
+          "min_weight": 0.1,
+          "max_weight": 0.3,
+          "rationale": "CME expected annualized return is about 7.0% with volatility of about 18%. Developed-market equities correlate weakly with A-shares (about 0.3), offering effective geographic and currency diversification; implemented through QDII broad-based index funds, the weight is capped at 30% given QDII quota and premium-rate constraints."
+        },
+        {
+          "asset_class": "Fixed Income",
+          "target_weight": 0.35,
+          "min_weight": 0.25,
+          "max_weight": 0.45,
+          "rationale": "The portfolio's ballast. CME expected annualized return is about 3.2% with volatility of about 5%. The 35% weight provides stable coupon income, holds overall volatility inside the 8%–13% target band, and underwrites the certainty of the education goal. Implemented mainly through short/intermediate bond funds and rate-bond index funds, limiting credit-dive and duration risk."
+        },
+        {
+          "asset_class": "Alternatives — Gold",
+          "target_weight": 0.1,
+          "min_weight": 0.05,
+          "max_weight": 0.15,
+          "rationale": "CME expected annualized return is about 5.5% with volatility of about 16%. Gold correlates weakly with both equities and bonds and protects the portfolio in stagflation and geopolitical-risk scenarios; the 10% weight improves risk-adjusted returns, implemented through a gold ETF. The 5%–15% policy range prevents passive over-allocation during gold rallies."
+        },
+        {
+          "asset_class": "Cash Equivalents",
+          "target_weight": 0.1,
+          "min_weight": 0.05,
+          "max_weight": 0.15,
+          "rationale": "CME expected annualized return is about 2.0% with near-zero volatility. Serves three functions: a liquidity buffer for unplanned spending, rebalancing dry powder for adding on weakness, and a staging vehicle for the education goal's maturity. Implemented through money market funds and interbank certificate-of-deposit index funds."
+        }
+      ],
+      "permitted_instruments": [
+        "Public open-end mutual funds (equity, bond, hybrid, money market)",
+        "Exchange-traded funds (ETFs) and ETF feeder funds",
+        "QDII funds (developed-market broad-based indices)",
+        "Treasury bonds, policy-bank financial bonds, and rate-bond index funds",
+        "Gold ETFs",
+        "Bank time deposits and negotiable certificates of deposit"
+      ],
+      "prohibited_instruments": [
+        "Direct investment in individual stocks",
+        "Margin trading, securities lending, and other leveraged transactions",
+        "Futures, options, and other derivatives",
+        "Private equity, private credit, and non-standard assets",
+        "Cryptocurrencies and digital assets",
+        "High-yield bonds (credit rating below AA+)",
+        "Structured products (snowballs, shark fins, etc.)"
+      ],
+      "rebalancing_policy": "Combines scheduled reviews with trigger-based rebalancing: (1) review portfolio weights quarterly; (2) any asset class breaching its policy range (min/max) triggers rebalancing; (3) prefer using new savings flows to buy underweight assets, reducing sell transactions; (4) execute at least one full rebalancing and one education-account glide-path check per year.",
+      "guideline_narrative": "These investment guidelines rest on the Moderate risk grade and the 22-year multi-stage horizon. Strategic asset allocation: 25% domestic equity, 20% international equity, 35% fixed income, 10% gold, 10% cash equivalents — weights sum to 100%. Weighting the CME expected returns of each asset class gives an expected nominal annualized portfolio return of about 5.4% (0.25×8.5% + 0.20×7.0% + 0.35×3.2% + 0.10×5.5% + 0.10×2.0%) and expected annualized volatility of about 10%, inside the 8%–13% target band. The expected return exceeds the blended required return (4.4%) by roughly 1.0 percentage point, so both goals are feasible overall. The entire allocation is executed through public mutual funds and ETFs; leverage and derivatives are prohibited."
+    },
+    "monitoring": {
+      "review_frequency": "quarterly",
+      "benchmarks": [
+        {
+          "asset_class": "Domestic Equity (A-shares / CSI 300)",
+          "benchmark": "CSI 300 Index"
+        },
+        {
+          "asset_class": "International Equity (Developed Markets)",
+          "benchmark": "MSCI World Index (USD)"
+        },
+        {
+          "asset_class": "Fixed Income",
+          "benchmark": "ChinaBond Aggregate Wealth Index (CBA00101)"
+        },
+        {
+          "asset_class": "Alternatives — Gold",
+          "benchmark": "Shanghai Gold Benchmark Price (SHAU) or AU9999"
+        },
+        {
+          "asset_class": "Cash Equivalents",
+          "benchmark": "CSI Money Market Fund Index (H11025)"
+        }
+      ],
+      "rebalancing_triggers": [
+        "Any asset class's actual weight breaches its policy range (min/max)",
+        "A material change in the client's financial situation (income shift over 20%, large expenditures, early mortgage repayment, etc.)",
+        "A significant change in CME data (any asset class's expected return moving by more than 3 percentage points)",
+        "A change in the risk grade upon reassessment",
+        "Major household events (child's schooling, career change, home purchase, inheritance, etc.)"
+      ],
+      "monitoring_narrative": "Portfolio monitoring runs on a quarterly review cadence, covering weight drift against policy ranges, per-asset-class performance versus benchmarks, portfolio-level risk metrics (volatility, VaR, maximum drawdown), and fee reviews. Benchmarks are assigned per asset class, with the SAA-weighted benchmark as the portfolio-level comparator. Full IPS revision triggers: a change in risk grade, adjusted financial goals, major household events, or structural shifts in long-run CME assumptions. The education account's glide-path execution is checked annually from year 7 onward, alongside at least one comprehensive IPS suitability review per year."
+    },
+    "currency_policy": {
+      "base_currency": "CNY",
+      "foreign_exposure_pct": 0.2,
+      "hedging_strategy": "Unhedged (no active currency hedging)",
+      "hedging_ratio": 0.0,
+      "currency_narrative": "The client's base currency is the renminbi. Foreign-currency exposure is about 20% of the portfolio (international equity, denominated in US dollars and other developed-market currencies). The exposure is moderate and exchange-rate swings have a controllable impact on the overall portfolio; a moderate foreign allocation itself hedges renminbi-depreciation scenarios, while active hedging costs (forward points, conversion friction) could erode returns — hence the unhedged stance. Reassess hedging if foreign exposure exceeds 30% in the future. The client should be aware that renminbi appreciation produces translation losses when foreign assets are converted back into renminbi."
+    },
+    "fee_schedule": {
+      "management_fee_rate": 0.008,
+      "custody_fee_rate": 0.002,
+      "transaction_cost_estimate": 0.002,
+      "total_expense_ratio": 0.012,
+      "net_return_impact": "Expected gross return of 5.4% minus the 1.2% TER leaves an expected net return of about 4.2%. Fees compound significantly over time: over 22 years, a 1.2% annual fee reduces terminal wealth by roughly 23% versus a zero-fee scenario.",
+      "fee_narrative": "Fee disclosure: (1) investment management fee of 0.80% per annum (80bps), covering advisory services, portfolio construction, ongoing monitoring, and rebalancing execution — in the lower-middle of the industry's 0.5%–1.5% range; (2) custody fee of 0.20% per annum (20bps) for the custodian bank's safekeeping and settlement services; (3) estimated transaction costs of 0.20% per annum (20bps), including amortized fund subscription/redemption fees and ETF commissions — portfolio turnover is low, keeping costs contained. Total expense ratio (TER): 1.2%. Benchmark fees against peers at annual reviews and push costs further down through index funds and C-share classes while preserving service quality."
+    },
+    "risk_disclosure": "Important risk disclosure:\n\n1. Past performance does not guarantee future results: the capital market expectations (CME) cited in this IPS are modeled from historical data and assumptions; actual outcomes may differ materially from expectations.\n\n2. Model limitations: the CME use proxy indices and ETF proxies that may track actual investable instruments imperfectly; the correlation matrix rests on linear correlation coefficients and does not capture tail co-movement risk.\n\n3. Market risk: with 45% in equities, the portfolio faces broad market declines; in extreme scenarios the annual loss could exceed the −12% tolerance reference and the maximum drawdown could exceed −20%.\n\n4. Currency risk: about 20% of assets are foreign-currency denominated; renminbi appreciation produces translation losses.\n\n5. Interest-rate and credit risk: the fixed-income sleeve faces NAV fluctuations from rising rates and credit-event risk.\n\n6. Inflation risk: over a 22-year horizon, if realized inflation runs persistently above the 2.5% assumption, the retirement goal's real purchasing power will fall short of expectations.\n\n7. Liquidity risk: under extreme market conditions QDII funds may suspend subscriptions or trade at large premiums.\n\n8. Goal shortfall risk: if the portfolio's actual long-run return falls below the 4.4% blended requirement and savings are not topped up, the education and retirement goals may not be fully funded.\n\n9. This IPS is a demonstration sample with fictional content; it constitutes neither a return guarantee nor a principal-protection promise. Consult a licensed professional before making investment decisions.",
+    "compliance_statement": "Compliance statement:\n\n1. This Investment Policy Statement is prepared in accordance with the Measures for the Administration of Suitability of Securities and Futures Investors. KYC due diligence and an investment suitability assessment have been completed for the client Ms. Evelyn Lin; her risk grade is assessed as Moderate, and the strategies and product risk ratings recommended by this IPS match that grade.\n\n2. 24-hour cooling-off notice: after signing this IPS and before any investment order is formally executed, the client enjoys a cooling-off period of no less than 24 hours, during which she may unconditionally revoke any investment instruction.\n\n3. KYC completion confirmation: (a) identity authenticity verification; (b) financial situation verification; (c) investment knowledge and experience assessment; (d) risk tolerance assessment; and (e) investment objective confirmation have all been completed. The information is based on self-reported data provided by the client on 2026-07-20.\n\n4. This IPS is not a legally binding trust deed but a framework document for investment management between the client and the investment advisor; execution must be accompanied by the legal documents of the specific products (fund contracts, prospectuses, etc.).\n\n5. This IPS is valid for 12 months from the signing date and must be fully reviewed and updated before expiry; it should be revised promptly upon material changes in the client's circumstances.\n\n6. The client confirms that she has received, read, and understood the full contents of this IPS, including the risk disclosure and the fee disclosure."
+  },
+  "audit_trail": {
+      "revision_history": [
+        {
+          "round_number": 1,
+          "review_results": [
+            {
+              "dimension": "suitability",
+              "passed": false,
+              "issues": [
+                {
+                  "section": "investment_guidelines",
+                  "dimension": "suitability",
+                  "severity": "warning",
+                  "description": "The draft's 30% domestic equity target pushed expected portfolio volatility to 11.8%, near the top of the target band and mismatched with the safety margin required by the education goal's hard 10-year constraint.",
+                  "regulation_reference": "Suitability matching principle of the Measures for the Administration of Suitability of Securities and Futures Investors",
+                  "suggestion": "Lower domestic equity to 25% and raise fixed income to 35%, reserving greater certainty for the education goal."
+                }
+              ],
+              "summary": "The draft was broadly suitable; a modest cut to equity exposure was advised to match the rigidity of the education goal."
+            }
+          ],
+          "changes_made": [
+            "Domestic equity target weight 30% → 25%, policy range adjusted to 15%–35%",
+            "Fixed income target weight 30% → 35%, policy range adjusted to 25%–45%",
+            "Added an education-account glide-path clause to the rebalancing policy"
+          ],
+          "ips_version_before": "0.9",
+          "ips_version_after": "1.0"
+        }
+      ],
+      "total_rounds": 1,
+      "final_status": "approved",
+      "generation_metadata": {
+        "model": "demo-fixture",
+        "completed_at": "2026-07-20T09:30:00",
+        "total_revision_rounds": 1,
+        "cme_as_of_date": "2026-07-18",
+        "cme_lookback_years": 5,
+        "cme_risk_free_rate": 0.02,
+        "cme_rf_source": "static_fallback",
+        "cme_asset_count": 5,
+        "cme_cache_status": "demo"
+      }
+  },
+  "metadata": {
+    "client_name": "Evelyn Lin",
+    "saved_at": "2026-07-20T09:30:00",
+    "notes": "Demonstration sample (demo fixture); all content is fictional."
+  }
+}

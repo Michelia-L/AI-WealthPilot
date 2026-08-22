@@ -1,0 +1,8 @@
+Start with the client profile: Ms. Evelyn Lin, 38, married with one child; household income CNY 800,000 versus spending of CNY 420,000 — a 47.5% savings rate, healthy cash flow, and CNY 2.6 million of investable assets.
+Check the risk scores: objective capacity 3.4 / 5.0 versus subjective willingness 3.0 / 5.0; the 0.4-point gap is no material conflict, but prudence takes the lower 3.0, placing the client in the Moderate band.
+Size the education goal: CNY 1.2 million over 10 years with CNY 500,000 earmarked; the required ~9.15% annualized return is demanding, so CNY 120,000 of new annual savings should flow in to pull the requirement down toward 6.5%.
+Size the retirement goal: CNY 4.0 million over 22 years with CNY 2.1 million allocated; the required return is only ~2.97% — long horizon, high flexibility, the portfolio's main shock absorber.
+Blend the two goals by target amount: a ~4.4% required nominal return, ~1.9% in real terms after the 2.5% inflation assumption — feasible against the Moderate portfolio's expected return.
+Set the risk budget: target annualized volatility of 8%–13%, maximum acceptable annual loss of about −12%, maximum drawdown tolerance of about −20%; the strategic allocation must not exceed this budget.
+Build the allocation: equities at 45% in total (25% domestic + 20% international), 35% fixed income as ballast, 10% gold as a stagflation hedge, and 10% cash for education withdrawals and rebalancing dry powder.
+Final behavioral check: willingness trails capacity, so guard against loss aversion, mechanize the rebalancing discipline, and close the report with full risk disclosure and a disclaimer.

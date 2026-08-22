@@ -8,8 +8,11 @@ complete AI advisor / IPS generation flow without an API key; developers
 with a key can also set ``DEMO_MODE=1`` to force the replay path.
 
 Fixture replay performs zero network calls. The fictional client name
-「林晓兰」 inside fixtures is substituted with the actual profile name at
-replay time so streamed text and saved artifacts look personalized.
+「林晓兰」 (English fixtures: "Evelyn Lin") inside fixtures is substituted
+with the actual profile name at replay time so streamed text and saved
+artifacts look personalized. Fixtures are selected per request locale:
+the ``*_en`` English fixtures for ``en``, the original Chinese ones
+otherwise.
 """
 
 import asyncio
@@ -31,6 +34,8 @@ FIXTURES_DIR = Path(__file__).parent / "demo_fixtures"
 
 # Fictional demo client used across all fixtures; replaced at replay time.
 DEMO_CLIENT_NAME = "林晓兰"
+# Placeholder name inside the English (``*_en``) fixtures.
+DEMO_CLIENT_NAME_EN = "Evelyn Lin"
 
 # Model label surfaced in done events / saved artifacts for demo output.
 DEMO_MODEL = "demo-fixture"
@@ -62,11 +67,29 @@ def is_demo_mode() -> bool:
     return bool(config.DEMO_MODE)
 
 
-def _load_fixture_text(filename: str, client_name: str) -> str:
+def _fixture_name(base: str, locale: str) -> str:
+    """Return the fixture filename for ``locale`` (``_en`` suffix for English).
+
+    ``advisor_report.md`` → ``advisor_report_en.md`` when ``locale == "en"``;
+    every other locale keeps the original (Chinese) fixture.
+    """
+    if locale == "en":
+        stem, dot, ext = base.rpartition(".")
+        return f"{stem}_en{dot}{ext}" if dot else f"{base}_en"
+    return base
+
+
+def _client_name_placeholder(locale: str) -> str:
+    """Fictional client name used by the fixture set for ``locale``."""
+    return DEMO_CLIENT_NAME_EN if locale == "en" else DEMO_CLIENT_NAME
+
+
+def _load_fixture_text(filename: str, client_name: str, locale: str = "zh") -> str:
     """Read a text fixture and substitute the client-name placeholder."""
-    text = (FIXTURES_DIR / filename).read_text(encoding="utf-8")
-    if client_name and client_name != DEMO_CLIENT_NAME:
-        text = text.replace(DEMO_CLIENT_NAME, client_name)
+    text = (FIXTURES_DIR / _fixture_name(filename, locale)).read_text(encoding="utf-8")
+    placeholder = _client_name_placeholder(locale)
+    if client_name and client_name != placeholder:
+        text = text.replace(placeholder, client_name)
     return text
 
 
@@ -81,17 +104,19 @@ def _estimated_tokens(text: str) -> int:
     return max(1, int(len(text) / 1.5))
 
 
-def demo_advice_stream(profile: ClientProfile) -> Generator[dict, None, AdvisorReport]:
+def demo_advice_stream(
+    profile: ClientProfile, locale: str = "zh"
+) -> Generator[dict, None, AdvisorReport]:
     """Replay the recorded advisory report fixture as an event stream.
 
     Mirrors ``advisor.generate_advice_stream``: yields reasoning events from
     the shared thinking-preamble fixture first, then token events for the
     report body, and returns the terminal AdvisorReport via
     StopIteration.value, so callers consume it with ``yield from`` exactly
-    like the real generator.
+    like the real generator. ``locale`` selects the fixture language.
     """
-    reasoning = _load_fixture_text("advisor_reasoning.txt", profile.name)
-    content = _load_fixture_text("advisor_report.md", profile.name)
+    reasoning = _load_fixture_text("advisor_reasoning.txt", profile.name, locale)
+    content = _load_fixture_text("advisor_report.md", profile.name, locale)
     for chunk in _iter_chunks(reasoning):
         yield {"type": "reasoning", "text": chunk}
     for chunk in _iter_chunks(content):
@@ -113,20 +138,20 @@ def demo_advice_stream(profile: ClientProfile) -> Generator[dict, None, AdvisorR
 
 
 def demo_rebalance_stream(
-    monitoring: dict, profile: Optional[ClientProfile] = None
+    monitoring: dict, profile: Optional[ClientProfile] = None, locale: str = "zh"
 ) -> Generator[dict, None, AdvisorReport]:
     """Replay the recorded rebalancing advice fixture as an event stream.
 
     Mirrors ``rebalance_advisor.generate_rebalance_advice_stream`` (same
     AdvisorReport dataclass, imported there from src.agents.advisor):
     reasoning events from the shared thinking-preamble fixture first, then
-    token events for the report body.
+    token events for the report body. ``locale`` selects the fixture language.
     """
     client_name = str(
         monitoring.get("client_name") or (profile.name if profile else "")
     )
-    reasoning = _load_fixture_text("advisor_reasoning.txt", client_name)
-    content = _load_fixture_text("rebalance_advice.md", client_name)
+    reasoning = _load_fixture_text("advisor_reasoning.txt", client_name, locale)
+    content = _load_fixture_text("rebalance_advice.md", client_name, locale)
     for chunk in _iter_chunks(reasoning):
         yield {"type": "reasoning", "text": chunk}
     for chunk in _iter_chunks(content):
@@ -158,8 +183,8 @@ async def run_demo_ips_task(
     /error), its write-through persistence (via task.publish), and its
     ips_storage JSON save — with zero LLM calls. ``profile_data`` and
     ``max_revisions`` are accepted for signature parity with the real
-    runner; the replay itself is fixture-driven. Node labels and the error
-    message are worded per ``locale``.
+    runner; the replay itself is fixture-driven. Node labels, the error
+    message, and the fixture document itself are selected per ``locale``.
     """
     try:
         # Lazy import: api.routers.ips imports this module at load time.
@@ -173,14 +198,16 @@ async def run_demo_ips_task(
             )
 
         record = json.loads(
-            (FIXTURES_DIR / "ips_document.json").read_text(encoding="utf-8")
+            (FIXTURES_DIR / _fixture_name("ips_document.json", locale)).read_text(
+                encoding="utf-8"
+            )
         )
         audit_trail = record.get("audit_trail") or {}
         client_name = task.meta["client_name"]
         # Substitute the fictional client name throughout the narratives.
         ips_dict = json.loads(
             json.dumps(record["ips"], ensure_ascii=False).replace(
-                DEMO_CLIENT_NAME, client_name
+                _client_name_placeholder(locale), client_name
             )
         )
         ips_dict["client_name"] = client_name
