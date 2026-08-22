@@ -533,7 +533,7 @@ def save_and_open_figures(figures, filenames):
     print("Saving charts...")
     print("保存图表...")
 
-    for fig, filename in zip(figures, filenames):
+    for fig, filename in zip(figures, filenames, strict=False):
         filepath = os.path.join(tempfile.gettempdir(), filename)
         fig.write_html(filepath)
         print(f"  Saved: {filepath}")

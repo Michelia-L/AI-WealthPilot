@@ -862,7 +862,8 @@ class TestConfidenceExactness:
         Pi = opt.Pi.copy()
         opt.apply_views([view])
 
-        P = np.zeros(4); P[0] = 1.0
+        P = np.zeros(4)
+        P[0] = 1.0
         lhs = float(P @ (opt.mu_bl - Pi))
         rhs = 0.6 * (0.12 - float(P @ Pi))
         assert lhs == pytest.approx(rhs, abs=1e-6)
@@ -878,7 +879,9 @@ class TestConfidenceExactness:
         Pi = opt.Pi.copy()
         opt.apply_views([view])
 
-        P = np.zeros(4); P[0] = 1.0; P[2] = -1.0
+        P = np.zeros(4)
+        P[0] = 1.0
+        P[2] = -1.0
         lhs = float(P @ (opt.mu_bl - Pi))
         rhs = 0.7 * (0.04 - float(P @ Pi))
         assert lhs == pytest.approx(rhs, abs=1e-6)

@@ -309,12 +309,12 @@ class TestReportStorage:
     def test_list_reports_filter_by_client(self, sample_report_content):
         """Test filtering reports by client name."""
         # Save reports for different clients
-        saved1 = save_report(
+        save_report(
             content=sample_report_content,
             client_name="Client A",
             model="test-model",
         )
-        saved2 = save_report(
+        save_report(
             content=sample_report_content,
             client_name="Client B",
             model="test-model",

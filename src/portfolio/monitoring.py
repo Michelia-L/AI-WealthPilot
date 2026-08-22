@@ -450,7 +450,7 @@ def _portfolio_metrics(
     """
     result = {"expected_return": None, "volatility": None, "sharpe": None}
     known = [
-        (w, ac) for w, ac in zip(weights, cmes)
+        (w, ac) for w, ac in zip(weights, cmes, strict=False)
         if ac is not None and w is not None
     ]
     if not known:
@@ -611,10 +611,10 @@ def _apply_drift(
         (1.0 + h["period_return"]) if h["period_return"] is not None else 1.0
         for h in holdings
     ]
-    gross = sum(h["target_weight"] * f for h, f in zip(holdings, factors))
+    gross = sum(h["target_weight"] * f for h, f in zip(holdings, factors, strict=False))
     if gross <= 0:
         return
-    for h, f in zip(holdings, factors):
+    for h, f in zip(holdings, factors, strict=False):
         if h["period_return"] is not None:
             h["drifted_weight"] = h["target_weight"] * f / gross
 

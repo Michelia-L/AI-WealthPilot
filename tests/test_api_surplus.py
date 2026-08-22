@@ -253,7 +253,7 @@ def test_surplus_cn_treasury_proxy(client, monkeypatch):
     names = [DEFAULT_ASSET_CLASSES[k]["name"] for k in ASSETS]
     data = {
         name: rng.normal(STATS[key][0], STATS[key][1], 504)
-        for key, name in zip(ASSETS, names)
+        for key, name in zip(ASSETS, names, strict=False)
     }
     data[DEFAULT_ASSET_CLASSES["CN_TREASURY"]["name"]] = rng.normal(0.0001, 0.002, 504)
     _patch_returns(monkeypatch, pd.DataFrame(data))

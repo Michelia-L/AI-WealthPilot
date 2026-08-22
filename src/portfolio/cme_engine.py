@@ -247,7 +247,7 @@ def _compute_cme_fresh(
 
     # Step 4: Compute per-asset-class metrics (enhanced with IV blending)
     asset_cme_list = []
-    for key, info in asset_tickers.items():
+    for info in asset_tickers.values():
         ticker = info["ticker"]
         name = info["name"]
 
@@ -534,7 +534,6 @@ def format_cme_for_prompt(report: CMEReport) -> str:
     has_iv = report.iv_data_available and any(
         ac.implied_volatility is not None for ac in report.asset_classes
     )
-    has_regime = any(ac.volatility_regime is not None for ac in report.asset_classes)
     has_fwd = any(ac.forward_return is not None for ac in report.asset_classes)
     fwd_header = f" {'前视收益':>10}" if has_fwd else ""
 
@@ -690,7 +689,7 @@ def reference_portfolio_suggestion(
     weights = [w / total for _, w, _, _ in entries]
     names = [e[0] for e in entries]
 
-    mu = sum(w * e[2] for w, e in zip(weights, entries))
+    mu = sum(w * e[2] for w, e in zip(weights, entries, strict=False))
     var = 0.0
     for i in range(len(entries)):
         for j in range(len(entries)):

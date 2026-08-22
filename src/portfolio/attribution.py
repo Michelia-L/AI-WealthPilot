@@ -207,7 +207,7 @@ def brinson_attribution(
         raw = sum(
             (span[group][effect] if group else sum(v[effect] for v in span.values()))
             * k
-            for span, k in zip(per_span, k_m)
+            for span, k in zip(per_span, k_m, strict=False)
         )
         return float(K * raw)
 

@@ -201,9 +201,9 @@ def backtest_weights(
                 locale=locale,
             )
         except InsufficientDataError as e:
-            raise HTTPException(status_code=502, detail=str(e))
+            raise HTTPException(status_code=502, detail=str(e)) from e
         except ValueError as e:
-            raise HTTPException(status_code=422, detail=str(e))
+            raise HTTPException(status_code=422, detail=str(e)) from e
 
         equity = result.pop("_equity")
         drawdown = result.pop("_drawdown")
@@ -369,7 +369,7 @@ def _result_payload(result: dict, asset_names: list[str]) -> PortfolioResult:
         sharpe=float(result["sharpe"]),
         success=bool(result.get("success", True)),
         weight_std=(
-            {name: float(std) for name, std in zip(asset_names, weight_std)}
+            {name: float(std) for name, std in zip(asset_names, weight_std, strict=False)}
             if weight_std is not None
             else None
         ),

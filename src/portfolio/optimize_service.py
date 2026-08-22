@@ -267,7 +267,7 @@ def run_bl(
         raise ValueError("Black-Litterman optimization requires at least one view.")
 
     names = [DEFAULT_ASSET_CLASSES[k]["name"] for k in keys]
-    name_of = dict(zip(keys, names))
+    name_of = dict(zip(keys, names, strict=False))
 
     market_weights = None
     weights_source = "equal"
@@ -345,11 +345,11 @@ def run_bl(
     )
 
     extra = {
-        "equilibrium_returns": {n: float(r) for n, r in zip(names, equilibrium)},
-        "posterior_returns": {n: float(r) for n, r in zip(names, posterior)},
+        "equilibrium_returns": {n: float(r) for n, r in zip(names, equilibrium, strict=False)},
+        "posterior_returns": {n: float(r) for n, r in zip(names, posterior, strict=False)},
         "prior_source": optimizer.prior_source,
         "prior_returns": (
-            {n: float(r) for n, r in zip(names, optimizer.Pi)}
+            {n: float(r) for n, r in zip(names, optimizer.Pi, strict=False)}
             if optimizer.prior_source == "cme"
             else None
         ),

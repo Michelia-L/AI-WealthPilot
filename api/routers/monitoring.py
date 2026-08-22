@@ -103,9 +103,9 @@ def get_monitoring(document_id: str, request: Request) -> MonitoringResponse:
     try:
         result = compute_monitoring(document_id, locale=locale)
     except KeyError:
-        raise HTTPException(status_code=404, detail=msg("common.ips_doc_not_found", locale))
+        raise HTTPException(status_code=404, detail=msg("common.ips_doc_not_found", locale)) from None
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=422, detail=str(e)) from e
     return MonitoringResponse(**result)
 
 
@@ -178,9 +178,9 @@ def get_backtest(
         try:
             saa = resolve_saa_weights(document_id, locale=locale)
         except KeyError:
-            raise HTTPException(status_code=404, detail=msg("common.ips_doc_not_found", locale))
+            raise HTTPException(status_code=404, detail=msg("common.ips_doc_not_found", locale)) from None
         except ValueError as e:
-            raise HTTPException(status_code=422, detail=str(e))
+            raise HTTPException(status_code=422, detail=str(e)) from e
 
         fee_rate, fee_notes = _resolve_annual_fee_rate(saa["fee_schedule"], locale)
         try:
@@ -192,9 +192,9 @@ def get_backtest(
                 locale=locale,
             )
         except InsufficientDataError as e:
-            raise HTTPException(status_code=502, detail=str(e))
+            raise HTTPException(status_code=502, detail=str(e)) from e
         except ValueError as e:
-            raise HTTPException(status_code=422, detail=str(e))
+            raise HTTPException(status_code=422, detail=str(e)) from e
 
         equity = result.pop("_equity")
         drawdown = result.pop("_drawdown")
@@ -294,9 +294,9 @@ def stream_rebalance_advice(
     try:
         monitoring = compute_monitoring(payload.document_id, locale=locale)
     except KeyError:
-        raise HTTPException(status_code=404, detail=msg("common.ips_doc_not_found", locale))
+        raise HTTPException(status_code=404, detail=msg("common.ips_doc_not_found", locale)) from None
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=422, detail=str(e)) from e
 
     profile: Optional[ClientProfile] = None
     if payload.profile_id is not None:

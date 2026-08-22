@@ -244,7 +244,7 @@ class PortfolioOptimizer:
         weights = result.x
         ret, vol, sharpe = self.portfolio_performance(weights, mean_override)
         return {
-            "weights": dict(zip(self.asset_names, weights)),
+            "weights": dict(zip(self.asset_names, weights, strict=False)),
             "return": ret,
             "volatility": vol,
             "sharpe": sharpe,
@@ -316,7 +316,7 @@ class PortfolioOptimizer:
         weights = result.x
         ret, vol, sharpe = self.portfolio_performance(weights, mean_override)
         return {
-            "weights": dict(zip(self.asset_names, weights)),
+            "weights": dict(zip(self.asset_names, weights, strict=False)),
             "return": ret,
             "volatility": vol,
             "sharpe": sharpe,
@@ -457,7 +457,7 @@ class PortfolioOptimizer:
             equal_weights = np.ones(self.n_assets) / self.n_assets
             ret, vol, sharpe = self.portfolio_performance(equal_weights)
             return {
-                'weights': dict(zip(self.asset_names, equal_weights)),
+                'weights': dict(zip(self.asset_names, equal_weights, strict=False)),
                 'return': ret, 'volatility': vol, 'sharpe': sharpe,
                 'success': False,
             }
@@ -466,7 +466,7 @@ class PortfolioOptimizer:
         avg_weights /= np.sum(avg_weights)
         ret, vol, sharpe = self.portfolio_performance(avg_weights)
         return {
-            'weights': dict(zip(self.asset_names, avg_weights)),
+            'weights': dict(zip(self.asset_names, avg_weights, strict=False)),
             'return': ret, 'volatility': vol, 'sharpe': sharpe,
             'success': True,
             'n_simulations': n_simulations,
@@ -654,7 +654,7 @@ class PortfolioOptimizer:
             for cn, idx in asset_class_indices.items()
         }
         return {
-            'weights': dict(zip(self.asset_names, weights)),
+            'weights': dict(zip(self.asset_names, weights, strict=False)),
             'return': ret, 'volatility': vol, 'sharpe': sharpe,
             'success': result.success,
             'asset_class_weights': asset_class_weights,
@@ -764,7 +764,7 @@ class PortfolioOptimizer:
         ret, vol, sharpe = self.portfolio_performance(weights)
         scale = np.sqrt(TRADING_DAYS_PER_YEAR)
         return {
-            "weights": dict(zip(self.asset_names, weights)),
+            "weights": dict(zip(self.asset_names, weights, strict=False)),
             "return": ret,
             "volatility": vol,
             "sharpe": sharpe,
@@ -918,7 +918,7 @@ class PortfolioOptimizer:
             weights, k, liability_mean, liability_vol, liability_cov
         )
         return {
-            "weights": dict(zip(self.asset_names, weights)),
+            "weights": dict(zip(self.asset_names, weights, strict=False)),
             "return": ret,
             "volatility": vol,
             "sharpe": sharpe,
@@ -965,7 +965,7 @@ class PortfolioOptimizer:
             weights, liability_ratio, liability_mean, liability_vol, liability_cov
         )
         return {
-            "weights": dict(zip(self.asset_names, weights)),
+            "weights": dict(zip(self.asset_names, weights, strict=False)),
             "return": ret,
             "volatility": vol,
             "sharpe": sharpe,
@@ -1081,12 +1081,12 @@ class PortfolioOptimizer:
         ret, vol, sharpe = self.portfolio_performance(weights)
         rc = self.risk_contributions(weights)
         return {
-            "weights": dict(zip(self.asset_names, weights)),
+            "weights": dict(zip(self.asset_names, weights, strict=False)),
             "return": ret,
             "volatility": vol,
             "sharpe": sharpe,
             "success": True,
-            "risk_contributions": dict(zip(self.asset_names, rc)),
+            "risk_contributions": dict(zip(self.asset_names, rc, strict=False)),
         }
 
 
@@ -1308,7 +1308,7 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
         weights = result.x
         ret, vol, sharpe = self.bl_portfolio_performance(weights)
         return {
-            "weights": dict(zip(self.asset_names, weights)),
+            "weights": dict(zip(self.asset_names, weights, strict=False)),
             "return": ret, "volatility": vol, "sharpe": sharpe,
             "success": result.success,
         }
@@ -1352,7 +1352,7 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
         weights = result.x
         ret, vol, sharpe = self.bl_portfolio_performance(weights)
         return {
-            "weights": dict(zip(self.asset_names, weights)),
+            "weights": dict(zip(self.asset_names, weights, strict=False)),
             "return": ret, "volatility": vol, "sharpe": sharpe,
             "success": result.success,
         }
@@ -1408,7 +1408,7 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
             "",
             f"Risk Aversion (δ): {self.delta:.4f}",
             f"Uncertainty Scale (τ): {self.tau}",
-            f"Market Cap Weights: {dict(zip(self.asset_names, self.market_cap_weights))}",
+            f"Market Cap Weights: {dict(zip(self.asset_names, self.market_cap_weights, strict=False))}",
             "",
             "Asset Returns Comparison:",
             "-" * 60,

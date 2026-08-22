@@ -174,7 +174,6 @@ def plot_efficient_frontier(
     if risk_free_rate is not None and max_sharpe is not None and max_sharpe.get("success", True):
         rf_pct = risk_free_rate * 100
         tangency_vol = max_sharpe["volatility"] * 100
-        tangency_ret = max_sharpe["return"] * 100
         sharpe_ratio = max_sharpe["sharpe"]
 
         # Extend CAL to ~2.5x the tangency volatility (or frontier max, whichever is larger)
@@ -267,9 +266,7 @@ def plot_monte_carlo_paths(
     if percentiles:
         # Percentile bands
         p5 = np.percentile(paths, 5, axis=0)
-        p25 = np.percentile(paths, 25, axis=0)
         p50 = np.percentile(paths, 50, axis=0)
-        p75 = np.percentile(paths, 75, axis=0)
         p95 = np.percentile(paths, 95, axis=0)
 
         fig.add_trace(go.Scatter(

@@ -119,7 +119,7 @@ class TestIdentityProperty:
         rows_b = monthly_group_series(prices, bench)
         assert len(rows_p) == len(rows_b) >= 2
 
-        for (w_p, R_p_g, R_p_m), (w_b, R_b_g, R_b_m) in zip(rows_p, rows_b):
+        for (w_p, R_p_g, R_p_m), (w_b, R_b_g, R_b_m) in zip(rows_p, rows_b, strict=False):
             total = 0.0
             for g in set(w_p) | set(w_b):
                 wp, wb = w_p.get(g, 0.0), w_b.get(g, 0.0)

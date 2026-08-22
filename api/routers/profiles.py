@@ -161,7 +161,7 @@ def compare_profile_set(
     try:
         id_list = [int(x) for x in ids.split(",") if x.strip()]
     except ValueError:
-        raise HTTPException(status_code=422, detail=msg("profiles.ids_not_integers", locale))
+        raise HTTPException(status_code=422, detail=msg("profiles.ids_not_integers", locale)) from None
     id_list = list(dict.fromkeys(id_list))  # dedupe, preserve order
     if len(id_list) < 2:
         raise HTTPException(status_code=422, detail=msg("profiles.compare_min", locale))
@@ -172,7 +172,7 @@ def compare_profile_set(
         )
 
     records = [session.get(ProfileRecord, i) for i in id_list]
-    missing = [i for i, r in zip(id_list, records) if r is None]
+    missing = [i for i, r in zip(id_list, records, strict=False) if r is None]
     if missing:
         raise HTTPException(
             status_code=404, detail=msg("common.profile_not_found", locale, id=missing)
@@ -199,7 +199,7 @@ def compare_profile_set(
                     BiasItem(**vars(b)) for b in identify_behavioral_biases(profile)
                 ],
             )
-            for record, profile in zip(records, profiles)
+            for record, profile in zip(records, profiles, strict=False)
             if record is not None
         ],
     )
