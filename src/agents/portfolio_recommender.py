@@ -282,6 +282,7 @@ def recommend_portfolio(
     profile: ClientProfile,
     returns_data: pd.DataFrame,
     risk_free_rate: float = RISK_FREE_RATE,
+    locale: str = "zh",
 ) -> PortfolioRecommendation:
     """Generate personalized portfolio recommendation based on client profile.
 
@@ -289,6 +290,8 @@ def recommend_portfolio(
         profile: Complete ClientProfile with risk assessment.
         returns_data: DataFrame of historical asset returns.
         risk_free_rate: Annual risk-free rate.
+        locale: Rationale language ("zh" keeps the original bilingual wording
+            verbatim, "en" is English-only).
 
     Returns:
         PortfolioRecommendation containing suggested allocation and metrics.
@@ -377,6 +380,7 @@ def recommend_portfolio(
         goal_name=goal_name,
         goal_required_return=goal_required_return,
         goal_details=goal_details,
+        locale=locale,
     )
 
     return PortfolioRecommendation(
@@ -404,6 +408,7 @@ def _generate_rationale(
     goal_name: str = "",
     goal_required_return: Optional[float] = None,
     goal_details: Optional[list] = None,
+    locale: str = "zh",
 ) -> str:
     """
     Generate human-readable rationale for the portfolio recommendation.
@@ -418,6 +423,8 @@ def _generate_rationale(
         goal_name: Name of the primary goal evaluated.
         goal_required_return: Annual return the primary goal requires.
         goal_details: Per-goal feasibility dicts (see PortfolioRecommendation).
+        locale: "zh" keeps the original bilingual wording verbatim, "en" is
+            English-only.
 
     Returns:
         Formatted rationale string.
@@ -468,22 +475,36 @@ def _generate_rationale(
     # gap between the goal's required return and the achievable return is
     # disclosed here instead of being silently overridden.
     if goal_status and goal_required_return is not None:
-        rationale_parts.extend(["", "**Goal Feasibility / 目标可行性**:", ""])
+        en_only = locale == "en"
+        rationale_parts.extend(
+            [
+                "",
+                "**Goal Feasibility**:"
+                if en_only
+                else "**Goal Feasibility / 目标可行性**:",
+                "",
+            ]
+        )
         req_text = (
             f"{goal_required_return:.1%}"
             if goal_required_return < _UNATTAINABLE_RATE
             else "≥1000%"
         )
         if goal_status == "on_track":
-            rationale_parts.append(
+            en_text = (
                 f"Your primary goal **{goal_name}** requires an estimated "
                 f"**{req_text}** annual return (after counting your ongoing "
                 f"savings), which the recommended portfolio meets within your "
-                f"risk budget. / 计入持续储蓄后,您的主要目标「{goal_name}」"
+                f"risk budget."
+            )
+            rationale_parts.append(
+                en_text
+                if en_only
+                else f"{en_text} / 计入持续储蓄后,您的主要目标「{goal_name}」"
                 f"预计需要年化 **{req_text}**,当前推荐组合可在您的风险预算内达成。"
             )
         elif goal_status == "constrained":
-            rationale_parts.append(
+            en_text = (
                 f"Your primary goal **{goal_name}** requires an estimated "
                 f"**{req_text}** annual return (after counting your ongoing "
                 f"savings), but staying within your "
@@ -491,18 +512,28 @@ def _generate_rationale(
                 f"approximately **{optimization_result['return']:.1%}**. The "
                 f"recommendation respects your risk budget; closing the gap "
                 f"requires higher risk tolerance, additional savings, or a "
-                f"longer horizon. / 计入持续储蓄后,您的主要目标「{goal_name}」"
+                f"longer horizon."
+            )
+            rationale_parts.append(
+                en_text
+                if en_only
+                else f"{en_text} / 计入持续储蓄后,您的主要目标「{goal_name}」"
                 f"预计需要年化 **{req_text}**,但在 **{target_volatility:.1%}** 的"
                 f"波动预算内预期收益约为 **{optimization_result['return']:.1%}**。"
                 f"推荐组合严守您的风险预算;弥补缺口需要提高风险承受、增加储蓄或延长投资期限。"
             )
         elif goal_status == "infeasible":
-            rationale_parts.append(
+            en_text = (
                 f"Your primary goal **{goal_name}** requires an estimated "
                 f"**{req_text}** annual return, which exceeds what the available "
                 f"asset universe can deliver. Consider increasing ongoing "
                 f"savings, extending the horizon, or revising the target "
-                f"amount. / 您的主要目标「{goal_name}」预计需要年化 **{req_text}**,"
+                f"amount."
+            )
+            rationale_parts.append(
+                en_text
+                if en_only
+                else f"{en_text} / 您的主要目标「{goal_name}」预计需要年化 **{req_text}**,"
                 f"已超出现有资产类别可实现的范围;建议增加持续储蓄、延长投资期限"
                 f"或调整目标金额。"
             )
@@ -519,7 +550,9 @@ def _generate_rationale(
             rationale_parts.extend(
                 [
                     "",
-                    "All goals, by priority / 全部目标(按优先级):",
+                    "All goals, by priority:"
+                    if en_only
+                    else "All goals, by priority / 全部目标(按优先级):",
                     "",
                 ]
             )
@@ -530,10 +563,16 @@ def _generate_rationale(
                     if detail["required_return"] < _UNATTAINABLE_RATE
                     else "≥1000%"
                 )
-                rationale_parts.append(
-                    f"- **{detail['name']}**: requires ~{detail_req} p.a. — "
-                    f"{en_label} / 需年化约 {detail_req},{zh_label}"
-                )
+                if en_only:
+                    rationale_parts.append(
+                        f"- **{detail['name']}**: requires ~{detail_req} p.a. — "
+                        f"{en_label}"
+                    )
+                else:
+                    rationale_parts.append(
+                        f"- **{detail['name']}**: requires ~{detail_req} p.a. — "
+                        f"{en_label} / 需年化约 {detail_req},{zh_label}"
+                    )
 
     return "\n".join(rationale_parts)
 
@@ -541,24 +580,29 @@ def _generate_rationale(
 # Utility Functions
 
 
-def get_recommended_allocation_text(recommendation: PortfolioRecommendation) -> str:
+def get_recommended_allocation_text(
+    recommendation: PortfolioRecommendation, locale: str = "zh"
+) -> str:
     """Format portfolio recommendation as readable markdown text.
 
     Args:
         recommendation: PortfolioRecommendation instance.
+        locale: "zh" keeps the original bilingual headings verbatim, "en" is
+            English-only.
 
     Returns:
         Formatted text string.
     """
+    en = locale == "en"
     lines = [
-        "## Recommended Portfolio / 推荐投资组合",
+        "## Recommended Portfolio" if en else "## Recommended Portfolio / 推荐投资组合",
         "",
-        f"**Risk Level / 风险等级**: {recommendation.risk_level}",
-        f"**Expected Return / 预期收益**: {recommendation.expected_return:.2%}",
-        f"**Expected Volatility / 预期波动率**: {recommendation.expected_volatility:.2%}",
-        f"**Sharpe Ratio / 夏普比率**: {recommendation.sharpe_ratio:.2f}",
+        f"**{'Risk Level' if en else 'Risk Level / 风险等级'}**: {recommendation.risk_level}",
+        f"**{'Expected Return' if en else 'Expected Return / 预期收益'}**: {recommendation.expected_return:.2%}",
+        f"**{'Expected Volatility' if en else 'Expected Volatility / 预期波动率'}**: {recommendation.expected_volatility:.2%}",
+        f"**{'Sharpe Ratio' if en else 'Sharpe Ratio / 夏普比率'}**: {recommendation.sharpe_ratio:.2f}",
         "",
-        "### Asset Allocation / 资产配置",
+        "### Asset Allocation" if en else "### Asset Allocation / 资产配置",
         "",
     ]
 
@@ -573,7 +617,7 @@ def get_recommended_allocation_text(recommendation: PortfolioRecommendation) -> 
     lines.extend(
         [
             "",
-            "### Rationale / 配置理由",
+            "### Rationale" if en else "### Rationale / 配置理由",
             "",
             recommendation.rationale,
         ]

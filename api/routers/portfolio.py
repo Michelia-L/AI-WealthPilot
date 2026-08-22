@@ -123,21 +123,18 @@ def get_recommendation(
     """Risk-score-driven allocation from src portfolio_recommender: the
     profile's final score maps to a target volatility, and the MVO engine
     solves the min-volatility portfolio (goal-aware) on the full universe."""
+    locale = get_request_locale(request)
     record = session.get(ProfileRecord, profile_id)
     if record is None:
         raise HTTPException(
             status_code=404,
-            detail=msg(
-                "common.profile_not_found", get_request_locale(request), id=profile_id
-            ),
+            detail=msg("common.profile_not_found", locale, id=profile_id),
         )
     profile = profile_from_data(record.data)
 
-    returns = _fetch_returns(
-        list(DEFAULT_ASSET_CLASSES.keys()), "5y", get_request_locale(request)
-    )
+    returns = _fetch_returns(list(DEFAULT_ASSET_CLASSES.keys()), "5y", locale)
     rf = _effective_risk_free_rate(None)
-    rec = recommend_portfolio(profile, returns, rf)
+    rec = recommend_portfolio(profile, returns, rf, locale=locale)
     return RecommendationResponse(
         profile_id=profile_id,
         profile_name=profile.name,

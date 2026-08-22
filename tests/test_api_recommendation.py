@@ -81,3 +81,24 @@ def test_recommendation_happy_path(client, fake_market):
 
 def test_recommendation_profile_not_found(client):
     assert client.get("/api/portfolio/recommendation?profile_id=999").status_code == 404
+
+
+def test_recommendation_en_locale_rationale(bare_client, fake_market):
+    """Without an X-Locale header the rationale renders English-only."""
+    profile_id = _create_profile(bare_client)
+    resp = bare_client.get(f"/api/portfolio/recommendation?profile_id={profile_id}")
+    assert resp.status_code == 200
+    rationale = resp.json()["rationale"]
+    assert "Goal Feasibility" in rationale
+    # Template copy is English-only; the goal name stays as entered by the
+    # client (the sample payload's "Retirement / 退休" is user data).
+    assert "目标可行性" not in rationale
+    assert "计入持续储蓄后" not in rationale
+
+
+def test_recommendation_zh_locale_rationale_stays_bilingual(client, fake_market):
+    """The zh header (client fixture default) keeps bilingual wording."""
+    profile_id = _create_profile(client)
+    resp = client.get(f"/api/portfolio/recommendation?profile_id={profile_id}")
+    assert resp.status_code == 200
+    assert "目标可行性" in resp.json()["rationale"]

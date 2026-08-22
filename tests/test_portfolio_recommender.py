@@ -549,3 +549,69 @@ class TestRecommenderIntegration:
         # 5. Verify allocation is reasonable
         total_weight = sum(rec.suggested_allocation.values())
         assert abs(total_weight - 1.0) < 0.01
+
+
+# ============================================================
+# Test: Rationale locale
+# ============================================================
+
+
+class TestRationaleLocale:
+    """locale switches rationale language; zh keeps the bilingual wording."""
+
+    @staticmethod
+    def _has_cjk(text: str) -> bool:
+        return any("一" <= ch <= "鿿" for ch in text)
+
+    @staticmethod
+    def _with_goal(profile) -> "ClientProfile":
+        p = copy.deepcopy(profile)
+        p.goals = [
+            InvestmentGoal(
+                name="Rainy Day",
+                target_amount=p.financial.investable_assets * 1.05,
+                years=10,
+                priority="high",
+            )
+        ]
+        return p
+
+    def test_zh_default_stays_bilingual(self, moderate_profile, sample_returns):
+        rec = recommend_portfolio(self._with_goal(moderate_profile), sample_returns)
+        assert "Goal Feasibility / 目标可行性" in rec.rationale
+
+    def test_en_rationale_english_only(self, moderate_profile, sample_returns):
+        rec = recommend_portfolio(
+            self._with_goal(moderate_profile), sample_returns, locale="en"
+        )
+        assert "**Goal Feasibility**:" in rec.rationale
+        assert not self._has_cjk(rec.rationale)
+
+    def test_en_multi_goal_lines_english_only(self, moderate_profile, sample_returns):
+        p = copy.deepcopy(moderate_profile)
+        p.goals = [
+            InvestmentGoal(
+                name="Rainy Day",
+                target_amount=p.financial.investable_assets * 1.05,
+                years=10,
+                priority="high",
+            ),
+            InvestmentGoal(
+                name="Education",
+                target_amount=p.financial.investable_assets * 0.8,
+                years=8,
+                priority="medium",
+            ),
+        ]
+        rec = recommend_portfolio(p, sample_returns, locale="en")
+        assert len(rec.goal_details) == 2
+        assert "All goals, by priority:" in rec.rationale
+        assert not self._has_cjk(rec.rationale)
+
+    def test_allocation_text_en(self, moderate_profile, sample_returns):
+        rec = recommend_portfolio(moderate_profile, sample_returns)
+        text = get_recommended_allocation_text(rec, locale="en")
+        assert "## Recommended Portfolio" in text
+        assert not self._has_cjk(text)
+        zh_text = get_recommended_allocation_text(rec)
+        assert "## Recommended Portfolio / 推荐投资组合" in zh_text
