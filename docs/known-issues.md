@@ -137,7 +137,21 @@ AI 顾问/调仓建议等流式生成等待数十秒，期间只看着正文逐�
 - **同日顺带关闭：风险问卷混排**。`src/agents/profiler.py` 的 `RISK_ABILITY/WILLINGNESS_QUESTIONS` 题目/选项改为 `{zh, en}` 结构（删除半截的 `question_en` 残留）；`GET /profiles/questionnaire` 按请求 locale 出单语言文本；前端 `getQuestionnaire(locale)`（RSC 调用方传 locale，`router.refresh()` 后自动重取）。算分只读 option key/score，不受影响。
 - 新增测试：问卷 zh/en 端点、backtest 引擎 en（异常/notes/情景名）、监控回测 en 端对端、ViewProcessor 双 locale、caps_for_tolerance en、异步优化 en 422。
 
-**仍按设计不随请求 locale 切换**（如产品要求 en 用户全英文，需单独立项——涉及文档生成语言策略，不只是传输层）：
+### ~~P22-i18n-3 · LLM 相关产物不随 locale 切换~~（已解决 2026-08-22；原条目内容已过期，重写为实际状态记录）
 
-- LLM 相关产物：IPS/报告文档（`src/agents/ips_storage.py`、`report_storage.py` 的 Markdown/PDF 渲染，约 250 条中文模板串）、LLM prompt（`ips_agents.py`、`advisor.py`、`rebalance_advisor.py`）、`src/agents/ips_workflow.py` 的 SAA 校验 error_message（约 15 条，会作为 SSE error message 透出）。
+**实际状态**：「生成时定语言」架构在 Phase 22 已落地，本条早年记录的缺口（约 250 条模板串、prompt、SAA 校验文案）实际早已完成或在本轮闭环：
+
+- **文档渲染**：`ips_storage.export_ips_markdown/pdf` 与 `report_storage` 各导出函数均有 `locale="zh"` 参数与双语字典（`_MD_LABELS`/`_IPS_PDF_LABELS`），文档骨架跟随查看时 locale。
+- **LLM prompt**：5 个 IPS 角色 + advisor + rebalance 全部有 `_EN` 变体，经 `get_system_prompt`/`_system_prompt`/`_build_messages` 选派；正文语言由生成时 locale 决定（经 `IPSWorkflowState.locale` / 函数参数透传）。
+- **本轮（2026-08-22）闭环的剩余缺口**：
+  - `ips_workflow.py` 节点异常 `error_message`（硬编码英文，漏进 SSE error 事件）→ 收进 `_SAA_STRINGS` 双语表（`generation_error`/`revision_error`）。
+  - `portfolio_recommender` rationale 与 `get_recommended_allocation_text` 加 `locale` 参数，`/api/portfolio/recommendation` 路由透传（zh 档维持既有双语逐字，en 档纯英文）。
+  - DEMO_MODE 新增 4 个英文夹具（`*_en` 后缀，占位名 Evelyn Lin），三个 demo 回放入口按 locale 选夹具——修复了「en 界面回放中文报告」的违和。
+  - 顺手项：`report_storage.get_export_formats(locale)`、IPS PDF 流动性节货币符号由写死 `¥` 改为按 `currency_policy.base_currency` 推导（对齐 Markdown 行为）、IPS PDF 补 latin-1 降级（对齐 report PDF）。
+- **语义契约（测试锁定，维持不变）**：zh 档产物为中英双语，en 档为纯英文；LLM 正文保持生成时语言，文档骨架跟随查看时语言。
+
+**仍按设计保留**（非缺陷，有真实英文需求时再立项）：
+
 - profiler 的其余硬编码双语串：行为偏差（`identify_behavioral_biases`）、画像对比洞察（`_generate_comparison_insights`/`format_comparison_report`）、`format_ratio` 的「∞ (无资产但有负债)」（经 `build_derived` 透出到画像详情页）。风险等级标签（`RISK_LEVEL_LABELS`）作为持久化数据保持双语存储，前端经 `localizedRiskLabel` 按 locale 显示，属既有设计。
+- 存储记录（`data/ips/`、`data/reports/`）无语言字段：en 请求查看 zh 生成的文档会得到「英文骨架 + 中文正文」的混合体，属已知取舍；如需「按生成语言渲染」提示再单独立项。
+- DEMO_MODE 英文 IPS 夹具的资产类别名为英文，监控/回测的 `_SAA_KEYWORDS` 只覆盖部分英文关键词，en 演示链路下游映射不完整（走既有容错路径，不崩溃）。
