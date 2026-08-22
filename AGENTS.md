@@ -29,6 +29,7 @@ cd web && npm run dev          # :3000
 # 测试与质量门禁（改动后必跑）
 python -m pytest -q            # 全套 Python 测试
 cd web && npm test             # 前端 Vitest（lib 单测 + 组件测试）
+cd web && npm run typecheck    # tsc --noEmit 全量类型检查（含测试文件；next build 不覆盖测试文件）
 cd web && npm run lint && npm run build
 cd web && npm run test:e2e     # Playwright 全栈 e2e（需先 npm run build；自动拉起 DEMO_MODE 后端 :8300 + web :3300，独立临时 SQLite）
 
@@ -52,7 +53,7 @@ docker compose up --build
 ## Git 规范
 
 - Conventional Commits，英文：`feat:` / `fix:` / `docs:` / `test:` / `chore:`，主题行小写，阶段功能标注 `(phase N)`。
-- 提交前确认：`python -m pytest -q`、`cd web && npm test`、`cd web && npm run lint && npm run build` 全绿。
+- 提交前确认：`python -m pytest -q`、`cd web && npm test`、`cd web && npm run typecheck && npm run lint && npm run build` 全绿。
 - CI（`.github/workflows/ci.yml`）在 push/PR 时跑同样的两道工序（pytest 带 `--cov-fail-under=87` 覆盖率门禁与 pip-audit CVE 扫描）；推送前本地先过一遍。Dependabot 周更 pip/npm/github-actions 依赖（`.github/dependabot.yml`），bump PR 同样过这两道门禁。
 
 ## 环境

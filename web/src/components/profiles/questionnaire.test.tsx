@@ -50,7 +50,10 @@ function makeForm(overrides: Partial<ProfilePayload> = {}): ProfilePayload {
   } as ProfilePayload;
 }
 
-function renderQ(form: ProfilePayload, questionnaire = QUESTIONNAIRE) {
+function renderQ(
+  form: ProfilePayload,
+  questionnaire: QuestionnaireResponse | null = QUESTIONNAIRE
+) {
   const onAnswer = vi.fn();
   const onRiskScoreChange = vi.fn();
   render(

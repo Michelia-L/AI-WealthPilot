@@ -10,7 +10,12 @@ vi.mock("@/components/locale-context", () => ({
 }));
 
 // Client context is varied per test.
-const useClientMock = vi.fn(() => ({ clientId: 42, clientName: "Jane" }));
+const useClientMock = vi.fn(
+  (): { clientId: number | null; clientName: string | null } => ({
+    clientId: 42,
+    clientName: "Jane",
+  })
+);
 vi.mock("@/components/client-context", () => ({
   useClient: () => useClientMock(),
 }));
