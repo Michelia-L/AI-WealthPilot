@@ -35,7 +35,7 @@ nh3==0.3.5  # HTML sanitizer for LLM-generated report content (XSS prevention)
 fpdf2==2.8.7
 
 # API Layer
-fastapi==0.136.1
+fastapi==0.141.1
 uvicorn[standard]==0.46.0
 sqlmodel==0.0.39  # SQLite persistence (client profiles, future user tables)
 tushare==1.4.29
