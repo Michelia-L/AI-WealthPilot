@@ -16,6 +16,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, ConfigDict, Field
 
+from src import config
 from src.agents.ips_agents import (
     build_generation_prompt,
     build_review_prompt,
@@ -44,6 +45,33 @@ from src.portfolio.cme_models import CMEReport, SAAValidationResult
 from src.portfolio.inflation import resolve_personal_inflation, suggest_inflation_preset
 
 logger = logging.getLogger(__name__)
+
+
+class TokenBudgetExceeded(RuntimeError):
+    """Raised when an IPS workflow run exceeds its per-task token budget (P24).
+
+    Nodes re-raise it past their generic error handling so the overrun
+    aborts the whole workflow instead of degrading into revision loops;
+    the API task runner turns it into a localized terminal error event.
+    """
+
+    def __init__(self, spent: int, budget: int):
+        super().__init__(f"IPS token budget exceeded: spent {spent} > budget {budget}")
+        self.spent = spent
+        self.budget = budget
+
+
+def _check_token_budget(state: "IPSWorkflowState") -> None:
+    """Raise TokenBudgetExceeded when accumulated usage exceeds the budget.
+
+    Checked before every LLM call; the budget is read dynamically from
+    src.config so tests can monkeypatch it (same pattern as
+    demo_mode.is_demo_mode).
+    """
+    budget = int(config.LLM_TASK_TOKEN_BUDGET)
+    spent = _aggregate_usage(state.llm_usage)["total_tokens"]
+    if spent > budget:
+        raise TokenBudgetExceeded(spent, budget)
 
 
 class IPSWorkflowState(BaseModel):
@@ -93,6 +121,13 @@ class IPSWorkflowState(BaseModel):
     # --- SAA Validation ---
     saa_validation: Optional[dict] = Field(
         default=None, description="SAA validation result from quantitative check"
+    )
+
+    # --- LLM Usage (P24) ---
+    llm_usage: list[dict] = Field(
+        default_factory=list,
+        description="Per-node LLM token usage records (node, requests, "
+        "input/output/total tokens), aggregated into the audit trail",
     )
 
     # --- Output ---
@@ -275,12 +310,29 @@ async def generate_cme_node(state: IPSWorkflowState) -> dict[str, Any]:
         }
 
 
+def _usage_entry(node: str, result: Any) -> dict[str, Any]:
+    """Build one per-node LLM token usage record from an agent run result.
+
+    ``result.usage`` is a property on pydantic-ai's AgentRunResult; totals
+    are aggregated in ``finalize_node`` for the audit trail (P24).
+    """
+    usage = result.usage
+    return {
+        "node": node,
+        "requests": usage.requests,
+        "input_tokens": usage.input_tokens,
+        "output_tokens": usage.output_tokens,
+        "total_tokens": usage.total_tokens,
+    }
+
+
 async def generate_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
     """Node: generate the initial IPS draft via LLM."""
     logger.info("=== IPS Generation Node ===")
     state_updates: dict[str, Any] = {"status": "generating"}
 
     try:
+        _check_token_budget(state)
         agent = create_ips_generator_agent(locale=state.locale)
         prompt = build_generation_prompt(
             client_profile_json=state.client_profile_json,
@@ -292,11 +344,18 @@ async def generate_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
         result = await agent.run(prompt)
         ips_doc: IPSDocument = result.output
         state_updates["ips_draft"] = ips_doc.model_dump()
+        state_updates["llm_usage"] = [
+            *state.llm_usage,
+            _usage_entry("generate", result),
+        ]
         state_updates["status"] = "generated"
         logger.info(
             "IPS draft generated successfully (version: %s)",
             _ips_version_hash(state_updates["ips_draft"]),
         )
+
+    except TokenBudgetExceeded:
+        raise
 
     except Exception as e:
         logger.error("IPS generation failed: %s", e, exc_info=True)
@@ -348,6 +407,7 @@ async def _run_review_node(
     logger.info("=== %s Review Node ===", dimension.value.title())
 
     try:
+        _check_token_budget(state)
         agent = _REVIEWER_FACTORIES[dimension](locale=state.locale)
 
         checklist_items = (
@@ -384,7 +444,14 @@ async def _run_review_node(
         return {
             "review_results": current_results,
             "all_review_issues": current_issues,
+            "llm_usage": [
+                *state.llm_usage,
+                _usage_entry(f"review_{dimension.value}", result),
+            ],
         }
+
+    except TokenBudgetExceeded:
+        raise
 
     except Exception as e:
         logger.error("%s review failed: %s", dimension.value.title(), e, exc_info=True)
@@ -419,6 +486,7 @@ async def revise_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
     logger.info("=== IPS Revision Node (round %d) ===", state.revision_count + 1)
 
     try:
+        _check_token_budget(state)
         agent = create_ips_reviser_agent(locale=state.locale)
 
         ips_json = json.dumps(state.ips_draft, ensure_ascii=False, indent=2)
@@ -458,8 +526,15 @@ async def revise_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
             "ips_draft": revised_dict,
             "revision_count": state.revision_count + 1,
             "revision_history": current_history,
+            "llm_usage": [
+                *state.llm_usage,
+                _usage_entry(f"revise_r{state.revision_count + 1}", result),
+            ],
             "status": "revised",
         }
+
+    except TokenBudgetExceeded:
+        raise
 
     except Exception as e:
         logger.error("IPS revision failed: %s", e, exc_info=True)

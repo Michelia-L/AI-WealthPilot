@@ -8,6 +8,7 @@ not the LLM-driven workflow itself (covered by src tests).
 
 import pytest
 
+from src.agents.ips_workflow import TokenBudgetExceeded
 from tests.test_api_advisor import _parse_sse
 from tests.test_api_profiles import sample_payload
 
@@ -161,3 +162,33 @@ def test_markdown_export(client, fake_workflow):
     assert "投资政策声明书" in resp.text
 
     assert client.get("/api/ips/ips_nobody_20260101_000000/export").status_code == 404
+
+
+class BudgetExceededWorkflowApp:
+    """Fake compiled graph whose run trips the token budget gate mid-stream."""
+
+    async def astream(self, initial_state, config=None, stream_mode=None):
+        yield {"generate": {"status": "generating"}}
+        raise TokenBudgetExceeded(spent=12345, budget=10000)
+
+
+def test_token_budget_exceeded_emits_localized_error(client, monkeypatch):
+    """The budget gate aborts the task with a dedicated error event (P24)."""
+    monkeypatch.setattr("api.routers.ips.is_api_configured", lambda: True)
+    monkeypatch.setattr("src.agents.ips_workflow.load_ips_template", lambda: "T")
+    monkeypatch.setattr(
+        "src.agents.ips_workflow.compile_ips_workflow",
+        lambda **kw: BudgetExceededWorkflowApp(),
+    )
+    profile_id = _create_profile(client)
+
+    task_id = client.post("/api/ips/generate", json={"profile_id": profile_id}).json()[
+        "task_id"
+    ]
+    events = _parse_sse(client.get(f"/api/ips/tasks/{task_id}/events").text)
+
+    # zh copy (the client fixture sends X-Locale: zh) carrying spent/budget.
+    assert events[-1]["type"] == "error"
+    assert "token 预算" in events[-1]["message"]
+    assert "12345" in events[-1]["message"]
+    assert "10000" in events[-1]["message"]

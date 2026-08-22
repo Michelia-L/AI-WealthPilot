@@ -370,29 +370,34 @@ def generate_rebalance_advice_stream(
         )
 
         full_content = []
-        for chunk in stream:
-            if chunk.choices:
-                delta = chunk.choices[0].delta
-                # Plain chat models have no reasoning_content at all.
-                reasoning = getattr(delta, "reasoning_content", None)
-                if reasoning:
-                    yield {"type": "reasoning", "text": reasoning}
-                text = getattr(delta, "content", None)
-                if text:
-                    full_content.append(text)
-                    yield {"type": "token", "text": text}
-            # The terminal usage chunk carries no choices; read it separately.
-            usage = getattr(chunk, "usage", None)
-            if usage:
-                report.prompt_tokens = getattr(usage, "prompt_tokens", None) or 0
-                report.completion_tokens = (
-                    getattr(usage, "completion_tokens", None) or 0
-                )
-                report.total_tokens = getattr(usage, "total_tokens", None) or 0
-                details = getattr(usage, "completion_tokens_details", None)
-                report.reasoning_tokens = (
-                    getattr(details, "reasoning_tokens", None) or 0
-                )
+        try:
+            for chunk in stream:
+                if chunk.choices:
+                    delta = chunk.choices[0].delta
+                    # Plain chat models have no reasoning_content at all.
+                    reasoning = getattr(delta, "reasoning_content", None)
+                    if reasoning:
+                        yield {"type": "reasoning", "text": reasoning}
+                    text = getattr(delta, "content", None)
+                    if text:
+                        full_content.append(text)
+                        yield {"type": "token", "text": text}
+                # The terminal usage chunk carries no choices; read it separately.
+                usage = getattr(chunk, "usage", None)
+                if usage:
+                    report.prompt_tokens = getattr(usage, "prompt_tokens", None) or 0
+                    report.completion_tokens = (
+                        getattr(usage, "completion_tokens", None) or 0
+                    )
+                    report.total_tokens = getattr(usage, "total_tokens", None) or 0
+                    details = getattr(usage, "completion_tokens_details", None)
+                    report.reasoning_tokens = (
+                        getattr(details, "reasoning_tokens", None) or 0
+                    )
+        finally:
+            # Cooperative cancellation (P24): see advisor.generate_advice_stream.
+            if hasattr(stream, "close"):
+                stream.close()
 
         report.content = "".join(full_content)
         is_valid, err_msg = validate_rebalance_content(report.content)

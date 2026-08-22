@@ -129,6 +129,18 @@ async def _run_ips_task(
                 "revision_count": state.get("revision_count", 0),
             }
         )
+    except ips_workflow.TokenBudgetExceeded as e:
+        # Token budget gate (P24): abort with a dedicated localized message
+        # instead of the generic generation-failure one.
+        task.status = "failed"
+        await task.publish(
+            {
+                "type": "error",
+                "message": msg(
+                    "ips.token_budget_exceeded", locale, spent=e.spent, budget=e.budget
+                ),
+            }
+        )
     except Exception as e:
         task.status = "failed"
         await task.publish(

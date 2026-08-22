@@ -22,7 +22,7 @@ Test Coverage / 测试覆盖:
 """
 
 from dataclasses import asdict
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -41,6 +41,7 @@ from src.agents.profiler import (
     InvestmentGoal,
     RiskProfile,
 )
+from src.config import LLM_MAX_RETRIES, LLM_REQUEST_TIMEOUT
 
 # ============================================================
 # Fixtures
@@ -584,6 +585,28 @@ class TestStreamingGeneration:
         assert report.reasoning_tokens == 0
 
     @patch("src.agents.advisor._get_client")
+    def test_stream_closed_when_generator_closed(self, mock_get_client, sample_profile):
+        """Client disconnect -> generator.close() closes the upstream stream.
+
+        Cooperative cancellation (P24): closing this generator mid-stream
+        must close the OpenAI stream so the abandoned threadpool thread
+        stops pulling (and billing) tokens.
+        """
+        upstream = MagicMock()
+        upstream.__iter__.return_value = iter(
+            [_make_stream_chunk(content="partial"), _make_stream_chunk(content="more")]
+        )
+        mock_client = Mock()
+        mock_client.chat.completions.create.return_value = upstream
+        mock_get_client.return_value = mock_client
+
+        gen = generate_advice_stream(sample_profile)
+        next(gen)  # pull one event, simulating a mid-stream disconnect
+        gen.close()
+
+        upstream.close.assert_called_once()
+
+    @patch("src.agents.advisor._get_client")
     def test_generate_advice_stream_with_reasoning(
         self, mock_get_client, sample_profile
     ):
@@ -783,3 +806,15 @@ class TestAdvisorIntegration:
         messages = call_args.kwargs["messages"]
         assert messages[0]["content"] == SYSTEM_PROMPT
         assert "Test User" in messages[1]["content"]
+
+
+class TestClientConstruction:
+    """_get_client wires explicit HTTP timeout/retries into the client (P24)."""
+
+    @patch("src.config.DEEPSEEK_API_KEY", "test-api-key")
+    def test_client_uses_configured_timeout_and_retries(self):
+        from src.agents.advisor import _get_client
+
+        client = _get_client()
+        assert float(client.timeout) == LLM_REQUEST_TIMEOUT
+        assert client.max_retries == LLM_MAX_RETRIES

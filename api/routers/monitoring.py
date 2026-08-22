@@ -260,8 +260,9 @@ def _advice_event_stream(
         report = yield from stream
         holder.append(report)
 
+    runner = _run()
     try:
-        for event in _run():
+        for event in runner:
             # Generators yield reasoning/token event dicts; tolerate legacy
             # plain-string streams by wrapping them as token events.
             if not isinstance(event, dict):
@@ -275,6 +276,9 @@ def _advice_event_stream(
             }
         )
         return
+    finally:
+        # Cooperative cancellation (P24): see api.routers.advisor._event_stream.
+        runner.close()
 
     if not holder:
         yield sse(

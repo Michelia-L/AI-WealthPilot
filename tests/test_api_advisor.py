@@ -6,6 +6,7 @@ report-store CRUD, not model output.
 """
 
 import json
+from unittest.mock import Mock
 
 import pytest
 
@@ -115,6 +116,40 @@ def test_stream_emits_reasoning_then_tokens_then_done(client, configured_reasoni
     assert done["total_tokens"] == 30
     assert done["reasoning_tokens"] == 12
     assert done["error_message"] == ""
+
+
+def test_event_stream_close_propagates_to_llm_generator(monkeypatch):
+    """Closing the SSE generator closes the src/ LLM stream generator (P24).
+
+    Simulates a client disconnect: Starlette abandons the response
+    generator; its ``finally`` must close the runner so the ``yield from``
+    chain (PEP 380) closes the upstream stream instead of leaving it
+    billing in an abandoned threadpool thread.
+    """
+    monkeypatch.setattr("api.routers.advisor.is_api_configured", lambda: True)
+    closed = {"flag": False}
+
+    def tracking_stream(profile, locale="zh"):
+        try:
+            yield {"type": "token", "text": "chunk-1"}
+            yield {"type": "token", "text": "chunk-2"}
+        finally:
+            closed["flag"] = True
+
+    monkeypatch.setattr("api.routers.advisor.generate_advice_stream", tracking_stream)
+    monkeypatch.setattr(
+        "api.routers.advisor.profile_from_data", lambda data: Mock(name="John Doe")
+    )
+
+    from api.routers.advisor import _event_stream
+
+    record = Mock(data={})
+    gen = _event_stream(record, "zh")
+    first = next(gen)
+    assert "chunk-1" in first
+    gen.close()
+
+    assert closed["flag"] is True
 
 
 def test_stream_profile_not_found(client, configured):

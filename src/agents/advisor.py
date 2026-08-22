@@ -17,6 +17,8 @@ from src.agents.profiler import ClientProfile, format_ratio
 from src.config import (
     DEEPSEEK_MAX_TOKENS,
     DEEPSEEK_TEMPERATURE,
+    LLM_MAX_RETRIES,
+    LLM_REQUEST_TIMEOUT,
 )
 
 logger = logging.getLogger(__name__)
@@ -469,13 +471,22 @@ def validate_report_content(content: str) -> tuple[bool, str]:
 
 
 def _get_client() -> OpenAI:
-    """Initialize an OpenAI-compatible client from the resolved LLM config."""
+    """Initialize an OpenAI-compatible client from the resolved LLM config.
+
+    Explicit timeout/max_retries (P24): SDK defaults leave long streaming
+    generations unbounded and transient network failures unretried.
+    """
     cfg = get_llm_config()
     if not cfg.configured:
         raise ValueError(
             "DEEPSEEK_API_KEY is not configured. Please set it in your .env file."
         )
-    return OpenAI(api_key=cfg.api_key, base_url=cfg.base_url)
+    return OpenAI(
+        api_key=cfg.api_key,
+        base_url=cfg.base_url,
+        timeout=LLM_REQUEST_TIMEOUT,
+        max_retries=LLM_MAX_RETRIES,
+    )
 
 
 def is_api_configured() -> bool:
@@ -592,29 +603,37 @@ def generate_advice_stream(
         )
 
         full_content = []
-        for chunk in stream:
-            if chunk.choices:
-                delta = chunk.choices[0].delta
-                # Plain chat models have no reasoning_content at all.
-                reasoning = getattr(delta, "reasoning_content", None)
-                if reasoning:
-                    yield {"type": "reasoning", "text": reasoning}
-                text = getattr(delta, "content", None)
-                if text:
-                    full_content.append(text)
-                    yield {"type": "token", "text": text}
-            # The terminal usage chunk carries no choices; read it separately.
-            usage = getattr(chunk, "usage", None)
-            if usage:
-                report.prompt_tokens = getattr(usage, "prompt_tokens", None) or 0
-                report.completion_tokens = (
-                    getattr(usage, "completion_tokens", None) or 0
-                )
-                report.total_tokens = getattr(usage, "total_tokens", None) or 0
-                details = getattr(usage, "completion_tokens_details", None)
-                report.reasoning_tokens = (
-                    getattr(details, "reasoning_tokens", None) or 0
-                )
+        try:
+            for chunk in stream:
+                if chunk.choices:
+                    delta = chunk.choices[0].delta
+                    # Plain chat models have no reasoning_content at all.
+                    reasoning = getattr(delta, "reasoning_content", None)
+                    if reasoning:
+                        yield {"type": "reasoning", "text": reasoning}
+                    text = getattr(delta, "content", None)
+                    if text:
+                        full_content.append(text)
+                        yield {"type": "token", "text": text}
+                # The terminal usage chunk carries no choices; read it separately.
+                usage = getattr(chunk, "usage", None)
+                if usage:
+                    report.prompt_tokens = getattr(usage, "prompt_tokens", None) or 0
+                    report.completion_tokens = (
+                        getattr(usage, "completion_tokens", None) or 0
+                    )
+                    report.total_tokens = getattr(usage, "total_tokens", None) or 0
+                    details = getattr(usage, "completion_tokens_details", None)
+                    report.reasoning_tokens = (
+                        getattr(details, "reasoning_tokens", None) or 0
+                    )
+        finally:
+            # Cooperative cancellation (P24): on client disconnect the router
+            # layer closes this generator (GeneratorExit at a yield above);
+            # closing the OpenAI stream aborts the upstream HTTP response so
+            # an abandoned threadpool thread does not keep billing tokens.
+            if hasattr(stream, "close"):
+                stream.close()
 
         report.content = "".join(full_content)
         is_valid, err_msg = validate_report_content(report.content)

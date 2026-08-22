@@ -201,6 +201,18 @@ DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEEPSEEK_MODEL = "deepseek-v4-pro"
 DEEPSEEK_MAX_TOKENS = 128000
 DEEPSEEK_TEMPERATURE = 0.3
+# OpenAI-client HTTP behavior (P24). The timeout bounds each request;
+# streaming reads stay open across chunk gaps, so it must cover long
+# generations. Retries cover transient network failures only — structured-
+# output/schema retries stay with PydanticAI (``retries=3`` on the agents).
+LLM_REQUEST_TIMEOUT = 600.0  # seconds
+LLM_MAX_RETRIES = 2
+# Per-task token budget for the multi-call IPS workflow (P24). Theoretical
+# worst case is ~16 calls x 32K max_tokens ≈ 512K output tokens; typical
+# runs use tens of thousands. 250K leaves headroom for revision rounds
+# while bounding a runaway review-revise loop. Read dynamically via
+# src.config so tests can monkeypatch it.
+LLM_TASK_TOKEN_BUDGET = 250_000
 
 # Demo Mode (P20): replay recorded fixtures for all LLM-powered features.
 # Lets anyone clone the repo and experience the full AI advisor / IPS flow

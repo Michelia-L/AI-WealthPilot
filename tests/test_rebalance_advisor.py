@@ -6,7 +6,7 @@ assert the reasoning/token event protocol and the terminal usage capture
 (including reasoning_tokens), not model output.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from src.agents.rebalance_advisor import generate_rebalance_advice_stream
 from tests.test_advisor import _drain, _make_stream_chunk, _make_usage_chunk
@@ -103,3 +103,19 @@ def test_stream_api_error_returns_failed_report(mock_get_client):
     assert report.success is False
     assert "API key not configured" in report.error_message
     assert report.reasoning_tokens == 0
+
+
+@patch("src.agents.rebalance_advisor._get_client")
+def test_stream_closed_when_generator_closed(mock_get_client):
+    """Client disconnect -> generator.close() closes the upstream stream (P24)."""
+    upstream = MagicMock()
+    upstream.__iter__.return_value = iter([_make_stream_chunk(content="partial")])
+    client = Mock()
+    client.chat.completions.create.return_value = upstream
+    mock_get_client.return_value = client
+
+    gen = generate_rebalance_advice_stream(MONITORING)
+    next(gen)  # pull one event, simulating a mid-stream disconnect
+    gen.close()
+
+    upstream.close.assert_called_once()

@@ -76,6 +76,10 @@ _MESSAGES: dict[str, dict[str, dict[str, str]]] = {
             "zh": "IPS 生成失败: {error}",
             "en": "IPS generation failed: {error}",
         },
+        "token_budget_exceeded": {
+            "zh": "本次 IPS 生成超出 token 预算（已用 {spent} / 上限 {budget}），任务已终止。请调整需求后重试。",
+            "en": "IPS generation exceeded its token budget ({spent} used / {budget} limit); the task was aborted.",
+        },
         # Workflow node labels (SSE progress timeline in the UI).
         "node.generate_cme": {
             "zh": "生成资本市场预期 (CME)",

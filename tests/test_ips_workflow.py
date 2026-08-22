@@ -13,15 +13,22 @@ from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
+from pydantic_ai import Agent
+from pydantic_ai.models.test import TestModel
 
+from src.agents.demo_mode import FIXTURES_DIR
+from src.agents.ips_models import IPSDocument, ReviewDimension, ReviewResult
 from src.agents.ips_workflow import (
     IPSWorkflowState,
+    TokenBudgetExceeded,
     _all_passed,
     _has_critical_issues,
     _ips_version_hash,
     build_ips_workflow,
     generate_cme_node,
+    generate_ips,
     generate_ips_node,
+    review_suitability_node,
     revise_ips_node,
     route_after_review,
     route_after_revision,
@@ -715,3 +722,258 @@ class TestNodeErrorLocalization:
         result = self._run(revise_ips_node(IPSWorkflowState(locale="en")))
         assert result["status"] == "revision_error"
         assert result["error_message"] == "IPS revision failed: boom"
+
+
+# ============================================================
+# Test: Full-graph end-to-end with a deterministic fake LLM (P24)
+# ============================================================
+
+
+class TestFullGraphWithFakeLLM:
+    """Run the real compiled LangGraph with TestModel-backed agents.
+
+    Node-level tests monkeypatch individual node behaviors; these tests
+    instead exercise the actual graph wiring — edges, conditional routing,
+    SAA validation, finalize/audit assembly, and token-usage aggregation —
+    with deterministic fake LLM outputs sourced from the golden demo
+    fixture. Zero network calls.
+    """
+
+    @staticmethod
+    def _run(coro):
+        import asyncio
+
+        return asyncio.run(coro)
+
+    @staticmethod
+    def _fixture_ips(client_name: str = "林晓兰") -> dict:
+        record = json.loads(
+            (FIXTURES_DIR / "ips_document.json").read_text(encoding="utf-8")
+        )
+        ips = record["ips"]
+        ips["client_name"] = client_name
+        return ips
+
+    @staticmethod
+    def _agent(output_type, args: dict) -> Agent:
+        return Agent(
+            TestModel(custom_output_args=args), output_type=output_type, retries=3
+        )
+
+    @staticmethod
+    def _review_args(dimension: str, passed: bool, issues: list | None = None) -> dict:
+        return {
+            "dimension": dimension,
+            "passed": passed,
+            "issues": issues or [],
+            "summary": "Review passed." if passed else "Issues found.",
+        }
+
+    def _patch_cme(self, monkeypatch):
+        """Synthetic CME whose asset names match the golden fixture's SAA.
+
+        All expected returns are 5% (>= the fixture's 4.4% required return)
+        and every pairwise correlation is 1.0, so equal 15% volatilities
+        give a deterministic 15% portfolio volatility — inside the
+        fixture's 'moderate' band [10%, 15%] with its 20% tolerance.
+        """
+        names = ["国内权益", "国际权益", "固定收益", "黄金", "现金"]
+        cme_list = [
+            AssetClassCME(
+                name=name,
+                ticker="TEST",
+                expected_return=0.05,
+                volatility=0.15,
+                sharpe_ratio=0.1,
+                max_drawdown=-0.20,
+                var_95=0.02,
+                cvar_95=0.03,
+                data_points=1000,
+            )
+            for name in names
+        ]
+        corr = {a: {b: 1.0 for b in names} for a in names}
+        report = CMEReport(
+            as_of_date="2026-06-01",
+            data_lookback_years=5,
+            risk_free_rate=0.04,
+            risk_free_rate_source="test",
+            inflation_assumption=0.025,
+            asset_classes=cme_list,
+            correlation_matrix=corr,
+            methodology_notes="Test methodology",
+        )
+        monkeypatch.setattr(
+            "src.agents.ips_workflow.compute_cme",
+            MagicMock(return_value=(report, "fresh")),
+        )
+        monkeypatch.setattr(
+            "src.agents.ips_workflow.format_cme_for_prompt", lambda r: "CME text"
+        )
+
+    def _patch_generator_and_reviser(self, monkeypatch, ips_args: dict):
+        def _make_ips_agent(locale: str = "zh") -> Agent:
+            return self._agent(IPSDocument, ips_args)
+
+        monkeypatch.setattr(
+            "src.agents.ips_workflow.create_ips_generator_agent", _make_ips_agent
+        )
+        monkeypatch.setattr(
+            "src.agents.ips_workflow.create_ips_reviser_agent", _make_ips_agent
+        )
+
+    def _patch_reviewers(self, monkeypatch, overrides: dict | None = None):
+        """Swap _REVIEWER_FACTORIES for TestModel-backed reviewers.
+
+        The review nodes resolve factories through the module-level
+        ``_REVIEWER_FACTORIES`` dict (populated at import time), so patching
+        the individual ``create_*_reviewer`` names would NOT take effect —
+        the whole dict must be replaced. ``overrides`` maps a
+        ReviewDimension to a custom factory (e.g. a flaky reviewer).
+        """
+        overrides = overrides or {}
+        factories = {}
+        for dimension in ReviewDimension:
+            if dimension in overrides:
+                factories[dimension] = overrides[dimension]
+                continue
+            args = self._review_args(dimension.value, passed=True)
+            factories[dimension] = lambda locale="zh", _args=args: self._agent(
+                ReviewResult, _args
+            )
+        monkeypatch.setattr("src.agents.ips_workflow._REVIEWER_FACTORIES", factories)
+
+    def test_happy_path_approved_with_usage_audit(self, monkeypatch):
+        """All reviewers pass + clean SAA validation -> direct approval.
+
+        Also verifies P24 token metering: every LLM node contributes to the
+        audit trail's aggregated token_usage.
+        """
+        self._patch_cme(monkeypatch)
+        self._patch_generator_and_reviser(monkeypatch, self._fixture_ips())
+        self._patch_reviewers(monkeypatch)
+
+        result = self._run(generate_ips({"name": "林晓兰", "age": 38}, max_revisions=1))
+
+        assert result["status"] == "completed_approved"
+        assert result["revision_count"] == 0
+        assert result["error_message"] == ""
+        assert result["ips"]["client_name"] == "林晓兰"
+        assert result["audit_trail"]["final_status"] == "approved"
+
+        usage = result["audit_trail"]["generation_metadata"]["token_usage"]
+        assert set(usage["by_node"]) == {
+            "generate",
+            "review_suitability",
+            "review_compliance",
+            "review_consistency",
+        }
+        assert usage["requests"] == 4
+        assert usage["total_tokens"] > 0
+        # The top-level convenience summary mirrors the audit-trail totals.
+        assert result["token_usage"]["total_tokens"] == usage["total_tokens"]
+
+    def test_revision_loop_recovers_to_approved(self, monkeypatch):
+        """Consistency fails round 1 (one warning) -> revise -> round 2 passes.
+
+        Exercises the real revise edge and re-review loop of the compiled
+        graph, ending in approval with one recorded revision round.
+        """
+        self._patch_cme(monkeypatch)
+        self._patch_generator_and_reviser(monkeypatch, self._fixture_ips())
+
+        warning_issue = {
+            "section": "executive_summary",
+            "dimension": "consistency",
+            "severity": "warning",
+            "description": "Executive summary figure drifts from section body.",
+            "suggestion": "Align the stated return with return_objective.",
+        }
+        consistency_calls = {"n": 0}
+
+        def _flaky_consistency(locale: str = "zh") -> Agent:
+            consistency_calls["n"] += 1
+            passed = consistency_calls["n"] > 1
+            args = self._review_args(
+                "consistency", passed, issues=[] if passed else [warning_issue]
+            )
+            return self._agent(ReviewResult, args)
+
+        self._patch_reviewers(
+            monkeypatch, overrides={ReviewDimension.CONSISTENCY: _flaky_consistency}
+        )
+
+        result = self._run(generate_ips({"name": "林晓兰", "age": 38}, max_revisions=2))
+
+        assert result["status"] == "completed_approved"
+        assert result["revision_count"] == 1
+        assert consistency_calls["n"] == 2
+        assert len(result["audit_trail"]["revision_history"]) == 1
+
+        usage = result["token_usage"]
+        assert "revise_r1" in usage["by_node"]
+        # 1 generate + 3 reviews + 1 revise + 3 re-reviews.
+        assert usage["requests"] == 8
+
+    def test_full_graph_aborts_when_budget_exceeded(self, monkeypatch):
+        """Tiny budget: generate succeeds, the first review node trips the gate."""
+        self._patch_cme(monkeypatch)
+        self._patch_generator_and_reviser(monkeypatch, self._fixture_ips())
+        self._patch_reviewers(monkeypatch)
+        monkeypatch.setattr("src.config.LLM_TASK_TOKEN_BUDGET", 1)
+
+        with pytest.raises(TokenBudgetExceeded):
+            self._run(generate_ips({"name": "林晓兰", "age": 38}, max_revisions=1))
+
+
+# ============================================================
+# Test: Per-task token budget gate (P24)
+# ============================================================
+
+
+class TestTokenBudgetGate:
+    """Nodes check the accumulated token usage before every LLM call."""
+
+    @staticmethod
+    def _run(coro):
+        import asyncio
+
+        return asyncio.run(coro)
+
+    @staticmethod
+    def _over_budget_state() -> IPSWorkflowState:
+        return IPSWorkflowState(
+            llm_usage=[
+                {
+                    "node": "generate",
+                    "requests": 1,
+                    "input_tokens": 900,
+                    "output_tokens": 200,
+                    "total_tokens": 1100,
+                }
+            ]
+        )
+
+    @pytest.fixture(autouse=True)
+    def tiny_budget(self, monkeypatch):
+        monkeypatch.setattr("src.config.LLM_TASK_TOKEN_BUDGET", 1000)
+
+    def test_generate_node_aborts_before_calling_llm(self, monkeypatch):
+        factory = MagicMock()
+        monkeypatch.setattr(
+            "src.agents.ips_workflow.create_ips_generator_agent", factory
+        )
+        with pytest.raises(TokenBudgetExceeded):
+            self._run(generate_ips_node(self._over_budget_state()))
+        factory.assert_not_called()
+
+    def test_review_node_aborts_before_calling_llm(self):
+        with pytest.raises(TokenBudgetExceeded):
+            self._run(review_suitability_node(self._over_budget_state()))
+
+    def test_revise_node_aborts_before_calling_llm(self, monkeypatch):
+        factory = MagicMock()
+        monkeypatch.setattr("src.agents.ips_workflow.create_ips_reviser_agent", factory)
+        with pytest.raises(TokenBudgetExceeded):
+            self._run(revise_ips_node(self._over_budget_state()))
+        factory.assert_not_called()

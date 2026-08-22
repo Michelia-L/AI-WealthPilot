@@ -64,8 +64,9 @@ def _event_stream(record: ProfileRecord, locale: str) -> Generator[str, None, No
         report = yield from stream
         holder.append(report)
 
+    runner = _run()
     try:
-        for event in _run():
+        for event in runner:
             # Generators yield reasoning/token event dicts; tolerate legacy
             # plain-string streams by wrapping them as token events.
             if not isinstance(event, dict):
@@ -79,6 +80,12 @@ def _event_stream(record: ProfileRecord, locale: str) -> Generator[str, None, No
             }
         )
         return
+    finally:
+        # Cooperative cancellation (P24): when the client disconnects,
+        # Starlette abandons this generator; closing it here propagates
+        # through the ``yield from`` delegation (PEP 380) into the src/
+        # generator, whose finally clause closes the upstream LLM stream.
+        runner.close()
 
     if not holder:
         yield sse(
