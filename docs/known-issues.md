@@ -155,3 +155,21 @@ AI 顾问/调仓建议等流式生成等待数十秒，期间只看着正文逐�
 - profiler 的其余硬编码双语串：行为偏差（`identify_behavioral_biases`）、画像对比洞察（`_generate_comparison_insights`/`format_comparison_report`）、`format_ratio` 的「∞ (无资产但有负债)」（经 `build_derived` 透出到画像详情页）。风险等级标签（`RISK_LEVEL_LABELS`）作为持久化数据保持双语存储，前端经 `localizedRiskLabel` 按 locale 显示，属既有设计。
 - 存储记录（`data/ips/`、`data/reports/`）无语言字段：en 请求查看 zh 生成的文档会得到「英文骨架 + 中文正文」的混合体，属已知取舍；如需「按生成语言渲染」提示再单独立项。
 - ~~DEMO_MODE 英文 IPS 夹具的资产类别名为英文，监控/回测的 `_SAA_KEYWORDS` 只覆盖部分英文关键词，en 演示链路下游映射不完整（走既有容错路径，不崩溃）。~~（已解决 2026-08-22，P25：别名表上单源化为 `config.ASSET_CLASS_ALIASES`（双语关键词，有序首中），`monitoring._SAA_KEYWORDS` 由其展平派生、`ips_workflow._fuzzy_asset_match` 改为按类别键命中，en 夹具 SAA 名与 CME 中文名全部命中映射。）
+
+### ~~P24-llm-1 · LLM 调用链缺乏质量与成本治理~~（已解决 2026-08-22，P24）
+
+**问题**：IPS 多智能体工作流（单次最多 ~16 次 LLM 调用）无 eval 基线、无 token 计量、无超时/重试边界、无断连取消、无成本上限——断线或失控的评审-修订循环会静默烧钱。
+
+**解决方式**：
+
+- **eval 基线**：`tests/test_ips_golden_fixtures.py` 金标准夹具（14 条）+ LangGraph 全图假 LLM 测试（pydantic-ai `TestModel`，零网络），质量回归可测。
+- **token 计量**：`IPSWorkflowState.llm_usage` 逐节点记录（`_usage_entry`/`_aggregate_usage`），聚合进审计追踪 `generation_metadata.token_usage` 并由 `generate_ips()` 顶层透出。
+- **调用边界**：OpenAI client 显式 `LLM_REQUEST_TIMEOUT=600s` / `LLM_MAX_RETRIES=2`（schema 重试仍归 PydanticAI）。
+- **断连取消**：advisor/rebalance 流式生成器 try/finally + `stream.close()`，路由 `runner.close()` 经 PEP 380 传播，SSE 断连即停 LLM 消耗。
+- **预算闸**：每任务 `LLM_TASK_TOKEN_BUDGET=250K`，`TokenBudgetExceeded` 在 generate/review/revise 三节点调用前检查并 re-raise；`api/routers/ips.py` 专属 SSE error 分支 + i18n `ips.token_budget_exceeded` 双语文案。
+
+### ~~P25-risk-1 · 风险波动带与权益上限双源漂移~~（已解决 2026-08-22，P25）
+
+**问题**：风险等级→目标波动带存在两份来源且数值已漂移——validate_saa 校验与生成器 prompt 一致（4-8/8-12/10-15/13-18/16-25%），而 `portfolio_recommender.RISK_VOLATILITY_MAP` 停留在旧口径（5-8/…/18-22%，且该常量已无消费方）；一致性评审 prompt 的权益上限（30/45/60/75/90）比优化器真实执行的 `risk_constraints.RISK_LEVEL_CAPS`（15/30/50/70/90）松，评审口径与执行口径脱节。
+
+**解决方式**：规范波动带单源化为 `config.RISK_VOLATILITY_BANDS`，validate_saa 校验、推荐器插值、prompt 组合三方共读；删除死常量 `RISK_VOLATILITY_MAP`，`_get_target_volatility` 改为规范带上分段线性插值（段界仍 `RISK_SCORE_BREAKPOINTS`，端点契约 1.0→4%、5.0→25%）；prompt 数字改为 `__VOL_BANDS__`/`__EQUITY_CAPS__` 占位符，在 `get_system_prompt()` 统一注入；一致性评审权益上限收紧对齐执行口径。**有意的行为变化**：推荐器 moderate 目标 0.13→0.125、aggressive 区间 18-22%→16-25%；评审变严、执行不变。
