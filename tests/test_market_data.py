@@ -25,6 +25,7 @@ from src.data.market_data import (
 # Test Cases — 单元测试用例
 # ============================================================
 
+
 class TestFetchPriceHistory:
     """
     Test suite for fetch_price_history.
@@ -35,6 +36,7 @@ class TestFetchPriceHistory:
     def test_fetch_price_history_default_tickers(self, mock_download):
         """Should use default tickers from config when no tickers specified."""
         from src.config import ASSET_UNIVERSE
+
         default_tickers = list(ASSET_UNIVERSE.keys())
 
         # Mock yf.download return value
@@ -48,7 +50,9 @@ class TestFetchPriceHistory:
         )
         mock_download.return_value = mock_df
 
-        result = fetch_price_history(tickers=None, period="5y", interval="1d", adjust_currency=False)
+        result = fetch_price_history(
+            tickers=None, period="5y", interval="1d", adjust_currency=False
+        )
 
         # Verify yf.download was called correctly
         mock_download.assert_called_once_with(
@@ -65,15 +69,19 @@ class TestFetchPriceHistory:
         dates = pd.date_range(start="2026-06-01", periods=3)
         columns = pd.MultiIndex.from_product([["Close", "Open"], tickers])
         mock_df = pd.DataFrame(
-            [[100.0, 200.0, 99.0, 199.0],
-             [110.0, 210.0, 109.0, 209.0],
-             [120.0, 220.0, 119.0, 219.0]],
+            [
+                [100.0, 200.0, 99.0, 199.0],
+                [110.0, 210.0, 109.0, 209.0],
+                [120.0, 220.0, 119.0, 219.0],
+            ],
             index=dates,
             columns=columns,
         )
         mock_download.return_value = mock_df
 
-        result = fetch_price_history(tickers, period="1y", interval="1d", adjust_currency=False)
+        result = fetch_price_history(
+            tickers, period="1y", interval="1d", adjust_currency=False
+        )
 
         mock_download.assert_called_once_with(
             tickers, period="1y", interval="1d", auto_adjust=True
@@ -88,12 +96,13 @@ class TestFetchPriceHistory:
         tickers = ["SPY"]
         dates = pd.date_range(start="2026-06-01", periods=3)
         mock_df = pd.DataFrame(
-            {"Close": [100.0, 110.0, 120.0], "Open": [99.0, 109.0, 119.0]},
-            index=dates
+            {"Close": [100.0, 110.0, 120.0], "Open": [99.0, 109.0, 119.0]}, index=dates
         )
         mock_download.return_value = mock_df
 
-        result = fetch_price_history(tickers, period="2y", interval="1d", adjust_currency=False)
+        result = fetch_price_history(
+            tickers, period="2y", interval="1d", adjust_currency=False
+        )
 
         mock_download.assert_called_once_with(
             tickers, period="2y", interval="1d", auto_adjust=True
@@ -108,9 +117,7 @@ class TestFetchPriceHistory:
         dates = pd.date_range(start="2026-06-01", periods=3)
         columns = pd.MultiIndex.from_product([["Close"], tickers])
         mock_df = pd.DataFrame(
-            [[100.0, 200.0],
-             [np.nan, np.nan],
-             [120.0, 220.0]],
+            [[100.0, 200.0], [np.nan, np.nan], [120.0, 220.0]],
             index=dates,
             columns=columns,
         )
@@ -132,7 +139,7 @@ class TestFetchPriceHistory:
         mock_data = {
             ("Close", "^GSPC"): [100.0, 101.0, 102.0],
             ("Close", "000300.SS"): [7000.0, 7100.0, 7200.0],
-            ("Close", "CNY=X"): [7.0, 7.1, 7.2]
+            ("Close", "CNY=X"): [7.0, 7.1, 7.2],
         }
         mock_df = pd.DataFrame(mock_data, index=dates)
         mock_df.columns = pd.MultiIndex.from_tuples(mock_df.columns)
@@ -144,8 +151,12 @@ class TestFetchPriceHistory:
         assert set(called_args) == set(expected_download)
         assert list(result.columns) == tickers
 
-        np.testing.assert_array_almost_equal(result["^GSPC"].values, [100.0, 101.0, 102.0])
-        np.testing.assert_array_almost_equal(result["000300.SS"].values, [1000.0, 1000.0, 1000.0])
+        np.testing.assert_array_almost_equal(
+            result["^GSPC"].values, [100.0, 101.0, 102.0]
+        )
+        np.testing.assert_array_almost_equal(
+            result["000300.SS"].values, [1000.0, 1000.0, 1000.0]
+        )
 
     @patch("src.data.market_data.yf.download")
     def test_fetch_price_history_with_currency_adjustment_cny(self, mock_download):
@@ -157,7 +168,7 @@ class TestFetchPriceHistory:
         mock_data = {
             ("Close", "^GSPC"): [100.0, 101.0, 102.0],
             ("Close", "000300.SS"): [7000.0, 7100.0, 7200.0],
-            ("Close", "CNY=X"): [7.0, 7.1, 7.2]
+            ("Close", "CNY=X"): [7.0, 7.1, 7.2],
         }
         mock_df = pd.DataFrame(mock_data, index=dates)
         mock_df.columns = pd.MultiIndex.from_tuples(mock_df.columns)
@@ -169,11 +180,17 @@ class TestFetchPriceHistory:
         assert set(called_args) == set(expected_download)
         assert list(result.columns) == tickers
 
-        np.testing.assert_array_almost_equal(result["000300.SS"].values, [7000.0, 7100.0, 7200.0])
-        np.testing.assert_array_almost_equal(result["^GSPC"].values, [700.0, 717.1, 734.4])
+        np.testing.assert_array_almost_equal(
+            result["000300.SS"].values, [7000.0, 7100.0, 7200.0]
+        )
+        np.testing.assert_array_almost_equal(
+            result["^GSPC"].values, [700.0, 717.1, 734.4]
+        )
 
     @patch("src.data.market_data.yf.download")
-    def test_fetch_price_history_with_currency_adjustment_gbp_to_usd(self, mock_download):
+    def test_fetch_price_history_with_currency_adjustment_gbp_to_usd(
+        self, mock_download
+    ):
         """GBP=X is quoted USD-per-GBP, so GBP prices must be multiplied, not divided."""
         tickers = ["^FTSE"]
         expected_download = ["^FTSE", "GBP=X"]
@@ -181,7 +198,7 @@ class TestFetchPriceHistory:
         dates = pd.date_range(start="2026-06-01", periods=3)
         mock_data = {
             ("Close", "^FTSE"): [8000.0, 8100.0, 8200.0],
-            ("Close", "GBP=X"): [1.25, 1.25, 1.25]
+            ("Close", "GBP=X"): [1.25, 1.25, 1.25],
         }
         mock_df = pd.DataFrame(mock_data, index=dates)
         mock_df.columns = pd.MultiIndex.from_tuples(mock_df.columns)
@@ -193,10 +210,14 @@ class TestFetchPriceHistory:
         assert set(called_args) == set(expected_download)
         assert list(result.columns) == tickers
 
-        np.testing.assert_array_almost_equal(result["^FTSE"].values, [10000.0, 10125.0, 10250.0])
+        np.testing.assert_array_almost_equal(
+            result["^FTSE"].values, [10000.0, 10125.0, 10250.0]
+        )
 
     @patch("src.data.market_data.yf.download")
-    def test_fetch_price_history_with_currency_adjustment_eur_to_cny(self, mock_download):
+    def test_fetch_price_history_with_currency_adjustment_eur_to_cny(
+        self, mock_download
+    ):
         """EUR prices convert via the USD-per-EUR rate, then USD to CNY via the units-per-USD rate."""
         tickers = ["^GDAXI"]
         expected_download = ["^GDAXI", "EUR=X", "CNY=X"]
@@ -205,7 +226,7 @@ class TestFetchPriceHistory:
         mock_data = {
             ("Close", "^GDAXI"): [1000.0, 1100.0, 1200.0],
             ("Close", "EUR=X"): [1.10, 1.10, 1.10],
-            ("Close", "CNY=X"): [7.0, 7.0, 7.0]
+            ("Close", "CNY=X"): [7.0, 7.0, 7.0],
         }
         mock_df = pd.DataFrame(mock_data, index=dates)
         mock_df.columns = pd.MultiIndex.from_tuples(mock_df.columns)
@@ -217,10 +238,14 @@ class TestFetchPriceHistory:
         assert set(called_args) == set(expected_download)
         assert list(result.columns) == tickers
 
-        np.testing.assert_array_almost_equal(result["^GDAXI"].values, [7700.0, 8470.0, 9240.0])
+        np.testing.assert_array_almost_equal(
+            result["^GDAXI"].values, [7700.0, 8470.0, 9240.0]
+        )
 
     @patch("src.data.market_data.yf.download")
-    def test_fetch_price_history_with_currency_adjustment_usd_to_gbp_base(self, mock_download):
+    def test_fetch_price_history_with_currency_adjustment_usd_to_gbp_base(
+        self, mock_download
+    ):
         """A USD-per-unit base currency converts USD prices by dividing, not multiplying."""
         tickers = ["^GSPC"]
         expected_download = ["^GSPC", "GBP=X"]
@@ -228,7 +253,7 @@ class TestFetchPriceHistory:
         dates = pd.date_range(start="2026-06-01", periods=3)
         mock_data = {
             ("Close", "^GSPC"): [100.0, 200.0, 400.0],
-            ("Close", "GBP=X"): [1.25, 1.25, 1.25]
+            ("Close", "GBP=X"): [1.25, 1.25, 1.25],
         }
         mock_df = pd.DataFrame(mock_data, index=dates)
         mock_df.columns = pd.MultiIndex.from_tuples(mock_df.columns)
@@ -240,7 +265,9 @@ class TestFetchPriceHistory:
         assert set(called_args) == set(expected_download)
         assert list(result.columns) == tickers
 
-        np.testing.assert_array_almost_equal(result["^GSPC"].values, [80.0, 160.0, 320.0])
+        np.testing.assert_array_almost_equal(
+            result["^GSPC"].values, [80.0, 160.0, 320.0]
+        )
 
 
 class TestComputeReturns:
@@ -276,11 +303,13 @@ class TestComputeCorrelationMatrix:
 
     def test_compute_correlation_matrix(self):
         """Should compute Pearson correlation matrix correctly from price DataFrame."""
-        prices = pd.DataFrame({
-            "A": [100.0, 101.0, 99.99, 100.9899],
-            "B": [100.0, 101.0, 99.99, 100.9899],
-            "C": [100.0, 99.0, 99.99, 98.9901]
-        })
+        prices = pd.DataFrame(
+            {
+                "A": [100.0, 101.0, 99.99, 100.9899],
+                "B": [100.0, 101.0, 99.99, 100.9899],
+                "C": [100.0, 99.0, 99.99, 98.9901],
+            }
+        )
         corr = compute_correlation_matrix(prices)
 
         assert corr.shape == (3, 3)
@@ -305,11 +334,13 @@ class TestGetLatestQuotes:
         mock_ticker_class.return_value = mock_ticker
 
         mock_fast_info = MagicMock()
+
         # Mock fast_info behavior for ticker calls
         # We need mock_fast_info.get to return appropriate values
         def get_side_effect(key, default=None):
             data = {"lastPrice": 105.0, "previousClose": 100.0}
             return data.get(key, default)
+
         mock_fast_info.get.side_effect = get_side_effect
         mock_ticker.fast_info = mock_fast_info
 
@@ -317,7 +348,15 @@ class TestGetLatestQuotes:
         df = get_latest_quotes(tickers)
 
         # Assert correct columns
-        expected_cols = ["ticker", "name", "category", "price", "previous_close", "change", "change_pct"]
+        expected_cols = [
+            "ticker",
+            "name",
+            "category",
+            "price",
+            "previous_close",
+            "change",
+            "change_pct",
+        ]
         assert list(df.columns) == expected_cols
         assert len(df) == 2
 
@@ -336,7 +375,10 @@ class TestGetLatestQuotes:
         # Success ticker mock
         mock_ticker_success = MagicMock()
         mock_fast_info = MagicMock()
-        mock_fast_info.get.side_effect = lambda key, default=None: {"lastPrice": 150.0, "previousClose": 150.0}.get(key, default)
+        mock_fast_info.get.side_effect = lambda key, default=None: {
+            "lastPrice": 150.0,
+            "previousClose": 150.0,
+        }.get(key, default)
         mock_ticker_success.fast_info = mock_fast_info
 
         # Raising exception on specific ticker
@@ -367,9 +409,7 @@ class TestFetchRiskFreeRate:
         """Should return FRED rate when api key is provided and request succeeds."""
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "observations": [{"value": "3.85"}]
-        }
+        mock_response.json.return_value = {"observations": [{"value": "3.85"}]}
         mock_get.return_value = mock_response
 
         rate = fetch_risk_free_rate(fred_api_key="mock_key", default_rate=0.045)
@@ -383,9 +423,7 @@ class TestFetchRiskFreeRate:
         """Should fall back to yfinance when FRED returns invalid data (e.g. '.')."""
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "observations": [{"value": "."}]
-        }
+        mock_response.json.return_value = {"observations": [{"value": "."}]}
         mock_get.return_value = mock_response
 
         # Mock yfinance to fail to verify it reaches yfinance then falls back
@@ -403,7 +441,9 @@ class TestFetchRiskFreeRate:
         # Mock yfinance fast_info
         mock_ticker = MagicMock()
         mock_fast_info = MagicMock()
-        mock_fast_info.get.side_effect = lambda key, default=None: {"lastPrice": 3.62}.get(key, default)
+        mock_fast_info.get.side_effect = lambda key, default=None: {
+            "lastPrice": 3.62
+        }.get(key, default)
         mock_ticker.fast_info = mock_fast_info
         mock_ticker_class.return_value = mock_ticker
 
@@ -415,7 +455,9 @@ class TestFetchRiskFreeRate:
 
     @patch("src.data.market_data.requests.get")
     @patch("src.data.market_data.yf.Ticker")
-    def test_fetch_risk_free_rate_yfinance_history_fallback(self, mock_ticker_class, mock_get):
+    def test_fetch_risk_free_rate_yfinance_history_fallback(
+        self, mock_ticker_class, mock_get
+    ):
         """Should fall back to ticker.history when fast_info returns None or empty."""
         mock_ticker = MagicMock()
         mock_fast_info = MagicMock()
@@ -423,7 +465,9 @@ class TestFetchRiskFreeRate:
         mock_ticker.fast_info = mock_fast_info
 
         # Mock history DataFrame
-        mock_hist = pd.DataFrame({"Close": [3.55]}, index=pd.date_range("2026-06-01", periods=1))
+        mock_hist = pd.DataFrame(
+            {"Close": [3.55]}, index=pd.date_range("2026-06-01", periods=1)
+        )
         mock_ticker.history.return_value = mock_hist
         mock_ticker_class.return_value = mock_ticker
 

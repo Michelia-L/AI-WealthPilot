@@ -72,11 +72,18 @@ def _event_stream(record: ProfileRecord, locale: str) -> Generator[str, None, No
                 event = {"type": "token", "text": event}
             yield sse(event)
     except Exception as e:  # defensive: src/ generator already swallows API errors
-        yield sse({"type": "error", "message": msg("common.stream_interrupted", locale, error=e)})
+        yield sse(
+            {
+                "type": "error",
+                "message": msg("common.stream_interrupted", locale, error=e),
+            }
+        )
         return
 
     if not holder:
-        yield sse({"type": "error", "message": msg("common.no_report_generated", locale)})
+        yield sse(
+            {"type": "error", "message": msg("common.no_report_generated", locale)}
+        )
         return
     report = holder[0]
     yield sse(
@@ -117,7 +124,8 @@ def stream_report(
     record = session.get(ProfileRecord, payload.profile_id)
     if record is None:
         raise HTTPException(
-            status_code=404, detail=msg("common.profile_not_found", locale, id=payload.profile_id)
+            status_code=404,
+            detail=msg("common.profile_not_found", locale, id=payload.profile_id),
         )
 
     return StreamingResponse(
@@ -177,7 +185,8 @@ def get_report(report_id: str, request: Request) -> ReportDetailResponse:
     filepath = _find_report_file(report_id)
     if filepath is None:
         raise HTTPException(
-            status_code=404, detail=msg("common.report_not_found", get_request_locale(request))
+            status_code=404,
+            detail=msg("common.report_not_found", get_request_locale(request)),
         )
     report = report_storage.load_report(filepath)
     return ReportDetailResponse(
@@ -199,7 +208,8 @@ def delete_report(report_id: str, request: Request) -> None:
     filepath = _find_report_file(report_id)
     if filepath is None or not report_storage.delete_report(filepath):
         raise HTTPException(
-            status_code=404, detail=msg("common.report_not_found", get_request_locale(request))
+            status_code=404,
+            detail=msg("common.report_not_found", get_request_locale(request)),
         )
 
 
@@ -241,7 +251,9 @@ def get_report_pdf(report_id: str, request: Request) -> Response:
             report, Path(tmpdir) / "report.pdf", locale=locale
         )
         pdf_bytes = pdf_path.read_bytes()
-    base = f"report_{sanitize_filename(report.client_name) or 'client'}_{report.report_id}"
+    base = (
+        f"report_{sanitize_filename(report.client_name) or 'client'}_{report.report_id}"
+    )
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -266,15 +278,21 @@ def export_report_file(
         raise HTTPException(
             status_code=422,
             detail=msg(
-                "advisor.invalid_export_format", locale, formats=" / ".join(_EXPORT_FORMATS)
+                "advisor.invalid_export_format",
+                locale,
+                formats=" / ".join(_EXPORT_FORMATS),
             ),
         )
     filepath = _find_report_file(report_id)
     if filepath is None:
-        raise HTTPException(status_code=404, detail=msg("common.report_not_found", locale))
+        raise HTTPException(
+            status_code=404, detail=msg("common.report_not_found", locale)
+        )
     report = report_storage.load_report(filepath)
 
-    base = f"report_{sanitize_filename(report.client_name) or 'client'}_{report.report_id}"
+    base = (
+        f"report_{sanitize_filename(report.client_name) or 'client'}_{report.report_id}"
+    )
     if format == "html":
         body = report_storage.export_report_html(report, locale=locale)
         media_type, ext = "text/html", "html"

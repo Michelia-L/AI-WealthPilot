@@ -169,9 +169,7 @@ def test_advice_document_not_found(client, configured, monkeypatch):
     def _raise_keyerror(document_id, locale="zh"):
         raise KeyError(document_id)
 
-    monkeypatch.setattr(
-        "api.routers.monitoring.compute_monitoring", _raise_keyerror
-    )
+    monkeypatch.setattr("api.routers.monitoring.compute_monitoring", _raise_keyerror)
     resp = client.post(
         "/api/monitoring/advice", json={"document_id": "ips_nobody_20260101_000000"}
     )
@@ -187,11 +185,11 @@ def test_advice_invalid_document_id_charset(client, configured):
 
 def test_advice_missing_saa_returns_422(client, configured, monkeypatch):
     def _raise_valueerror(document_id, locale="zh"):
-        raise ValueError("IPS 文档缺少战略性资产配置（strategic_allocation），无法执行组合监控。")
+        raise ValueError(
+            "IPS 文档缺少战略性资产配置（strategic_allocation），无法执行组合监控。"
+        )
 
-    monkeypatch.setattr(
-        "api.routers.monitoring.compute_monitoring", _raise_valueerror
-    )
+    monkeypatch.setattr("api.routers.monitoring.compute_monitoring", _raise_valueerror)
     resp = client.post("/api/monitoring/advice", json={"document_id": DOC_ID})
     assert resp.status_code == 422
     assert "战略性资产配置" in resp.json()["detail"]

@@ -21,80 +21,72 @@ class AssetClassCME(BaseModel):
     market data, used as quantitative inputs for IPS asset allocation.
 
     """
+
     name: str = Field(
         description="Asset class display name, e.g. '国内权益（A股/沪深300）'"
     )
-    ticker: str = Field(
-        description="Proxy ticker used for data, e.g. '000300.SS'"
-    )
+    ticker: str = Field(description="Proxy ticker used for data, e.g. '000300.SS'")
     expected_return: float = Field(
         description="Annualized expected return, e.g. 0.08 for 8%. Blended: "
-                    "ω × forward (building blocks) + (1-ω) × historical mean; "
-                    "equals the historical mean when forward inputs are "
-                    "unavailable."
+        "ω × forward (building blocks) + (1-ω) × historical mean; "
+        "equals the historical mean when forward inputs are "
+        "unavailable."
     )
     volatility: float = Field(
         ge=0,
         description="Annualized volatility (std dev), e.g. 0.22 for 22%. "
-                    "Must be non-negative: a negative value is mathematically "
-                    "invalid and breaks the covariance/sqrt chain downstream."
+        "Must be non-negative: a negative value is mathematically "
+        "invalid and breaks the covariance/sqrt chain downstream.",
     )
-    sharpe_ratio: float = Field(
-        description="Historical Sharpe ratio"
-    )
+    sharpe_ratio: float = Field(description="Historical Sharpe ratio")
     max_drawdown: float = Field(
         description="Maximum drawdown (negative), e.g. -0.30 for -30%"
     )
-    var_95: float = Field(
-        description="95% daily Value at Risk (positive number)"
-    )
-    cvar_95: float = Field(
-        description="95% daily Conditional VaR / Expected Shortfall"
-    )
+    var_95: float = Field(description="95% daily Value at Risk (positive number)")
+    cvar_95: float = Field(description="95% daily Conditional VaR / Expected Shortfall")
     data_points: int = Field(
-        default=0,
-        description="Number of trading days used in calculation"
+        default=0, description="Number of trading days used in calculation"
     )
 
     # --- Forward-looking volatility fields
     implied_volatility: Optional[float] = Field(
         default=None,
         description="Market-implied annualized volatility from options/IV index "
-                    "(e.g. VIX). None if no reliable IV proxy exists for this "
-                    "asset class."
+        "(e.g. VIX). None if no reliable IV proxy exists for this "
+        "asset class.",
     )
     iv_source: Optional[str] = Field(
         default=None,
         description="Source of implied volatility, e.g. 'CBOE VIX (^VIX)' "
-                    "or 'ICE BofAML MOVE (^MOVE)'"
+        "or 'ICE BofAML MOVE (^MOVE)'",
     )
     blended_volatility: Optional[float] = Field(
         default=None,
         description="Bayesian-blended volatility: τ × σ_implied + (1-τ) × σ_hist. "
-                    "Falls back to historical vol when IV is unavailable."
+        "Falls back to historical vol when IV is unavailable.",
     )
     volatility_regime: Optional[str] = Field(
         default=None,
         description="Qualitative regime label: 'low', 'normal', 'elevated', 'high'. "
-                    "Derived from IV/HV ratio."
+        "Derived from IV/HV ratio.",
     )
 
     # --- Forward-looking expected return fields (building blocks)
     historical_return: Optional[float] = Field(
         default=None,
         description="Historical arithmetic-mean annualized return, kept for "
-                    "disclosure once expected_return becomes the blended value."
+        "disclosure once expected_return becomes the blended value.",
     )
     forward_return: Optional[float] = Field(
         default=None,
         description="Forward-looking building-blocks expected return "
-                    "(income + growth / YTM proxy / inflation / risk-free). "
-                    "None when forward inputs are unavailable."
+        "(income + growth / YTM proxy / inflation / risk-free). "
+        "None when forward inputs are unavailable.",
     )
     forward_basis: Optional[str] = Field(
         default=None,
         description="Short composition label of the forward return, e.g. "
-                    "'股息率1.8%+增长6.0%'."
+        "'股息率1.8%+增长6.0%'.",
     )
 
 
@@ -108,9 +100,8 @@ class CMEReport(BaseModel):
     into the IPS generator's LLM context.
 
     """
-    as_of_date: str = Field(
-        description="Data as-of date, e.g. '2026-06-05'"
-    )
+
+    as_of_date: str = Field(description="Data as-of date, e.g. '2026-06-05'")
     data_lookback_years: int = Field(
         description="Number of years of historical data used"
     )
@@ -119,7 +110,7 @@ class CMEReport(BaseModel):
     )
     risk_free_rate_source: str = Field(
         default="unknown",
-        description="Source of risk-free rate: 'fred', 'yfinance', or 'static_fallback'"
+        description="Source of risk-free rate: 'fred', 'yfinance', or 'static_fallback'",
     )
     inflation_assumption: float = Field(
         description="Long-term inflation rate assumption, e.g. 0.025 for 2.5%"
@@ -131,24 +122,23 @@ class CMEReport(BaseModel):
         description="Pairwise correlation matrix as nested dict {name: {name: corr}}"
     )
     methodology_notes: str = Field(
-        default="",
-        description="Notes on data sources, limitations, and methodology"
+        default="", description="Notes on data sources, limitations, and methodology"
     )
 
     # --- Implied Volatility metadata
     iv_blending_tau: float = Field(
         default=0.5,
         description="Bayesian blending parameter τ: weight on implied volatility. "
-                    "0.0 = pure historical, 1.0 = pure implied."
+        "0.0 = pure historical, 1.0 = pure implied.",
     )
     iv_data_available: bool = Field(
         default=False,
-        description="Whether any implied volatility data was successfully fetched."
+        description="Whether any implied volatility data was successfully fetched.",
     )
     forward_blending_omega: float = Field(
         default=0.5,
         description="Blending weight ω on forward-looking building-blocks "
-                    "expected returns. 0.0 = pure historical, 1.0 = pure forward."
+        "expected returns. 0.0 = pure historical, 1.0 = pure forward.",
     )
 
 
@@ -159,15 +149,14 @@ class SAAValidationResult(BaseModel):
     Checks whether the LLM-generated SAA is consistent with
     the CME assumptions and lies near the efficient frontier.
     """
+
     portfolio_expected_return: float = Field(
         description="Weighted portfolio expected return based on CME"
     )
     portfolio_volatility: float = Field(
         description="Portfolio volatility based on CME covariance"
     )
-    portfolio_sharpe: float = Field(
-        description="Portfolio Sharpe ratio"
-    )
+    portfolio_sharpe: float = Field(description="Portfolio Sharpe ratio")
     max_sharpe_return: float = Field(
         description="Expected return of the max-Sharpe (tangency) portfolio"
     )
@@ -177,9 +166,7 @@ class SAAValidationResult(BaseModel):
     gmv_return: float = Field(
         description="Expected return of the Global Minimum Variance portfolio"
     )
-    gmv_volatility: float = Field(
-        description="Volatility of the GMV portfolio"
-    )
+    gmv_volatility: float = Field(description="Volatility of the GMV portfolio")
     is_return_feasible: bool = Field(
         description="Whether required return is achievable on the frontier"
     )
@@ -187,6 +174,5 @@ class SAAValidationResult(BaseModel):
         description="Whether portfolio vol is within risk tolerance band"
     )
     issues: list[str] = Field(
-        default_factory=list,
-        description="List of validation issue descriptions"
+        default_factory=list, description="List of validation issue descriptions"
     )

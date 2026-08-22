@@ -134,11 +134,11 @@ _BT_STRINGS: dict[str, dict[str, str]] = {
     },
     "stress_out_of_range": {
         "zh": "压力测试「{name}」（{window}）超出回测数据范围，已跳过。",
-        "en": "Stress scenario \"{name}\" ({window}) falls outside the backtest data range and was skipped.",
+        "en": 'Stress scenario "{name}" ({window}) falls outside the backtest data range and was skipped.',
     },
     "stress_too_short": {
         "zh": "压力测试「{name}」（{window}）窗口内有效交易日不足，已跳过。",
-        "en": "Stress scenario \"{name}\" ({window}) has too few valid trading days and was skipped.",
+        "en": 'Stress scenario "{name}" ({window}) has too few valid trading days and was skipped.',
     },
     "attribution_gross": {
         "zh": "业绩归因按费前（毛收益）口径计算：费用拖累不属于配置/选择效应，已在费用块单列。",
@@ -158,6 +158,7 @@ class InsufficientDataError(RuntimeError):
 
 
 # Public Entry Point
+
 
 def run_backtest(
     weights: dict[str, float],
@@ -339,13 +340,16 @@ def run_backtest(
         # Raw frames for the API layer to chart (popped before responding).
         "_equity": equity,
         "_drawdown": pd.DataFrame(
-            {"portfolio": _drawdown_series(port_nav),
-             "benchmark": _drawdown_series(bench_nav)}
+            {
+                "portfolio": _drawdown_series(port_nav),
+                "benchmark": _drawdown_series(bench_nav),
+            }
         ),
     }
 
 
 # Weight Preparation
+
 
 def _normalized(
     weights: dict[str, float], label: str, locale: str = "zh"
@@ -395,6 +399,7 @@ def _drop_sparse_assets(
 
 # NAV Simulation (monthly rebalancing)
 
+
 def _simulate_nav(prices: pd.DataFrame, weights: dict[str, float]) -> pd.Series:
     """
     Monthly-rebalanced NAV starting at 1.0.
@@ -427,6 +432,7 @@ def _simulate_nav(prices: pd.DataFrame, weights: dict[str, float]) -> pd.Series:
 
 
 # Metrics
+
 
 def _drawdown_series(nav: pd.Series) -> pd.Series:
     """Underwater curve: NAV / running-max - 1 (<= 0)."""
@@ -472,15 +478,18 @@ def _yearly_returns(port_nav: pd.Series, bench_nav: pd.Series) -> list[dict]:
     ).dropna()
     out = []
     for year, g in rets.groupby(rets.index.year):
-        out.append({
-            "year": int(year),
-            "portfolio": float((1.0 + g["portfolio"]).prod() - 1.0),
-            "benchmark": float((1.0 + g["benchmark"]).prod() - 1.0),
-        })
+        out.append(
+            {
+                "year": int(year),
+                "portfolio": float((1.0 + g["portfolio"]).prod() - 1.0),
+                "benchmark": float((1.0 + g["benchmark"]).prod() - 1.0),
+            }
+        )
     return out
 
 
 # Stress Testing
+
 
 def _buy_and_hold_return(window: pd.DataFrame, weights: dict[str, float]) -> float:
     """Window return of the target-weight mix, bought at window start."""
@@ -517,10 +526,12 @@ def _run_stress_scenarios(
                 _bt("stress_too_short", locale, name=name, window=window_label)
             )
             continue
-        results.append({
-            "scenario": name,
-            "window": window_label,
-            "portfolio_return": _buy_and_hold_return(window, port),
-            "benchmark_return": _buy_and_hold_return(window, bench),
-        })
+        results.append(
+            {
+                "scenario": name,
+                "window": window_label,
+                "portfolio_return": _buy_and_hold_return(window, port),
+                "benchmark_return": _buy_and_hold_return(window, bench),
+            }
+        )
     return results

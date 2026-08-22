@@ -26,6 +26,7 @@ from src.portfolio.optimizer import PortfolioOptimizer
 # Fixtures / 测试夹具
 # ============================================================
 
+
 @pytest.fixture
 def sample_returns():
     """
@@ -55,12 +56,14 @@ def ill_conditioned_returns():
 
     # 创建高度相关的资产
     # Create highly correlated assets
-    returns_data = pd.DataFrame({
-        'Asset_A': base_returns + np.random.randn(n_days) * 0.001,
-        'Asset_B': base_returns + np.random.randn(n_days) * 0.001,
-        'Asset_C': base_returns + np.random.randn(n_days) * 0.001,
-        'Asset_D': np.random.randn(n_days) * 0.01,  # 独立资产
-    })
+    returns_data = pd.DataFrame(
+        {
+            "Asset_A": base_returns + np.random.randn(n_days) * 0.001,
+            "Asset_B": base_returns + np.random.randn(n_days) * 0.001,
+            "Asset_C": base_returns + np.random.randn(n_days) * 0.001,
+            "Asset_D": np.random.randn(n_days) * 0.01,  # 独立资产
+        }
+    )
     return returns_data
 
 
@@ -71,20 +74,20 @@ def asset_class_config():
     资产类别约束配置。
     """
     return {
-        'equity': {
-            'assets': ['US_EQ', 'INTL_EQ'],
-            'min': 0.3,
-            'max': 0.7,
+        "equity": {
+            "assets": ["US_EQ", "INTL_EQ"],
+            "min": 0.3,
+            "max": 0.7,
         },
-        'bonds': {
-            'assets': ['BONDS'],
-            'min': 0.2,
-            'max': 0.5,
+        "bonds": {
+            "assets": ["BONDS"],
+            "min": 0.2,
+            "max": 0.5,
         },
-        'alternatives': {
-            'assets': ['GOLD'],
-            'min': 0.0,
-            'max': 0.2,
+        "alternatives": {
+            "assets": ["GOLD"],
+            "min": 0.0,
+            "max": 0.2,
         },
     }
 
@@ -92,6 +95,7 @@ def asset_class_config():
 # ============================================================
 # Test Classes / 测试类
 # ============================================================
+
 
 class TestNumericalStability:
     """
@@ -125,15 +129,21 @@ class TestNumericalStability:
         if condition > 1e10:
             # 如果条件数很大，应该已经正则化
             # If condition number is large, should have been regularized
-            assert optimizer.is_regularized, "Should be regularized for ill-conditioned matrix"
+            assert optimizer.is_regularized, (
+                "Should be regularized for ill-conditioned matrix"
+            )
 
             # 正则化后的条件数应该更小
             # Condition number after regularization should be smaller
             regularized_optimizer = PortfolioOptimizer(ill_conditioned_returns)
-            regularized_optimizer.cov_matrix = regularized_optimizer._regularize_covariance_matrix(method=method)
+            regularized_optimizer.cov_matrix = (
+                regularized_optimizer._regularize_covariance_matrix(method=method)
+            )
             new_condition = regularized_optimizer._check_condition_number()
 
-            assert new_condition < condition, f"Regularization using {method} should reduce condition number"
+            assert new_condition < condition, (
+                f"Regularization using {method} should reduce condition number"
+            )
 
     @pytest.mark.parametrize("method", ["diagonal", "eigenvalue"])
     def test_regularization_preserves_symmetry(self, sample_returns, method):
@@ -153,7 +163,9 @@ class TestNumericalStability:
         )
 
     @pytest.mark.parametrize("method", ["diagonal", "eigenvalue"])
-    def test_regularization_preserves_positive_definiteness(self, sample_returns, method):
+    def test_regularization_preserves_positive_definiteness(
+        self, sample_returns, method
+    ):
         """
         Regularized covariance matrix should be positive definite.
         正则化后的协方差矩阵应为正定矩阵。
@@ -185,8 +197,8 @@ class TestNumericalStability:
         # 应该能够成功运行优化
         # Should be able to run optimization successfully
         result = optimizer.maximize_sharpe()
-        assert result['success'], "Optimizer should handle ill-conditioned matrix"
-        assert np.all(np.isfinite(list(result['weights'].values())))
+        assert result["success"], "Optimizer should handle ill-conditioned matrix"
+        assert np.all(np.isfinite(list(result["weights"].values())))
 
 
 class TestResampledMVO:
@@ -208,9 +220,9 @@ class TestResampledMVO:
 
         assert isinstance(frontier, pd.DataFrame)
         if not frontier.empty:
-            assert 'return' in frontier.columns
-            assert 'volatility' in frontier.columns
-            assert 'sharpe' in frontier.columns
+            assert "return" in frontier.columns
+            assert "volatility" in frontier.columns
+            assert "sharpe" in frontier.columns
 
     def test_resampled_frontier_weights_sum_to_one(self, sample_returns):
         """
@@ -226,11 +238,15 @@ class TestResampledMVO:
         if not frontier.empty:
             # 获取资产权重列
             # Get asset weight columns
-            weight_cols = [col for col in optimizer.asset_names if col in frontier.columns]
+            weight_cols = [
+                col for col in optimizer.asset_names if col in frontier.columns
+            ]
 
             for idx in frontier.index:
                 weights_sum = frontier.loc[idx, weight_cols].sum()
-                assert abs(weights_sum - 1.0) < 0.01, f"Weights should sum to ~1, got {weights_sum}"
+                assert abs(weights_sum - 1.0) < 0.01, (
+                    f"Weights should sum to ~1, got {weights_sum}"
+                )
 
     def test_resampled_maximize_sharpe_structure(self, sample_returns):
         """
@@ -240,7 +256,7 @@ class TestResampledMVO:
         optimizer = PortfolioOptimizer(sample_returns)
         result = optimizer.resampled_maximize_sharpe(n_simulations=50)
 
-        expected_keys = {'weights', 'return', 'volatility', 'sharpe', 'success'}
+        expected_keys = {"weights", "return", "volatility", "sharpe", "success"}
         assert set(result.keys()).issuperset(expected_keys)
 
     def test_resampled_maximize_sharpe_weights_sum_to_one(self, sample_returns):
@@ -251,7 +267,7 @@ class TestResampledMVO:
         optimizer = PortfolioOptimizer(sample_returns)
         result = optimizer.resampled_maximize_sharpe(n_simulations=50)
 
-        total = sum(result['weights'].values())
+        total = sum(result["weights"].values())
         assert abs(total - 1.0) < 1e-6, f"Weights should sum to 1, got {total}"
 
     def test_resampled_maximize_sharpe_positive_sharpe(self, sample_returns):
@@ -262,7 +278,7 @@ class TestResampledMVO:
         optimizer = PortfolioOptimizer(sample_returns)
         result = optimizer.resampled_maximize_sharpe(n_simulations=50)
 
-        assert result['sharpe'] > 0, "Sharpe ratio should be positive"
+        assert result["sharpe"] > 0, "Sharpe ratio should be positive"
 
     def test_resampled_maximize_sharpe_provides_uncertainty(self, sample_returns):
         """
@@ -272,8 +288,8 @@ class TestResampledMVO:
         optimizer = PortfolioOptimizer(sample_returns)
         result = optimizer.resampled_maximize_sharpe(n_simulations=50)
 
-        assert 'weight_std' in result, "Should provide weight standard deviation"
-        assert len(result['weight_std']) == optimizer.n_assets
+        assert "weight_std" in result, "Should provide weight standard deviation"
+        assert len(result["weight_std"]) == optimizer.n_assets
 
     def test_resampled_mvo_more_diversified(self, sample_returns):
         """
@@ -292,8 +308,8 @@ class TestResampledMVO:
 
         # 计算HHI（赫芬达尔指数）衡量集中度
         # Calculate HHI (Herfindahl-Hirschman Index) to measure concentration
-        traditional_weights = np.array(list(traditional_result['weights'].values()))
-        resampled_weights = np.array(list(resampled_result['weights'].values()))
+        traditional_weights = np.array(list(traditional_result["weights"].values()))
+        resampled_weights = np.array(list(resampled_result["weights"].values()))
 
         n_assets = len(traditional_weights)
 
@@ -301,11 +317,11 @@ class TestResampledMVO:
         assert abs(traditional_weights.sum() - 1.0) < 1e-6
         assert abs(resampled_weights.sum() - 1.0) < 1e-6
         # HHI for a long-only portfolio lies in [1/n, 1.0].
-        assert 1.0 / n_assets <= np.sum(traditional_weights ** 2) <= 1.0 + 1e-9
-        assert 1.0 / n_assets <= np.sum(resampled_weights ** 2) <= 1.0 + 1e-9
+        assert 1.0 / n_assets <= np.sum(traditional_weights**2) <= 1.0 + 1e-9
+        assert 1.0 / n_assets <= np.sum(resampled_weights**2) <= 1.0 + 1e-9
 
-        traditional_hhi = np.sum(traditional_weights ** 2)
-        resampled_hhi = np.sum(resampled_weights ** 2)
+        traditional_hhi = np.sum(traditional_weights**2)
+        resampled_hhi = np.sum(resampled_weights**2)
 
         # 重抽样MVO的HHI通常更小（更分散）。这并非绝对定律，故用宽松上界：
         # resampled 不应比 traditional 显著更集中。
@@ -321,7 +337,7 @@ class TestResampledMVO:
         optimizer = PortfolioOptimizer(sample_returns)
         result = optimizer.resampled_minimize_volatility(n_simulations=50)
 
-        expected_keys = {'weights', 'return', 'volatility', 'sharpe', 'success'}
+        expected_keys = {"weights", "return", "volatility", "sharpe", "success"}
         assert set(result.keys()).issuperset(expected_keys)
 
     def test_resampled_minimize_volatility_weights_sum_to_one(self, sample_returns):
@@ -331,7 +347,7 @@ class TestResampledMVO:
         optimizer = PortfolioOptimizer(sample_returns)
         result = optimizer.resampled_minimize_volatility(n_simulations=50)
 
-        total = sum(result['weights'].values())
+        total = sum(result["weights"].values())
         assert abs(total - 1.0) < 1e-6, f"Weights should sum to 1, got {total}"
 
     def test_resampled_minimize_volatility_provides_uncertainty(self, sample_returns):
@@ -341,8 +357,8 @@ class TestResampledMVO:
         optimizer = PortfolioOptimizer(sample_returns)
         result = optimizer.resampled_minimize_volatility(n_simulations=50)
 
-        assert 'weight_std' in result, "Should provide weight standard deviation"
-        assert len(result['weight_std']) == optimizer.n_assets
+        assert "weight_std" in result, "Should provide weight standard deviation"
+        assert len(result["weight_std"]) == optimizer.n_assets
 
 
 class TestAssetClassConstraints:
@@ -365,32 +381,38 @@ class TestAssetClassConstraints:
             asset_classes=asset_class_config,
         )
 
-        assert result['success'], "Optimization should succeed"
+        assert result["success"], "Optimization should succeed"
 
         # 检查资产类别约束
         # Check asset class constraints
-        asset_class_weights = result['asset_class_weights']
+        asset_class_weights = result["asset_class_weights"]
 
         # 股票类别：30%-70%
         # Equity class: 30%-70%
-        assert asset_class_weights['equity'] >= 0.3 - 1e-6, \
+        assert asset_class_weights["equity"] >= 0.3 - 1e-6, (
             f"Equity weight {asset_class_weights['equity']:.3f} should be >= 0.3"
-        assert asset_class_weights['equity'] <= 0.7 + 1e-6, \
+        )
+        assert asset_class_weights["equity"] <= 0.7 + 1e-6, (
             f"Equity weight {asset_class_weights['equity']:.3f} should be <= 0.7"
+        )
 
         # 债券类别：20%-50%
         # Bonds class: 20%-50%
-        assert asset_class_weights['bonds'] >= 0.2 - 1e-6, \
+        assert asset_class_weights["bonds"] >= 0.2 - 1e-6, (
             f"Bonds weight {asset_class_weights['bonds']:.3f} should be >= 0.2"
-        assert asset_class_weights['bonds'] <= 0.5 + 1e-6, \
+        )
+        assert asset_class_weights["bonds"] <= 0.5 + 1e-6, (
             f"Bonds weight {asset_class_weights['bonds']:.3f} should be <= 0.5"
+        )
 
         # 另类资产类别：0%-20%
         # Alternatives class: 0%-20%
-        assert asset_class_weights['alternatives'] >= 0.0 - 1e-6, \
+        assert asset_class_weights["alternatives"] >= 0.0 - 1e-6, (
             f"Alternatives weight {asset_class_weights['alternatives']:.3f} should be >= 0.0"
-        assert asset_class_weights['alternatives'] <= 0.2 + 1e-6, \
+        )
+        assert asset_class_weights["alternatives"] <= 0.2 + 1e-6, (
             f"Alternatives weight {asset_class_weights['alternatives']:.3f} should be <= 0.2"
+        )
 
     def test_asset_class_weights_sum_to_one(
         self,
@@ -406,8 +428,10 @@ class TestAssetClassConstraints:
             asset_classes=asset_class_config,
         )
 
-        total = sum(result['asset_class_weights'].values())
-        assert abs(total - 1.0) < 1e-6, f"Asset class weights should sum to 1, got {total}"
+        total = sum(result["asset_class_weights"].values())
+        assert abs(total - 1.0) < 1e-6, (
+            f"Asset class weights should sum to 1, got {total}"
+        )
 
     def test_asset_class_constraints_with_target_return(
         self,
@@ -429,12 +453,13 @@ class TestAssetClassConstraints:
             target_return=target_return,
         )
 
-        assert result['success'], "Optimization should succeed with target return"
+        assert result["success"], "Optimization should succeed with target return"
 
         # 检查目标收益约束是否满足
         # Check if target return constraint is satisfied
-        assert abs(result['return'] - target_return) < 1e-3, \
+        assert abs(result["return"] - target_return) < 1e-3, (
             f"Return {result['return']:.4f} should be close to target {target_return:.4f}"
+        )
 
     def test_asset_class_constraints_with_indices(
         self,
@@ -449,20 +474,20 @@ class TestAssetClassConstraints:
         # 使用索引而不是名称
         # Use indices instead of names
         asset_classes = {
-            'equity': {
-                'assets': [0, 1],  # US_EQ, INTL_EQ
-                'min': 0.4,
-                'max': 0.8,
+            "equity": {
+                "assets": [0, 1],  # US_EQ, INTL_EQ
+                "min": 0.4,
+                "max": 0.8,
             },
-            'bonds': {
-                'assets': [2],  # BONDS
-                'min': 0.1,
-                'max': 0.4,
+            "bonds": {
+                "assets": [2],  # BONDS
+                "min": 0.1,
+                "max": 0.4,
             },
-            'alternatives': {
-                'assets': [3],  # GOLD
-                'min': 0.0,
-                'max': 0.2,
+            "alternatives": {
+                "assets": [3],  # GOLD
+                "min": 0.0,
+                "max": 0.2,
             },
         }
 
@@ -470,7 +495,7 @@ class TestAssetClassConstraints:
             asset_classes=asset_classes,
         )
 
-        assert result['success'], "Optimization should succeed with indices"
+        assert result["success"], "Optimization should succeed with indices"
 
     def test_asset_class_constraints_structure(
         self,
@@ -487,12 +512,12 @@ class TestAssetClassConstraints:
         )
 
         expected_keys = {
-            'weights',
-            'return',
-            'volatility',
-            'sharpe',
-            'success',
-            'asset_class_weights',
+            "weights",
+            "return",
+            "volatility",
+            "sharpe",
+            "success",
+            "asset_class_weights",
         }
         assert set(result.keys()) == expected_keys
 
@@ -510,7 +535,7 @@ class TestAssetClassConstraints:
             asset_classes=asset_class_config,
         )
 
-        assert result['sharpe'] > 0, "Sharpe ratio should be positive"
+        assert result["sharpe"] > 0, "Sharpe ratio should be positive"
 
 
 class TestIntegration:
@@ -537,9 +562,9 @@ class TestIntegration:
         # 带约束的MVO
         # Constrained MVO
         asset_classes = {
-            'equity': {'assets': ['US_EQ', 'INTL_EQ'], 'min': 0.3, 'max': 0.7},
-            'bonds': {'assets': ['BONDS'], 'min': 0.2, 'max': 0.5},
-            'alternatives': {'assets': ['GOLD'], 'min': 0.0, 'max': 0.2},
+            "equity": {"assets": ["US_EQ", "INTL_EQ"], "min": 0.3, "max": 0.7},
+            "bonds": {"assets": ["BONDS"], "min": 0.2, "max": 0.5},
+            "alternatives": {"assets": ["GOLD"], "min": 0.0, "max": 0.2},
         }
         constrained = optimizer.optimize_with_asset_class_constraints(
             asset_classes=asset_classes,
@@ -547,7 +572,7 @@ class TestIntegration:
 
         # 所有结果都应有相同的键
         # All results should have the same keys
-        base_keys = {'weights', 'return', 'volatility', 'sharpe', 'success'}
+        base_keys = {"weights", "return", "volatility", "sharpe", "success"}
         assert set(traditional.keys()).issuperset(base_keys)
         assert set(resampled.keys()).issuperset(base_keys)
         assert set(constrained.keys()).issuperset(base_keys)
@@ -567,10 +592,10 @@ class TestIntegration:
         # 所有优化方法都应正常工作
         # All optimization methods should work normally
         result1 = optimizer.maximize_sharpe()
-        assert result1['success']
+        assert result1["success"]
 
         result2 = optimizer.minimize_volatility()
-        assert result2['success']
+        assert result2["success"]
 
         result3 = optimizer.efficient_frontier(n_points=10)
         assert len(result3) > 0
@@ -594,70 +619,88 @@ class TestCovarianceShrinkage:
         Verify that ledoit-wolf covariance is symmetric and positive definite,
         and is different from sample covariance.
         """
-        optimizer_sample = PortfolioOptimizer(sample_returns, covariance_method='sample')
-        optimizer_lw = PortfolioOptimizer(sample_returns, covariance_method='ledoit-wolf')
+        optimizer_sample = PortfolioOptimizer(
+            sample_returns, covariance_method="sample"
+        )
+        optimizer_lw = PortfolioOptimizer(
+            sample_returns, covariance_method="ledoit-wolf"
+        )
 
         # Check shape, index and columns match
         assert optimizer_lw.cov_matrix.shape == optimizer_sample.cov_matrix.shape
-        assert (optimizer_lw.cov_matrix.index == optimizer_sample.cov_matrix.index).all()
+        assert (
+            optimizer_lw.cov_matrix.index == optimizer_sample.cov_matrix.index
+        ).all()
 
         # Should not be identical to sample covariance
-        assert not np.allclose(optimizer_lw.cov_matrix.values, optimizer_sample.cov_matrix.values)
+        assert not np.allclose(
+            optimizer_lw.cov_matrix.values, optimizer_sample.cov_matrix.values
+        )
 
         # Symmetry check
         np.testing.assert_array_almost_equal(
             optimizer_lw.cov_matrix.values,
             optimizer_lw.cov_matrix.values.T,
-            err_msg="Ledoit-Wolf covariance matrix should be symmetric"
+            err_msg="Ledoit-Wolf covariance matrix should be symmetric",
         )
 
         # Positive definiteness check (all eigenvalues > 0)
         eigenvalues = np.linalg.eigvalsh(optimizer_lw.cov_matrix.values)
-        assert np.all(eigenvalues > 0), "Ledoit-Wolf covariance matrix should be positive definite"
+        assert np.all(eigenvalues > 0), (
+            "Ledoit-Wolf covariance matrix should be positive definite"
+        )
 
     def test_oas_covariance_properties(self, sample_returns):
         """
         Verify that oas covariance is symmetric and positive definite,
         and is different from sample covariance.
         """
-        optimizer_sample = PortfolioOptimizer(sample_returns, covariance_method='sample')
-        optimizer_oas = PortfolioOptimizer(sample_returns, covariance_method='oas')
+        optimizer_sample = PortfolioOptimizer(
+            sample_returns, covariance_method="sample"
+        )
+        optimizer_oas = PortfolioOptimizer(sample_returns, covariance_method="oas")
 
         # Check shape, index and columns match
         assert optimizer_oas.cov_matrix.shape == optimizer_sample.cov_matrix.shape
-        assert (optimizer_oas.cov_matrix.index == optimizer_sample.cov_matrix.index).all()
+        assert (
+            optimizer_oas.cov_matrix.index == optimizer_sample.cov_matrix.index
+        ).all()
 
         # Should not be identical to sample covariance
-        assert not np.allclose(optimizer_oas.cov_matrix.values, optimizer_sample.cov_matrix.values)
+        assert not np.allclose(
+            optimizer_oas.cov_matrix.values, optimizer_sample.cov_matrix.values
+        )
 
         # Symmetry check
         np.testing.assert_array_almost_equal(
             optimizer_oas.cov_matrix.values,
             optimizer_oas.cov_matrix.values.T,
-            err_msg="OAS covariance matrix should be symmetric"
+            err_msg="OAS covariance matrix should be symmetric",
         )
 
         # Positive definiteness check (all eigenvalues > 0)
         eigenvalues = np.linalg.eigvalsh(optimizer_oas.cov_matrix.values)
-        assert np.all(eigenvalues > 0), "OAS covariance matrix should be positive definite"
+        assert np.all(eigenvalues > 0), (
+            "OAS covariance matrix should be positive definite"
+        )
 
     def test_shrinkage_optimization_run(self, sample_returns):
         """
         Verify optimization works with both estimators.
         """
-        for method in ['ledoit-wolf', 'oas']:
+        for method in ["ledoit-wolf", "oas"]:
             optimizer = PortfolioOptimizer(sample_returns, covariance_method=method)
 
             # Max Sharpe
             res_sharpe = optimizer.maximize_sharpe()
-            assert res_sharpe['success'], f"maximize_sharpe failed with {method}"
-            weights_sum = sum(res_sharpe['weights'].values())
+            assert res_sharpe["success"], f"maximize_sharpe failed with {method}"
+            weights_sum = sum(res_sharpe["weights"].values())
             assert abs(weights_sum - 1.0) < 1e-6
 
             # Min Volatility
             res_vol = optimizer.minimize_volatility()
-            assert res_vol['success'], f"minimize_volatility failed with {method}"
-            weights_sum = sum(res_vol['weights'].values())
+            assert res_vol["success"], f"minimize_volatility failed with {method}"
+            weights_sum = sum(res_vol["weights"].values())
             assert abs(weights_sum - 1.0) < 1e-6
 
     def test_black_litterman_with_shrinkage(self, sample_returns):
@@ -668,8 +711,10 @@ class TestCovarianceShrinkage:
         from src.portfolio.views import ViewInput
 
         # Initialize with ledoit-wolf
-        bl_opt = BlackLittermanOptimizer(sample_returns, covariance_method='ledoit-wolf')
-        assert bl_opt.covariance_method == 'ledoit-wolf'
+        bl_opt = BlackLittermanOptimizer(
+            sample_returns, covariance_method="ledoit-wolf"
+        )
+        assert bl_opt.covariance_method == "ledoit-wolf"
 
         view = ViewInput(
             view_type="absolute",
@@ -681,14 +726,15 @@ class TestCovarianceShrinkage:
         assert bl_opt.views_applied
 
         result = bl_opt.bl_maximize_sharpe()
-        assert result['success']
-        weights_sum = sum(result['weights'].values())
+        assert result["success"]
+        weights_sum = sum(result["weights"].values())
         assert abs(weights_sum - 1.0) < 1e-6
 
 
 # ============================================================
 # Mean-CVaR Optimization (Rockafellar-Uryasev LP)
 # ============================================================
+
 
 def _lp_cvar_daily(returns: pd.DataFrame, weights: np.ndarray, beta: float) -> float:
     """CVaR of fixed weights under the LP's own definition.
@@ -748,10 +794,7 @@ class TestMeanCVaR:
         result = opt.minimize_cvar(beta=beta)
         scale = np.sqrt(252)
         alpha = result["var"] / scale
-        losses = -(
-            sample_returns.values
-            @ np.array(list(result["weights"].values()))
-        )
+        losses = -(sample_returns.values @ np.array(list(result["weights"].values())))
         f = alpha + np.maximum(losses - alpha, 0).mean() / (1.0 - beta)
         assert f == pytest.approx(result["cvar"] / scale, rel=1e-6)
 
@@ -801,6 +844,7 @@ class TestMeanCVaR:
 # External Expected-Return Override (CME bridge)
 # ============================================================
 
+
 class TestExpectedReturnsOverride:
     """
     PortfolioOptimizer(expected_returns=...) — the CME → optimizer bridge.
@@ -838,13 +882,15 @@ class TestExpectedReturnsOverride:
         """Sample says A>B; override says B>A ⇒ long-only max-sharpe flips."""
         rng = np.random.default_rng(5)
         n = 500
-        returns = pd.DataFrame({
-            "A": rng.normal(0.0008, 0.010, n),   # clearly positive sample mean
-            "B": rng.normal(-0.0008, 0.010, n),  # clearly negative sample mean
-        })
-        w_sample = PortfolioOptimizer(
-            returns, risk_free_rate=0.0
-        ).maximize_sharpe()["weights"]
+        returns = pd.DataFrame(
+            {
+                "A": rng.normal(0.0008, 0.010, n),  # clearly positive sample mean
+                "B": rng.normal(-0.0008, 0.010, n),  # clearly negative sample mean
+            }
+        )
+        w_sample = PortfolioOptimizer(returns, risk_free_rate=0.0).maximize_sharpe()[
+            "weights"
+        ]
         assert w_sample["A"] > 0.99
 
         override = pd.Series({"A": -0.05, "B": 0.05})
@@ -857,6 +903,7 @@ class TestExpectedReturnsOverride:
 # ============================================================
 # Risk Parity (Equal Risk Contribution, Spinu formulation)
 # ============================================================
+
 
 class TestRiskParity:
     """
@@ -915,7 +962,13 @@ class TestRiskParity:
     def test_result_structure(self, sample_returns):
         opt = PortfolioOptimizer(sample_returns)
         result = opt.risk_parity()
-        for key in ("weights", "return", "volatility", "sharpe",
-                    "success", "risk_contributions"):
+        for key in (
+            "weights",
+            "return",
+            "volatility",
+            "sharpe",
+            "success",
+            "risk_contributions",
+        ):
             assert key in result
         assert set(result["risk_contributions"]) == set(sample_returns.columns)

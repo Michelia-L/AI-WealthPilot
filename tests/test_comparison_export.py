@@ -34,6 +34,7 @@ from src.agents.report_storage import (
 # Fixtures / 测试夹具
 # ============================================================
 
+
 @pytest.fixture
 def young_conservative_profile():
     """
@@ -190,6 +191,7 @@ The portfolio should be reviewed annually.
 # Tests: Profile Comparison / 画像对比测试
 # ============================================================
 
+
 class TestProfileComparison:
     """
     Tests for compare_profiles function.
@@ -278,9 +280,9 @@ class TestProfileComparison:
         )
 
         # Both should have valid savings rates
-        assert comparison.savings_rate_comparison["Young Conservative"] == pytest.approx(
-            0.375, abs=0.01
-        )  # (80000-50000)/80000
+        assert comparison.savings_rate_comparison[
+            "Young Conservative"
+        ] == pytest.approx(0.375, abs=0.01)  # (80000-50000)/80000
         assert comparison.savings_rate_comparison["Middle Aggressive"] == pytest.approx(
             0.52, abs=0.01
         )  # (250000-120000)/250000
@@ -371,6 +373,7 @@ class TestProfileComparison:
 # ============================================================
 # Tests: Comparison Report Formatting / 对比报告格式化测试
 # ============================================================
+
 
 class TestComparisonReportFormatting:
     """
@@ -473,6 +476,7 @@ class TestComparisonReportFormatting:
 # Tests: HTML Export / HTML 导出测试
 # ============================================================
 
+
 class TestHTMLExport:
     """
     Tests for HTML export functionality.
@@ -559,6 +563,7 @@ class TestHTMLExport:
 # Tests: Markdown to HTML Conversion / Markdown 转 HTML 测试
 # ============================================================
 
+
 class TestMarkdownToHTML:
     """
     Tests for _markdown_to_html conversion function.
@@ -624,6 +629,7 @@ class TestMarkdownToHTML:
 # ============================================================
 # Tests: Export Format Support / 导出格式支持测试
 # ============================================================
+
 
 class TestExportFormats:
     """
@@ -713,6 +719,7 @@ class TestExportFormats:
 # ============================================================
 # Integration Tests / 集成测试
 # ============================================================
+
 
 class TestComparisonExportIntegration:
     """

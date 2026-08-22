@@ -74,9 +74,7 @@ def test_mean_cvar_happy_path(client, monkeypatch):
 def test_mean_cvar_min_vol_mode_selects_min_cvar(client, monkeypatch):
     """mode=min-vol ⇒ the selected portfolio is the min-CVaR one."""
     _patch_returns(monkeypatch, _fake_returns())
-    resp = client.post(
-        "/api/portfolio/optimize", json=_body(mode="min-vol")
-    )
+    resp = client.post("/api/portfolio/optimize", json=_body(mode="min-vol"))
     assert resp.status_code == 200
     data = resp.json()
     assert data["selected"]["cvar"] <= data["max_sharpe"]["cvar"] + 1e-9
@@ -84,18 +82,14 @@ def test_mean_cvar_min_vol_mode_selects_min_cvar(client, monkeypatch):
 
 def test_mean_cvar_confidence_echoed(client, monkeypatch):
     _patch_returns(monkeypatch, _fake_returns())
-    resp = client.post(
-        "/api/portfolio/optimize", json=_body(cvar_confidence=0.99)
-    )
+    resp = client.post("/api/portfolio/optimize", json=_body(cvar_confidence=0.99))
     assert resp.status_code == 200
     assert resp.json()["params"]["cvar_confidence"] == 0.99
 
 
 def test_mean_cvar_confidence_out_of_range_422(client, monkeypatch):
     _patch_returns(monkeypatch, _fake_returns())
-    resp = client.post(
-        "/api/portfolio/optimize", json=_body(cvar_confidence=0.995)
-    )
+    resp = client.post("/api/portfolio/optimize", json=_body(cvar_confidence=0.995))
     assert resp.status_code == 422
 
 
@@ -106,9 +100,7 @@ def test_mean_cvar_rejects_profile_risk_constraints(client, monkeypatch):
     assert created.status_code == 201
     pid = created.json()["id"]
 
-    resp = client.post(
-        "/api/portfolio/optimize", json=_body(profile_id=pid)
-    )
+    resp = client.post("/api/portfolio/optimize", json=_body(profile_id=pid))
     assert resp.status_code == 422
 
 

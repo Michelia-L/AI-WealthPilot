@@ -131,7 +131,9 @@ def _read_persisted_events(task_id: str) -> list[dict[str, Any]]:
         return []
 
 
-def load_task_events(task_id: str, locale: str = "zh") -> Optional[list[dict[str, Any]]]:
+def load_task_events(
+    task_id: str, locale: str = "zh"
+) -> Optional[list[dict[str, Any]]]:
     """Persisted event log for a task unknown to the in-memory registry.
 
     Returns None when no record exists (the caller maps that to 404). A row

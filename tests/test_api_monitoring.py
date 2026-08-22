@@ -135,9 +135,15 @@ def _prices(series_map: dict) -> pd.DataFrame:
 
 
 def _stub_fetch(df):
-    def fetch(tickers=None, period="5y", interval="1d",
-              base_currency=None, adjust_currency=True):
+    def fetch(
+        tickers=None,
+        period="5y",
+        interval="1d",
+        base_currency=None,
+        adjust_currency=True,
+    ):
         return df
+
     return fetch
 
 
@@ -166,16 +172,24 @@ def test_monitoring_full_chain(client, ips_dir, stub_cme, monkeypatch):
     monkeypatch.setattr("src.portfolio.monitoring.datetime", _FrozenDatetime)
     monkeypatch.setattr(
         "src.portfolio.monitoring.fetch_price_history",
-        _stub_fetch(_prices({
-            "000300.SS": [100.0, 110.0, 120.0],   # +20%
-            "AGG": [100.0, 100.0, 100.0],          # 0%
-            "BIL": [100.0, 100.5, 101.0],          # +1%
-        })),
+        _stub_fetch(
+            _prices(
+                {
+                    "000300.SS": [100.0, 110.0, 120.0],  # +20%
+                    "AGG": [100.0, 100.0, 100.0],  # 0%
+                    "BIL": [100.0, 100.5, 101.0],  # +1%
+                }
+            )
+        ),
     )
-    doc_id = _write_ips_doc(ips_dir, "ips_test_20260601_093000", [
-        _saa_entry("国内权益（A股/沪深300）", 0.6, 0.5, 0.7),
-        _saa_entry("固定收益", 0.3, 0.25, 0.4),
-    ])  # sums to 0.9 -> 0.1 cash plug
+    doc_id = _write_ips_doc(
+        ips_dir,
+        "ips_test_20260601_093000",
+        [
+            _saa_entry("国内权益（A股/沪深300）", 0.6, 0.5, 0.7),
+            _saa_entry("固定收益", 0.3, 0.25, 0.4),
+        ],
+    )  # sums to 0.9 -> 0.1 cash plug
 
     resp = client.get(f"/api/monitoring/{doc_id}")
     assert resp.status_code == 200
@@ -245,16 +259,24 @@ def test_drift_bands_and_rebalance_trades(client, ips_dir, stub_cme, monkeypatch
     """Strong equity rally + bond selloff: both classes out of band."""
     monkeypatch.setattr(
         "src.portfolio.monitoring.fetch_price_history",
-        _stub_fetch(_prices({
-            "000300.SS": [100.0, 140.0, 180.0],  # +80%
-            "AGG": [100.0, 95.0, 90.0],          # -10%
-            "BIL": [100.0, 100.0, 100.0],
-        })),
+        _stub_fetch(
+            _prices(
+                {
+                    "000300.SS": [100.0, 140.0, 180.0],  # +80%
+                    "AGG": [100.0, 95.0, 90.0],  # -10%
+                    "BIL": [100.0, 100.0, 100.0],
+                }
+            )
+        ),
     )
-    doc_id = _write_ips_doc(ips_dir, "ips_drift_20260601_093000", [
-        _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
-        _saa_entry("固定收益", 0.5, 0.4, 0.6),
-    ])  # sums to 1.0 -> no plug, no rescaling
+    doc_id = _write_ips_doc(
+        ips_dir,
+        "ips_drift_20260601_093000",
+        [
+            _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
+            _saa_entry("固定收益", 0.5, 0.4, 0.6),
+        ],
+    )  # sums to 1.0 -> no plug, no rescaling
 
     body = client.get(f"/api/monitoring/{doc_id}").json()
 
@@ -263,11 +285,11 @@ def test_drift_bands_and_rebalance_trades(client, ips_dir, stub_cme, monkeypatch
     assert domestic["period_return"] == pytest.approx(0.80)
     assert domestic["drifted_weight"] == pytest.approx(0.9 / 1.35)
     assert domestic["drift_pp"] == pytest.approx(0.9 / 1.35 - 0.5)
-    assert domestic["band_status"] == "above"      # .6667 > max .6
+    assert domestic["band_status"] == "above"  # .6667 > max .6
 
     assert fixed["period_return"] == pytest.approx(-0.10)
     assert fixed["drifted_weight"] == pytest.approx(0.45 / 1.35)
-    assert fixed["band_status"] == "below"         # .3333 < min .4
+    assert fixed["band_status"] == "below"  # .3333 < min .4
 
     rebalance = body["rebalance"]
     assert rebalance["needed"] is True
@@ -286,10 +308,14 @@ def test_missing_price_data_degrades(client, ips_dir, stub_cme, monkeypatch):
         "src.portfolio.monitoring.fetch_price_history",
         _stub_fetch(_prices({"000300.SS": [100.0, 140.0, 180.0]})),
     )
-    doc_id = _write_ips_doc(ips_dir, "ips_gap_20260601_093000", [
-        _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
-        _saa_entry("固定收益", 0.5, 0.4, 0.6),
-    ])
+    doc_id = _write_ips_doc(
+        ips_dir,
+        "ips_gap_20260601_093000",
+        [
+            _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
+            _saa_entry("固定收益", 0.5, 0.4, 0.6),
+        ],
+    )
 
     body = client.get(f"/api/monitoring/{doc_id}").json()
     domestic, fixed = body["holdings"]
@@ -324,16 +350,24 @@ def test_overweight_saa_is_rescaled(client, ips_dir, stub_cme, monkeypatch):
     """SAA summing above 100% is proportionally normalized, with a note."""
     monkeypatch.setattr(
         "src.portfolio.monitoring.fetch_price_history",
-        _stub_fetch(_prices({
-            "000300.SS": [100.0, 100.0, 100.0],
-            "AGG": [100.0, 100.0, 100.0],
-            "BIL": [100.0, 100.0, 100.0],
-        })),
+        _stub_fetch(
+            _prices(
+                {
+                    "000300.SS": [100.0, 100.0, 100.0],
+                    "AGG": [100.0, 100.0, 100.0],
+                    "BIL": [100.0, 100.0, 100.0],
+                }
+            )
+        ),
     )
-    doc_id = _write_ips_doc(ips_dir, "ips_over_20260601_093000", [
-        _saa_entry("国内权益（A股/沪深300）", 0.7, 0.6, 0.8),
-        _saa_entry("固定收益", 0.6, 0.5, 0.7),
-    ])  # sums to 1.3 -> scale by 1/1.3
+    doc_id = _write_ips_doc(
+        ips_dir,
+        "ips_over_20260601_093000",
+        [
+            _saa_entry("国内权益（A股/沪深300）", 0.7, 0.6, 0.8),
+            _saa_entry("固定收益", 0.6, 0.5, 0.7),
+        ],
+    )  # sums to 1.3 -> scale by 1/1.3
 
     body = client.get(f"/api/monitoring/{doc_id}").json()
 
@@ -353,15 +387,23 @@ def test_unknown_asset_class(client, ips_dir, stub_cme, monkeypatch):
     """Unmappable SAA names get key/ticker null and never crash the run."""
     monkeypatch.setattr(
         "src.portfolio.monitoring.fetch_price_history",
-        _stub_fetch(_prices({
-            "000300.SS": [100.0, 100.0, 100.0],
-            "AGG": [100.0, 100.0, 100.0],
-        })),
+        _stub_fetch(
+            _prices(
+                {
+                    "000300.SS": [100.0, 100.0, 100.0],
+                    "AGG": [100.0, 100.0, 100.0],
+                }
+            )
+        ),
     )
-    doc_id = _write_ips_doc(ips_dir, "ips_unknown_20260601_093000", [
-        _saa_entry("新兴市场股票", 0.5, 0.4, 0.6),
-        _saa_entry("固定收益", 0.5, 0.4, 0.6),
-    ])
+    doc_id = _write_ips_doc(
+        ips_dir,
+        "ips_unknown_20260601_093000",
+        [
+            _saa_entry("新兴市场股票", 0.5, 0.4, 0.6),
+            _saa_entry("固定收益", 0.5, 0.4, 0.6),
+        ],
+    )
 
     resp = client.get(f"/api/monitoring/{doc_id}")
     assert resp.status_code == 200
@@ -388,25 +430,45 @@ def test_unknown_asset_class(client, ips_dir, stub_cme, monkeypatch):
 
 # 10 business days 2026-06-01 .. 2026-06-12; equity +80% over the full
 # window, bonds -10%.
-FLEET_PRICES = _prices({
-    "000300.SS": [100.0, 110.0, 120.0, 130.0, 140.0,
-                  150.0, 160.0, 170.0, 175.0, 180.0],
-    "AGG": [100.0, 99.0, 98.0, 97.0, 96.0,
-            95.0, 94.0, 93.0, 92.0, 90.0],
-})
+FLEET_PRICES = _prices(
+    {
+        "000300.SS": [
+            100.0,
+            110.0,
+            120.0,
+            130.0,
+            140.0,
+            150.0,
+            160.0,
+            170.0,
+            175.0,
+            180.0,
+        ],
+        "AGG": [100.0, 99.0, 98.0, 97.0, 96.0, 95.0, 94.0, 93.0, 92.0, 90.0],
+    }
+)
 
-FLAT_PRICES = _prices({
-    "000300.SS": [100.0] * 10,
-    "AGG": [100.0] * 10,
-})
+FLAT_PRICES = _prices(
+    {
+        "000300.SS": [100.0] * 10,
+        "AGG": [100.0] * 10,
+    }
+)
 
 
 def _counting_fetch(df, counter):
     """Price stub that records how often the shared fetch ran."""
-    def fetch(tickers=None, period="5y", interval="1d",
-              base_currency=None, adjust_currency=True):
+
+    def fetch(
+        tickers=None,
+        period="5y",
+        interval="1d",
+        base_currency=None,
+        adjust_currency=True,
+    ):
         counter["calls"] += 1
         return df
+
     return fetch
 
 
@@ -435,14 +497,26 @@ def test_fleet_status_full_chain(client, ips_dir, monkeypatch):
     )
     # Filename sorts after the ok doc, so a filename ordering would put the
     # breach doc first — asserting the ok doc leads proves the saved_at sort.
-    _write_ips_doc(ips_dir, "ips_fleet_zbreach_20260601_093000", [
-        _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
-        _saa_entry("固定收益", 0.5, 0.4, 0.6),
-    ], saved_at="2026-06-01T09:30:00", client_name="越带客户")
-    _write_ips_doc(ips_dir, "ips_fleet_ok_20260610_093000", [
-        _saa_entry("国内权益（A股/沪深300）", 0.5, 0.3, 0.8),
-        _saa_entry("固定收益", 0.5, 0.2, 0.7),
-    ], saved_at="2026-06-10T09:30:00", client_name="正常客户")
+    _write_ips_doc(
+        ips_dir,
+        "ips_fleet_zbreach_20260601_093000",
+        [
+            _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
+            _saa_entry("固定收益", 0.5, 0.4, 0.6),
+        ],
+        saved_at="2026-06-01T09:30:00",
+        client_name="越带客户",
+    )
+    _write_ips_doc(
+        ips_dir,
+        "ips_fleet_ok_20260610_093000",
+        [
+            _saa_entry("国内权益（A股/沪深300）", 0.5, 0.3, 0.8),
+            _saa_entry("固定收益", 0.5, 0.2, 0.7),
+        ],
+        saved_at="2026-06-10T09:30:00",
+        client_name="正常客户",
+    )
 
     resp = client.get("/api/monitoring/status")
     assert resp.status_code == 200
@@ -479,12 +553,18 @@ def test_fleet_status_no_saa_degrades(client, ips_dir, monkeypatch):
         "src.portfolio.monitoring.fetch_price_history",
         _stub_fetch(FLAT_PRICES),
     )
-    _write_ips_doc(ips_dir, "ips_fleet_nosaa_20260601_093000", [],
-                   saved_at="2026-06-01T09:30:00")
-    _write_ips_doc(ips_dir, "ips_fleet_flat_20260601_093000", [
-        _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
-        _saa_entry("固定收益", 0.5, 0.4, 0.6),
-    ], saved_at="2026-06-01T09:30:00")
+    _write_ips_doc(
+        ips_dir, "ips_fleet_nosaa_20260601_093000", [], saved_at="2026-06-01T09:30:00"
+    )
+    _write_ips_doc(
+        ips_dir,
+        "ips_fleet_flat_20260601_093000",
+        [
+            _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
+            _saa_entry("固定收益", 0.5, 0.4, 0.6),
+        ],
+        saved_at="2026-06-01T09:30:00",
+    )
 
     resp = client.get("/api/monitoring/status")
     assert resp.status_code == 200
@@ -513,12 +593,21 @@ def test_fleet_status_unparsable_doc_degrades(client, ips_dir, monkeypatch):
     )
     bad = _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6)
     bad["target_weight"] = "not-a-number"
-    _write_ips_doc(ips_dir, "ips_fleet_broken_20260601_093000", [bad],
-                   saved_at="2026-06-01T09:30:00")
-    _write_ips_doc(ips_dir, "ips_fleet_flat_20260601_093000", [
-        _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
-        _saa_entry("固定收益", 0.5, 0.4, 0.6),
-    ], saved_at="2026-06-01T09:30:00")
+    _write_ips_doc(
+        ips_dir,
+        "ips_fleet_broken_20260601_093000",
+        [bad],
+        saved_at="2026-06-01T09:30:00",
+    )
+    _write_ips_doc(
+        ips_dir,
+        "ips_fleet_flat_20260601_093000",
+        [
+            _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
+            _saa_entry("固定收益", 0.5, 0.4, 0.6),
+        ],
+        saved_at="2026-06-01T09:30:00",
+    )
 
     resp = client.get("/api/monitoring/status")
     assert resp.status_code == 200
@@ -526,7 +615,8 @@ def test_fleet_status_unparsable_doc_degrades(client, ips_dir, monkeypatch):
 
     assert body["summary"] == {"total": 2, "breach": 0, "ok": 1, "unknown": 1}
     broken = next(
-        i for i in body["items"]
+        i
+        for i in body["items"]
         if i["document_id"] == "ips_fleet_broken_20260601_093000"
     )
     assert broken["status"] == "unknown"
@@ -535,17 +625,21 @@ def test_fleet_status_unparsable_doc_degrades(client, ips_dir, monkeypatch):
 
 def test_fleet_status_fetch_failure_all_unknown(client, ips_dir, monkeypatch):
     """Price fetch raising degrades every doc to unknown; endpoint stays 200."""
+
     def _raising_fetch(*args, **kwargs):
         raise RuntimeError("network down")
 
-    monkeypatch.setattr(
-        "src.portfolio.monitoring.fetch_price_history", _raising_fetch
-    )
+    monkeypatch.setattr("src.portfolio.monitoring.fetch_price_history", _raising_fetch)
     for i in range(2):
-        _write_ips_doc(ips_dir, f"ips_fleet_doc{i}_20260601_093000", [
-            _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
-            _saa_entry("固定收益", 0.5, 0.4, 0.6),
-        ], saved_at="2026-06-01T09:30:00")
+        _write_ips_doc(
+            ips_dir,
+            f"ips_fleet_doc{i}_20260601_093000",
+            [
+                _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
+                _saa_entry("固定收益", 0.5, 0.4, 0.6),
+            ],
+            saved_at="2026-06-01T09:30:00",
+        )
 
     resp = client.get("/api/monitoring/status")
     assert resp.status_code == 200
@@ -565,10 +659,15 @@ def test_fleet_status_cached_until_refresh(client, ips_dir, monkeypatch):
         "src.portfolio.monitoring.fetch_price_history",
         _counting_fetch(FLAT_PRICES, counter),
     )
-    _write_ips_doc(ips_dir, "ips_fleet_flat_20260601_093000", [
-        _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
-        _saa_entry("固定收益", 0.5, 0.4, 0.6),
-    ], saved_at="2026-06-01T09:30:00")
+    _write_ips_doc(
+        ips_dir,
+        "ips_fleet_flat_20260601_093000",
+        [
+            _saa_entry("国内权益（A股/沪深300）", 0.5, 0.4, 0.6),
+            _saa_entry("固定收益", 0.5, 0.4, 0.6),
+        ],
+        saved_at="2026-06-01T09:30:00",
+    )
 
     assert client.get("/api/monitoring/status").status_code == 200
     assert counter["calls"] == 1

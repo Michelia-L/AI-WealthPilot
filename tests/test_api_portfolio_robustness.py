@@ -41,9 +41,7 @@ def _body(**overrides):
 
 
 def test_poisoned_price_frame_is_rejected_and_not_cached(client, monkeypatch):
-    monkeypatch.setattr(
-        "api.routers.portfolio.fetch_risk_free_rate", lambda **_: 0.045
-    )
+    monkeypatch.setattr("api.routers.portfolio.fetch_risk_free_rate", lambda **_: 0.045)
     calls = {"n": 0}
 
     def fake_fetch(tickers, period=None, **kw):
@@ -65,9 +63,7 @@ def test_poisoned_price_frame_is_rejected_and_not_cached(client, monkeypatch):
 
 
 def test_unsolvable_frontier_returns_422(client, monkeypatch):
-    monkeypatch.setattr(
-        "api.routers.portfolio.fetch_risk_free_rate", lambda **_: 0.045
-    )
+    monkeypatch.setattr("api.routers.portfolio.fetch_risk_free_rate", lambda **_: 0.045)
     rng = np.random.default_rng(3)
     idx = pd.date_range("2023-01-02", periods=60, freq="B")
     returns = pd.DataFrame(
@@ -76,13 +72,16 @@ def test_unsolvable_frontier_returns_422(client, monkeypatch):
         columns=["US Equities (S&P 500)", "Bitcoin"],
     )
     monkeypatch.setattr(
-        "api.routers.portfolio._fetch_returns", lambda keys, period, locale="zh": returns
+        "api.routers.portfolio._fetch_returns",
+        lambda keys, period, locale="zh": returns,
     )
     # Every frontier point failing produces an empty frame in practice.
     monkeypatch.setattr(
         PortfolioOptimizer,
         "efficient_frontier",
-        lambda self, n_points=100, allow_short=False, mean_override=None: pd.DataFrame(),
+        lambda self, n_points=100, allow_short=False, mean_override=None: (
+            pd.DataFrame()
+        ),
     )
 
     resp = client.post("/api/portfolio/optimize", json=_body())

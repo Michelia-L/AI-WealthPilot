@@ -125,13 +125,20 @@ class ViewProcessor:
         # directly (not by matching warning text) so the check is
         # locale-independent.
         unknown = [
-            _vs("unknown_asset", self.locale, asset=v.asset_long, names=self.asset_names)
+            _vs(
+                "unknown_asset", self.locale, asset=v.asset_long, names=self.asset_names
+            )
             for v in views
             if v.asset_long not in self.asset_to_idx
         ] + [
-            _vs("unknown_asset", self.locale, asset=v.asset_short, names=self.asset_names)
+            _vs(
+                "unknown_asset",
+                self.locale,
+                asset=v.asset_short,
+                names=self.asset_names,
+            )
             for v in views
-            if v.view_type == 'relative' and v.asset_short not in self.asset_to_idx
+            if v.view_type == "relative" and v.asset_short not in self.asset_to_idx
         ]
         if unknown:
             raise ValueError(
@@ -144,13 +151,13 @@ class ViewProcessor:
 
         # Fill P and Q based on view type
         for k, view in enumerate(views):
-            if view.view_type == 'absolute':
+            if view.view_type == "absolute":
                 # Absolute view: P[k, asset_idx] = 1
                 idx = self.asset_to_idx[view.asset_long]
                 P[k, idx] = 1.0
                 Q[k] = view.expected_return
 
-            elif view.view_type == 'relative':
+            elif view.view_type == "relative":
                 # Relative view: P[k, long_idx] = 1, P[k, short_idx] = -1
                 if view.asset_short is None:
                     raise ValueError(
@@ -232,7 +239,6 @@ class ViewProcessor:
 
         return Omega
 
-
     def validate_views(self, views: list[ViewInput]) -> list[str]:
         """Validate views and return warnings for potential issues.
 
@@ -245,7 +251,7 @@ class ViewProcessor:
         warnings = []
 
         # Check for multiple absolute views on the same asset
-        absolute_views = [v for v in views if v.view_type == 'absolute']
+        absolute_views = [v for v in views if v.view_type == "absolute"]
         asset_view_count = {}
         for v in absolute_views:
             asset_view_count[v.asset_long] = asset_view_count.get(v.asset_long, 0) + 1
@@ -265,7 +271,7 @@ class ViewProcessor:
                         names=self.asset_names,
                     )
                 )
-            if v.view_type == 'relative' and v.asset_short not in self.asset_to_idx:
+            if v.view_type == "relative" and v.asset_short not in self.asset_to_idx:
                 warnings.append(
                     _vs(
                         "unknown_asset",
@@ -357,8 +363,7 @@ class ViewProcessor:
                 strongconnect(root)
 
         return [
-            _vs("relative_cycle", self.locale, cycle=" ↔ ".join(scc))
-            for scc in sccs
+            _vs("relative_cycle", self.locale, cycle=" ↔ ".join(scc)) for scc in sccs
         ]
 
     def divergence_warnings(

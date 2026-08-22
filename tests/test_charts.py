@@ -58,7 +58,9 @@ class TestGetAssetColor:
     def test_unknown_uses_fallback_palette_by_index(self):
         assert get_asset_color("NO_SUCH_ASSET", 0) == "#D4AF37"
         # Palette has 7 entries: index wraps around
-        assert get_asset_color("NO_SUCH_ASSET", 7) == get_asset_color("NO_SUCH_ASSET", 0)
+        assert get_asset_color("NO_SUCH_ASSET", 7) == get_asset_color(
+            "NO_SUCH_ASSET", 0
+        )
         assert get_asset_color("NO_SUCH_ASSET", 1) == "#10B981"
 
 
@@ -97,7 +99,12 @@ class TestPlotEfficientFrontier:
     def test_no_cal_when_max_sharpe_failed(self):
         fig = plot_efficient_frontier(
             _frontier(),
-            max_sharpe={"return": 0.10, "volatility": 0.15, "sharpe": 0.8, "success": False},
+            max_sharpe={
+                "return": 0.10,
+                "volatility": 0.15,
+                "sharpe": 0.8,
+                "success": False,
+            },
             risk_free_rate=0.02,
         )
         assert not any(t.name.startswith("Capital Allocation Line") for t in fig.data)
@@ -126,7 +133,9 @@ class TestPlotAllocationPie:
 
 class TestPlotMonteCarloPaths:
     def _paths(self, n_sims=50, n_periods=10) -> np.ndarray:
-        return np.random.default_rng(0).normal(100, 5, (n_sims, n_periods)).cumsum(axis=1)
+        return (
+            np.random.default_rng(0).normal(100, 5, (n_sims, n_periods)).cumsum(axis=1)
+        )
 
     def test_trace_count_with_percentiles(self):
         fig = plot_monte_carlo_paths(self._paths(), n_display=20)

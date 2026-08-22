@@ -22,6 +22,7 @@ Test Design Philosophy / 测试设计理念:
     - Reproducibility: same seed → same results
       可复现性：相同种子 → 相同结果
 """
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -40,6 +41,7 @@ from src.portfolio.simulator import MonteCarloSimulator, SimulationResult
 # ============================================================
 # Fixtures / 测试夹具
 # ============================================================
+
 
 @pytest.fixture
 def sample_returns():
@@ -106,6 +108,7 @@ def constant_returns():
 # Optimizer Tests — 优化器测试
 # ============================================================
 
+
 class TestPortfolioOptimizer:
     """
     Test suite for the Mean-Variance Portfolio Optimizer.
@@ -128,7 +131,9 @@ class TestPortfolioOptimizer:
         opt = PortfolioOptimizer(sample_returns)
         result = opt.maximize_sharpe()
         total_weight = sum(result["weights"].values())
-        assert abs(total_weight - 1.0) < 1e-6, f"Weights sum to {total_weight}, expected 1.0"
+        assert abs(total_weight - 1.0) < 1e-6, (
+            f"Weights sum to {total_weight}, expected 1.0"
+        )
 
     def test_no_negative_weights_long_only(self, sample_returns):
         """Long-only constraint: all w_i ≥ 0 / 只做多约束"""
@@ -265,7 +270,7 @@ class TestPortfolioOptimizer:
         for i in range(1, len(returns)):
             assert returns[i] >= returns[i - 1] - 1e-6, (
                 f"Return at point {i} ({returns[i]:.4f}) < "
-                f"return at point {i-1} ({returns[i-1]:.4f})"
+                f"return at point {i - 1} ({returns[i - 1]:.4f})"
             )
 
     def test_efficient_frontier_has_weight_columns(self, sample_returns):
@@ -334,6 +339,7 @@ class TestPortfolioOptimizer:
 # Simulator Tests — 蒙特卡洛模拟器测试
 # ============================================================
 
+
 class TestMonteCarloSimulator:
     """
     Test suite for the Monte Carlo Simulator.
@@ -352,8 +358,11 @@ class TestMonteCarloSimulator:
     def test_initial_value_correct(self):
         """All simulation paths should start at the initial value / 所有路径应从初始值开始"""
         sim = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=100, n_years=10, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=100,
+            n_years=10,
+            seed=42,
         )
         result = sim.simulate(initial_value=100000)
         assert np.all(result.paths[:, 0] == 100000)
@@ -361,8 +370,11 @@ class TestMonteCarloSimulator:
     def test_output_shape(self):
         """Paths shape should be (n_simulations, n_years + 1) / 路径形状应为 (模拟次数, 年数+1)"""
         sim = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=500, n_years=20, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=500,
+            n_years=20,
+            seed=42,
         )
         result = sim.simulate(initial_value=100000)
         assert result.paths.shape == (500, 21)  # 20 years + initial
@@ -370,8 +382,11 @@ class TestMonteCarloSimulator:
     def test_probability_of_success(self):
         """Probability of success should be in [0, 1] / 成功概率应在 [0, 1] 区间"""
         sim = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=1000, n_years=30, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=1000,
+            n_years=30,
+            seed=42,
         )
         result = sim.simulate(initial_value=100000, goal_amount=500000)
         assert 0 <= result.probability_of_success <= 1
@@ -379,8 +394,11 @@ class TestMonteCarloSimulator:
     def test_no_goal_means_no_success_probability(self):
         """Without a goal, probability_of_success should be None / 无目标时成功概率应为 None"""
         sim = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=100, n_years=5, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=100,
+            n_years=5,
+            seed=42,
         )
         result = sim.simulate(initial_value=100000)
         assert result.goal_amount is None
@@ -398,8 +416,11 @@ class TestMonteCarloSimulator:
         当大额提款导致组合价值低于零时，模拟器应将其截断为 0（资金耗尽）。
         """
         sim = MonteCarloSimulator(
-            expected_return=0.02, volatility=0.30,
-            n_simulations=200, n_years=20, seed=42,
+            expected_return=0.02,
+            volatility=0.30,
+            n_simulations=200,
+            n_years=20,
+            seed=42,
         )
         # 大额年度提款，期望部分路径触底为 0
         # Large annual withdrawal, expecting some paths to hit 0
@@ -416,17 +437,24 @@ class TestMonteCarloSimulator:
         添加年度缴款应增加预期终端值（与无缴款相比）。
         """
         sim_base = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=500, n_years=10, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=500,
+            n_years=10,
+            seed=42,
         )
         result_no_contrib = sim_base.simulate(initial_value=100000)
 
         sim_contrib = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=500, n_years=10, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=500,
+            n_years=10,
+            seed=42,
         )
         result_with_contrib = sim_contrib.simulate(
-            initial_value=100000, annual_contribution=10000,
+            initial_value=100000,
+            annual_contribution=10000,
         )
 
         assert result_with_contrib.mean_terminal > result_no_contrib.mean_terminal, (
@@ -440,8 +468,13 @@ class TestMonteCarloSimulator:
         Two simulations with the same seed should produce identical results.
         使用相同种子的两次模拟应产生完全相同的结果。
         """
-        kwargs = dict(expected_return=0.08, volatility=0.15,
-                      n_simulations=100, n_years=10, seed=42)
+        kwargs = dict(
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=100,
+            n_years=10,
+            seed=42,
+        )
 
         result1 = MonteCarloSimulator(**kwargs).simulate(initial_value=100000)
         result2 = MonteCarloSimulator(**kwargs).simulate(initial_value=100000)
@@ -454,13 +487,19 @@ class TestMonteCarloSimulator:
         使用不同种子的两次模拟应产生不同的结果。
         """
         result1 = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=100, n_years=10, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=100,
+            n_years=10,
+            seed=42,
         ).simulate(initial_value=100000)
 
         result2 = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=100, n_years=10, seed=99,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=100,
+            n_years=10,
+            seed=99,
         ).simulate(initial_value=100000)
 
         assert not np.array_equal(result1.paths, result2.paths)
@@ -477,8 +516,11 @@ class TestMonteCarloSimulator:
         and growth = exp(μ) every year (no random component).
         """
         sim = MonteCarloSimulator(
-            expected_return=0.10, volatility=0.0,
-            n_simulations=50, n_years=5, seed=42,
+            expected_return=0.10,
+            volatility=0.0,
+            n_simulations=50,
+            n_years=5,
+            seed=42,
         )
         result = sim.simulate(initial_value=100000)
 
@@ -494,8 +536,11 @@ class TestMonteCarloSimulator:
     def test_summary_output_format(self):
         """Summary should contain key statistics / 摘要应包含关键统计量"""
         sim = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=100, n_years=10, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=100,
+            n_years=10,
+            seed=42,
         )
         result = sim.simulate(initial_value=100000, goal_amount=200000)
         summary = result.summary()
@@ -515,8 +560,11 @@ class TestMonteCarloSimulator:
         百分位数应按顺序排列：5th ≤ 25th ≤ 中位数 ≤ 75th ≤ 95th。
         """
         sim = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=1000, n_years=20, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=1000,
+            n_years=20,
+            seed=42,
         )
         r = sim.simulate(initial_value=100000)
         assert r.percentile_5 <= r.percentile_25
@@ -532,17 +580,26 @@ class TestMonteCarloSimulator:
         retirement_planning() 应返回所有预期的键。
         """
         sim = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=200, n_years=30, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=200,
+            n_years=30,
+            seed=42,
         )
         result = sim.retirement_planning(
-            current_age=30, retirement_age=60, life_expectancy=85,
-            current_savings=100000, annual_savings=30000,
+            current_age=30,
+            retirement_age=60,
+            life_expectancy=85,
+            current_savings=100000,
+            annual_savings=30000,
             desired_annual_income=100000,
         )
         expected_keys = {
-            "accumulation", "distribution_paths",
-            "survival_rate", "accumulation_years", "distribution_years",
+            "accumulation",
+            "distribution_paths",
+            "survival_rate",
+            "accumulation_years",
+            "distribution_years",
             "withdrawal_strategy",
         }
         assert set(result.keys()) == expected_keys
@@ -556,12 +613,18 @@ class TestMonteCarloSimulator:
         distribution_years = life_expectancy - retirement_age
         """
         sim = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=100, n_years=30, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=100,
+            n_years=30,
+            seed=42,
         )
         result = sim.retirement_planning(
-            current_age=35, retirement_age=65, life_expectancy=90,
-            current_savings=50000, annual_savings=20000,
+            current_age=35,
+            retirement_age=65,
+            life_expectancy=90,
+            current_savings=50000,
+            annual_savings=20000,
             desired_annual_income=80000,
         )
         assert result["accumulation_years"] == 30, "65 - 35 = 30"
@@ -573,12 +636,18 @@ class TestMonteCarloSimulator:
         存活率应在 [0, 1] 区间内。
         """
         sim = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=200, n_years=30, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=200,
+            n_years=30,
+            seed=42,
         )
         result = sim.retirement_planning(
-            current_age=30, retirement_age=60, life_expectancy=85,
-            current_savings=100000, annual_savings=50000,
+            current_age=30,
+            retirement_age=60,
+            life_expectancy=85,
+            current_savings=100000,
+            annual_savings=50000,
             desired_annual_income=200000,
         )
         assert 0 <= result["survival_rate"] <= 1
@@ -590,12 +659,18 @@ class TestMonteCarloSimulator:
         """
         n_sims = 200
         sim = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=n_sims, n_years=30, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=n_sims,
+            n_years=30,
+            seed=42,
         )
         result = sim.retirement_planning(
-            current_age=30, retirement_age=60, life_expectancy=85,
-            current_savings=100000, annual_savings=30000,
+            current_age=30,
+            retirement_age=60,
+            life_expectancy=85,
+            current_savings=100000,
+            annual_savings=30000,
             desired_annual_income=100000,
         )
         dist_years = 85 - 60  # = 25
@@ -607,12 +682,18 @@ class TestMonteCarloSimulator:
         分配阶段的组合价值应永不为负。
         """
         sim = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=200, n_years=30, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=200,
+            n_years=30,
+            seed=42,
         )
         result = sim.retirement_planning(
-            current_age=30, retirement_age=60, life_expectancy=85,
-            current_savings=100000, annual_savings=30000,
+            current_age=30,
+            retirement_age=60,
+            life_expectancy=85,
+            current_savings=100000,
+            annual_savings=30000,
             desired_annual_income=300000,  # 很大的提款 / Very large withdrawal
         )
         assert np.all(result["distribution_paths"] >= 0), (
@@ -625,18 +706,24 @@ class TestMonteCarloSimulator:
         积累阶段应返回正确的 SimulationResult 对象。
         """
         sim = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=100, n_years=30, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=100,
+            n_years=30,
+            seed=42,
         )
         result = sim.retirement_planning(
-            current_age=30, retirement_age=60, life_expectancy=85,
-            current_savings=100000, annual_savings=30000,
+            current_age=30,
+            retirement_age=60,
+            life_expectancy=85,
+            current_savings=100000,
+            annual_savings=30000,
             desired_annual_income=100000,
         )
         accum = result["accumulation"]
         assert isinstance(accum, SimulationResult)
         assert accum.paths.shape[0] == 100  # n_simulations
-        assert accum.paths.shape[1] == 31   # 30 accumulation years + 1
+        assert accum.paths.shape[1] == 31  # 30 accumulation years + 1
 
     def test_retirement_planning_inflation_impact(self):
         """
@@ -644,20 +731,31 @@ class TestMonteCarloSimulator:
         survival rate compared to zero inflation due to higher nominal cash outflows.
         """
         sim = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=500, n_years=30, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=500,
+            n_years=30,
+            seed=42,
         )
         # Without inflation (0.0)
         res_no_inf = sim.retirement_planning(
-            current_age=30, retirement_age=60, life_expectancy=85,
-            current_savings=100000, annual_savings=50000,
-            desired_annual_income=200000, inflation_rate=0.0
+            current_age=30,
+            retirement_age=60,
+            life_expectancy=85,
+            current_savings=100000,
+            annual_savings=50000,
+            desired_annual_income=200000,
+            inflation_rate=0.0,
         )
         # With inflation (3.0%)
         res_inf = sim.retirement_planning(
-            current_age=30, retirement_age=60, life_expectancy=85,
-            current_savings=100000, annual_savings=50000,
-            desired_annual_income=200000, inflation_rate=0.03
+            current_age=30,
+            retirement_age=60,
+            life_expectancy=85,
+            current_savings=100000,
+            annual_savings=50000,
+            desired_annual_income=200000,
+            inflation_rate=0.03,
         )
         assert res_inf["survival_rate"] < res_no_inf["survival_rate"], (
             f"Inflation should decrease survival rate (with: {res_inf['survival_rate']:.2%}, without: {res_no_inf['survival_rate']:.2%})"
@@ -670,22 +768,33 @@ class TestMonteCarloSimulator:
         省略支取期通胀率时应与旧的单一通胀率行为完全一致。
         """
         kwargs = dict(
-            current_age=30, retirement_age=60, life_expectancy=85,
-            current_savings=100000, annual_savings=50000,
-            desired_annual_income=200000, inflation_rate=0.03,
+            current_age=30,
+            retirement_age=60,
+            life_expectancy=85,
+            current_savings=100000,
+            annual_savings=50000,
+            desired_annual_income=200000,
+            inflation_rate=0.03,
         )
         sim_legacy = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=200, n_years=30, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=200,
+            n_years=30,
+            seed=42,
         )
         res_legacy = sim_legacy.retirement_planning(**kwargs)
 
         sim_explicit = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=200, n_years=30, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=200,
+            n_years=30,
+            seed=42,
         )
         res_explicit = sim_explicit.retirement_planning(
-            **kwargs, distribution_inflation_rate=0.03,
+            **kwargs,
+            distribution_inflation_rate=0.03,
         )
 
         assert res_legacy["survival_rate"] == res_explicit["survival_rate"]
@@ -701,22 +810,33 @@ class TestMonteCarloSimulator:
         更高的支取期（CPI-E 风格）通胀应降低存活率，且不影响积累期结果。
         """
         kwargs = dict(
-            current_age=30, retirement_age=60, life_expectancy=85,
-            current_savings=100000, annual_savings=50000,
-            desired_annual_income=200000, inflation_rate=0.025,
+            current_age=30,
+            retirement_age=60,
+            life_expectancy=85,
+            current_savings=100000,
+            annual_savings=50000,
+            desired_annual_income=200000,
+            inflation_rate=0.025,
         )
         sim_base = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=500, n_years=30, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=500,
+            n_years=30,
+            seed=42,
         )
         res_base = sim_base.retirement_planning(**kwargs)
 
         sim_elderly = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=500, n_years=30, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=500,
+            n_years=30,
+            seed=42,
         )
         res_elderly = sim_elderly.retirement_planning(
-            **kwargs, distribution_inflation_rate=0.0325,
+            **kwargs,
+            distribution_inflation_rate=0.0325,
         )
 
         assert res_elderly["survival_rate"] < res_base["survival_rate"], (
@@ -737,20 +857,28 @@ class TestMonteCarloSimulator:
         (capital-preservation cuts can only help in stressed paths).
         """
         kwargs = dict(
-            current_age=30, retirement_age=60, life_expectancy=85,
-            current_savings=100000, annual_savings=50000,
-            desired_annual_income=200000, inflation_rate=0.025,
+            current_age=30,
+            retirement_age=60,
+            life_expectancy=85,
+            current_savings=100000,
+            annual_savings=50000,
+            desired_annual_income=200000,
+            inflation_rate=0.025,
         )
         sim_fixed = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=500, n_years=30, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=500,
+            n_years=30,
+            seed=42,
         )
-        res_fixed = sim_fixed.retirement_planning(
-            **kwargs, withdrawal_strategy="fixed"
-        )
+        res_fixed = sim_fixed.retirement_planning(**kwargs, withdrawal_strategy="fixed")
         sim_guard = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=500, n_years=30, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=500,
+            n_years=30,
+            seed=42,
         )
         res_guard = sim_guard.retirement_planning(
             **kwargs, withdrawal_strategy="guardrails"
@@ -765,18 +893,27 @@ class TestMonteCarloSimulator:
         bit-for-bit (common random numbers keep the comparison honest).
         """
         kwargs = dict(
-            current_age=35, retirement_age=65, life_expectancy=90,
-            current_savings=50000, annual_savings=20000,
+            current_age=35,
+            retirement_age=65,
+            life_expectancy=90,
+            current_savings=50000,
+            annual_savings=20000,
             desired_annual_income=80000,
         )
         sim_fixed = MonteCarloSimulator(
-            expected_return=0.07, volatility=0.12,
-            n_simulations=200, n_years=30, seed=7,
+            expected_return=0.07,
+            volatility=0.12,
+            n_simulations=200,
+            n_years=30,
+            seed=7,
         )
         res_fixed = sim_fixed.retirement_planning(**kwargs)
         sim_guard = MonteCarloSimulator(
-            expected_return=0.07, volatility=0.12,
-            n_simulations=200, n_years=30, seed=7,
+            expected_return=0.07,
+            volatility=0.12,
+            n_simulations=200,
+            n_years=30,
+            seed=7,
         )
         res_guard = sim_guard.retirement_planning(
             **kwargs, withdrawal_strategy="guardrails"
@@ -786,22 +923,33 @@ class TestMonteCarloSimulator:
     def test_fixed_strategy_unchanged_by_guardrail_params(self):
         """Default/fixed behavior is bit-identical with or without the new params."""
         kwargs = dict(
-            current_age=30, retirement_age=60, life_expectancy=85,
-            current_savings=100000, annual_savings=30000,
+            current_age=30,
+            retirement_age=60,
+            life_expectancy=85,
+            current_savings=100000,
+            annual_savings=30000,
             desired_annual_income=100000,
         )
         sim_legacy = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=200, n_years=30, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=200,
+            n_years=30,
+            seed=42,
         )
         res_legacy = sim_legacy.retirement_planning(**kwargs)
         sim_explicit = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=200, n_years=30, seed=42,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=200,
+            n_years=30,
+            seed=42,
         )
         res_explicit = sim_explicit.retirement_planning(
-            **kwargs, withdrawal_strategy="fixed",
-            guardrail_band=0.5, guardrail_adjust=0.4,
+            **kwargs,
+            withdrawal_strategy="fixed",
+            guardrail_band=0.5,
+            guardrail_adjust=0.4,
         )
         np.testing.assert_array_equal(
             res_legacy["distribution_paths"], res_explicit["distribution_paths"]
@@ -811,20 +959,28 @@ class TestMonteCarloSimulator:
 
     def test_unknown_withdrawal_strategy_raises(self):
         sim = MonteCarloSimulator(
-            expected_return=0.08, volatility=0.15,
-            n_simulations=100, n_years=30, seed=1,
+            expected_return=0.08,
+            volatility=0.15,
+            n_simulations=100,
+            n_years=30,
+            seed=1,
         )
         with pytest.raises(ValueError, match="Unknown withdrawal strategy"):
             sim.retirement_planning(
-                current_age=30, retirement_age=60, life_expectancy=85,
-                current_savings=100000, annual_savings=30000,
-                desired_annual_income=100000, withdrawal_strategy="dynamic",
+                current_age=30,
+                retirement_age=60,
+                life_expectancy=85,
+                current_savings=100000,
+                annual_savings=30000,
+                desired_annual_income=100000,
+                withdrawal_strategy="dynamic",
             )
 
 
 # ============================================================
 # Risk Metrics Tests — 风险度量测试
 # ============================================================
+
 
 class TestRiskMetrics:
     """
@@ -997,10 +1153,14 @@ class TestRiskMetrics:
         """
         metrics = compute_all_metrics(sample_returns["US_EQ"])
         expected_keys = {
-            "annualized_return", "annualized_volatility",
-            "sharpe_ratio", "sortino_ratio",
-            "var_95_daily", "cvar_95_daily",
-            "skewness", "kurtosis",
+            "annualized_return",
+            "annualized_volatility",
+            "sharpe_ratio",
+            "sortino_ratio",
+            "var_95_daily",
+            "cvar_95_daily",
+            "skewness",
+            "kurtosis",
         }
         assert expected_keys.issubset(set(metrics.keys()))
         # 没有传价格，不应有 max_drawdown / No prices → no max_drawdown

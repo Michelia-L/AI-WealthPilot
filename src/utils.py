@@ -24,7 +24,7 @@ def sanitize_filename(name: str) -> str:
     if not name:
         return "unnamed"
     # Replace any non-word, non-hyphen character with underscore
-    sanitized = re.sub(r'[^\w\-]', '_', name).lower()
+    sanitized = re.sub(r"[^\w\-]", "_", name).lower()
     # Collapse consecutive underscores
-    sanitized = re.sub(r'_+', '_', sanitized).strip('_')
+    sanitized = re.sub(r"_+", "_", sanitized).strip("_")
     return sanitized or "unnamed"

@@ -127,7 +127,9 @@ def get_recommendation(
     if record is None:
         raise HTTPException(
             status_code=404,
-            detail=msg("common.profile_not_found", get_request_locale(request), id=profile_id),
+            detail=msg(
+                "common.profile_not_found", get_request_locale(request), id=profile_id
+            ),
         )
     profile = profile_from_data(record.data)
 
@@ -173,9 +175,7 @@ def backtest_weights(
             status_code=422, detail=msg("portfolio.invalid_weights", locale)
         )
     if any(v < -0.001 for v in req.weights.values()):
-        raise HTTPException(
-            status_code=422, detail=msg("portfolio.long_only", locale)
-        )
+        raise HTTPException(status_code=422, detail=msg("portfolio.long_only", locale))
     total = sum(req.weights.values())
     if not 0.5 <= total <= 1.5:
         raise HTTPException(
@@ -265,14 +265,14 @@ def _fetch_returns(keys: list[str], period: str, locale: str = "zh") -> pd.DataF
         # failure is transient upstream, and caching such a frame would
         # poison every request for the whole TTL window.
         bad = [
-            t
-            for t in tickers
-            if t not in prices.columns or prices[t].dropna().empty
+            t for t in tickers if t not in prices.columns or prices[t].dropna().empty
         ]
         if bad:
             raise HTTPException(
                 status_code=502,
-                detail=msg("portfolio.price_fetch_failed", locale, tickers=", ".join(bad)),
+                detail=msg(
+                    "portfolio.price_fetch_failed", locale, tickers=", ".join(bad)
+                ),
             )
         return prices
 
@@ -369,15 +369,16 @@ def _result_payload(result: dict, asset_names: list[str]) -> PortfolioResult:
         sharpe=float(result["sharpe"]),
         success=bool(result.get("success", True)),
         weight_std=(
-            {name: float(std) for name, std in zip(asset_names, weight_std, strict=False)}
+            {
+                name: float(std)
+                for name, std in zip(asset_names, weight_std, strict=False)
+            }
             if weight_std is not None
             else None
         ),
         cvar=float(cvar) if cvar is not None else None,
         risk_contributions=(
-            {k: float(v) for k, v in risk_rc.items()}
-            if risk_rc is not None
-            else None
+            {k: float(v) for k, v in risk_rc.items()} if risk_rc is not None else None
         ),
     )
 
@@ -441,9 +442,12 @@ def _resolve_risk_constraints(
     record = session.get(ProfileRecord, req.profile_id)
     if record is None:
         raise HTTPException(
-            status_code=404, detail=msg("common.profile_not_found", locale, id=req.profile_id)
+            status_code=404,
+            detail=msg("common.profile_not_found", locale, id=req.profile_id),
         )
-    tolerance_level = (record.data.get("risk_profile") or {}).get("tolerance_level") or ""
+    tolerance_level = (record.data.get("risk_profile") or {}).get(
+        "tolerance_level"
+    ) or ""
     try:
         caps = caps_for_tolerance(tolerance_level, locale)
     except ValueError as e:
@@ -482,8 +486,10 @@ def _resolve_surplus_raw(
         raise HTTPException(
             status_code=422,
             detail=msg(
-                "portfolio.surplus_invalid_proxy", locale,
-                proxy=proxy, options=", ".join(LDI_PROXY_DURATIONS),
+                "portfolio.surplus_invalid_proxy",
+                locale,
+                proxy=proxy,
+                options=", ".join(LDI_PROXY_DURATIONS),
             ),
         )
     growth_source = cfg.growth_source if cfg else "inflation"
@@ -557,8 +563,13 @@ def _resolve_surplus_raw(
                 detail=msg("common.profile_not_found", locale, id=req.profile_id),
             )
         goals = record.data.get("goals") or []
-        investable = float((record.data.get("financial") or {}).get("investable_assets", 0.0))
-        usable = any(float(g.get("target_amount", 0.0)) > 0 for g in goals) and investable > 0
+        investable = float(
+            (record.data.get("financial") or {}).get("investable_assets", 0.0)
+        )
+        usable = (
+            any(float(g.get("target_amount", 0.0)) > 0 for g in goals)
+            and investable > 0
+        )
         if not usable:
             raise HTTPException(
                 status_code=422,
@@ -667,7 +678,9 @@ def _solve_optimize(
         group_constraints = build_group_constraints(risk_constraints.caps, keys)
 
     # CME-sourced expected returns (default: historical sample means).
-    expected_returns, cme_fallback = _resolve_expected_returns(req, keys, returns, locale)
+    expected_returns, cme_fallback = _resolve_expected_returns(
+        req, keys, returns, locale
+    )
 
     # Engine dispatch lives in src/portfolio/optimize_service.py; cached
     # auxiliaries (AUM weights, discount curve/history) are resolved here
@@ -773,7 +786,12 @@ def _solve_optimize(
             name=DEFAULT_ASSET_CLASSES[k]["name"],
             ann_return=float(optimizer.mean_returns[DEFAULT_ASSET_CLASSES[k]["name"]]),
             ann_volatility=float(
-                np.sqrt(optimizer.cov_matrix.loc[DEFAULT_ASSET_CLASSES[k]["name"], DEFAULT_ASSET_CLASSES[k]["name"]])
+                np.sqrt(
+                    optimizer.cov_matrix.loc[
+                        DEFAULT_ASSET_CLASSES[k]["name"],
+                        DEFAULT_ASSET_CLASSES[k]["name"],
+                    ]
+                )
             ),
         )
         for k in keys
@@ -830,20 +848,36 @@ async def _run_optimize_task(
     try:
         loop = asyncio.get_running_loop()
         await task.publish(
-            {"type": "node", "node": "fetch", "label": msg("portfolio.node_fetch", locale)}
+            {
+                "type": "node",
+                "node": "fetch",
+                "label": msg("portfolio.node_fetch", locale),
+            }
         )
         keys, returns, rf, proxy_returns = await loop.run_in_executor(
             None, _prepare_optimize, req, locale
         )
         label = (
-            msg("portfolio.node_solve_resampled", locale, n_simulations=req.n_simulations)
+            msg(
+                "portfolio.node_solve_resampled",
+                locale,
+                n_simulations=req.n_simulations,
+            )
             if req.method == "resampled"
             else msg("portfolio.node_solve", locale)
         )
         await task.publish({"type": "node", "node": "solve", "label": label})
         result = await loop.run_in_executor(
-            None, _solve_optimize, req, keys, returns, rf, risk_constraints,
-            locale, surplus_raw, proxy_returns,
+            None,
+            _solve_optimize,
+            req,
+            keys,
+            returns,
+            rf,
+            risk_constraints,
+            locale,
+            surplus_raw,
+            proxy_returns,
         )
         task.status = "completed"
         await task.publish({"type": "done", "result": result.model_dump(mode="json")})
@@ -853,7 +887,10 @@ async def _run_optimize_task(
     except Exception as e:
         task.status = "failed"
         await task.publish(
-            {"type": "error", "message": msg("portfolio.optimize_failed", locale, error=e)}
+            {
+                "type": "error",
+                "message": msg("portfolio.optimize_failed", locale, error=e),
+            }
         )
 
 
@@ -886,7 +923,8 @@ async def optimize_task_events(task_id: str, request: Request) -> StreamingRespo
     stream = task_events_stream(registry, task_id, get_request_locale(request))
     if stream is None:
         raise HTTPException(
-            status_code=404, detail=msg("common.task_not_found", get_request_locale(request))
+            status_code=404,
+            detail=msg("common.task_not_found", get_request_locale(request)),
         )
     return StreamingResponse(
         stream,

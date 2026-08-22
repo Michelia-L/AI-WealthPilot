@@ -22,11 +22,10 @@ from src.config import (
 logger = logging.getLogger(__name__)
 
 
-
-
 @dataclass
 class AdvisorReport:
     """Structured output of the AI Advisor Agent."""
+
     content: str = ""
     model: str = ""
     generated_at: str = ""
@@ -37,7 +36,6 @@ class AdvisorReport:
     client_name: str = ""
     success: bool = False
     error_message: str = ""
-
 
 
 SYSTEM_PROMPT = """You are an experienced Private Wealth Management advisor specializing in the PWM pathway. You operate within professional standards and fiduciary guidelines.
@@ -263,7 +261,6 @@ def _build_user_prompt(profile: ClientProfile, locale: str = "zh") -> str:
                 f"Prudential principle: use the LOWER score."
             )
 
-
     prompt = f"""Please generate a comprehensive investment advisory report for the following client:
 请为以下客户生成全面的投资咨询建议书：
 
@@ -358,7 +355,6 @@ def _build_user_prompt_en(profile: ClientProfile) -> str:
                 f"Prudential principle: use the LOWER score."
             )
 
-
     prompt = f"""Please generate a comprehensive investment advisory report for the following client:
 
 ═══════════════════════════════════════════
@@ -409,8 +405,6 @@ Please write the advisory report entirely in English, following the 6-section fo
     return prompt
 
 
-
-
 def validate_report_content(content: str) -> tuple[bool, str]:
     """Validate that the generated report meets minimal length and structure requirements.
 
@@ -427,7 +421,10 @@ def validate_report_content(content: str) -> tuple[bool, str]:
         tuple[bool, str]: (is_valid, error_message).
     """
     if not content or len(content.strip()) < 100:
-        return False, f"Report content is too short ({len(content.strip()) if content else 0} chars, minimum is 100)."
+        return (
+            False,
+            f"Report content is too short ({len(content.strip()) if content else 0} chars, minimum is 100).",
+        )
 
     # Headings look like "## 1. 📋 Client Summary / 客户概况总结".
     # A line counts as a section heading if, after stripping up to 3 spaces
@@ -436,8 +433,10 @@ def validate_report_content(content: str) -> tuple[bool, str]:
     # because LLM output inside templates / nested blocks can be indented;
     # the key signal is a '#' run at the start of the (de-indented) line.
     import re
+
     heading_lines = [
-        stripped for line in content.splitlines()
+        stripped
+        for line in content.splitlines()
         if re.match(r"#{1,6}\s", (stripped := line.lstrip()))
     ]
     heading_blob = "\n".join(heading_lines)
@@ -474,8 +473,7 @@ def _get_client() -> OpenAI:
     cfg = get_llm_config()
     if not cfg.configured:
         raise ValueError(
-            "DEEPSEEK_API_KEY is not configured. "
-            "Please set it in your .env file."
+            "DEEPSEEK_API_KEY is not configured. Please set it in your .env file."
         )
     return OpenAI(api_key=cfg.api_key, base_url=cfg.base_url)
 
@@ -483,8 +481,6 @@ def _get_client() -> OpenAI:
 def is_api_configured() -> bool:
     """Check if an LLM API key is configured (DB settings override env)."""
     return get_llm_config().configured
-
-
 
 
 def _create_initial_report(profile: ClientProfile, model: str = "") -> AdvisorReport:
@@ -502,7 +498,6 @@ def _build_messages(profile: ClientProfile, locale: str = "zh") -> list[dict]:
         {"role": "system", "content": _system_prompt(locale)},
         {"role": "user", "content": _build_user_prompt(profile, locale)},
     ]
-
 
 
 def generate_advice(profile: ClientProfile, locale: str = "zh") -> AdvisorReport:
@@ -523,7 +518,6 @@ def generate_advice(profile: ClientProfile, locale: str = "zh") -> AdvisorReport
             f"using model: {cfg.model}"
         )
 
-
         response = client.chat.completions.create(
             model=cfg.model,
             messages=messages,
@@ -540,7 +534,6 @@ def generate_advice(profile: ClientProfile, locale: str = "zh") -> AdvisorReport
             report.success = False
             report.error_message = err_msg
             logger.error(f"Report validation failed: {err_msg}")
-
 
         if response.usage:
             report.prompt_tokens = response.usage.prompt_tokens
@@ -587,10 +580,7 @@ def generate_advice_stream(
 
         messages = _build_messages(profile, locale)
 
-        logger.info(
-            f"Starting streaming advisory report for: {profile.name}"
-        )
-
+        logger.info(f"Starting streaming advisory report for: {profile.name}")
 
         stream = client.chat.completions.create(
             model=cfg.model,
@@ -617,7 +607,9 @@ def generate_advice_stream(
             usage = getattr(chunk, "usage", None)
             if usage:
                 report.prompt_tokens = getattr(usage, "prompt_tokens", None) or 0
-                report.completion_tokens = getattr(usage, "completion_tokens", None) or 0
+                report.completion_tokens = (
+                    getattr(usage, "completion_tokens", None) or 0
+                )
                 report.total_tokens = getattr(usage, "total_tokens", None) or 0
                 details = getattr(usage, "completion_tokens_details", None)
                 report.reasoning_tokens = (
@@ -633,9 +625,7 @@ def generate_advice_stream(
             report.error_message = err_msg
             logger.error(f"Streaming report validation failed: {err_msg}")
 
-        logger.info(
-            f"Streaming report completed for: {profile.name}"
-        )
+        logger.info(f"Streaming report completed for: {profile.name}")
 
     except ValueError as e:
         report.error_message = str(e)
@@ -648,7 +638,9 @@ def generate_advice_stream(
     return report
 
 
-def stream_advice(profile: ClientProfile, locale: str = "zh") -> tuple[Generator[str, None, None], list]:
+def stream_advice(
+    profile: ClientProfile, locale: str = "zh"
+) -> tuple[Generator[str, None, None], list]:
     """Streamlit streaming wrapper returning (generator, report_container).
 
     Keeps the plain text-stream contract: only token event text is yielded;

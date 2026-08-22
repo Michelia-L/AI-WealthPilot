@@ -34,6 +34,7 @@ from src.data.implied_volatility import (
 # Test IVProxyConfig and ImpliedVolData Dataclasses
 # ============================================================
 
+
 class TestDataStructures:
     """Test data structure creation and defaults."""
 
@@ -67,6 +68,7 @@ class TestDataStructures:
 # ============================================================
 # Test IV Proxy Mapping
 # ============================================================
+
 
 class TestIVProxyMap:
     """Test the IV_PROXY_MAP completeness and consistency."""
@@ -105,6 +107,7 @@ class TestIVProxyMap:
 # ============================================================
 # Test Single IV Index Fetching
 # ============================================================
+
 
 class TestFetchSingleIVIndex:
     """Test _fetch_single_iv_index with mocked yfinance."""
@@ -169,6 +172,7 @@ class TestFetchSingleIVIndex:
 # Test fetch_implied_volatility — Main Function
 # ============================================================
 
+
 class TestFetchImpliedVolatility:
     """Test fetch_implied_volatility with mocked _fetch_single_iv_index."""
 
@@ -203,9 +207,7 @@ class TestFetchImpliedVolatility:
         results = fetch_implied_volatility(tickers)
 
         for ticker in tickers:
-            assert results[ticker] is None, (
-                f"{ticker} should have no IV proxy"
-            )
+            assert results[ticker] is None, f"{ticker} should have no IV proxy"
 
     @patch("src.data.implied_volatility._fetch_single_iv_index")
     def test_deduplication_same_iv_index(self, mock_fetch):
@@ -218,8 +220,7 @@ class TestFetchImpliedVolatility:
 
         # ^VIX should have been fetched only once (deduplication)
         vix_fetch_count = sum(
-            1 for call in mock_fetch.call_args_list
-            if call[0][0] == "^VIX"
+            1 for call in mock_fetch.call_args_list if call[0][0] == "^VIX"
         )
         assert vix_fetch_count == 1, (
             f"^VIX should be fetched once, got {vix_fetch_count}"
@@ -244,6 +245,7 @@ class TestFetchImpliedVolatility:
     @patch("src.data.implied_volatility._fetch_single_iv_index")
     def test_mixed_available_and_unavailable(self, mock_fetch):
         """Should handle mix of assets with and without IV proxies."""
+
         # Only ^VIX succeeds, ^MOVE fails
         def mock_fetch_side_effect(ticker):
             if ticker == "^VIX":

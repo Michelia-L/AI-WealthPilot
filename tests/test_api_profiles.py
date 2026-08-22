@@ -123,7 +123,9 @@ def test_validation_rejects_bad_payload(client):
     assert client.post("/api/profiles", json=sample_payload(name="")).status_code == 422
     assert client.post("/api/profiles", json=sample_payload(age=10)).status_code == 422
     assert (
-        client.post("/api/profiles", json=sample_payload(marital_status="complicated")).status_code
+        client.post(
+            "/api/profiles", json=sample_payload(marital_status="complicated")
+        ).status_code
         == 422
     )
 
@@ -131,7 +133,9 @@ def test_validation_rejects_bad_payload(client):
 def test_risk_level_classification(client):
     resp = client.post(
         "/api/profiles",
-        json=sample_payload(risk_scores={"ability_score": 4.5, "willingness_score": 4.0}),
+        json=sample_payload(
+            risk_scores={"ability_score": 4.5, "willingness_score": 4.0}
+        ),
     )
     assert resp.json()["derived"]["tolerance_level"] == "Moderately Aggressive / 成长型"
 
@@ -193,8 +197,13 @@ def test_questionnaire_serves_request_locale(client, bare_client):
 
     en = bare_client.get("/api/profiles/questionnaire").json()
     assert en["ability"][0]["question"] == "How stable is your current income?"
-    assert en["ability"][0]["options"][0]["label"] == "Very unstable (freelance, variable)"
-    assert en["willingness"][0]["question"] == "If your portfolio dropped 20% in a month, you would:"
+    assert (
+        en["ability"][0]["options"][0]["label"] == "Very unstable (freelance, variable)"
+    )
+    assert (
+        en["willingness"][0]["question"]
+        == "If your portfolio dropped 20% in a month, you would:"
+    )
     # No Chinese residue in any English question/option text.
     for track in ("ability", "willingness"):
         for q in en[track]:
@@ -294,7 +303,10 @@ def test_compare_profiles_with_biases(client):
     alice_entry, bob_entry = body["profiles"]
     assert alice_entry["id"] == alice
     assert alice_entry["financial_summary"]["net_worth"] == 200000
-    assert alice_entry["financial_summary"]["risk_level"] == "Moderately Aggressive / 成长型"
+    assert (
+        alice_entry["financial_summary"]["risk_level"]
+        == "Moderately Aggressive / 成长型"
+    )
     assert alice_entry["bias_count"] == 0
 
     # Bob: willingness 1.5 vs ability 4.5 → loss aversion + risk mismatch.
@@ -317,7 +329,12 @@ def test_compare_validation(client):
 
     # Above the 6-profile cap.
     more = [_create(client, name=f"P{i}") for i in range(6)]
-    assert client.get(f"/api/profiles/compare?ids={a},{b},{','.join(map(str, more))}").status_code == 422
+    assert (
+        client.get(
+            f"/api/profiles/compare?ids={a},{b},{','.join(map(str, more))}"
+        ).status_code
+        == 422
+    )
 
 
 def test_compare_rejects_duplicate_names(client):
@@ -365,7 +382,9 @@ def test_import_legacy_json_idempotent(client, isolate_storage_dirs):
     assert detail["created_at"].startswith("2026-06-0")
 
 
-def test_maybe_auto_import_only_seeds_empty_db(tmp_path, monkeypatch, isolate_storage_dirs):
+def test_maybe_auto_import_only_seeds_empty_db(
+    tmp_path, monkeypatch, isolate_storage_dirs
+):
     """maybe_auto_import seeds legacy JSON on first boot, never overwrites."""
     from sqlmodel import Session, SQLModel, create_engine, select
 

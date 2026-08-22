@@ -26,17 +26,20 @@ def returns_with_proxy():
     rng = np.random.default_rng(11)
     n_days = 800
     proxy = pd.Series(rng.normal(0.0002, 0.004, n_days), name="PROXY")
-    assets = pd.DataFrame({
-        "EQ": rng.normal(0.0005, 0.012, n_days) * 0.9 + proxy.values * 0.3,
-        "BOND": proxy.values * 1.2 + rng.normal(0.0, 0.001, n_days),
-        "GOLD": rng.normal(0.0003, 0.010, n_days),
-    })
+    assets = pd.DataFrame(
+        {
+            "EQ": rng.normal(0.0005, 0.012, n_days) * 0.9 + proxy.values * 0.3,
+            "BOND": proxy.values * 1.2 + rng.normal(0.0, 0.001, n_days),
+            "GOLD": rng.normal(0.0003, 0.010, n_days),
+        }
+    )
     return assets, proxy
 
 
 # ============================================================
 # goals_to_liability
 # ============================================================
+
 
 class TestGoalsToLiability:
     """Goal-stream discounting into PV + Macaulay duration."""
@@ -80,6 +83,7 @@ class TestGoalsToLiability:
 # ============================================================
 # stream_to_liability / retirement_income_stream (LDI v2)
 # ============================================================
+
 
 class TestStreamToLiability:
     """Cash-flow stream discounting with separate growth/discount rates."""
@@ -159,6 +163,7 @@ class TestRetirementIncomeStream:
 # estimate_liability_stats
 # ============================================================
 
+
 class TestEstimateLiabilityStats:
     """Duration-scaled proxy model: r_L = g + λ·(r_p − μ_p)."""
 
@@ -166,7 +171,10 @@ class TestEstimateLiabilityStats:
         assets, proxy = returns_with_proxy
         growth = 0.03
         mu_L, sigma_L, cov_vec = estimate_liability_stats(
-            proxy, assets, proxy_duration=6.0, liability_duration=15.0,
+            proxy,
+            assets,
+            proxy_duration=6.0,
+            liability_duration=15.0,
             growth_rate=growth,
         )
         lam = 15.0 / 6.0
@@ -182,7 +190,10 @@ class TestEstimateLiabilityStats:
         """D_L = 0 ⇒ the liability is riskless: σ_L = 0, c = 0, μ_L = g."""
         assets, proxy = returns_with_proxy
         mu_L, sigma_L, cov_vec = estimate_liability_stats(
-            proxy, assets, proxy_duration=6.0, liability_duration=0.0,
+            proxy,
+            assets,
+            proxy_duration=6.0,
+            liability_duration=0.0,
             growth_rate=0.02,
         )
         assert mu_L == 0.02
@@ -194,6 +205,7 @@ class TestEstimateLiabilityStats:
 # estimate_liability_stats_from_curve
 # ============================================================
 
+
 class TestEstimateLiabilityStatsFromCurve:
     """Curve-based model: r_L = −D_L · Δy(D_L) on the curve history."""
 
@@ -201,21 +213,27 @@ class TestEstimateLiabilityStatsFromCurve:
         """Random-walk yield history + two assets with known exposure to Δy."""
         idx = pd.bdate_range("2025-01-06", periods=n)
         rng = np.random.default_rng(seed)
-        dy = rng.normal(0.0, 0.0004, n)          # daily yield innovations
-        y10 = 0.02 + np.cumsum(dy)               # 10y node (random walk)
+        dy = rng.normal(0.0, 0.0004, n)  # daily yield innovations
+        y10 = 0.02 + np.cumsum(dy)  # 10y node (random walk)
         hist = pd.DataFrame({1.0: y10 - 0.005, 10.0: y10}, index=idx)
         # bond_like gains when yields fall; equity_like gains when they rise
-        assets = pd.DataFrame({
-            "BOND_LIKE": -np.array(dy),
-            "EQ_LIKE": np.array(dy),
-        }, index=idx)
+        assets = pd.DataFrame(
+            {
+                "BOND_LIKE": -np.array(dy),
+                "EQ_LIKE": np.array(dy),
+            },
+            index=idx,
+        )
         return hist, assets, dy
 
     def test_sigma_and_cov_signs(self):
         hist, assets, dy = self._inputs()
         duration = 12.0  # beyond the 10y node → rate_at flattens to y10
         result = estimate_liability_stats_from_curve(
-            hist, assets, liability_duration=duration, growth_rate=0.03,
+            hist,
+            assets,
+            liability_duration=duration,
+            growth_rate=0.03,
         )
         assert result is not None
         mu_L, sigma_L, cov_vec = result
@@ -234,28 +252,47 @@ class TestEstimateLiabilityStatsFromCurve:
 
     def test_too_few_aligned_points_returns_none(self):
         hist, assets, _ = self._inputs(n=30)  # < min_points=60
-        assert estimate_liability_stats_from_curve(
-            hist, assets, liability_duration=10.0, growth_rate=0.03,
-        ) is None
+        assert (
+            estimate_liability_stats_from_curve(
+                hist,
+                assets,
+                liability_duration=10.0,
+                growth_rate=0.03,
+            )
+            is None
+        )
 
     def test_disjoint_dates_return_none(self):
         hist, assets, _ = self._inputs()
         assets.index = pd.bdate_range("2030-01-01", periods=len(assets))
-        assert estimate_liability_stats_from_curve(
-            hist, assets, liability_duration=10.0, growth_rate=0.03,
-        ) is None
+        assert (
+            estimate_liability_stats_from_curve(
+                hist,
+                assets,
+                liability_duration=10.0,
+                growth_rate=0.03,
+            )
+            is None
+        )
 
     def test_empty_history_returns_none(self):
         _, assets, _ = self._inputs()
         empty = pd.DataFrame()
-        assert estimate_liability_stats_from_curve(
-            empty, assets, liability_duration=10.0, growth_rate=0.03,
-        ) is None
+        assert (
+            estimate_liability_stats_from_curve(
+                empty,
+                assets,
+                liability_duration=10.0,
+                growth_rate=0.03,
+            )
+            is None
+        )
 
 
 # ============================================================
 # Surplus optimization (Sharpe-Tint)
 # ============================================================
+
 
 class TestSurplusOptimization:
     """Surplus QP on PortfolioOptimizer."""
@@ -263,8 +300,11 @@ class TestSurplusOptimization:
     def _liability(self, returns_with_proxy, duration=15.0, growth=0.025):
         assets, proxy = returns_with_proxy
         return estimate_liability_stats(
-            proxy, assets, proxy_duration=6.0,
-            liability_duration=duration, growth_rate=growth,
+            proxy,
+            assets,
+            proxy_duration=6.0,
+            liability_duration=duration,
+            growth_rate=growth,
         )
 
     def test_zero_ratio_degenerates_to_classic_mvo(self, returns_with_proxy):

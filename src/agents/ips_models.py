@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, model_validator
 
 class RiskToleranceLevel(str, Enum):
     """Risk tolerance level enumeration."""
+
     CONSERVATIVE = "conservative"
     MODERATELY_CONSERVATIVE = "moderately_conservative"
     MODERATE = "moderate"
@@ -22,22 +23,23 @@ class RiskToleranceLevel(str, Enum):
 
 class IssueSeverity(str, Enum):
     """Severity level for review issues."""
-    CRITICAL = "critical"   # Must fix before approval
-    WARNING = "warning"     # Should fix, but not blocking
-    INFO = "info"           # Optional improvement
+
+    CRITICAL = "critical"  # Must fix before approval
+    WARNING = "warning"  # Should fix, but not blocking
+    INFO = "info"  # Optional improvement
 
 
 class ReviewDimension(str, Enum):
     """Review dimension enumeration."""
-    SUITABILITY = "suitability"    # Client-IPS fit
-    COMPLIANCE = "compliance"      # Regulatory compliance
-    CONSISTENCY = "consistency"    # Internal logic consistency
 
-
+    SUITABILITY = "suitability"  # Client-IPS fit
+    COMPLIANCE = "compliance"  # Regulatory compliance
+    CONSISTENCY = "consistency"  # Internal logic consistency
 
 
 class GoalReturnRequirement(BaseModel):
     """Per-goal return requirement for multi-objective portfolios."""
+
     goal_name: str = Field(
         description="Goal name, e.g. 'Retirement', 'Child Education', 'House Purchase'"
     )
@@ -45,33 +47,30 @@ class GoalReturnRequirement(BaseModel):
         description="Target amount needed for this goal in base currency"
     )
     current_allocation: float = Field(
-        default=0.0,
-        description="Capital currently allocated toward this goal"
+        default=0.0, description="Capital currently allocated toward this goal"
     )
     time_horizon_years: int = Field(
         description="Years until this goal needs to be funded"
     )
-    priority: str = Field(
-        description="Goal priority: 'high', 'medium', or 'low'"
-    )
+    priority: str = Field(description="Goal priority: 'high', 'medium', or 'low'")
     required_return: float = Field(
         description="Required annual return for this specific goal, "
-                    "e.g. 0.08 for 8%. Derived via contribution-aware TVM: "
-                    "solve PV·(1+r)^n + PMT·[((1+r)^n − 1)/r] = FV for r, "
-                    "where PMT is the annual savings allocated to the goal "
-                    "(reduces to r = (FV/PV)^(1/n) − 1 when PMT = 0)"
+        "e.g. 0.08 for 8%. Derived via contribution-aware TVM: "
+        "solve PV·(1+r)^n + PMT·[((1+r)^n − 1)/r] = FV for r, "
+        "where PMT is the annual savings allocated to the goal "
+        "(reduces to r = (FV/PV)^(1/n) − 1 when PMT = 0)"
     )
     calculation_basis: str = Field(
-        default="",
-        description="Derivation formula for this goal's required return"
+        default="", description="Derivation formula for this goal's required return"
     )
 
 
 class ReturnObjective(BaseModel):
     """IPS Section: Return Objectives."""
+
     required_nominal_return: float = Field(
         description="Required nominal annual return rate, e.g. 0.08 for 8%. "
-                    "When multiple goals exist, this is the capital-weighted composite rate."
+        "When multiple goals exist, this is the capital-weighted composite rate."
     )
     required_real_return: float = Field(
         description="Required real annual return rate after inflation"
@@ -85,19 +84,20 @@ class ReturnObjective(BaseModel):
     goal_level_requirements: list[GoalReturnRequirement] = Field(
         default_factory=list,
         description="Per-goal return requirements for multi-objective portfolios. "
-                    "Each goal specifies its own target amount, time horizon, and required return."
+        "Each goal specifies its own target amount, time horizon, and required return.",
     )
     return_methodology: str = Field(
         default="",
         description="Calculation methodology used to derive return requirements, "
-                    "e.g. 'Contribution-aware TVM: solve PV·(1+r)^n + "
-                    "PMT·[((1+r)^n − 1)/r] = FV' (PMT = annual savings; "
-                    "reduces to (FV/PV)^(1/n) − 1 when PMT = 0)"
+        "e.g. 'Contribution-aware TVM: solve PV·(1+r)^n + "
+        "PMT·[((1+r)^n − 1)/r] = FV' (PMT = annual savings; "
+        "reduces to (FV/PV)^(1/n) − 1 when PMT = 0)",
     )
 
 
 class RiskToleranceAssessment(BaseModel):
     """IPS Section: Risk Tolerance (dual-track ability/willingness assessment)."""
+
     ability_assessment: str = Field(
         description="Objective risk ability assessment narrative"
     )
@@ -106,40 +106,36 @@ class RiskToleranceAssessment(BaseModel):
     )
     conflict_resolution: Optional[str] = Field(
         default=None,
-        description="Conflict resolution explanation (only when ability != willingness)"
+        description="Conflict resolution explanation (only when ability != willingness)",
     )
     overall_risk_level: RiskToleranceLevel = Field(
         description="Final risk tolerance classification"
     )
-    risk_narrative: str = Field(
-        description="Comprehensive risk tolerance narrative"
-    )
+    risk_narrative: str = Field(description="Comprehensive risk tolerance narrative")
 
     # Quantitative risk anchors (all Optional for backward compatibility)
     max_acceptable_annual_loss: Optional[float] = Field(
-        default=None,
-        description="Maximum acceptable annual loss, e.g. -0.15 for -15%"
+        default=None, description="Maximum acceptable annual loss, e.g. -0.15 for -15%"
     )
     target_volatility_min: Optional[float] = Field(
         default=None,
-        description="Lower bound of target portfolio volatility range, e.g. 0.08 for 8%"
+        description="Lower bound of target portfolio volatility range, e.g. 0.08 for 8%",
     )
     target_volatility_max: Optional[float] = Field(
         default=None,
-        description="Upper bound of target portfolio volatility range, e.g. 0.12 for 12%"
+        description="Upper bound of target portfolio volatility range, e.g. 0.12 for 12%",
     )
     var_tolerance_95: Optional[float] = Field(
-        default=None,
-        description="95% VaR tolerance (annual), e.g. -0.20 for -20%"
+        default=None, description="95% VaR tolerance (annual), e.g. -0.20 for -20%"
     )
     max_drawdown_tolerance: Optional[float] = Field(
-        default=None,
-        description="Maximum drawdown tolerance, e.g. -0.25 for -25%"
+        default=None, description="Maximum drawdown tolerance, e.g. -0.25 for -25%"
     )
 
 
 class TimeHorizonStage(BaseModel):
     """A single stage in a multi-stage time horizon."""
+
     name: str = Field(description="Stage name, e.g. 'Accumulation' or 'Distribution'")
     years: int = Field(description="Duration of this stage in years")
     description: str = Field(description="Description of this stage's characteristics")
@@ -147,25 +143,19 @@ class TimeHorizonStage(BaseModel):
 
 class TimeHorizonAnalysis(BaseModel):
     """IPS Section: Time Horizon."""
+
     stages: list[TimeHorizonStage] = Field(
         description="Investment stages with durations"
     )
-    overall_horizon_years: int = Field(
-        description="Total investment horizon in years"
-    )
-    horizon_narrative: str = Field(
-        description="Time horizon analysis narrative"
-    )
+    overall_horizon_years: int = Field(description="Total investment horizon in years")
+    horizon_narrative: str = Field(description="Time horizon analysis narrative")
 
 
 class LiquidityConstraint(BaseModel):
     """IPS Section: Liquidity Constraints."""
-    immediate_needs: float = Field(
-        description="Cash needed within 12 months"
-    )
-    ongoing_needs: float = Field(
-        description="Annual ongoing cash withdrawal needs"
-    )
+
+    immediate_needs: float = Field(description="Cash needed within 12 months")
+    ongoing_needs: float = Field(description="Annual ongoing cash withdrawal needs")
     emergency_reserve_months: int = Field(
         description="Recommended emergency fund in months of expenses"
     )
@@ -176,48 +166,37 @@ class LiquidityConstraint(BaseModel):
 
 class TaxConstraint(BaseModel):
     """IPS Section: Tax Constraints."""
+
     tax_status: str = Field(
         description="Client tax status: taxable, tax-exempt, or tax-deferred"
     )
-    tax_considerations: str = Field(
-        description="Specific tax optimization strategies"
-    )
-    tax_narrative: str = Field(
-        description="Tax constraint analysis narrative"
-    )
+    tax_considerations: str = Field(description="Specific tax optimization strategies")
+    tax_narrative: str = Field(description="Tax constraint analysis narrative")
 
 
 class LegalConstraint(BaseModel):
     """IPS Section: Legal & Regulatory Constraints."""
+
     applicable_regulations: list[str] = Field(
         description="List of applicable regulations"
     )
-    legal_narrative: str = Field(
-        description="Legal constraint analysis narrative"
-    )
+    legal_narrative: str = Field(description="Legal constraint analysis narrative")
 
 
 class UniqueCircumstance(BaseModel):
     """IPS Section: Unique Circumstances."""
+
     esg_preferences: Optional[str] = Field(
-        default=None,
-        description="ESG investment preferences if any"
+        default=None, description="ESG investment preferences if any"
     )
     sector_restrictions: list[str] = Field(
-        default_factory=list,
-        description="Excluded sectors or industries"
+        default_factory=list, description="Excluded sectors or industries"
     )
     concentrated_positions: Optional[str] = Field(
-        default=None,
-        description="Concentrated position risks if any"
+        default=None, description="Concentrated position risks if any"
     )
-    other_circumstances: str = Field(
-        default="",
-        description="Other unique factors"
-    )
-    unique_narrative: str = Field(
-        description="Unique circumstances narrative"
-    )
+    other_circumstances: str = Field(default="", description="Other unique factors")
+    unique_narrative: str = Field(description="Unique circumstances narrative")
 
 
 class AssetAllocationTarget(BaseModel):
@@ -227,8 +206,11 @@ class AssetAllocationTarget(BaseModel):
     These constraints previously did not exist (#6): a negative volatility-free
     weight or a target outside its range could be accepted silently.
     """
+
     asset_class: str = Field(description="Asset class name")
-    target_weight: float = Field(ge=0, le=1, description="Target allocation weight, e.g. 0.30 for 30%")
+    target_weight: float = Field(
+        ge=0, le=1, description="Target allocation weight, e.g. 0.30 for 30%"
+    )
     min_weight: float = Field(ge=0, le=1, description="Minimum allowed weight")
     max_weight: float = Field(ge=0, le=1, description="Maximum allowed weight")
     rationale: str = Field(description="Allocation rationale for this asset class")
@@ -250,6 +232,7 @@ class AssetAllocationTarget(BaseModel):
 
 class InvestmentGuideline(BaseModel):
     """IPS Section: Investment Guidelines & Policy."""
+
     strategic_allocation: list[AssetAllocationTarget] = Field(
         description="Strategic Asset Allocation (SAA) targets"
     )
@@ -262,19 +245,19 @@ class InvestmentGuideline(BaseModel):
     rebalancing_policy: str = Field(
         description="Rebalancing policy and trigger conditions"
     )
-    guideline_narrative: str = Field(
-        description="Investment guidelines narrative"
-    )
+    guideline_narrative: str = Field(description="Investment guidelines narrative")
 
 
 class BenchmarkSpec(BaseModel):
     """Benchmark specification for an asset class."""
+
     asset_class: str = Field(description="Asset class name")
     benchmark: str = Field(description="Benchmark index name")
 
 
 class MonitoringPolicy(BaseModel):
     """IPS Section: Monitoring & Evaluation."""
+
     review_frequency: str = Field(
         description="Review frequency, e.g. 'quarterly' or 'semi-annual'"
     )
@@ -284,62 +267,70 @@ class MonitoringPolicy(BaseModel):
     rebalancing_triggers: list[str] = Field(
         description="Conditions that trigger rebalancing"
     )
-    monitoring_narrative: str = Field(
-        description="Monitoring and evaluation narrative"
-    )
+    monitoring_narrative: str = Field(description="Monitoring and evaluation narrative")
 
 
 class FeeSchedule(BaseModel):
     """IPS Section: Fee and Cost Disclosure."""
+
     management_fee_rate: float = Field(
         default=0.0,
-        description="Annual investment management fee rate, e.g. 0.01 for 1%"
+        description="Annual investment management fee rate, e.g. 0.01 for 1%",
     )
     custody_fee_rate: float = Field(
-        default=0.0,
-        description="Annual custody/safekeeping fee rate"
+        default=0.0, description="Annual custody/safekeeping fee rate"
     )
     transaction_cost_estimate: float = Field(
-        default=0.0,
-        description="Estimated annual transaction costs as % of AUM"
+        default=0.0, description="Estimated annual transaction costs as % of AUM"
     )
     total_expense_ratio: float = Field(
         default=0.0,
-        description="Total Expense Ratio (TER) = management + custody + transaction costs"
+        description="Total Expense Ratio (TER) = management + custody + transaction costs",
     )
     net_return_impact: str = Field(
         default="",
         description="Description of fee impact on net returns, "
-                    "e.g. 'Gross return 8.0% minus TER 1.5% = net return 6.5%'"
+        "e.g. 'Gross return 8.0% minus TER 1.5% = net return 6.5%'",
     )
     fee_narrative: str = Field(
         default="",
-        description="Complete fee disclosure narrative covering all cost components"
+        description="Complete fee disclosure narrative covering all cost components",
     )
 
 
 class CurrencyPolicy(BaseModel):
     """Currency management policy for multi-currency portfolios."""
-    base_currency: str = Field(default="CNY", description="Client's base/reporting currency")
-    foreign_exposure_pct: float = Field(default=0.0, description="Estimated foreign currency exposure as pct of portfolio")
-    hedging_strategy: str = Field(default="", description="Currency hedging approach, e.g. 'Unhedged', 'Partial hedge via forward contracts'")
-    hedging_ratio: float = Field(default=0.0, description="Target hedge ratio for foreign exposure")
-    currency_narrative: str = Field(default="", description="Narrative on currency risk and management")
 
-
+    base_currency: str = Field(
+        default="CNY", description="Client's base/reporting currency"
+    )
+    foreign_exposure_pct: float = Field(
+        default=0.0,
+        description="Estimated foreign currency exposure as pct of portfolio",
+    )
+    hedging_strategy: str = Field(
+        default="",
+        description="Currency hedging approach, e.g. 'Unhedged', 'Partial hedge via forward contracts'",
+    )
+    hedging_ratio: float = Field(
+        default=0.0, description="Target hedge ratio for foreign exposure"
+    )
+    currency_narrative: str = Field(
+        default="", description="Narrative on currency risk and management"
+    )
 
 
 class IPSDocument(BaseModel):
     """Complete Investment Policy Statement (IPS) — top-level output."""
+
     # Metadata
     client_name: str = Field(description="Client full name")
     prepared_by: str = Field(
-        default="AI WealthPilot IPS Generator",
-        description="Who prepared this IPS"
+        default="AI WealthPilot IPS Generator", description="Who prepared this IPS"
     )
     preparation_date: str = Field(
         default_factory=lambda: datetime.now().strftime("%Y-%m-%d"),
-        description="IPS preparation date"
+        description="IPS preparation date",
     )
     version: str = Field(default="1.0", description="IPS version")
 
@@ -350,21 +341,15 @@ class IPSDocument(BaseModel):
     client_background: str = Field(
         description="Client personal and financial background"
     )
-    return_objective: ReturnObjective = Field(
-        description="Return objectives section"
-    )
+    return_objective: ReturnObjective = Field(description="Return objectives section")
     risk_tolerance: RiskToleranceAssessment = Field(
         description="Risk tolerance assessment section"
     )
     time_horizon: TimeHorizonAnalysis = Field(
         description="Time horizon analysis section"
     )
-    liquidity: LiquidityConstraint = Field(
-        description="Liquidity constraints section"
-    )
-    tax: TaxConstraint = Field(
-        description="Tax constraints section"
-    )
+    liquidity: LiquidityConstraint = Field(description="Liquidity constraints section")
+    tax: TaxConstraint = Field(description="Tax constraints section")
     legal: LegalConstraint = Field(
         description="Legal and regulatory constraints section"
     )
@@ -379,45 +364,30 @@ class IPSDocument(BaseModel):
     )
     currency_policy: Optional[CurrencyPolicy] = Field(
         default=None,
-        description="Currency management policy (required when foreign exposure > 10%)"
+        description="Currency management policy (required when foreign exposure > 10%)",
     )
     fee_schedule: Optional[FeeSchedule] = Field(
-        default=None,
-        description="Fee and cost disclosure section"
+        default=None, description="Fee and cost disclosure section"
     )
 
     # Compliance
-    risk_disclosure: str = Field(
-        description="Risk disclosure statement"
-    )
-    compliance_statement: str = Field(
-        description="Compliance and legal disclaimer"
-    )
-
-
+    risk_disclosure: str = Field(description="Risk disclosure statement")
+    compliance_statement: str = Field(description="Compliance and legal disclaimer")
 
 
 class ReviewIssue(BaseModel):
     """A single issue found during IPS review."""
-    section: str = Field(
-        description="Which IPS section has the issue"
-    )
+
+    section: str = Field(description="Which IPS section has the issue")
     dimension: ReviewDimension = Field(
         description="Review dimension this issue belongs to"
     )
-    severity: IssueSeverity = Field(
-        description="Issue severity level"
-    )
-    description: str = Field(
-        description="Detailed description of the issue"
-    )
+    severity: IssueSeverity = Field(description="Issue severity level")
+    description: str = Field(description="Detailed description of the issue")
     regulation_reference: Optional[str] = Field(
-        default=None,
-        description="Cited regulation or principle if applicable"
+        default=None, description="Cited regulation or principle if applicable"
     )
-    suggestion: str = Field(
-        description="Suggested fix for the issue"
-    )
+    suggestion: str = Field(description="Suggested fix for the issue")
 
 
 class ReviewResult(BaseModel):
@@ -427,38 +397,27 @@ class ReviewResult(BaseModel):
     Each review agent (suitability, compliance, consistency)
     returns one ReviewResult per invocation.
     """
-    dimension: ReviewDimension = Field(
-        description="Which dimension was reviewed"
-    )
-    passed: bool = Field(
-        description="Whether this dimension passed review"
-    )
+
+    dimension: ReviewDimension = Field(description="Which dimension was reviewed")
+    passed: bool = Field(description="Whether this dimension passed review")
     issues: list[ReviewIssue] = Field(
-        default_factory=list,
-        description="List of issues found (empty if passed)"
+        default_factory=list, description="List of issues found (empty if passed)"
     )
-    summary: str = Field(
-        description="Overall review summary for this dimension"
-    )
-
-
+    summary: str = Field(description="Overall review summary for this dimension")
 
 
 class RevisionRecord(BaseModel):
     """Audit trail record for a single revision round."""
+
     round_number: int = Field(description="Revision round number (1-based)")
     review_results: list[ReviewResult] = Field(
         description="Review results that triggered this revision"
     )
-    changes_made: list[str] = Field(
-        description="List of changes made in this revision"
-    )
+    changes_made: list[str] = Field(description="List of changes made in this revision")
     ips_version_before: str = Field(
         description="IPS version identifier before revision"
     )
-    ips_version_after: str = Field(
-        description="IPS version identifier after revision"
-    )
+    ips_version_after: str = Field(description="IPS version identifier after revision")
 
 
 class AuditTrail(BaseModel):
@@ -468,19 +427,17 @@ class AuditTrail(BaseModel):
     Records every review and revision step for regulatory compliance
     and transparency requirements.
     """
+
     revision_history: list[RevisionRecord] = Field(
-        default_factory=list,
-        description="Chronological list of revision records"
+        default_factory=list, description="Chronological list of revision records"
     )
     total_rounds: int = Field(
-        default=0,
-        description="Total number of revision rounds executed"
+        default=0, description="Total number of revision rounds executed"
     )
     final_status: str = Field(
         default="pending",
-        description="Final status: 'approved' or 'escalated_to_human'"
+        description="Final status: 'approved' or 'escalated_to_human'",
     )
     generation_metadata: dict = Field(
-        default_factory=dict,
-        description="Model name, token usage, timestamps, etc."
+        default_factory=dict, description="Model name, token usage, timestamps, etc."
     )

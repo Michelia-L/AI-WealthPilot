@@ -33,6 +33,7 @@ from src.portfolio.optimizer import PortfolioOptimizer
 # Fixtures
 # ============================================================
 
+
 @pytest.fixture
 def sample_returns():
     """Generate synthetic returns for testing."""
@@ -155,6 +156,7 @@ def profile_with_goals():
 # Test Risk Score Mapping
 # ============================================================
 
+
 class TestRiskScoreMapping:
     """Tests for risk score to volatility mapping."""
 
@@ -192,12 +194,11 @@ class TestRiskScoreMapping:
 # Test Portfolio Recommendation
 # ============================================================
 
+
 class TestPortfolioRecommendation:
     """Tests for portfolio recommendation generation."""
 
-    def test_recommendation_has_all_fields(
-        self, moderate_profile, sample_returns
-    ):
+    def test_recommendation_has_all_fields(self, moderate_profile, sample_returns):
         """Test that recommendation contains all required fields."""
         rec = recommend_portfolio(moderate_profile, sample_returns)
 
@@ -247,16 +248,12 @@ class TestPortfolioRecommendation:
         for weight in rec.suggested_allocation.values():
             assert weight >= -0.001  # Small tolerance for floating point
 
-    def test_rationale_contains_risk_level(
-        self, moderate_profile, sample_returns
-    ):
+    def test_rationale_contains_risk_level(self, moderate_profile, sample_returns):
         """Test that rationale mentions the risk level."""
         rec = recommend_portfolio(moderate_profile, sample_returns)
         assert "Moderate" in rec.rationale or "平衡型" in rec.rationale
 
-    def test_recommendation_with_goals(
-        self, profile_with_goals, sample_returns
-    ):
+    def test_recommendation_with_goals(self, profile_with_goals, sample_returns):
         """Test recommendation when profile has investment goals."""
         rec = recommend_portfolio(profile_with_goals, sample_returns)
 
@@ -286,9 +283,7 @@ class TestPortfolioRecommendation:
         years = 10
         # Build the target amount with the same contribution-aware TVM the
         # engine solves, so the solved required return lands on `required`.
-        savings = (
-            profile.financial.annual_income - profile.financial.annual_expenses
-        )
+        savings = profile.financial.annual_income - profile.financial.annual_expenses
         growth = (1 + required) ** years
         target_amount = (
             profile.financial.investable_assets * growth
@@ -389,20 +384,22 @@ class TestPortfolioRecommendation:
         lump_sum_required = (2_000_000 / 200_000) ** (1 / 25) - 1
         assert 0 < rec.goal_required_return < lump_sum_required
 
-    def test_multi_goal_capital_allocation(
-        self, moderate_profile, sample_returns
-    ):
+    def test_multi_goal_capital_allocation(self, moderate_profile, sample_returns):
         """Capital and savings are split across goals proportionally to
         priority rank; every goal gets its own required return and status,
         and the primary (highest-priority) goal drives the recommendation."""
         profile = copy.deepcopy(moderate_profile)
         profile.goals = [
             InvestmentGoal(
-                name="Retirement", target_amount=2_000_000, years=25,
+                name="Retirement",
+                target_amount=2_000_000,
+                years=25,
                 priority="high",
             ),
             InvestmentGoal(
-                name="Education", target_amount=300_000, years=10,
+                name="Education",
+                target_amount=300_000,
+                years=10,
                 priority="low",
             ),
         ]
@@ -426,15 +423,14 @@ class TestPortfolioRecommendation:
         )
         assert rec.goal_name == "Retirement"
         assert rec.goal_status == retirement["status"]
-        assert rec.goal_required_return == pytest.approx(
-            retirement["required_return"]
-        )
+        assert rec.goal_required_return == pytest.approx(retirement["required_return"])
         assert "All goals" in rec.rationale
 
 
 # ============================================================
 # Test Contribution-Aware Required Return (TVM solver)
 # ============================================================
+
 
 class TestSolveRequiredReturn:
     """Tests for the contribution-aware TVM required-return solver."""
@@ -489,6 +485,7 @@ class TestSolveRequiredReturn:
 # Test Recommendation Text Formatting
 # ============================================================
 
+
 class TestRecommendationFormatting:
     """Tests for recommendation text formatting."""
 
@@ -519,6 +516,7 @@ class TestRecommendationFormatting:
 # ============================================================
 # Integration Test
 # ============================================================
+
 
 class TestRecommenderIntegration:
     """Integration tests for portfolio recommender."""

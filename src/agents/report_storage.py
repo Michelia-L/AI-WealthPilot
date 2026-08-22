@@ -26,11 +26,47 @@ from src.utils import sanitize_filename
 # from the model output would otherwise land verbatim in the report document.
 # nh3 drops anything not on this list and any disallowed attributes.
 _HTML_ALLOWED_TAGS = {
-    "a", "abbr", "b", "blockquote", "br", "code", "del", "div", "em",
-    "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "img", "ins", "kbd",
-    "li", "mark", "ol", "p", "pre", "q", "s", "small", "span", "strong",
-    "sub", "sup", "table", "tbody", "td", "tfoot", "th", "thead", "tr",
-    "u", "ul",
+    "a",
+    "abbr",
+    "b",
+    "blockquote",
+    "br",
+    "code",
+    "del",
+    "div",
+    "em",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "hr",
+    "i",
+    "img",
+    "ins",
+    "kbd",
+    "li",
+    "mark",
+    "ol",
+    "p",
+    "pre",
+    "q",
+    "s",
+    "small",
+    "span",
+    "strong",
+    "sub",
+    "sup",
+    "table",
+    "tbody",
+    "td",
+    "tfoot",
+    "th",
+    "thead",
+    "tr",
+    "u",
+    "ul",
 }
 
 _HTML_ALLOWED_ATTRIBUTES = {
@@ -38,9 +74,13 @@ _HTML_ALLOWED_ATTRIBUTES = {
     "img": {"src", "alt", "title"},
     # Allow inline class/alignment on structural tags (markdown tables etc.)
     # but never event handlers or `style` with script-bearing URLs.
-    "th": {"align"}, "td": {"align"}, "col": {"align", "span"},
+    "th": {"align"},
+    "td": {"align"},
+    "col": {"align", "span"},
     "colgroup": {"align", "span"},
-    "span": {"class"}, "div": {"class"}, "code": {"class"},
+    "span": {"class"},
+    "div": {"class"},
+    "code": {"class"},
 }
 
 
@@ -64,9 +104,11 @@ def _sanitize_html(html_str: str) -> str:
 # Data Model - Stored Report
 # ============================================================
 
+
 @dataclass
 class StoredReport:
     """Represents a stored advisory report with metadata for persistence."""
+
     # Unique identifier
     report_id: str = ""
     # Associated client name
@@ -120,6 +162,7 @@ def _generate_report_id() -> str:
 # Core CRUD Operations
 # Core CRUD Operations
 # ============================================================
+
 
 def save_report(
     content: str,
@@ -255,15 +298,17 @@ def list_reports(
             if client_name and report.client_name != client_name:
                 continue
 
-            reports.append({
-                "report_id": report.report_id,
-                "client_name": report.client_name,
-                "model": report.model,
-                "generated_at": report.generated_at,
-                "total_tokens": report.total_tokens,
-                "filepath": report.filepath,
-                "has_notes": bool(report.notes),
-            })
+            reports.append(
+                {
+                    "report_id": report.report_id,
+                    "client_name": report.client_name,
+                    "model": report.model,
+                    "generated_at": report.generated_at,
+                    "total_tokens": report.total_tokens,
+                    "filepath": report.filepath,
+                    "has_notes": bool(report.notes),
+                }
+            )
 
             if len(reports) >= limit:
                 break
@@ -296,6 +341,7 @@ def delete_report(filepath: Path) -> bool:
 # Report-Profile Association
 # Report-Profile Association
 # ============================================================
+
 
 def get_reports_for_profile(profile_filepath: str) -> list[StoredReport]:
     """Get all reports associated with a specific client profile.
@@ -347,6 +393,7 @@ def update_report_notes(filepath: Path, notes: str) -> bool:
 # Export Functions
 # ============================================================
 
+
 def _markdown_to_html(markdown_text: str) -> str:
     """Convert Markdown text to sanitized HTML.
 
@@ -362,7 +409,7 @@ def _markdown_to_html(markdown_text: str) -> str:
         str: Sanitized HTML string safe to embed in a report document.
     """
     rendered = markdown.markdown(
-        markdown_text, extensions=['extra', 'nl2br'], output_format='html5'
+        markdown_text, extensions=["extra", "nl2br"], output_format="html5"
     )
     return _sanitize_html(rendered)
 
@@ -678,7 +725,9 @@ def export_report_html(report: StoredReport, locale: str = "zh") -> str:
     return html_template
 
 
-def export_report_pdf(report: StoredReport, output_path: Path, locale: str = "zh") -> Path:
+def export_report_pdf(
+    report: StoredReport, output_path: Path, locale: str = "zh"
+) -> Path:
     """Export a stored report to a letterhead-styled PDF (fpdf2).
 
     Layout: letterhead (brand line, bilingual title, gold rule, metadata
@@ -853,8 +902,10 @@ def export_report_pdf(report: StoredReport, output_path: Path, locale: str = "zh
 
         item = re.match(r"^([-*+]|\d+[.)])\s+(.*)$", stripped)
         if item:
-            marker = item.group(1) if item.group(1)[0].isdigit() else (
-                "•" if has_cjk else "-"
+            marker = (
+                item.group(1)
+                if item.group(1)[0].isdigit()
+                else ("•" if has_cjk else "-")
             )
             pdf.set_font(family, "", 10)
             _mc(5, _t(f"    {marker} {_strip_inline(item.group(2))}"))

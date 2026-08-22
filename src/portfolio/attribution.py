@@ -54,9 +54,7 @@ logger = logging.getLogger(__name__)
 # ticker → asset-class key → group, built once from config.
 _TICKER_TO_GROUP: dict[str, str] = {}
 for _key, _info in DEFAULT_ASSET_CLASSES.items():
-    _group = next(
-        (g for g, members in ASSET_GROUPS.items() if _key in members), None
-    )
+    _group = next((g for g, members in ASSET_GROUPS.items() if _key in members), None)
     if _group is not None:
         _TICKER_TO_GROUP[_info["ticker"]] = _group
 
@@ -106,10 +104,7 @@ def monthly_group_series(
     tickers = list(weights)
     groups = {t: group_of_ticker(t) for t in tickers}
     group_list = sorted({groups[t] for t in tickers})
-    w_g = {
-        g: sum(weights[t] for t in tickers if groups[t] == g)
-        for g in group_list
-    }
+    w_g = {g: sum(weights[t] for t in tickers if groups[t] == g) for g in group_list}
 
     periods = prices.index.to_period("M")
     rebal = prices.index[~periods.duplicated()]
@@ -158,9 +153,7 @@ def brinson_attribution(
     if n < 2:
         return None
 
-    all_groups = sorted(
-        set(port_rows[0][0]) | set(bench_rows[0][0])
-    )
+    all_groups = sorted(set(port_rows[0][0]) | set(bench_rows[0][0]))
 
     # Per-span effects, kept per group for the Carino link.
     per_span: list[dict[str, dict[str, float]]] = []
@@ -191,9 +184,7 @@ def brinson_attribution(
             span[g] = {"allocation": a, "selection": s, "interaction": i}
         per_span.append(span)
 
-    k_m = [
-        _carino_factor(port_rows[m][2], bench_rows[m][2]) for m in range(n)
-    ]
+    k_m = [_carino_factor(port_rows[m][2], bench_rows[m][2]) for m in range(n)]
     active_total = port_total_ret - bench_total_ret  # R_p − R_b, cumulative
     # K maps the telescoped log-active difference back to arithmetic:
     # (R_p − R_b) = K · [ln(1+R_p) − ln(1+R_b)].
@@ -216,19 +207,21 @@ def brinson_attribution(
         a = linked("allocation", g)
         s = linked("selection", g)
         i = linked("interaction", g)
-        groups_out.append({
-            "group": g,
-            "avg_weight_portfolio": float(
-                np.mean([port_rows[m][0].get(g, 0.0) for m in range(n)])
-            ),
-            "avg_weight_benchmark": float(
-                np.mean([bench_rows[m][0].get(g, 0.0) for m in range(n)])
-            ),
-            "allocation": a,
-            "selection": s,
-            "interaction": i,
-            "total": a + s + i,
-        })
+        groups_out.append(
+            {
+                "group": g,
+                "avg_weight_portfolio": float(
+                    np.mean([port_rows[m][0].get(g, 0.0) for m in range(n)])
+                ),
+                "avg_weight_benchmark": float(
+                    np.mean([bench_rows[m][0].get(g, 0.0) for m in range(n)])
+                ),
+                "allocation": a,
+                "selection": s,
+                "interaction": i,
+                "total": a + s + i,
+            }
+        )
 
     return {
         "months": n,

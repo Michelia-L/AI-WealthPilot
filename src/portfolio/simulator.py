@@ -43,9 +43,7 @@ class SimulationResult:
         ]
         if self.goal_amount is not None:
             lines.append(f"  Goal: ${self.goal_amount:,.0f}")
-            lines.append(
-                f"  Probability of success: {self.probability_of_success:.1%}"
-            )
+            lines.append(f"  Probability of success: {self.probability_of_success:.1%}")
         return "\n".join(lines)
 
 
@@ -106,7 +104,9 @@ class MonteCarloSimulator:
         for t in range(1, n_periods + 1):
             z = self.rng.standard_normal(self.n_simulations)
             growth = np.exp(drift + self.volatility * z)
-            paths[:, t] = paths[:, t - 1] * growth + annual_contribution - annual_withdrawal
+            paths[:, t] = (
+                paths[:, t - 1] * growth + annual_contribution - annual_withdrawal
+            )
             paths[:, t] = np.maximum(paths[:, t], 0)
 
         terminal = paths[:, -1]
@@ -163,7 +163,7 @@ class MonteCarloSimulator:
         # 30% reduced return/vol for the conservative retirement shift.
         conservative_return = self.expected_return * 0.7
         conservative_vol = self.volatility * 0.7
-        drift = conservative_return - 0.5 * conservative_vol ** 2
+        drift = conservative_return - 0.5 * conservative_vol**2
 
         dist_paths = np.zeros((self.n_simulations, dist_years + 1))
         dist_paths[:, 0] = terminal_values
@@ -203,10 +203,9 @@ class MonteCarloSimulator:
                 # Inflate withdrawal to nominal terms: the target income (in
                 # today's money) is eroded by the accumulation-phase rate
                 # until retirement, then by the distribution-phase rate.
-                inflation_factor = (
-                    (1.0 + inflation_rate) ** accum_years
-                    * (1.0 + distribution_inflation_rate) ** t
-                )
+                inflation_factor = (1.0 + inflation_rate) ** accum_years * (
+                    1.0 + distribution_inflation_rate
+                ) ** t
                 nominal_withdrawal = desired_annual_income * inflation_factor
                 dist_paths[:, t] = dist_paths[:, t - 1] * growth - nominal_withdrawal
                 dist_paths[:, t] = np.maximum(dist_paths[:, t], 0)
@@ -289,9 +288,16 @@ class MonteCarloSimulator:
         dist_seed = int(self.rng.integers(0, 2**31))
 
         dist_paths = self._distribution_phase(
-            accum_result.terminal_values, dist_years, desired_annual_income,
-            accum_years, inflation_rate, distribution_inflation_rate,
-            withdrawal_strategy, guardrail_band, guardrail_adjust, dist_seed,
+            accum_result.terminal_values,
+            dist_years,
+            desired_annual_income,
+            accum_years,
+            inflation_rate,
+            distribution_inflation_rate,
+            withdrawal_strategy,
+            guardrail_band,
+            guardrail_adjust,
+            dist_seed,
         )
 
         # Survival rate: fraction of paths that never hit zero
@@ -310,9 +316,16 @@ class MonteCarloSimulator:
         if withdrawal_strategy == "guardrails":
             # Fixed-strategy baseline on identical draws.
             baseline_paths = self._distribution_phase(
-                accum_result.terminal_values, dist_years, desired_annual_income,
-                accum_years, inflation_rate, distribution_inflation_rate,
-                "fixed", guardrail_band, guardrail_adjust, dist_seed,
+                accum_result.terminal_values,
+                dist_years,
+                desired_annual_income,
+                accum_years,
+                inflation_rate,
+                distribution_inflation_rate,
+                "fixed",
+                guardrail_band,
+                guardrail_adjust,
+                dist_seed,
             )
             result["baseline_survival_rate"] = float(
                 np.mean(np.all(baseline_paths > 0, axis=1))

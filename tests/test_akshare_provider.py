@@ -27,9 +27,7 @@ class TestAkshareProvider:
                 "close": [3900.0, 4000.0, 4010.0],
             }
         )
-        monkeypatch.setattr(
-            akshare_provider, "_fetch_symbol_close", lambda symbol: raw
-        )
+        monkeypatch.setattr(akshare_provider, "_fetch_symbol_close", lambda symbol: raw)
         panel = akshare_provider.fetch_index_history(["000300.SS"], "1y")
         assert list(panel.columns) == ["000300.SS"]
         # The old row outside the lookback window is sliced away.
@@ -158,9 +156,7 @@ class TestFallbackChain:
         stale = pd.DataFrame(
             {"000300.SS": [1.0]}, index=pd.bdate_range("2020-01-02", periods=1)
         )
-        monkeypatch.setattr(
-            akshare_provider, "fetch_index_history", lambda t, p: stale
-        )
+        monkeypatch.setattr(akshare_provider, "fetch_index_history", lambda t, p: stale)
         monkeypatch.setattr(
             market_data,
             "_fetch_price_history_yf",

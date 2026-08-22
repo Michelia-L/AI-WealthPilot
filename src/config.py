@@ -1,6 +1,7 @@
 """
 AI WealthPilot - Global Configuration
 """
+
 import os
 from pathlib import Path
 
@@ -27,35 +28,137 @@ REPORTING_CURRENCY = "USD"  # For international asset pricing and portfolio opti
 
 ASSET_UNIVERSE = {
     # Crypto (USD-denominated)
-    "BTC-USD": {"name": "Bitcoin", "category": "Crypto", "color": "#F7931A", "currency": "USD", "symbol": "$"},
+    "BTC-USD": {
+        "name": "Bitcoin",
+        "category": "Crypto",
+        "color": "#F7931A",
+        "currency": "USD",
+        "symbol": "$",
+    },
     # Commodities (USD-denominated)
-    "GC=F": {"name": "Gold Futures", "category": "Commodity", "color": "#FFD700", "currency": "USD", "symbol": "$"},
-    "SI=F": {"name": "Silver Futures", "category": "Commodity", "color": "#C0C0C0", "currency": "USD", "symbol": "$"},
+    "GC=F": {
+        "name": "Gold Futures",
+        "category": "Commodity",
+        "color": "#FFD700",
+        "currency": "USD",
+        "symbol": "$",
+    },
+    "SI=F": {
+        "name": "Silver Futures",
+        "category": "Commodity",
+        "color": "#C0C0C0",
+        "currency": "USD",
+        "symbol": "$",
+    },
     # US Equity (USD-denominated)
-    "^GSPC": {"name": "S&P 500", "category": "US Equity", "color": "#1F77B4", "currency": "USD", "symbol": ""},
-    "^IXIC": {"name": "NASDAQ", "category": "US Equity", "color": "#2CA02C", "currency": "USD", "symbol": ""},
-    "^DJI": {"name": "Dow Jones", "category": "US Equity", "color": "#9467BD", "currency": "USD", "symbol": ""},
+    "^GSPC": {
+        "name": "S&P 500",
+        "category": "US Equity",
+        "color": "#1F77B4",
+        "currency": "USD",
+        "symbol": "",
+    },
+    "^IXIC": {
+        "name": "NASDAQ",
+        "category": "US Equity",
+        "color": "#2CA02C",
+        "currency": "USD",
+        "symbol": "",
+    },
+    "^DJI": {
+        "name": "Dow Jones",
+        "category": "US Equity",
+        "color": "#9467BD",
+        "currency": "USD",
+        "symbol": "",
+    },
     # Volatility (index points, not a tradable price)
-    "^VIX": {"name": "CBOE VIX", "category": "Volatility", "color": "#C2185B", "currency": "Index", "symbol": ""},
+    "^VIX": {
+        "name": "CBOE VIX",
+        "category": "Volatility",
+        "color": "#C2185B",
+        "currency": "Index",
+        "symbol": "",
+    },
     # CN Equity (CNY-denominated)
-    "000300.SS": {"name": "CSI 300", "category": "CN Equity", "color": "#D62728", "currency": "CNY", "symbol": ""},
+    "000300.SS": {
+        "name": "CSI 300",
+        "category": "CN Equity",
+        "color": "#D62728",
+        "currency": "CNY",
+        "symbol": "",
+    },
     # HK Equity (HKD-denominated)
-    "^HSI": {"name": "Hang Seng", "category": "HK Equity", "color": "#FF7F0E", "currency": "HKD", "symbol": ""},
+    "^HSI": {
+        "name": "Hang Seng",
+        "category": "HK Equity",
+        "color": "#FF7F0E",
+        "currency": "HKD",
+        "symbol": "",
+    },
     # JP Equity (JPY-denominated)
-    "^N225": {"name": "Nikkei 225", "category": "JP Equity", "color": "#E377C2", "currency": "JPY", "symbol": ""},
+    "^N225": {
+        "name": "Nikkei 225",
+        "category": "JP Equity",
+        "color": "#E377C2",
+        "currency": "JPY",
+        "symbol": "",
+    },
     # UK Equity (GBP-denominated)
-    "^FTSE": {"name": "FTSE 100", "category": "UK Equity", "color": "#17BECF", "currency": "GBP", "symbol": ""},
+    "^FTSE": {
+        "name": "FTSE 100",
+        "category": "UK Equity",
+        "color": "#17BECF",
+        "currency": "GBP",
+        "symbol": "",
+    },
     # EU Equity (EUR-denominated)
-    "^GDAXI": {"name": "DAX", "category": "EU Equity", "color": "#BCBD22", "currency": "EUR", "symbol": ""},
+    "^GDAXI": {
+        "name": "DAX",
+        "category": "EU Equity",
+        "color": "#BCBD22",
+        "currency": "EUR",
+        "symbol": "",
+    },
     # KR Equity (KRW-denominated)
-    "^KS11": {"name": "KOSPI", "category": "KR Equity", "color": "#4A90E2", "currency": "KRW", "symbol": ""},
+    "^KS11": {
+        "name": "KOSPI",
+        "category": "KR Equity",
+        "color": "#4A90E2",
+        "currency": "KRW",
+        "symbol": "",
+    },
     # TW Equity (TWD-denominated)
-    "^TWII": {"name": "TAIEX", "category": "TW Equity", "color": "#50E3C2", "currency": "TWD", "symbol": ""},
+    "^TWII": {
+        "name": "TAIEX",
+        "category": "TW Equity",
+        "color": "#50E3C2",
+        "currency": "TWD",
+        "symbol": "",
+    },
     # IN Equity (INR-denominated)
-    "^NSEI": {"name": "Nifty 50", "category": "IN Equity", "color": "#F5A623", "currency": "INR", "symbol": ""},
+    "^NSEI": {
+        "name": "Nifty 50",
+        "category": "IN Equity",
+        "color": "#F5A623",
+        "currency": "INR",
+        "symbol": "",
+    },
     # Currencies (Exchange rates)
-    "DX-Y.NYB": {"name": "US Dollar Index", "category": "Currency", "color": "#7F7F7F", "currency": "Index", "symbol": ""},
-    "CNY=X": {"name": "USD/CNY", "category": "Currency", "color": "#8C564B", "currency": "Rate", "symbol": ""},
+    "DX-Y.NYB": {
+        "name": "US Dollar Index",
+        "category": "Currency",
+        "color": "#7F7F7F",
+        "currency": "Index",
+        "symbol": "",
+    },
+    "CNY=X": {
+        "name": "USD/CNY",
+        "category": "Currency",
+        "color": "#8C564B",
+        "currency": "Rate",
+        "symbol": "",
+    },
 }
 
 # Default portfolio asset classes for optimization
@@ -79,16 +182,18 @@ DEFAULT_ASSET_CLASSES = {
 
 # Portfolio Optimization Defaults
 DEFAULT_RISK_FREE_RATE = 0.045  # Static fallback risk-free rate (4.5%, USD leg)
-DEFAULT_RISK_FREE_RATE_CNY = 0.02  # Static fallback for the CNY leg (~China 1Y government bond yield)
+DEFAULT_RISK_FREE_RATE_CNY = (
+    0.02  # Static fallback for the CNY leg (~China 1Y government bond yield)
+)
 RISK_FREE_RATE = DEFAULT_RISK_FREE_RATE  # For backward compatibility
 TRADING_DAYS_PER_YEAR = 252
 MONTE_CARLO_SIMULATIONS = 10000
 MONTE_CARLO_YEARS = 30
 
 # Black-Litterman Model Defaults
-BL_DEFAULT_TAU = 0.025              # Uncertainty scaling factor
-BL_DEFAULT_DELTA = 2.5              # Risk aversion coefficient
-BL_DEFAULT_CONFIDENCE = 70          # Default view confidence (%)
+BL_DEFAULT_TAU = 0.025  # Uncertainty scaling factor
+BL_DEFAULT_DELTA = 2.5  # Risk aversion coefficient
+BL_DEFAULT_CONFIDENCE = 70  # Default view confidence (%)
 
 # AI Model Configuration — DeepSeek V4 Pro
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
@@ -104,10 +209,10 @@ DEEPSEEK_TEMPERATURE = 0.3
 DEMO_MODE = os.getenv("DEMO_MODE", "").strip().lower() in ("1", "true", "yes", "on")
 
 # CME (Capital Market Expectations) Configuration
-CME_LOOKBACK_YEARS = 5           # Historical data lookback
+CME_LOOKBACK_YEARS = 5  # Historical data lookback
 CME_INFLATION_ASSUMPTION = 0.025  # Long-term inflation assumption
-CME_DATA_INTERVAL = "1d"          # Data frequency
-CME_CACHE_TTL_DAYS = 90            # Cache validity period (days)
+CME_DATA_INTERVAL = "1d"  # Data frequency
+CME_CACHE_TTL_DAYS = 90  # Cache validity period (days)
 CME_CACHE_DIR = DATA_DIR / "cache" / "cme"  # Cache storage path
 
 # Personal inflation presets (demographic & lifestyle-based inflation).
@@ -132,10 +237,10 @@ PERSONAL_INFLATION_ELDERLY_MIN_AGE = 60
 # λ = D_L / D_proxy), so only these documented approximate durations are
 # needed — no yield-curve feed.
 LDI_PROXY_DURATIONS = {
-    "US_BOND": 6.0,              # AGG ~ US aggregate bonds
+    "US_BOND": 6.0,  # AGG ~ US aggregate bonds
     "LONG_TREASURY_BOND": 17.0,  # TLT ~ 20+yr Treasuries
-    "TIPS": 7.0,                 # TIP ~ inflation-protected Treasuries
-    "CN_TREASURY": 4.3,          # 511010.SS ~ SSE 5Y treasury index ETF
+    "TIPS": 7.0,  # TIP ~ inflation-protected Treasuries
+    "CN_TREASURY": 4.3,  # 511010.SS ~ SSE 5Y treasury index ETF
 }
 LDI_DEFAULT_PROXY = "US_BOND"
 
@@ -219,10 +324,10 @@ CME_FORWARD_BLENDING_OMEGA = 0.5
 # ticker (building-blocks income + growth model). These are documented
 # assumptions, not fetched data.
 CME_FORWARD_GROWTH_ASSUMPTIONS = {
-    "000300.SS": 0.06,   # CN equity: nominal GDP-linked
-    "EFA": 0.04,         # DM equity
-    "EWH": 0.045,        # HK equity
-    "VNQ": 0.035,        # REITs: dividend growth
+    "000300.SS": 0.06,  # CN equity: nominal GDP-linked
+    "EFA": 0.04,  # DM equity
+    "EWH": 0.045,  # HK equity
+    "VNQ": 0.035,  # REITs: dividend growth
 }
 
 # Reference allocation for the retirement CME suggestion card: a balanced

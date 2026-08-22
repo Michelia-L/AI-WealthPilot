@@ -55,7 +55,8 @@ def _get_or_404(profile_id: int, session: Session, locale: str) -> ProfileRecord
     record = session.get(ProfileRecord, profile_id)
     if record is None:
         raise HTTPException(
-            status_code=404, detail=msg("common.profile_not_found", locale, id=profile_id)
+            status_code=404,
+            detail=msg("common.profile_not_found", locale, id=profile_id),
         )
     return record
 
@@ -161,7 +162,9 @@ def compare_profile_set(
     try:
         id_list = [int(x) for x in ids.split(",") if x.strip()]
     except ValueError:
-        raise HTTPException(status_code=422, detail=msg("profiles.ids_not_integers", locale)) from None
+        raise HTTPException(
+            status_code=422, detail=msg("profiles.ids_not_integers", locale)
+        ) from None
     id_list = list(dict.fromkeys(id_list))  # dedupe, preserve order
     if len(id_list) < 2:
         raise HTTPException(status_code=422, detail=msg("profiles.compare_min", locale))
@@ -204,6 +207,7 @@ def compare_profile_set(
         ],
     )
 
+
 @router.get("/{profile_id}", response_model=ProfileDetailResponse)
 def get_profile(
     profile_id: int, request: Request, session: Session = Depends(get_session)
@@ -240,6 +244,8 @@ def delete_profile(
 
 
 @router.post("/import", response_model=ProfileImportResponse)
-def import_legacy_json(session: Session = Depends(get_session)) -> ProfileImportResponse:
+def import_legacy_json(
+    session: Session = Depends(get_session),
+) -> ProfileImportResponse:
     """Import data/profiles/*.json (Streamlit era) into SQLite. Idempotent."""
     return ProfileImportResponse(**import_json_profiles(session))

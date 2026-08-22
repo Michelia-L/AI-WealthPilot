@@ -54,7 +54,8 @@ def _fake_returns(stats: dict, n: int = 504, seed: int = 7) -> pd.DataFrame:
 
 def _patch_returns(monkeypatch, returns: pd.DataFrame) -> None:
     monkeypatch.setattr(
-        "api.routers.portfolio._fetch_returns", lambda keys, period, locale="zh": returns
+        "api.routers.portfolio._fetch_returns",
+        lambda keys, period, locale="zh": returns,
     )
 
 
@@ -88,11 +89,26 @@ def _equity_sum(weights: dict) -> float:
 
 
 def test_caps_for_tolerance_levels():
-    assert caps_for_tolerance("Conservative / 保守型") == {"equity": 0.15, "alternative": 0.10}
-    assert caps_for_tolerance("Moderately Conservative / 稳健型") == {"equity": 0.30, "alternative": 0.15}
-    assert caps_for_tolerance("Moderate / 平衡型") == {"equity": 0.50, "alternative": 0.20}
-    assert caps_for_tolerance("Moderately Aggressive / 成长型") == {"equity": 0.70, "alternative": 0.25}
-    assert caps_for_tolerance("Aggressive / 进取型") == {"equity": 0.90, "alternative": 0.30}
+    assert caps_for_tolerance("Conservative / 保守型") == {
+        "equity": 0.15,
+        "alternative": 0.10,
+    }
+    assert caps_for_tolerance("Moderately Conservative / 稳健型") == {
+        "equity": 0.30,
+        "alternative": 0.15,
+    }
+    assert caps_for_tolerance("Moderate / 平衡型") == {
+        "equity": 0.50,
+        "alternative": 0.20,
+    }
+    assert caps_for_tolerance("Moderately Aggressive / 成长型") == {
+        "equity": 0.70,
+        "alternative": 0.25,
+    }
+    assert caps_for_tolerance("Aggressive / 进取型") == {
+        "equity": 0.90,
+        "alternative": 0.30,
+    }
     # The returned dict is a copy — mutating it must not poison the constant.
     caps_for_tolerance("Aggressive / 进取型")["equity"] = 9.9
     assert RISK_LEVEL_CAPS["进取型"]["equity"] == 0.90

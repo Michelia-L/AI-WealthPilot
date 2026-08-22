@@ -71,9 +71,7 @@ def _patch(monkeypatch, cme_impl=None) -> None:
         cme_impl or (lambda **_: (_fake_cme_report(), "fresh")),
     )
     # BL market-cap weights: no real yfinance AUM calls in tests.
-    monkeypatch.setattr(
-        "api.routers.portfolio.fetch_fund_aum", lambda tickers: None
-    )
+    monkeypatch.setattr("api.routers.portfolio.fetch_fund_aum", lambda tickers: None)
 
 
 def _body(**overrides) -> dict:
@@ -98,9 +96,7 @@ def test_cme_source_happy_path(client, monkeypatch):
 
     assert params["expected_return_source"] == "cme"
     # SPY has no CME counterpart — it must appear in the fallback list.
-    assert params["cme_fallback_assets"] == [
-        DEFAULT_ASSET_CLASSES["US_EQUITY"]["name"]
-    ]
+    assert params["cme_fallback_assets"] == [DEFAULT_ASSET_CLASSES["US_EQUITY"]["name"]]
 
 
 def test_cme_source_changes_allocation(client, monkeypatch):

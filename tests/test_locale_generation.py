@@ -85,7 +85,9 @@ def sample_profile():
             emergency_fund_months=6.0,
         ),
         goals=[
-            InvestmentGoal(name="Retirement", target_amount=3_000_000, years=25, priority="high"),
+            InvestmentGoal(
+                name="Retirement", target_amount=3_000_000, years=25, priority="high"
+            ),
         ],
         time_horizon_years=25,
         risk_profile=RiskProfile(
@@ -133,12 +135,27 @@ def sample_ips_dict() -> dict:
             "liquidity_narrative": "流动性需求充足。",
         },
         "tax": {"tax_status": "中国居民个人", "tax_narrative": "适用个人所得税。"},
-        "legal": {"applicable_regulations": ["《证券法》"], "legal_narrative": "合规运营。"},
+        "legal": {
+            "applicable_regulations": ["《证券法》"],
+            "legal_narrative": "合规运营。",
+        },
         "unique_circumstances": {"unique_narrative": "无。"},
         "investment_guidelines": {
             "strategic_allocation": [
-                {"asset_class": "权益类", "target_weight": 0.60, "min_weight": 0.50, "max_weight": 0.70, "rationale": "长期增长"},
-                {"asset_class": "固定收益", "target_weight": 0.40, "min_weight": 0.30, "max_weight": 0.50, "rationale": "稳定收益"},
+                {
+                    "asset_class": "权益类",
+                    "target_weight": 0.60,
+                    "min_weight": 0.50,
+                    "max_weight": 0.70,
+                    "rationale": "长期增长",
+                },
+                {
+                    "asset_class": "固定收益",
+                    "target_weight": 0.40,
+                    "min_weight": 0.30,
+                    "max_weight": 0.50,
+                    "rationale": "稳定收益",
+                },
             ],
             "permitted_instruments": ["ETF", "公募基金"],
             "prohibited_instruments": ["杠杆ETF"],
@@ -167,10 +184,15 @@ def sample_ips_dict() -> dict:
 # Advisor prompt builders (src/agents/advisor.py)
 # ============================================================
 
+
 class TestAdvisorLocalePrompts:
     def test_default_and_zh_are_identical(self, sample_profile):
-        assert _build_user_prompt(sample_profile) == _build_user_prompt(sample_profile, "zh")
-        assert _build_user_prompt(sample_profile, locale="zh") == _build_user_prompt(sample_profile)
+        assert _build_user_prompt(sample_profile) == _build_user_prompt(
+            sample_profile, "zh"
+        )
+        assert _build_user_prompt(sample_profile, locale="zh") == _build_user_prompt(
+            sample_profile
+        )
         assert _system_prompt() == SYSTEM_PROMPT
         assert _system_prompt("zh") == SYSTEM_PROMPT
 
@@ -211,13 +233,13 @@ class TestAdvisorLocalePrompts:
 # Rebalance prompt builders (src/agents/rebalance_advisor.py)
 # ============================================================
 
+
 class TestRebalanceLocalePrompts:
     MONITORING = {"client_name": "测试客户"}
 
     def test_default_and_zh_are_identical(self):
-        assert (
-            _build_rebalance_prompt(self.MONITORING)
-            == _build_rebalance_prompt(self.MONITORING, locale="zh")
+        assert _build_rebalance_prompt(self.MONITORING) == _build_rebalance_prompt(
+            self.MONITORING, locale="zh"
         )
         assert _rebalance_system_prompt() == REBALANCE_SYSTEM_PROMPT
         assert _rebalance_system_prompt("zh") == REBALANCE_SYSTEM_PROMPT
@@ -249,6 +271,7 @@ class TestRebalanceLocalePrompts:
 # IPS workflow prompt builders (src/agents/ips_agents.py)
 # ============================================================
 
+
 class TestIpsLocalePrompts:
     ROLES = ("generator", "suitability", "compliance", "consistency", "reviser")
 
@@ -265,7 +288,9 @@ class TestIpsLocalePrompts:
             prompt = get_system_prompt(role, "en")
             assert prompt != get_system_prompt(role, "zh")
             assert not _has_cjk(prompt), f"{role} EN system prompt contains Chinese"
-        assert "Write ALL narrative content in English" in get_system_prompt("generator", "en")
+        assert "Write ALL narrative content in English" in get_system_prompt(
+            "generator", "en"
+        )
         assert "Describe all issues in English" in get_system_prompt("compliance", "en")
         assert "Write all content in English" in get_system_prompt("reviser", "en")
 
@@ -280,14 +305,20 @@ class TestIpsLocalePrompts:
         assert "KYC" in prompt
 
     def test_generation_prompt_zh_unchanged(self):
-        prompt = build_generation_prompt("{}", "TEMPLATE", cme_text="CME TEXT", locale="zh")
+        prompt = build_generation_prompt(
+            "{}", "TEMPLATE", cme_text="CME TEXT", locale="zh"
+        )
         assert "客户画像数据" in prompt
         assert "所有叙述性内容使用中文" in prompt
         assert "资本市场预期 (CME)" in prompt
-        assert build_generation_prompt("{}", "TEMPLATE") == build_generation_prompt("{}", "TEMPLATE", locale="zh")
+        assert build_generation_prompt("{}", "TEMPLATE") == build_generation_prompt(
+            "{}", "TEMPLATE", locale="zh"
+        )
 
     def test_generation_prompt_en(self):
-        prompt = build_generation_prompt("{}", "TEMPLATE", cme_text="CME TEXT", locale="en")
+        prompt = build_generation_prompt(
+            "{}", "TEMPLATE", cme_text="CME TEXT", locale="en"
+        )
         assert "CLIENT PROFILE DATA" in prompt
         assert "CAPITAL MARKET EXPECTATIONS (CME)" in prompt
         assert "Write all narrative content in English" in prompt
@@ -295,14 +326,20 @@ class TestIpsLocalePrompts:
         assert "使用中文" not in prompt
 
     def test_review_prompt_locales(self):
-        items = [{"id": "C1", "name": "风险披露", "severity": "critical", "rule": "必须披露"}]
-        zh = build_review_prompt("{}", "{}", ReviewDimension.SUITABILITY, items, locale="zh")
+        items = [
+            {"id": "C1", "name": "风险披露", "severity": "critical", "rule": "必须披露"}
+        ]
+        zh = build_review_prompt(
+            "{}", "{}", ReviewDimension.SUITABILITY, items, locale="zh"
+        )
         assert "待审查的 IPS 文档" in zh
         assert "合规检查清单" in zh
         assert "规则：" in zh
         assert 'dimension 字段必须设为 "suitability"' in zh
 
-        en = build_review_prompt("{}", "{}", ReviewDimension.SUITABILITY, items, locale="en")
+        en = build_review_prompt(
+            "{}", "{}", ReviewDimension.SUITABILITY, items, locale="en"
+        )
         assert "IPS DOCUMENT UNDER REVIEW" in en
         assert "COMPLIANCE CHECKLIST" in en
         assert "Rule:" in en
@@ -326,6 +363,7 @@ class TestIpsLocalePrompts:
 # SAA validation messages follow the workflow state locale
 # ============================================================
 
+
 class TestSaaValidationLocale:
     def _cme_report(self) -> dict:
         report = CMEReport(
@@ -336,14 +374,26 @@ class TestSaaValidationLocale:
             inflation_assumption=0.025,
             asset_classes=[
                 AssetClassCME(
-                    name="权益", ticker="TEST", expected_return=0.10,
-                    volatility=0.20, sharpe_ratio=0.5, max_drawdown=-0.20,
-                    var_95=0.02, cvar_95=0.03, data_points=1000,
+                    name="权益",
+                    ticker="TEST",
+                    expected_return=0.10,
+                    volatility=0.20,
+                    sharpe_ratio=0.5,
+                    max_drawdown=-0.20,
+                    var_95=0.02,
+                    cvar_95=0.03,
+                    data_points=1000,
                 ),
                 AssetClassCME(
-                    name="固收", ticker="TEST2", expected_return=0.04,
-                    volatility=0.08, sharpe_ratio=0.3, max_drawdown=-0.05,
-                    var_95=0.008, cvar_95=0.012, data_points=1000,
+                    name="固收",
+                    ticker="TEST2",
+                    expected_return=0.04,
+                    volatility=0.08,
+                    sharpe_ratio=0.3,
+                    max_drawdown=-0.05,
+                    var_95=0.008,
+                    cvar_95=0.012,
+                    data_points=1000,
                 ),
             ],
             correlation_matrix={
@@ -409,6 +459,7 @@ class TestSaaValidationLocale:
 # Document scaffolding (ips_storage / report_storage)
 # ============================================================
 
+
 class TestScaffoldingLocale:
     def test_ips_markdown_zh_unchanged(self, sample_ips_dict):
         md = export_ips_markdown(sample_ips_dict)
@@ -421,7 +472,10 @@ class TestScaffoldingLocale:
         md = export_ips_markdown(sample_ips_dict, locale="en")
         assert "# Investment Policy Statement (IPS)" in md
         assert "## 1. Executive Summary" in md
-        assert "| Asset Class | Target Weight | Min Weight | Max Weight | Rationale |" in md
+        assert (
+            "| Asset Class | Target Weight | Min Weight | Max Weight | Rationale |"
+            in md
+        )
         assert "## 11. Fees & Cost Disclosure" in md
         assert "## 12. Monitoring & Review" in md
         assert "## 13. Risk Disclosure & Compliance Statement" in md
@@ -489,7 +543,9 @@ class TestScaffoldingLocale:
         assert "本报告仅供参考" not in en
 
     def test_report_pdf_en_builds(self, tmp_path):
-        output = export_report_pdf(self._stored_report(), tmp_path / "report_en.pdf", locale="en")
+        output = export_report_pdf(
+            self._stored_report(), tmp_path / "report_en.pdf", locale="en"
+        )
         assert output.exists()
         assert output.read_bytes().startswith(b"%PDF-")
 
@@ -548,7 +604,9 @@ class TestAdvisorRouterLocale:
         assert captured["locale"] == "en"
         assert _parse_sse(resp.text)[-1]["type"] == "done"
 
-    def test_stream_forwards_zh_locale_by_default(self, client, configured, monkeypatch):
+    def test_stream_forwards_zh_locale_by_default(
+        self, client, configured, monkeypatch
+    ):
         captured: dict = {}
         monkeypatch.setattr(
             "api.routers.advisor.generate_advice_stream",
@@ -556,7 +614,9 @@ class TestAdvisorRouterLocale:
         )
         profile_id = _create_profile(client)
 
-        resp = client.post("/api/advisor/report/stream", json={"profile_id": profile_id})
+        resp = client.post(
+            "/api/advisor/report/stream", json={"profile_id": profile_id}
+        )
         assert resp.status_code == 200
         assert captured["locale"] == "zh"
 
@@ -621,7 +681,9 @@ class TestMonitoringRouterLocale:
         assert captured["locale"] == "en"
         assert _parse_sse(resp.text)[-1]["type"] == "done"
 
-    def test_advice_forwards_zh_locale_by_default(self, client, configured, monkeypatch):
+    def test_advice_forwards_zh_locale_by_default(
+        self, client, configured, monkeypatch
+    ):
         captured: dict = {}
         monkeypatch.setattr(
             "api.routers.monitoring.generate_rebalance_advice_stream",
@@ -697,7 +759,9 @@ class TestIpsRouterLocale:
         assert detail.status_code == 200
         assert "# Investment Policy Statement (IPS)" in detail.json()["markdown"]
 
-        export = client.get(f"/api/ips/{document_id}/export", headers={"X-Locale": "en"})
+        export = client.get(
+            f"/api/ips/{document_id}/export", headers={"X-Locale": "en"}
+        )
         assert export.status_code == 200
         assert "Investment Policy Statement (IPS)" in export.text
         assert "投资政策声明书" not in export.text

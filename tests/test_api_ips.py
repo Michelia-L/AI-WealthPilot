@@ -6,7 +6,6 @@ task lifecycle, SSE progress protocol, persistence and document library,
 not the LLM-driven workflow itself (covered by src tests).
 """
 
-
 import pytest
 
 from tests.test_api_advisor import _parse_sse
@@ -113,7 +112,9 @@ def test_workflow_failure_emits_error_event(client, monkeypatch):
     )
     profile_id = _create_profile(client)
 
-    task_id = client.post("/api/ips/generate", json={"profile_id": profile_id}).json()["task_id"]
+    task_id = client.post("/api/ips/generate", json={"profile_id": profile_id}).json()[
+        "task_id"
+    ]
     events = _parse_sse(client.get(f"/api/ips/tasks/{task_id}/events").text)
 
     assert events[-1]["type"] == "error"
@@ -129,7 +130,9 @@ def test_task_and_document_not_found(client):
 
 def test_pdf_export(client, fake_workflow):
     profile_id = _create_profile(client)
-    task_id = client.post("/api/ips/generate", json={"profile_id": profile_id}).json()["task_id"]
+    task_id = client.post("/api/ips/generate", json={"profile_id": profile_id}).json()[
+        "task_id"
+    ]
     events = _parse_sse(client.get(f"/api/ips/tasks/{task_id}/events").text)
     document_id = events[-1]["document_id"]
 
@@ -145,7 +148,9 @@ def test_pdf_export(client, fake_workflow):
 
 def test_markdown_export(client, fake_workflow):
     profile_id = _create_profile(client)
-    task_id = client.post("/api/ips/generate", json={"profile_id": profile_id}).json()["task_id"]
+    task_id = client.post("/api/ips/generate", json={"profile_id": profile_id}).json()[
+        "task_id"
+    ]
     events = _parse_sse(client.get(f"/api/ips/tasks/{task_id}/events").text)
     document_id = events[-1]["document_id"]
 

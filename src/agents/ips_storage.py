@@ -34,6 +34,7 @@ def _ensure_ips_dir() -> Path:
 
 # Core CRUD Operations
 
+
 def save_ips(
     ips_dict: dict,
     audit_trail_dict: dict,
@@ -109,15 +110,21 @@ def list_ips_documents(limit: int = 50) -> list[dict]:
             meta = record.get("metadata", {})
             audit = record.get("audit_trail", {})
 
-            documents.append({
-                "filepath": str(filepath),
-                "client_name": meta.get("client_name", ips.get("client_name", "Unknown")),
-                "version": ips.get("version", "?"),
-                "risk_level": ips.get("risk_tolerance", {}).get("overall_risk_level", "?"),
-                "status": audit.get("final_status", "?"),
-                "revision_rounds": audit.get("total_rounds", 0),
-                "saved_at": meta.get("saved_at", ""),
-            })
+            documents.append(
+                {
+                    "filepath": str(filepath),
+                    "client_name": meta.get(
+                        "client_name", ips.get("client_name", "Unknown")
+                    ),
+                    "version": ips.get("version", "?"),
+                    "risk_level": ips.get("risk_tolerance", {}).get(
+                        "overall_risk_level", "?"
+                    ),
+                    "status": audit.get("final_status", "?"),
+                    "revision_rounds": audit.get("total_rounds", 0),
+                    "saved_at": meta.get("saved_at", ""),
+                }
+            )
 
             if len(documents) >= limit:
                 break
@@ -128,6 +135,7 @@ def list_ips_documents(limit: int = 50) -> list[dict]:
 
 
 # Export Functions
+
 
 def export_ips_markdown(
     ips_dict: dict,
@@ -335,7 +343,9 @@ def _render_ips_markdown(
     ret = ips.get("return_objective", {})
     lines.append(L["sec_return"])
     lines.append("")
-    lines.append(f"- **{L['req_nominal']}**: {ret.get('required_nominal_return', 0):.2%}")
+    lines.append(
+        f"- **{L['req_nominal']}**: {ret.get('required_nominal_return', 0):.2%}"
+    )
     lines.append(f"- **{L['req_real']}**: {ret.get('required_real_return', 0):.2%}")
     lines.append(f"- **{L['calc_basis']}**: {ret.get('return_calculation_basis', '')}")
     lines.append("")
@@ -362,19 +372,32 @@ def _render_ips_markdown(
     lines.append("")
 
     # Quantitative risk anchors (if any are provided)
-    _has_quant = any(risk.get(k) is not None for k in [
-        "max_acceptable_annual_loss", "target_volatility_min",
-        "target_volatility_max", "var_tolerance_95", "max_drawdown_tolerance"
-    ])
+    _has_quant = any(
+        risk.get(k) is not None
+        for k in [
+            "max_acceptable_annual_loss",
+            "target_volatility_min",
+            "target_volatility_max",
+            "var_tolerance_95",
+            "max_drawdown_tolerance",
+        ]
+    )
     if _has_quant:
         lines.append(L["quant_h"])
         lines.append("")
         lines.append(L["quant_th"])
         lines.append(L["quant_sep"])
         if risk.get("max_acceptable_annual_loss") is not None:
-            lines.append(f"| {L['max_loss']} | {risk['max_acceptable_annual_loss']:.2%} |")
-        if risk.get("target_volatility_min") is not None and risk.get("target_volatility_max") is not None:
-            lines.append(f"| {L['vol_range']} | {risk['target_volatility_min']:.2%} – {risk['target_volatility_max']:.2%} |")
+            lines.append(
+                f"| {L['max_loss']} | {risk['max_acceptable_annual_loss']:.2%} |"
+            )
+        if (
+            risk.get("target_volatility_min") is not None
+            and risk.get("target_volatility_max") is not None
+        ):
+            lines.append(
+                f"| {L['vol_range']} | {risk['target_volatility_min']:.2%} – {risk['target_volatility_max']:.2%} |"
+            )
         if risk.get("var_tolerance_95") is not None:
             lines.append(f"| {L['var_tol']} | {risk['var_tolerance_95']:.2%} |")
         if risk.get("max_drawdown_tolerance") is not None:
@@ -385,14 +408,18 @@ def _render_ips_markdown(
     th = ips.get("time_horizon", {})
     lines.append(L["sec_horizon"])
     lines.append("")
-    lines.append(L["total_horizon_fmt"].format(years=th.get("overall_horizon_years", 0)))
+    lines.append(
+        L["total_horizon_fmt"].format(years=th.get("overall_horizon_years", 0))
+    )
     lines.append("")
     for stage in th.get("stages", []):
-        lines.append(L["stage_fmt"].format(
-            name=stage.get("name", ""),
-            years=stage.get("years", 0),
-            desc=stage.get("description", ""),
-        ))
+        lines.append(
+            L["stage_fmt"].format(
+                name=stage.get("name", ""),
+                years=stage.get("years", 0),
+                desc=stage.get("description", ""),
+            )
+        )
     lines.append("")
     lines.append(th.get("horizon_narrative", ""))
     lines.append("")
@@ -400,12 +427,21 @@ def _render_ips_markdown(
     # Liquidity
     liq = ips.get("liquidity", {})
     # Derive currency symbol from currency_policy or default to ¥ (CNY)
-    _currency_symbols = {"CNY": "¥", "USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "HKD": "HK$"}
+    _currency_symbols = {
+        "CNY": "¥",
+        "USD": "$",
+        "EUR": "€",
+        "GBP": "£",
+        "JPY": "¥",
+        "HKD": "HK$",
+    }
     _base_curr = (ips.get("currency_policy") or {}).get("base_currency", "CNY")
     _curr_sym = _currency_symbols.get(_base_curr, _base_curr + " ")
     lines.append(L["sec_liquidity"])
     lines.append("")
-    lines.append(f"- **{L['immediate']}**: {_curr_sym}{liq.get('immediate_needs', 0):,.0f}")
+    lines.append(
+        f"- **{L['immediate']}**: {_curr_sym}{liq.get('immediate_needs', 0):,.0f}"
+    )
     lines.append(f"- **{L['ongoing']}**: {_curr_sym}{liq.get('ongoing_needs', 0):,.0f}")
     lines.append(L["reserve_fmt"].format(months=liq.get("emergency_reserve_months", 0)))
     lines.append("")
@@ -462,8 +498,12 @@ def _render_ips_markdown(
             f"| {alloc.get('rationale', '')} |"
         )
     lines.append("")
-    lines.append(f"**{L['permitted']}**: {', '.join(guide.get('permitted_instruments', []))}")
-    lines.append(f"**{L['prohibited']}**: {', '.join(guide.get('prohibited_instruments', []))}")
+    lines.append(
+        f"**{L['permitted']}**: {', '.join(guide.get('permitted_instruments', []))}"
+    )
+    lines.append(
+        f"**{L['prohibited']}**: {', '.join(guide.get('prohibited_instruments', []))}"
+    )
     lines.append(f"**{L['rebalancing']}**: {guide.get('rebalancing_policy', '')}")
     lines.append("")
     lines.append(guide.get("guideline_narrative", ""))
@@ -478,8 +518,12 @@ def _render_ips_markdown(
         lines.append(L["fee_sep"])
         lines.append(f"| {L['fee_mgmt']} | {fee.get('management_fee_rate', 0):.2%} |")
         lines.append(f"| {L['fee_custody']} | {fee.get('custody_fee_rate', 0):.2%} |")
-        lines.append(f"| {L['fee_trans']} | {fee.get('transaction_cost_estimate', 0):.2%} |")
-        lines.append(f"| {L['fee_ter']} | **{fee.get('total_expense_ratio', 0):.2%}** |")
+        lines.append(
+            f"| {L['fee_trans']} | {fee.get('transaction_cost_estimate', 0):.2%} |"
+        )
+        lines.append(
+            f"| {L['fee_ter']} | **{fee.get('total_expense_ratio', 0):.2%}** |"
+        )
         lines.append("")
         if fee.get("net_return_impact"):
             lines.append(f"**{L['net_impact']}**: {fee['net_return_impact']}")
@@ -525,17 +569,21 @@ def _render_ips_markdown(
         lines.append(L["appendix_h"])
         lines.append("")
         lines.append(f"- **{L['rounds']}**: {audit_trail_dict.get('total_rounds', 0)}")
-        lines.append(f"- **{L['final_status']}**: {audit_trail_dict.get('final_status', '')}")
+        lines.append(
+            f"- **{L['final_status']}**: {audit_trail_dict.get('final_status', '')}"
+        )
         meta = audit_trail_dict.get("generation_metadata", {})
         lines.append(f"- **{L['model']}**: {meta.get('model', '')}")
         lines.append(f"- **{L['completed_at']}**: {meta.get('completed_at', '')}")
 
         for rev in audit_trail_dict.get("revision_history", []):
             lines.append(L["rev_round_fmt"].format(n=rev.get("round_number", "?")))
-            lines.append(L["rev_version_fmt"].format(
-                before=rev.get("ips_version_before", ""),
-                after=rev.get("ips_version_after", ""),
-            ))
+            lines.append(
+                L["rev_version_fmt"].format(
+                    before=rev.get("ips_version_before", ""),
+                    after=rev.get("ips_version_after", ""),
+                )
+            )
             for change in rev.get("changes_made", []):
                 if change:
                     lines.append(f"  - {change}")
@@ -552,9 +600,9 @@ def _find_cjk_font() -> Optional[str]:
     """
     candidates = [
         # Windows
-        r"C:\Windows\Fonts\msyh.ttc",       # Microsoft YaHei
-        r"C:\Windows\Fonts\simhei.ttf",      # SimHei
-        r"C:\Windows\Fonts\simsun.ttc",      # SimSun
+        r"C:\Windows\Fonts\msyh.ttc",  # Microsoft YaHei
+        r"C:\Windows\Fonts\simhei.ttf",  # SimHei
+        r"C:\Windows\Fonts\simsun.ttc",  # SimSun
         # macOS
         "/System/Library/Fonts/PingFang.ttc",
         "/Library/Fonts/Arial Unicode.ttf",
@@ -748,7 +796,12 @@ class _IPSPDF:
         """Draw page header."""
         self.pdf.set_font(self._font_family, "B", 8)
         self.pdf.set_text_color(120, 120, 120)
-        self.pdf.cell(0, 5, f"AI WealthPilot — {client_name} {self._labels['header_suffix']}", align="C")
+        self.pdf.cell(
+            0,
+            5,
+            f"AI WealthPilot — {client_name} {self._labels['header_suffix']}",
+            align="C",
+        )
         self.pdf.ln(3)
         self.pdf.set_draw_color(200, 200, 200)
         self.pdf.line(20, self.pdf.get_y(), 190, self.pdf.get_y())
@@ -760,7 +813,9 @@ class _IPSPDF:
         self.pdf.set_y(-20)
         self.pdf.set_font(self._font_family, "", 8)
         self.pdf.set_text_color(120, 120, 120)
-        self.pdf.cell(0, 10, self._labels["page_fmt"].format(page=self.pdf.page_no()), align="C")
+        self.pdf.cell(
+            0, 10, self._labels["page_fmt"].format(page=self.pdf.page_no()), align="C"
+        )
         self.pdf.set_text_color(0, 0, 0)
 
     def _section_title(self, title: str) -> None:
@@ -799,8 +854,12 @@ class _IPSPDF:
         self.pdf.cell(0, 6, value)
         self.pdf.ln(6)
 
-    def _simple_table(self, headers: list[str], rows: list[list[str]],
-                      col_widths: Optional[list[float]] = None) -> None:
+    def _simple_table(
+        self,
+        headers: list[str],
+        rows: list[list[str]],
+        col_widths: Optional[list[float]] = None,
+    ) -> None:
         """Render a simple table."""
         page_width = 170  # A4 width minus margins
         if not col_widths:
@@ -821,7 +880,12 @@ class _IPSPDF:
             self.pdf.ln()
         self.pdf.ln(3)
 
-    def build(self, ips_dict: dict, audit_trail_dict: Optional[dict] = None, locale: str = "zh") -> bytes:
+    def build(
+        self,
+        ips_dict: dict,
+        audit_trail_dict: Optional[dict] = None,
+        locale: str = "zh",
+    ) -> bytes:
         """
         Build the complete PDF from an IPS dict.
 
@@ -891,23 +955,40 @@ class _IPSPDF:
         # Quantitative risk anchors
         quant_rows = []
         if risk.get("max_acceptable_annual_loss") is not None:
-            quant_rows.append([L["quant_max_loss"], f"{risk['max_acceptable_annual_loss']:.2%}"])
-        if risk.get("target_volatility_min") is not None and risk.get("target_volatility_max") is not None:
-            quant_rows.append([L["quant_target_vol"], f"{risk['target_volatility_min']:.2%} – {risk['target_volatility_max']:.2%}"])
+            quant_rows.append(
+                [L["quant_max_loss"], f"{risk['max_acceptable_annual_loss']:.2%}"]
+            )
+        if (
+            risk.get("target_volatility_min") is not None
+            and risk.get("target_volatility_max") is not None
+        ):
+            quant_rows.append(
+                [
+                    L["quant_target_vol"],
+                    f"{risk['target_volatility_min']:.2%} – {risk['target_volatility_max']:.2%}",
+                ]
+            )
         if risk.get("var_tolerance_95") is not None:
             quant_rows.append([L["quant_var"], f"{risk['var_tolerance_95']:.2%}"])
         if risk.get("max_drawdown_tolerance") is not None:
             quant_rows.append([L["quant_mdd"], f"{risk['max_drawdown_tolerance']:.2%}"])
         if quant_rows:
             self._subsection_title(L["sub_quant"])
-            self._simple_table([L["quant_h_metric"], L["quant_h_threshold"]], quant_rows, [85, 85])
+            self._simple_table(
+                [L["quant_h_metric"], L["quant_h_threshold"]], quant_rows, [85, 85]
+            )
 
         # ── 5. Time Horizon ──
         th = ips.get("time_horizon", {})
         self._section_title(L["sec_time_horizon"])
-        self._key_value(L["kv_total_horizon"], f"{th.get('overall_horizon_years', 0)} {L['years_unit']}")
+        self._key_value(
+            L["kv_total_horizon"],
+            f"{th.get('overall_horizon_years', 0)} {L['years_unit']}",
+        )
         for stage in th.get("stages", []):
-            self._body_text(f"• {stage.get('name', '')}: {stage.get('years', 0)} {L['years_unit']} — {stage.get('description', '')}")
+            self._body_text(
+                f"• {stage.get('name', '')}: {stage.get('years', 0)} {L['years_unit']} — {stage.get('description', '')}"
+            )
         self._body_text(th.get("horizon_narrative", ""))
 
         # ── 6. Liquidity ──
@@ -915,7 +996,10 @@ class _IPSPDF:
         self._section_title(L["sec_liquidity"])
         self._key_value(L["kv_immediate"], f"¥{liq.get('immediate_needs', 0):,.0f}")
         self._key_value(L["kv_ongoing"], f"¥{liq.get('ongoing_needs', 0):,.0f}")
-        self._key_value(L["kv_emergency"], f"{liq.get('emergency_reserve_months', 0)} {L['months_unit']}")
+        self._key_value(
+            L["kv_emergency"],
+            f"{liq.get('emergency_reserve_months', 0)} {L['months_unit']}",
+        )
         self._body_text(liq.get("liquidity_narrative", ""))
 
         # ── 7. Tax ──
@@ -948,20 +1032,29 @@ class _IPSPDF:
         self._subsection_title(L["sub_saa"])
         saa_rows = []
         for alloc in guide.get("strategic_allocation", []):
-            saa_rows.append([
-                alloc.get("asset_class", ""),
-                f"{alloc.get('target_weight', 0):.1%}",
-                f"{alloc.get('min_weight', 0):.1%}",
-                f"{alloc.get('max_weight', 0):.1%}",
-            ])
+            saa_rows.append(
+                [
+                    alloc.get("asset_class", ""),
+                    f"{alloc.get('target_weight', 0):.1%}",
+                    f"{alloc.get('min_weight', 0):.1%}",
+                    f"{alloc.get('max_weight', 0):.1%}",
+                ]
+            )
         if saa_rows:
             self._simple_table(
                 [L["saa_h_class"], L["saa_h_target"], L["saa_h_min"], L["saa_h_max"]],
-                saa_rows, [50, 40, 40, 40]
+                saa_rows,
+                [50, 40, 40, 40],
             )
-        self._body_text(f"{L['permitted_prefix']}: {', '.join(guide.get('permitted_instruments', []))}")
-        self._body_text(f"{L['prohibited_prefix']}: {', '.join(guide.get('prohibited_instruments', []))}")
-        self._body_text(f"{L['rebalancing_prefix']}: {guide.get('rebalancing_policy', '')}")
+        self._body_text(
+            f"{L['permitted_prefix']}: {', '.join(guide.get('permitted_instruments', []))}"
+        )
+        self._body_text(
+            f"{L['prohibited_prefix']}: {', '.join(guide.get('prohibited_instruments', []))}"
+        )
+        self._body_text(
+            f"{L['rebalancing_prefix']}: {guide.get('rebalancing_policy', '')}"
+        )
         self._body_text(guide.get("guideline_narrative", ""))
 
         # ── 11. Fee Schedule (optional) ──
@@ -989,7 +1082,9 @@ class _IPSPDF:
         if mon.get("benchmarks"):
             self._subsection_title(L["sub_benchmarks"])
             for bm in mon["benchmarks"]:
-                self._body_text(f"• {bm.get('asset_class', '')}: {bm.get('benchmark', '')}")
+                self._body_text(
+                    f"• {bm.get('asset_class', '')}: {bm.get('benchmark', '')}"
+                )
         self._body_text(mon.get("monitoring_narrative", ""))
 
         # ── Risk Disclosure & Compliance ──
@@ -1088,4 +1183,3 @@ def export_ips_to_file(
         raise ValueError(f"Unsupported format: {format}")
 
     return output_path
-

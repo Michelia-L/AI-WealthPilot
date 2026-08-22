@@ -37,9 +37,9 @@ def _stub(monkeypatch, df: pd.DataFrame, rf: float = 0.03) -> None:
 def test_monthly_rebalancing_nav_exact(monkeypatch):
     """Hand-computed NAV across a month boundary with a rebalance reset."""
     # Jan 2024 has 23 bdays, Feb has 21 — 80 bdays spans Jan/Feb/Mar.
-    aaa = [100.0, 110.0, 121.0] + [121.0] * 20        # Jan: +10%, +10%, flat
-    aaa += [133.1, 146.41] + [146.41] * 19            # Feb: +10%, +10%, flat
-    aaa += [146.41] * (80 - len(aaa))                 # Mar onward: flat
+    aaa = [100.0, 110.0, 121.0] + [121.0] * 20  # Jan: +10%, +10%, flat
+    aaa += [133.1, 146.41] + [146.41] * 19  # Feb: +10%, +10%, flat
+    aaa += [146.41] * (80 - len(aaa))  # Mar onward: flat
     df = _frame({"AAA": aaa, "BBB": [100.0] * 80}, "2024-01-01")
     _stub(monkeypatch, df)
 
@@ -50,8 +50,8 @@ def test_monthly_rebalancing_nav_exact(monkeypatch):
 
     # First month: 50/50 from day one (base = 2024-01-01 close).
     assert nav.iloc[0] == pytest.approx(1.0)
-    assert nav.iloc[1] == pytest.approx(0.5 * 1.10 + 0.5)   # 1.05
-    assert nav.iloc[2] == pytest.approx(0.5 * 1.21 + 0.5)   # 1.105
+    assert nav.iloc[1] == pytest.approx(0.5 * 1.10 + 0.5)  # 1.05
+    assert nav.iloc[2] == pytest.approx(0.5 * 1.21 + 0.5)  # 1.105
 
     # Month-boundary return accrues to the drifted January weights:
     # AAA 121 -> 133.1 (+10%) before the Feb reset.
@@ -62,7 +62,7 @@ def test_monthly_rebalancing_nav_exact(monkeypatch):
     feb2 = pd.Timestamp("2024-02-02")
     assert nav.loc[feb2] == pytest.approx(1.1655 * (0.5 * 1.10 + 0.5))  # 1.223775
     # ... which provably differs from buy-and-hold (never rebalanced):
-    assert nav.loc[feb2] != pytest.approx(0.5 * 1.4641 + 0.5)           # 1.23205
+    assert nav.loc[feb2] != pytest.approx(0.5 * 1.4641 + 0.5)  # 1.23205
 
     # Flat benchmark stays at 1.0.
     assert result["_equity"]["benchmark"].iloc[-1] == pytest.approx(1.0)
@@ -139,8 +139,8 @@ def test_sparse_assets_dropped_and_weights_renormalized(monkeypatch):
     df = _frame(
         {
             "AAA": good,
-            "SHORT": good[:30] + [np.nan] * 50,   # 30 < 60 valid days
-            "DEAD": [np.nan] * 80,                # no data at all
+            "SHORT": good[:30] + [np.nan] * 50,  # 30 < 60 valid days
+            "DEAD": [np.nan] * 80,  # no data at all
         },
         "2024-01-01",
     )
@@ -200,9 +200,9 @@ def test_stress_window_buy_and_hold_values(monkeypatch):
     """2020 COVID window covered: exact window returns for both mixes."""
     dates = pd.bdate_range("2019-12-02", periods=130)  # through ~2020-06
     aaa = pd.Series(100.0, index=dates)
-    aaa.loc[aaa.index >= "2020-03-23"] = 80.0   # -20% at the window end
+    aaa.loc[aaa.index >= "2020-03-23"] = 80.0  # -20% at the window end
     bbb = pd.Series(100.0, index=dates)
-    bbb.loc[bbb.index >= "2020-03-23"] = 50.0   # -50% at the window end
+    bbb.loc[bbb.index >= "2020-03-23"] = 50.0  # -50% at the window end
     df = pd.DataFrame({"AAA": aaa, "BBB": bbb})
     _stub(monkeypatch, df)
 
@@ -237,8 +237,11 @@ def test_fee_drag_math_exact(monkeypatch):
 
     gross = run_backtest({"AAA": 1.0}, "1y", benchmark_weights={"AAA": 1.0})
     result = run_backtest(
-        {"AAA": 1.0}, "1y", benchmark_weights={"AAA": 1.0},
-        annual_fee_rate=fee, fee_source="manual",
+        {"AAA": 1.0},
+        "1y",
+        benchmark_weights={"AAA": 1.0},
+        annual_fee_rate=fee,
+        fee_source="manual",
     )
 
     gross_tr = gross["metrics"]["total_return"]
@@ -318,12 +321,14 @@ def test_fee_notes_disclose_net_basis(monkeypatch):
     _stub(monkeypatch, df)
 
     result = run_backtest(
-        {"AAA": 1.0}, "1y", benchmark_weights={"AAA": 1.0},
-        annual_fee_rate=0.012, fee_source="ips_fee_schedule",
+        {"AAA": 1.0},
+        "1y",
+        benchmark_weights={"AAA": 1.0},
+        annual_fee_rate=0.012,
+        fee_source="ips_fee_schedule",
     )
     assert any(
-        "1.20%" in n and "IPS 披露 TER" in n and "费后" in n
-        for n in result["notes"]
+        "1.20%" in n and "IPS 披露 TER" in n and "费后" in n for n in result["notes"]
     )
     assert any("压力测试" in n and "未计费用" in n for n in result["notes"])
 

@@ -73,7 +73,9 @@ async def _run_ips_task(
     try:
         template = ips_workflow.load_ips_template()
         initial_state = {
-            "client_profile_json": json.dumps(profile_data, ensure_ascii=False, indent=2),
+            "client_profile_json": json.dumps(
+                profile_data, ensure_ascii=False, indent=2
+            ),
             "reference_template": template,
             "max_revisions": max_revisions,
             "locale": locale,
@@ -82,7 +84,9 @@ async def _run_ips_task(
         config = {"configurable": {"thread_id": task.task_id}}
 
         final_state: dict = {}
-        async for chunk in app.astream(initial_state, config=config, stream_mode="updates"):
+        async for chunk in app.astream(
+            initial_state, config=config, stream_mode="updates"
+        ):
             for node_name in chunk:
                 await task.publish(
                     {
@@ -147,7 +151,8 @@ async def generate_ips(
     record = session.get(ProfileRecord, payload.profile_id)
     if record is None:
         raise HTTPException(
-            status_code=404, detail=msg("common.profile_not_found", locale, id=payload.profile_id)
+            status_code=404,
+            detail=msg("common.profile_not_found", locale, id=payload.profile_id),
         )
 
     task = registry.create(
@@ -164,7 +169,8 @@ async def task_events(task_id: str, request: Request) -> StreamingResponse:
     stream = task_events_stream(registry, task_id, get_request_locale(request))
     if stream is None:
         raise HTTPException(
-            status_code=404, detail=msg("common.task_not_found", get_request_locale(request))
+            status_code=404,
+            detail=msg("common.task_not_found", get_request_locale(request)),
         )
 
     return StreamingResponse(
@@ -218,7 +224,9 @@ def get_ips(document_id: str, request: Request) -> IpsDetailResponse:
     audit = record.get("audit_trail", {})
     return IpsDetailResponse(
         document_id=document_id,
-        markdown=ips_storage.export_ips_markdown(ips, record.get("audit_trail"), locale=locale),
+        markdown=ips_storage.export_ips_markdown(
+            ips, record.get("audit_trail"), locale=locale
+        ),
         metadata=meta,
         client_name=meta.get("client_name", ips.get("client_name", "Unknown")),
         version=ips.get("version", "?"),

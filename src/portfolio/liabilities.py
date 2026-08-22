@@ -84,8 +84,10 @@ def stream_to_liability(
     """
     positive = [(float(a), int(t)) for a, t in flows if float(a) > 0]
     if not positive:
-        raise ValueError("Liability derivation requires at least one "
-                         "cash flow with a positive amount.")
+        raise ValueError(
+            "Liability derivation requires at least one "
+            "cash flow with a positive amount."
+        )
 
     pv = 0.0
     weighted_years = 0.0
@@ -153,8 +155,7 @@ def goals_to_liability(
         ValueError: When there are no goals or all amounts are zero.
     """
     flows = [
-        (float(g.get("target_amount", 0.0)), int(g.get("years", 0)))
-        for g in goals
+        (float(g.get("target_amount", 0.0)), int(g.get("years", 0))) for g in goals
     ]
     return stream_to_liability(flows, discount_rate, growth_rate=0.0)
 

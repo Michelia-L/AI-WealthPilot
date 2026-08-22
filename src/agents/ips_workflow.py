@@ -54,82 +54,64 @@ class IPSWorkflowState(BaseModel):
     for the entire workflow execution. Each node reads from
     and writes to this state.
     """
+
     # --- Input ---
     client_profile_json: str = Field(
-        default="",
-        description="Serialized ClientProfile as JSON string"
+        default="", description="Serialized ClientProfile as JSON string"
     )
     reference_template: str = Field(
-        default="",
-        description="IPS structural template full text"
+        default="", description="IPS structural template full text"
     )
 
     # --- CME (Capital Market Expectations) ---
     cme_report: Optional[dict] = Field(
-        default=None,
-        description="CME report as dict (serialized CMEReport)"
+        default=None, description="CME report as dict (serialized CMEReport)"
     )
     cme_text: str = Field(
         default="",
-        description="CME formatted as LLM-readable text for prompt injection"
+        description="CME formatted as LLM-readable text for prompt injection",
     )
 
     # --- Working State ---
     ips_draft: Optional[dict] = Field(
-        default=None,
-        description="Current IPS draft as dict (serialized IPSDocument)"
+        default=None, description="Current IPS draft as dict (serialized IPSDocument)"
     )
     review_results: list[dict] = Field(
-        default_factory=list,
-        description="Review results from current round"
+        default_factory=list, description="Review results from current round"
     )
     all_review_issues: list[dict] = Field(
-        default_factory=list,
-        description="Accumulated review issues for revision"
+        default_factory=list, description="Accumulated review issues for revision"
     )
     revision_count: int = Field(
-        default=0,
-        description="Number of revision rounds completed"
+        default=0, description="Number of revision rounds completed"
     )
-    max_revisions: int = Field(
-        default=3,
-        description="Maximum allowed revision rounds"
-    )
+    max_revisions: int = Field(default=3, description="Maximum allowed revision rounds")
     checklist: dict = Field(
-        default_factory=dict,
-        description="Compliance checklist data"
+        default_factory=dict, description="Compliance checklist data"
     )
 
     # --- SAA Validation ---
     saa_validation: Optional[dict] = Field(
-        default=None,
-        description="SAA validation result from quantitative check"
+        default=None, description="SAA validation result from quantitative check"
     )
 
     # --- Output ---
     final_ips: Optional[dict] = Field(
-        default=None,
-        description="Final approved IPS as dict"
+        default=None, description="Final approved IPS as dict"
     )
     audit_trail: Optional[dict] = Field(
-        default=None,
-        description="Complete audit trail as dict"
+        default=None, description="Complete audit trail as dict"
     )
     revision_history: list[dict] = Field(
-        default_factory=list,
-        description="List of RevisionRecord dicts"
+        default_factory=list, description="List of RevisionRecord dicts"
     )
-    status: str = Field(
-        default="initialized",
-        description="Current workflow status"
-    )
+    status: str = Field(default="initialized", description="Current workflow status")
     error_message: str = Field(
-        default="",
-        description="Error message if workflow fails"
+        default="", description="Error message if workflow fails"
     )
     locale: str = Field(
         default="zh",
-        description="Language of the generated IPS and review findings (zh/en)"
+        description="Language of the generated IPS and review findings (zh/en)",
     )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -208,7 +190,6 @@ def _t(key: str, locale: str, **fmt) -> str:
     return template.format(**fmt) if fmt else template
 
 
-
 def _ips_version_hash(ips_dict: dict) -> str:
     """Generate a short hash for an IPS version identifier."""
     content = json.dumps(ips_dict, sort_keys=True, ensure_ascii=False)
@@ -235,7 +216,6 @@ def _all_passed(review_results: list[dict]) -> bool:
     return bool(review_results) and all(r.get("passed", False) for r in review_results)
 
 
-
 async def generate_cme_node(state: IPSWorkflowState) -> dict[str, Any]:
     """Node: generate Capital Market Expectations for prompt injection."""
     logger.info("=== CME Generation Node ===")
@@ -244,7 +224,9 @@ async def generate_cme_node(state: IPSWorkflowState) -> dict[str, Any]:
     # tilted basket (CPI-E style), so their CME inflation assumption is
     # adjusted upward from the generic-CPI base before prompt injection.
     try:
-        profile = json.loads(state.client_profile_json) if state.client_profile_json else {}
+        profile = (
+            json.loads(state.client_profile_json) if state.client_profile_json else {}
+        )
     except (json.JSONDecodeError, TypeError):
         profile = {}
     inflation = resolve_personal_inflation(
@@ -301,8 +283,10 @@ async def generate_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
         ips_doc: IPSDocument = result.output
         state_updates["ips_draft"] = ips_doc.model_dump()
         state_updates["status"] = "generated"
-        logger.info("IPS draft generated successfully (version: %s)",
-                     _ips_version_hash(state_updates["ips_draft"]))
+        logger.info(
+            "IPS draft generated successfully (version: %s)",
+            _ips_version_hash(state_updates["ips_draft"]),
+        )
 
     except Exception as e:
         logger.error("IPS generation failed: %s", e, exc_info=True)
@@ -355,8 +339,7 @@ async def _run_review_node(
         agent = _REVIEWER_FACTORIES[dimension](locale=state.locale)
 
         checklist_items = (
-            state.checklist
-            .get("dimensions", {})
+            state.checklist.get("dimensions", {})
             .get(dimension.value, {})
             .get("checks", [])
         )
@@ -373,8 +356,12 @@ async def _run_review_node(
         result = await agent.run(prompt)
         review: ReviewResult = result.output
 
-        logger.info("%s review: passed=%s, issues=%d",
-                     dimension.value.title(), review.passed, len(review.issues))
+        logger.info(
+            "%s review: passed=%s, issues=%d",
+            dimension.value.title(),
+            review.passed,
+            len(review.issues),
+        )
 
         current_results = list(state.review_results)
         current_results.append(review.model_dump())
@@ -393,7 +380,7 @@ async def _run_review_node(
             dimension=dimension,
             passed=False,
             issues=[],
-            summary=_t("review_error_summary", state.locale, error=e)
+            summary=_t("review_error_summary", state.locale, error=e),
         ).model_dump()
         current_results = list(state.review_results)
         current_results.append(error_result)
@@ -435,15 +422,16 @@ async def revise_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
         revised_ips: IPSDocument = result.output
         revised_dict = revised_ips.model_dump()
 
-        version_before = _ips_version_hash(state.ips_draft) if state.ips_draft else "none"
+        version_before = (
+            _ips_version_hash(state.ips_draft) if state.ips_draft else "none"
+        )
         version_after = _ips_version_hash(revised_dict)
 
         revision_record = RevisionRecord(
             round_number=state.revision_count + 1,
             review_results=[ReviewResult(**r) for r in state.review_results],
             changes_made=[
-                issue.get("suggestion", "")
-                for issue in state.all_review_issues
+                issue.get("suggestion", "") for issue in state.all_review_issues
             ],
             ips_version_before=version_before,
             ips_version_after=version_after,
@@ -514,9 +502,9 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
         matched_returns: list[float] = []
         matched_vols: list[float] = []
         matched_names: list[str] = []
-        matched_cme_names: list[str] = []   # CME-side names for correlation lookup
-        matched_vars: list[float] = []      # Per-asset 95% VaR
-        matched_cvars: list[float] = []     # Per-asset 95% CVaR
+        matched_cme_names: list[str] = []  # CME-side names for correlation lookup
+        matched_vars: list[float] = []  # Per-asset 95% VaR
+        matched_cvars: list[float] = []  # Per-asset 95% CVaR
         unmatched_assets: list[tuple[str, float]] = []  # (name, weight)
 
         for alloc in saa:
@@ -529,8 +517,11 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
             matched_cme_name = None
             for cme_name, cme_data in cme_by_name.items():
                 # Fuzzy match: check if CME name is contained in SAA name or vice versa
-                if (cme_name in asset_name or asset_name in cme_name
-                        or _fuzzy_asset_match(asset_name, cme_name)):
+                if (
+                    cme_name in asset_name
+                    or asset_name in cme_name
+                    or _fuzzy_asset_match(asset_name, cme_name)
+                ):
                     cme_match = cme_data
                     matched_cme_name = cme_name
                     break
@@ -552,45 +543,50 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                 f"{name}({w:.1%})" for name, w in unmatched_assets
             )
             unmatched_total = sum(w for _, w in unmatched_assets)
-            saa_issues.append(ReviewIssue(
-                section="investment_guidelines",
-                dimension=ReviewDimension.CONSISTENCY,
-                severity=(
-                    IssueSeverity.CRITICAL if unmatched_total >= 0.15
-                    else IssueSeverity.WARNING
-                ),
-                description=_t(
-                    "unmatched_desc",
-                    state.locale,
-                    unmatched_desc=unmatched_desc,
-                    unmatched_total=unmatched_total,
-                ),
-                regulation_reference=(
-                    "All SAA asset classes must have "
-                    "defensible CME assumptions."
-                ),
-                suggestion=_t("unmatched_suggestion", state.locale),
-            ))
+            saa_issues.append(
+                ReviewIssue(
+                    section="investment_guidelines",
+                    dimension=ReviewDimension.CONSISTENCY,
+                    severity=(
+                        IssueSeverity.CRITICAL
+                        if unmatched_total >= 0.15
+                        else IssueSeverity.WARNING
+                    ),
+                    description=_t(
+                        "unmatched_desc",
+                        state.locale,
+                        unmatched_desc=unmatched_desc,
+                        unmatched_total=unmatched_total,
+                    ),
+                    regulation_reference=(
+                        "All SAA asset classes must have defensible CME assumptions."
+                    ),
+                    suggestion=_t("unmatched_suggestion", state.locale),
+                )
+            )
             logger.warning(
                 "Unmatched SAA assets: %s (total weight: %.1f%%)",
-                unmatched_desc, unmatched_total * 100,
+                unmatched_desc,
+                unmatched_total * 100,
             )
 
         # Validation 1: Weight sum check
         if abs(total_weight - 1.0) > 0.01:
-            saa_issues.append(ReviewIssue(
-                section="investment_guidelines",
-                dimension=ReviewDimension.CONSISTENCY,
-                severity=IssueSeverity.CRITICAL,
-                description=_t(
-                    "weight_sum_desc",
-                    state.locale,
-                    total=total_weight,
-                    deviation=abs(total_weight - 1.0),
-                ),
-                regulation_reference="SAA weights must sum to 100%",
-                suggestion=_t("weight_sum_suggestion", state.locale),
-            ))
+            saa_issues.append(
+                ReviewIssue(
+                    section="investment_guidelines",
+                    dimension=ReviewDimension.CONSISTENCY,
+                    severity=IssueSeverity.CRITICAL,
+                    description=_t(
+                        "weight_sum_desc",
+                        state.locale,
+                        total=total_weight,
+                        deviation=abs(total_weight - 1.0),
+                    ),
+                    regulation_reference="SAA weights must sum to 100%",
+                    suggestion=_t("weight_sum_suggestion", state.locale),
+                )
+            )
 
         # Validation 2: Portfolio expected return vs required return
         if matched_weights:
@@ -604,43 +600,47 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
 
             if required_return > 0 and portfolio_return < required_return * 0.9:
                 gap = required_return - portfolio_return
-                saa_issues.append(ReviewIssue(
-                    section="return_objective / investment_guidelines",
-                    dimension=ReviewDimension.SUITABILITY,
-                    severity=IssueSeverity.CRITICAL,
-                    description=_t(
-                        "return_gap_critical_desc",
-                        state.locale,
-                        portfolio_return=portfolio_return,
-                        required_return=required_return,
-                        gap=gap,
-                    ),
-                    regulation_reference=(
-                        "Required return must be achievable within "
-                        "the SAA's expected return range."
-                    ),
-                    suggestion=_t(
-                        "return_gap_critical_suggestion",
-                        state.locale,
-                        portfolio_return=portfolio_return,
-                    ),
-                ))
+                saa_issues.append(
+                    ReviewIssue(
+                        section="return_objective / investment_guidelines",
+                        dimension=ReviewDimension.SUITABILITY,
+                        severity=IssueSeverity.CRITICAL,
+                        description=_t(
+                            "return_gap_critical_desc",
+                            state.locale,
+                            portfolio_return=portfolio_return,
+                            required_return=required_return,
+                            gap=gap,
+                        ),
+                        regulation_reference=(
+                            "Required return must be achievable within "
+                            "the SAA's expected return range."
+                        ),
+                        suggestion=_t(
+                            "return_gap_critical_suggestion",
+                            state.locale,
+                            portfolio_return=portfolio_return,
+                        ),
+                    )
+                )
             elif required_return > 0 and portfolio_return < required_return:
                 gap = required_return - portfolio_return
-                saa_issues.append(ReviewIssue(
-                    section="return_objective / investment_guidelines",
-                    dimension=ReviewDimension.CONSISTENCY,
-                    severity=IssueSeverity.WARNING,
-                    description=_t(
-                        "return_gap_warning_desc",
-                        state.locale,
-                        portfolio_return=portfolio_return,
-                        required_return=required_return,
-                        gap=gap,
-                    ),
-                    regulation_reference="Return feasibility assessment",
-                    suggestion=_t("return_gap_warning_suggestion", state.locale),
-                ))
+                saa_issues.append(
+                    ReviewIssue(
+                        section="return_objective / investment_guidelines",
+                        dimension=ReviewDimension.CONSISTENCY,
+                        severity=IssueSeverity.WARNING,
+                        description=_t(
+                            "return_gap_warning_desc",
+                            state.locale,
+                            portfolio_return=portfolio_return,
+                            required_return=required_return,
+                            gap=gap,
+                        ),
+                        regulation_reference="Return feasibility assessment",
+                        suggestion=_t("return_gap_warning_suggestion", state.locale),
+                    )
+                )
 
             n = len(matched_weights)
             w_norm = w / w.sum()  # Normalize weights
@@ -651,27 +651,22 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
             for i, cme_i in enumerate(matched_cme_names):
                 for j, cme_j in enumerate(matched_cme_names):
                     if i != j:
-                        corr_val = cme.correlation_matrix.get(
-                            cme_i, {}
-                        ).get(cme_j, 0.0)
+                        corr_val = cme.correlation_matrix.get(cme_i, {}).get(cme_j, 0.0)
                         corr_mat[i, j] = corr_val
 
             cov_matrix = np.outer(v, v) * corr_mat
-            portfolio_vol = float(np.sqrt(
-                w_norm.T @ cov_matrix @ w_norm
-            ))
+            portfolio_vol = float(np.sqrt(w_norm.T @ cov_matrix @ w_norm))
 
             # Portfolio Sharpe Ratio
             portfolio_sharpe = (
                 (portfolio_return - cme.risk_free_rate) / portfolio_vol
-                if portfolio_vol > 0 else 0.0
+                if portfolio_vol > 0
+                else 0.0
             )
 
             # Check volatility against client risk tolerance band
             # Bands derived from RISK_VOLATILITY_MAP in portfolio_recommender
-            risk_level = ips.get(
-                "risk_tolerance", {}
-            ).get("overall_risk_level", "")
+            risk_level = ips.get("risk_tolerance", {}).get("overall_risk_level", "")
             vol_bands = {
                 "conservative": (0.04, 0.08),
                 "moderately_conservative": (0.08, 0.12),
@@ -684,40 +679,42 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
             if band:
                 if portfolio_vol > band[1] * 1.2:
                     is_vol_acceptable = False
-                    saa_issues.append(ReviewIssue(
-                        section="investment_guidelines",
-                        dimension=ReviewDimension.CONSISTENCY,
-                        severity=IssueSeverity.CRITICAL,
-                        description=_t(
-                            "vol_above_desc",
-                            state.locale,
-                            portfolio_vol=portfolio_vol,
-                            risk_level=risk_level,
-                            band_max=band[1],
-                        ),
-                        regulation_reference=(
-                            "Portfolio risk must be consistent "
-                            "with stated risk tolerance level."
-                        ),
-                        suggestion=_t("vol_above_suggestion", state.locale),
-                    ))
+                    saa_issues.append(
+                        ReviewIssue(
+                            section="investment_guidelines",
+                            dimension=ReviewDimension.CONSISTENCY,
+                            severity=IssueSeverity.CRITICAL,
+                            description=_t(
+                                "vol_above_desc",
+                                state.locale,
+                                portfolio_vol=portfolio_vol,
+                                risk_level=risk_level,
+                                band_max=band[1],
+                            ),
+                            regulation_reference=(
+                                "Portfolio risk must be consistent "
+                                "with stated risk tolerance level."
+                            ),
+                            suggestion=_t("vol_above_suggestion", state.locale),
+                        )
+                    )
                 elif portfolio_vol < band[0] * 0.8:
-                    saa_issues.append(ReviewIssue(
-                        section="investment_guidelines",
-                        dimension=ReviewDimension.CONSISTENCY,
-                        severity=IssueSeverity.WARNING,
-                        description=_t(
-                            "vol_below_desc",
-                            state.locale,
-                            portfolio_vol=portfolio_vol,
-                            risk_level=risk_level,
-                            band_min=band[0],
-                        ),
-                        regulation_reference=(
-                            "Efficient use of risk budget"
-                        ),
-                        suggestion=_t("vol_below_suggestion", state.locale),
-                    ))
+                    saa_issues.append(
+                        ReviewIssue(
+                            section="investment_guidelines",
+                            dimension=ReviewDimension.CONSISTENCY,
+                            severity=IssueSeverity.WARNING,
+                            description=_t(
+                                "vol_below_desc",
+                                state.locale,
+                                portfolio_vol=portfolio_vol,
+                                risk_level=risk_level,
+                                band_min=band[0],
+                            ),
+                            regulation_reference=("Efficient use of risk budget"),
+                            suggestion=_t("vol_below_suggestion", state.locale),
+                        )
+                    )
 
             w_var = np.array(matched_vars)
             w_cvar = np.array(matched_cvars)
@@ -729,8 +726,11 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
                 "SAA quantitative validation: "
                 "E[r]=%.4f, σ=%.4f, Sharpe=%.4f, "
                 "VaR95=%.4f, CVaR95=%.4f, vol_ok=%s",
-                portfolio_return, portfolio_vol, portfolio_sharpe,
-                portfolio_var_95, portfolio_cvar_95,
+                portfolio_return,
+                portfolio_vol,
+                portfolio_sharpe,
+                portfolio_var_95,
+                portfolio_cvar_95,
                 is_vol_acceptable,
             )
 
@@ -762,30 +762,37 @@ async def validate_saa_node(state: IPSWorkflowState) -> dict[str, Any]:
             current_issues.extend([i.model_dump() for i in saa_issues])
 
             current_results = list(state.review_results)
-            current_results.append(ReviewResult(
-                dimension=ReviewDimension.CONSISTENCY,
-                passed=False,
-                issues=saa_issues,
-                summary=_t(
-                    "saa_summary",
-                    state.locale,
-                    n_issues=len(saa_issues),
-                    n_critical=sum(
-                        1 for i in saa_issues
-                        if i.severity == IssueSeverity.CRITICAL
+            current_results.append(
+                ReviewResult(
+                    dimension=ReviewDimension.CONSISTENCY,
+                    passed=False,
+                    issues=saa_issues,
+                    summary=_t(
+                        "saa_summary",
+                        state.locale,
+                        n_issues=len(saa_issues),
+                        n_critical=sum(
+                            1
+                            for i in saa_issues
+                            if i.severity == IssueSeverity.CRITICAL
+                        ),
                     ),
-                ),
-            ).model_dump())
+                ).model_dump()
+            )
 
             return {
                 "all_review_issues": current_issues,
                 "review_results": current_results,
-                "saa_validation": validation_result.model_dump() if validation_result else None,
+                "saa_validation": validation_result.model_dump()
+                if validation_result
+                else None,
             }
         else:
             logger.info("SAA validation passed")
             return {
-                "saa_validation": validation_result.model_dump() if validation_result else None,
+                "saa_validation": validation_result.model_dump()
+                if validation_result
+                else None,
             }
 
     except Exception as e:
@@ -836,9 +843,7 @@ async def finalize_node(state: IPSWorkflowState) -> dict[str, Any]:
 
     # Build audit trail
     audit = AuditTrail(
-        revision_history=[
-            RevisionRecord(**r) for r in state.revision_history
-        ],
+        revision_history=[RevisionRecord(**r) for r in state.revision_history],
         total_rounds=state.revision_count,
         final_status=final_status,
         generation_metadata={
@@ -849,16 +854,15 @@ async def finalize_node(state: IPSWorkflowState) -> dict[str, Any]:
         },
     )
 
-    logger.info("IPS finalized: status=%s, rounds=%d",
-                 final_status, state.revision_count)
+    logger.info(
+        "IPS finalized: status=%s, rounds=%d", final_status, state.revision_count
+    )
 
     return {
         "final_ips": state.ips_draft,
         "audit_trail": audit.model_dump(),
         "status": f"completed_{final_status}",
     }
-
-
 
 
 def route_after_review(state: IPSWorkflowState) -> str:
@@ -868,12 +872,14 @@ def route_after_review(state: IPSWorkflowState) -> str:
         return "pass"
 
     if state.revision_count >= state.max_revisions:
-        logger.warning("Max revisions (%d) reached → escalate",
-                       state.max_revisions)
+        logger.warning("Max revisions (%d) reached → escalate", state.max_revisions)
         return "escalate"
 
-    logger.info("Issues found → revise (round %d/%d)",
-                 state.revision_count + 1, state.max_revisions)
+    logger.info(
+        "Issues found → revise (round %d/%d)",
+        state.revision_count + 1,
+        state.max_revisions,
+    )
     return "revise"
 
 
@@ -885,8 +891,6 @@ def route_after_revision(state: IPSWorkflowState) -> str:
 
     logger.info("Revision complete → review again")
     return "review_again"
-
-
 
 
 def build_ips_workflow() -> StateGraph:
@@ -948,7 +952,6 @@ def compile_ips_workflow(checkpointer: Optional[Any] = None):
         checkpointer = MemorySaver()
 
     return workflow.compile(checkpointer=checkpointer)
-
 
 
 async def generate_ips(

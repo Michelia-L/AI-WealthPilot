@@ -84,7 +84,8 @@ def test_surplus_growth_sources(client, monkeypatch):
     _patch_returns(monkeypatch, _fake_returns())
 
     cfg_rf = {
-        "liability_ratio": 1.0, "liability_duration": 10.0,
+        "liability_ratio": 1.0,
+        "liability_duration": 10.0,
         "growth_source": "risk_free",
     }
     resp = client.post("/api/portfolio/optimize", json=_body(surplus=cfg_rf))
@@ -92,8 +93,10 @@ def test_surplus_growth_sources(client, monkeypatch):
     assert resp.json()["surplus"]["liability_growth"] == pytest.approx(0.0)
 
     cfg_custom = {
-        "liability_ratio": 1.0, "liability_duration": 10.0,
-        "growth_source": "custom", "custom_growth": 0.04,
+        "liability_ratio": 1.0,
+        "liability_duration": 10.0,
+        "growth_source": "custom",
+        "custom_growth": 0.04,
     }
     resp = client.post("/api/portfolio/optimize", json=_body(surplus=cfg_custom))
     assert resp.status_code == 200
@@ -104,8 +107,10 @@ def test_surplus_elderly_inflation_preset(client, monkeypatch):
     """Elderly (CPI-E style) preset uplifts the liability growth rate."""
     _patch_returns(monkeypatch, _fake_returns())
     cfg = {
-        "liability_ratio": 1.0, "liability_duration": 10.0,
-        "growth_source": "inflation", "inflation_preset": "elderly",
+        "liability_ratio": 1.0,
+        "liability_duration": 10.0,
+        "growth_source": "inflation",
+        "inflation_preset": "elderly",
     }
     resp = client.post("/api/portfolio/optimize", json=_body(surplus=cfg))
     assert resp.status_code == 200
@@ -232,10 +237,7 @@ def test_surplus_china_treasury_curve_discounting(client, monkeypatch):
     assert resp.status_code == 200
     surplus = resp.json()["surplus"]
 
-    pvs = {
-        t: 80000 * 1.025**t / (1.0 + rate_at(curve, t)) ** t
-        for t in range(6, 26)
-    }
+    pvs = {t: 80000 * 1.025**t / (1.0 + rate_at(curve, t)) ** t for t in range(6, 26)}
     pv_total = sum(pvs.values())
     expected_duration = sum(t * p for t, p in pvs.items()) / pv_total
 
@@ -285,13 +287,13 @@ def test_surplus_profile_without_goals_422(client, monkeypatch):
 def test_surplus_profile_zero_assets_422(client, monkeypatch):
     _patch_returns(monkeypatch, _fake_returns())
     financial = {
-        "annual_income": 100000, "annual_expenses": 60000,
-        "investable_assets": 0, "total_liabilities": 0,
+        "annual_income": 100000,
+        "annual_expenses": 60000,
+        "investable_assets": 0,
+        "total_liabilities": 0,
         "emergency_fund_months": 6.0,
     }
-    created = client.post(
-        "/api/profiles", json=sample_payload(financial=financial)
-    )
+    created = client.post("/api/profiles", json=sample_payload(financial=financial))
     pid = created.json()["id"]
 
     body = _body(profile_id=pid)
@@ -311,7 +313,9 @@ def test_surplus_requires_any_liability_input(client, monkeypatch):
 def test_surplus_invalid_proxy_422(client, monkeypatch):
     _patch_returns(monkeypatch, _fake_returns())
     cfg = {
-        "liability_ratio": 1.0, "liability_duration": 10.0, "proxy": "GOLD",
+        "liability_ratio": 1.0,
+        "liability_duration": 10.0,
+        "proxy": "GOLD",
     }
     resp = client.post("/api/portfolio/optimize", json=_body(surplus=cfg))
     assert resp.status_code == 422
@@ -320,7 +324,8 @@ def test_surplus_invalid_proxy_422(client, monkeypatch):
 def test_surplus_custom_growth_missing_422(client, monkeypatch):
     _patch_returns(monkeypatch, _fake_returns())
     cfg = {
-        "liability_ratio": 1.0, "liability_duration": 10.0,
+        "liability_ratio": 1.0,
+        "liability_duration": 10.0,
         "growth_source": "custom",
     }
     resp = client.post("/api/portfolio/optimize", json=_body(surplus=cfg))
@@ -336,8 +341,7 @@ def test_surplus_proxy_outside_universe(client, monkeypatch):
     assert resp.status_code == 200
     weights = resp.json()["selected"]["weights"]
     assert set(weights) == {
-        DEFAULT_ASSET_CLASSES[k]["name"]
-        for k in ("US_EQUITY", "INTL_EQUITY", "GOLD")
+        DEFAULT_ASSET_CLASSES[k]["name"] for k in ("US_EQUITY", "INTL_EQUITY", "GOLD")
     }
 
 

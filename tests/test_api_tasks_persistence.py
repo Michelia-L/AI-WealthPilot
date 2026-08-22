@@ -142,8 +142,12 @@ def test_reconnecting_consumer_gets_full_stream(client):
 
     async def scenario():
         task = registry.create("ips", client_name="John Doe")
-        await task.publish({"type": "node", "node": "generate_cme", "label": "生成 CME"})
-        await task.publish({"type": "node", "node": "generate", "label": "生成 IPS 初稿"})
+        await task.publish(
+            {"type": "node", "node": "generate_cme", "label": "生成 CME"}
+        )
+        await task.publish(
+            {"type": "node", "node": "generate", "label": "生成 IPS 初稿"}
+        )
 
         # First consumer connects, reads one event, then disconnects.
         first = task_events_stream(registry, task.task_id)

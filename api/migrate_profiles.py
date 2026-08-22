@@ -44,7 +44,9 @@ def import_json_profiles(session: Session, profiles_dir: Path | None = None) -> 
     directory = profiles_dir or profiler.PROFILES_DIR
     files = sorted(directory.glob("*.json")) if directory.exists() else []
 
-    existing = set(session.exec(select(ProfileRecord.name, ProfileRecord.created_at)).all())
+    existing = set(
+        session.exec(select(ProfileRecord.name, ProfileRecord.created_at)).all()
+    )
 
     imported = skipped = 0
     for filepath in files:

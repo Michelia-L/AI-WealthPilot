@@ -55,9 +55,7 @@ router = APIRouter(prefix="/monitoring", tags=["monitoring"])
 
 def _is_valid_document_id(document_id: str) -> bool:
     """Same charset rule as ips._find_ips_file (keeps lookups inside IPS_DIR)."""
-    return bool(document_id) and all(
-        c.isalnum() or c in "_-" for c in document_id
-    )
+    return bool(document_id) and all(c.isalnum() or c in "_-" for c in document_id)
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +74,9 @@ FLEET_STATUS_CACHE_TTL_SECONDS = 86400  # the date in the key expires it daily
     response_model=MonitoringFleetResponse,
     summary="Band-status overview across all stored IPS documents",
 )
-def get_fleet_status(request: Request, refresh: bool = False) -> MonitoringFleetResponse:
+def get_fleet_status(
+    request: Request, refresh: bool = False
+) -> MonitoringFleetResponse:
     locale = get_request_locale(request)
     # Date inside the key: the first request of a new day misses the cache
     # and recomputes — the lazy "daily auto re-check" semantic. Locale is
@@ -99,11 +99,15 @@ def get_fleet_status(request: Request, refresh: bool = False) -> MonitoringFleet
 def get_monitoring(document_id: str, request: Request) -> MonitoringResponse:
     locale = get_request_locale(request)
     if not _is_valid_document_id(document_id):
-        raise HTTPException(status_code=404, detail=msg("common.ips_doc_not_found", locale))
+        raise HTTPException(
+            status_code=404, detail=msg("common.ips_doc_not_found", locale)
+        )
     try:
         result = compute_monitoring(document_id, locale=locale)
     except KeyError:
-        raise HTTPException(status_code=404, detail=msg("common.ips_doc_not_found", locale)) from None
+        raise HTTPException(
+            status_code=404, detail=msg("common.ips_doc_not_found", locale)
+        ) from None
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     return MonitoringResponse(**result)
@@ -117,7 +121,9 @@ _backtest_cache = TTLCache()
 BACKTEST_CACHE_TTL_SECONDS = 600  # NAV panels are stable intraday
 
 
-def _resolve_annual_fee_rate(fee_schedule: dict, locale: str = "zh") -> tuple[float, list[str]]:
+def _resolve_annual_fee_rate(
+    fee_schedule: dict, locale: str = "zh"
+) -> tuple[float, list[str]]:
     """
     Extract the annual fee-drag rate from an IPS fee_schedule block (P18).
 
@@ -127,6 +133,7 @@ def _resolve_annual_fee_rate(fee_schedule: dict, locale: str = "zh") -> tuple[fl
     a missing or all-zero disclosure yields rate 0. Out-of-range rates are
     NOT clipped here — run_backtest owns the [0, 10%] plausibility cap.
     """
+
     def _num(key: str) -> float:
         try:
             return float(fee_schedule.get(key) or 0.0)
@@ -162,7 +169,9 @@ def get_backtest(
 ) -> BacktestResponse:
     locale = get_request_locale(request)
     if not _is_valid_document_id(document_id):
-        raise HTTPException(status_code=404, detail=msg("common.ips_doc_not_found", locale))
+        raise HTTPException(
+            status_code=404, detail=msg("common.ips_doc_not_found", locale)
+        )
     if period not in BACKTEST_PERIODS:
         raise HTTPException(
             status_code=422,
@@ -178,7 +187,9 @@ def get_backtest(
         try:
             saa = resolve_saa_weights(document_id, locale=locale)
         except KeyError:
-            raise HTTPException(status_code=404, detail=msg("common.ips_doc_not_found", locale)) from None
+            raise HTTPException(
+                status_code=404, detail=msg("common.ips_doc_not_found", locale)
+            ) from None
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e)) from e
 
@@ -208,7 +219,9 @@ def get_backtest(
             metrics=result["metrics"],
             benchmark=result["benchmark"],
             yearly=result["yearly"],
-            equity_chart=_fig_json(plot_backtest_equity(equity, result["benchmark"]["name"])),
+            equity_chart=_fig_json(
+                plot_backtest_equity(equity, result["benchmark"]["name"])
+            ),
             drawdown_chart=_fig_json(
                 plot_drawdown(drawdown["portfolio"], drawdown["benchmark"])
             ),
@@ -220,7 +233,9 @@ def get_backtest(
 
     # Locale is part of the key because the notes payload is localized.
     return _backtest_cache.get_or_set(
-        f"backtest:{document_id}:{period}:{locale}", BACKTEST_CACHE_TTL_SECONDS, _compute
+        f"backtest:{document_id}:{period}:{locale}",
+        BACKTEST_CACHE_TTL_SECONDS,
+        _compute,
     )
 
 
@@ -253,11 +268,18 @@ def _advice_event_stream(
                 event = {"type": "token", "text": event}
             yield sse(event)
     except Exception as e:  # defensive: src/ generator already swallows API errors
-        yield sse({"type": "error", "message": msg("common.stream_interrupted", locale, error=e)})
+        yield sse(
+            {
+                "type": "error",
+                "message": msg("common.stream_interrupted", locale, error=e),
+            }
+        )
         return
 
     if not holder:
-        yield sse({"type": "error", "message": msg("common.no_report_generated", locale)})
+        yield sse(
+            {"type": "error", "message": msg("common.no_report_generated", locale)}
+        )
         return
     report = holder[0]
     yield sse(
@@ -290,11 +312,15 @@ def stream_rebalance_advice(
             detail=msg("common.llm_not_configured", locale),
         )
     if not _is_valid_document_id(payload.document_id):
-        raise HTTPException(status_code=404, detail=msg("common.ips_doc_not_found", locale))
+        raise HTTPException(
+            status_code=404, detail=msg("common.ips_doc_not_found", locale)
+        )
     try:
         monitoring = compute_monitoring(payload.document_id, locale=locale)
     except KeyError:
-        raise HTTPException(status_code=404, detail=msg("common.ips_doc_not_found", locale)) from None
+        raise HTTPException(
+            status_code=404, detail=msg("common.ips_doc_not_found", locale)
+        ) from None
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
 

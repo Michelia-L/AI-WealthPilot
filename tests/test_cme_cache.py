@@ -22,6 +22,7 @@ from src.portfolio.cme_cache import CMECacheManager
 # Fixtures
 # ============================================================
 
+
 @pytest.fixture
 def cache_dir(tmp_path: Path) -> Path:
     """Create a temporary cache directory for each test."""
@@ -81,6 +82,7 @@ def sample_params_hash() -> str:
 # ============================================================
 # Tests
 # ============================================================
+
 
 class TestCMECacheManager:
     """Test suite for CMECacheManager."""

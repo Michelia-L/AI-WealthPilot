@@ -118,6 +118,7 @@ def profile_to_dict(profile: ClientProfile) -> dict:
         Dict representation.
     """
     from dataclasses import asdict
+
     return asdict(profile)
 
 
@@ -141,7 +142,9 @@ async def run_demo():
 
     # Step 2: Run the IPS workflow
     print("🚀 步骤 2: 启动 LangGraph IPS 生成工作流...")
-    print("   (CME生成 → IPS生成 → 适配性审查 → 合规性审查 → 一致性审查 → SAA验证 → [修订] → 终审)")
+    print(
+        "   (CME生成 → IPS生成 → 适配性审查 → 合规性审查 → 一致性审查 → SAA验证 → [修订] → 终审)"
+    )
     print()
 
     result = await generate_ips(
@@ -165,7 +168,9 @@ async def run_demo():
         ips = result["ips"]
         print("\n   ✅ IPS 生成成功!")
         print(f"   客户: {ips.get('client_name', 'N/A')}")
-        print(f"   风险等级: {ips.get('risk_tolerance', {}).get('overall_risk_level', 'N/A')}")
+        print(
+            f"   风险等级: {ips.get('risk_tolerance', {}).get('overall_risk_level', 'N/A')}"
+        )
 
         # Print allocation summary
         guidelines = ips.get("investment_guidelines", {})
@@ -231,7 +236,9 @@ async def run_demo():
 
         for rev in audit.get("revision_history", []):
             print(f"\n   第 {rev['round_number']} 轮修订:")
-            print(f"   版本变更: {rev.get('ips_version_before', '?')} → {rev.get('ips_version_after', '?')}")
+            print(
+                f"   版本变更: {rev.get('ips_version_before', '?')} → {rev.get('ips_version_after', '?')}"
+            )
             for change in rev.get("changes_made", [])[:3]:
                 if change:
                     print(f"     - {change[:80]}...")

@@ -14,7 +14,9 @@ from src.data import market_data, tushare_provider
 def cn_frame() -> pd.DataFrame:
     # Now-relative so the router's freshness guard never goes stale.
     dates = pd.bdate_range(end=pd.Timestamp.now().normalize(), periods=5)
-    return pd.DataFrame({"000300.SS": [4000.0, 4010.0, 4005.0, 4020.0, 4015.0]}, index=dates)
+    return pd.DataFrame(
+        {"000300.SS": [4000.0, 4010.0, 4005.0, 4020.0, 4015.0]}, index=dates
+    )
 
 
 @pytest.fixture
@@ -91,9 +93,7 @@ class TestRouter:
         assert list(out.columns) == ["SPY", "000300.SS"]
         assert out["000300.SS"].dropna().iloc[0] == 4000.0
 
-    def test_falls_back_to_yfinance_on_tushare_error(
-        self, monkeypatch, us_frame
-    ):
+    def test_falls_back_to_yfinance_on_tushare_error(self, monkeypatch, us_frame):
         monkeypatch.setattr(tushare_provider, "TUSHARE_TOKEN", "tok")
 
         def _boom(tickers, period):
@@ -101,7 +101,8 @@ class TestRouter:
 
         monkeypatch.setattr(tushare_provider, "fetch_index_history", _boom)
         monkeypatch.setattr(
-            market_data, "_fetch_price_history_yf",
+            market_data,
+            "_fetch_price_history_yf",
             lambda tickers, period, interval, base_currency, adjust_currency: us_frame[
                 ["SPY"]
             ].rename(columns={"SPY": tickers[0]}),
@@ -115,8 +116,10 @@ class TestRouter:
         monkeypatch.setattr(
             market_data,
             "_fetch_price_history_yf",
-            lambda *a, **k: called.__setitem__("yf", called["yf"] + 1)
-            or us_frame.rename(columns={"SPY": "000300.SS"}),
+            lambda *a, **k: (
+                called.__setitem__("yf", called["yf"] + 1)
+                or us_frame.rename(columns={"SPY": "000300.SS"})
+            ),
         )
         monkeypatch.setattr(
             tushare_provider,

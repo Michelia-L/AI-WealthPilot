@@ -78,7 +78,9 @@ class RiskStat(BaseModel):
     ann_return: float = Field(description="Annualized mean return (decimal)")
     ann_volatility: float = Field(description="Annualized volatility (decimal)")
     sharpe: float
-    max_drawdown: float = Field(description="Largest peak-to-trough loss (negative decimal)")
+    max_drawdown: float = Field(
+        description="Largest peak-to-trough loss (negative decimal)"
+    )
     var_95: float = Field(description="Daily 95% Value at Risk (positive decimal)")
 
 
@@ -147,11 +149,14 @@ class SurplusConfigInput(BaseModel):
     """
 
     liability_ratio: Optional[float] = Field(
-        default=None, gt=0,
+        default=None,
+        gt=0,
         description="k = liability PV / asset value (explicit channel)",
     )
     liability_duration: Optional[float] = Field(
-        default=None, gt=0, le=60,
+        default=None,
+        gt=0,
+        le=60,
         description="Liability duration in years (explicit channel)",
     )
     proxy: str = Field(
@@ -160,29 +165,39 @@ class SurplusConfigInput(BaseModel):
     )
     growth_source: Literal["inflation", "risk_free", "custom"] = "inflation"
     custom_growth: Optional[float] = Field(
-        default=None, ge=-0.1, le=0.3,
+        default=None,
+        ge=-0.1,
+        le=0.3,
         description="Liability growth rate when growth_source='custom'",
     )
-    inflation_preset: Optional[Literal["standard", "elderly", "luxury", "custom"]] = Field(
-        default=None,
-        description="Personal inflation preset for growth_source='inflation'; "
-        "None resolves from the profile's age (profile channel) or 'standard'",
+    inflation_preset: Optional[Literal["standard", "elderly", "luxury", "custom"]] = (
+        Field(
+            default=None,
+            description="Personal inflation preset for growth_source='inflation'; "
+            "None resolves from the profile's age (profile channel) or 'standard'",
+        )
     )
     # --- Retirement-income channel (inflation-linked cash-flow stream) ---
     years_to_retirement: Optional[int] = Field(
-        default=None, ge=0, le=50,
+        default=None,
+        ge=0,
+        le=50,
         description="Years from today until retirement (retirement channel)",
     )
     distribution_years: Optional[int] = Field(
-        default=None, ge=1, le=60,
+        default=None,
+        ge=1,
+        le=60,
         description="Years of retirement withdrawals (retirement channel)",
     )
     annual_income: Optional[float] = Field(
-        default=None, gt=0,
+        default=None,
+        gt=0,
         description="Desired annual retirement income in today's money",
     )
     asset_value: Optional[float] = Field(
-        default=None, gt=0,
+        default=None,
+        gt=0,
         description="Asset base A for the retirement channel when no "
         "profile supplies investable_assets",
     )
@@ -190,9 +205,7 @@ class SurplusConfigInput(BaseModel):
     @model_validator(mode="after")
     def _check_custom_growth(self) -> "SurplusConfigInput":
         if self.growth_source == "custom" and self.custom_growth is None:
-            raise ValueError(
-                "custom_growth is required when growth_source is 'custom'"
-            )
+            raise ValueError("custom_growth is required when growth_source is 'custom'")
         return self
 
 
@@ -205,7 +218,9 @@ class OptimizeRequest(BaseModel):
     risk_free_rate: Optional[float] = Field(
         default=None, description="Annualized decimal; None = fetch dynamically"
     )
-    method: Literal["mvo", "resampled", "black-litterman", "mean-cvar", "surplus", "risk-parity"] = "mvo"
+    method: Literal[
+        "mvo", "resampled", "black-litterman", "mean-cvar", "surplus", "risk-parity"
+    ] = "mvo"
     mode: Literal["max-sharpe", "min-vol"] = "max-sharpe"
     allow_short: bool = False
     n_simulations: int = Field(default=200, ge=50, le=2000)
@@ -215,7 +230,9 @@ class OptimizeRequest(BaseModel):
         "or the CME engine (black-litterman is incompatible with 'cme')",
     )
     cvar_confidence: float = Field(
-        default=0.95, ge=0.8, le=0.99,
+        default=0.95,
+        ge=0.8,
+        le=0.99,
         description="CVaR confidence level (mean-cvar method only)",
     )
     bl: Optional[BLConfigInput] = None
@@ -330,7 +347,8 @@ class SurplusInsight(BaseModel):
         default=None, description="Number of liability cash flows (stream channels)"
     )
     horizon_years: Optional[float] = Field(
-        default=None, description="Year of the last liability cash flow (stream channels)"
+        default=None,
+        description="Year of the last liability cash flow (stream channels)",
     )
 
 
@@ -400,16 +418,22 @@ class RetirementRequest(BaseModel):
     annual_savings: float = Field(default=50000, ge=0)
     desired_annual_income: float = Field(default=80000, ge=0)
     inflation_rate: float = Field(
-        default=0.025, ge=0, le=0.2,
+        default=0.025,
+        ge=0,
+        le=0.2,
         description="Base (generic-CPI) inflation, applied during accumulation",
     )
-    inflation_preset: Optional[Literal["standard", "elderly", "luxury", "custom"]] = Field(
-        default=None,
-        description="Personal inflation segment for the distribution phase "
-                    "(src.portfolio.inflation); None keeps single-rate behavior",
+    inflation_preset: Optional[Literal["standard", "elderly", "luxury", "custom"]] = (
+        Field(
+            default=None,
+            description="Personal inflation segment for the distribution phase "
+            "(src.portfolio.inflation); None keeps single-rate behavior",
+        )
     )
     custom_inflation_rate: Optional[float] = Field(
-        default=None, ge=0, le=0.2,
+        default=None,
+        ge=0,
+        le=0.2,
         description="Absolute distribution-phase rate when inflation_preset='custom'",
     )
     expected_return: float = Field(default=0.07, ge=-0.1, le=0.4)
@@ -421,11 +445,15 @@ class RetirementRequest(BaseModel):
         "Guyton-Klinger rules (cut/raise around the initial withdrawal rate)",
     )
     guardrail_band: float = Field(
-        default=0.2, ge=0.05, le=0.5,
+        default=0.2,
+        ge=0.05,
+        le=0.5,
         description="Relative band around the initial withdrawal rate (0.2 = ±20%)",
     )
     guardrail_adjust: float = Field(
-        default=0.1, ge=0.01, le=0.5,
+        default=0.1,
+        ge=0.01,
+        le=0.5,
         description="Withdrawal cut/raise when a guardrail fires (0.1 = ∓10%)",
     )
 
@@ -973,11 +1001,9 @@ class GoalFeasibility(BaseModel):
     )
     required_return: float = Field(
         description="Annual return this goal requires, solved from "
-                    "PV·(1+r)^n + PMT·[((1+r)^n − 1)/r] = FV"
+        "PV·(1+r)^n + PMT·[((1+r)^n − 1)/r] = FV"
     )
-    status: str = Field(
-        description="'on_track' | 'constrained' | 'infeasible'"
-    )
+    status: str = Field(description="'on_track' | 'constrained' | 'infeasible'")
 
 
 class RecommendationResponse(BaseModel):
@@ -995,8 +1021,8 @@ class RecommendationResponse(BaseModel):
     goal_status: Optional[str] = Field(
         default=None,
         description="Primary-goal feasibility vs. the risk budget: "
-                    "'on_track' | 'constrained' | 'infeasible'; null when the "
-                    "profile has no evaluable goal",
+        "'on_track' | 'constrained' | 'infeasible'; null when the "
+        "profile has no evaluable goal",
     )
     goal_name: Optional[str] = Field(
         default=None, description="Name of the primary goal evaluated"

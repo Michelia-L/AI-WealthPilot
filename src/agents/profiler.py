@@ -59,6 +59,7 @@ def classify_risk_score(score: float) -> str:
 @dataclass
 class FinancialSituation:
     """Client's financial position."""
+
     annual_income: float = 0.0
     annual_expenses: float = 0.0
     investable_assets: float = 0.0
@@ -95,6 +96,7 @@ class FinancialSituation:
 @dataclass
 class InvestmentGoal:
     """A single investment goal with target amount and time horizon."""
+
     name: str = ""
     target_amount: float = 0.0
     years: int = 0
@@ -104,6 +106,7 @@ class InvestmentGoal:
 @dataclass
 class RiskProfile:
     """Risk tolerance assessment: Risk Tolerance = min(Ability, Willingness)."""
+
     ability_score: float = 0.0
     willingness_score: float = 0.0
     tolerance_level: str = ""
@@ -134,30 +137,22 @@ class ClientProfile:
 
     goals: list = field(default_factory=list)
 
-
     time_horizon_years: int = 10
 
     is_multi_stage: bool = False
 
-
-
     liquidity_needs: float = 0.0
 
-
     tax_status: str = "taxable"  # tax-exempt / taxable / tax-deferred
-
 
     esg_preference: bool = False
     sector_restrictions: list = field(default_factory=list)
     notes: str = ""
 
-
     risk_profile: RiskProfile = field(default_factory=RiskProfile)
-
 
     ability_answers: dict[str, str] = field(default_factory=dict)
     willingness_answers: dict[str, str] = field(default_factory=dict)
-
 
     created_at: str = ""
     updated_at: str = ""
@@ -196,11 +191,29 @@ RISK_ABILITY_QUESTIONS = {
             "en": "How stable is your current income?",
         },
         "options": {
-            "very_unstable": {"label": {"zh": "很不稳定", "en": "Very unstable (freelance, variable)"}, "score": 1},
-            "somewhat_unstable": {"label": {"zh": "不太稳定", "en": "Somewhat unstable"}, "score": 2},
-            "moderate": {"label": {"zh": "一般稳定", "en": "Moderately stable"}, "score": 3},
-            "stable": {"label": {"zh": "稳定", "en": "Stable (fixed salary)"}, "score": 4},
-            "very_stable": {"label": {"zh": "非常稳定", "en": "Very stable (tenured, government)"}, "score": 5},
+            "very_unstable": {
+                "label": {
+                    "zh": "很不稳定",
+                    "en": "Very unstable (freelance, variable)",
+                },
+                "score": 1,
+            },
+            "somewhat_unstable": {
+                "label": {"zh": "不太稳定", "en": "Somewhat unstable"},
+                "score": 2,
+            },
+            "moderate": {
+                "label": {"zh": "一般稳定", "en": "Moderately stable"},
+                "score": 3,
+            },
+            "stable": {
+                "label": {"zh": "稳定", "en": "Stable (fixed salary)"},
+                "score": 4,
+            },
+            "very_stable": {
+                "label": {"zh": "非常稳定", "en": "Very stable (tenured, government)"},
+                "score": 5,
+            },
         },
     },
     "investment_knowledge": {
@@ -248,11 +261,23 @@ RISK_ABILITY_QUESTIONS = {
             "en": "What is your income relative to expenses?",
         },
         "options": {
-            "deficit": {"label": {"zh": "支出大于收入", "en": "Expenses > Income"}, "score": 1},
+            "deficit": {
+                "label": {"zh": "支出大于收入", "en": "Expenses > Income"},
+                "score": 1,
+            },
             "breakeven": {"label": {"zh": "基本持平", "en": "About equal"}, "score": 2},
-            "moderate_surplus": {"label": {"zh": "20-50%盈余", "en": "20-50% surplus"}, "score": 3},
-            "good_surplus": {"label": {"zh": "50-100%盈余", "en": "50-100% surplus"}, "score": 4},
-            "high_surplus": {"label": {"zh": "100%以上盈余", "en": "100%+ surplus"}, "score": 5},
+            "moderate_surplus": {
+                "label": {"zh": "20-50%盈余", "en": "20-50% surplus"},
+                "score": 3,
+            },
+            "good_surplus": {
+                "label": {"zh": "50-100%盈余", "en": "50-100% surplus"},
+                "score": 4,
+            },
+            "high_surplus": {
+                "label": {"zh": "100%以上盈余", "en": "100%+ surplus"},
+                "score": 5,
+            },
         },
     },
 }
@@ -264,11 +289,17 @@ RISK_WILLINGNESS_QUESTIONS = {
             "en": "If your portfolio dropped 20% in a month, you would:",
         },
         "options": {
-            "sell_all": {"label": {"zh": "全部卖出", "en": "Sell everything"}, "score": 1},
+            "sell_all": {
+                "label": {"zh": "全部卖出", "en": "Sell everything"},
+                "score": 1,
+            },
             "sell_some": {"label": {"zh": "卖出一部分", "en": "Sell some"}, "score": 2},
             "do_nothing": {"label": {"zh": "不动", "en": "Do nothing"}, "score": 3},
             "buy_more": {"label": {"zh": "加仓", "en": "Buy more"}, "score": 4},
-            "aggressively_buy": {"label": {"zh": "大幅加仓", "en": "Aggressively buy more"}, "score": 5},
+            "aggressively_buy": {
+                "label": {"zh": "大幅加仓", "en": "Aggressively buy more"},
+                "score": 5,
+            },
         },
     },
     "volatility_comfort": {
@@ -277,11 +308,38 @@ RISK_WILLINGNESS_QUESTIONS = {
             "en": "Which investment outcome would you be most comfortable with?",
         },
         "options": {
-            "low_low": {"label": {"zh": "低收益(3%)低风险", "en": "Low return (3%), low risk"}, "score": 1},
-            "moderate_low": {"label": {"zh": "中收益(6%)低风险", "en": "Moderate return (6%), low risk"}, "score": 2},
-            "moderate": {"label": {"zh": "中收益(8%)中风险", "en": "Moderate return (8%), moderate risk"}, "score": 3},
-            "high_moderate": {"label": {"zh": "高收益(12%)中风险", "en": "High return (12%), moderate risk"}, "score": 4},
-            "very_high": {"label": {"zh": "很高收益(15%+)高风险", "en": "Very high return (15%+), high risk"}, "score": 5},
+            "low_low": {
+                "label": {"zh": "低收益(3%)低风险", "en": "Low return (3%), low risk"},
+                "score": 1,
+            },
+            "moderate_low": {
+                "label": {
+                    "zh": "中收益(6%)低风险",
+                    "en": "Moderate return (6%), low risk",
+                },
+                "score": 2,
+            },
+            "moderate": {
+                "label": {
+                    "zh": "中收益(8%)中风险",
+                    "en": "Moderate return (8%), moderate risk",
+                },
+                "score": 3,
+            },
+            "high_moderate": {
+                "label": {
+                    "zh": "高收益(12%)中风险",
+                    "en": "High return (12%), moderate risk",
+                },
+                "score": 4,
+            },
+            "very_high": {
+                "label": {
+                    "zh": "很高收益(15%+)高风险",
+                    "en": "Very high return (15%+), high risk",
+                },
+                "score": 5,
+            },
         },
     },
     "gambling_scenario": {
@@ -290,11 +348,23 @@ RISK_WILLINGNESS_QUESTIONS = {
             "en": "You are given $10,000. Would you take a coin flip: double or nothing?",
         },
         "options": {
-            "definitely_no": {"label": {"zh": "绝对不会", "en": "Definitely not"}, "score": 1},
-            "probably_no": {"label": {"zh": "可能不会", "en": "Probably not"}, "score": 2},
+            "definitely_no": {
+                "label": {"zh": "绝对不会", "en": "Definitely not"},
+                "score": 1,
+            },
+            "probably_no": {
+                "label": {"zh": "可能不会", "en": "Probably not"},
+                "score": 2,
+            },
             "maybe": {"label": {"zh": "可能", "en": "Maybe"}, "score": 3},
-            "probably_yes": {"label": {"zh": "可能会", "en": "Probably yes"}, "score": 4},
-            "definitely_yes": {"label": {"zh": "一定会", "en": "Definitely yes"}, "score": 5},
+            "probably_yes": {
+                "label": {"zh": "可能会", "en": "Probably yes"},
+                "score": 4,
+            },
+            "definitely_yes": {
+                "label": {"zh": "一定会", "en": "Definitely yes"},
+                "score": 5,
+            },
         },
     },
     "tracking_error_tolerance": {
@@ -345,7 +415,6 @@ def assess_risk(ability_answers: dict, willingness_answers: dict) -> RiskProfile
     return profile
 
 
-
 PROFILES_DIR = DATA_DIR / "profiles"
 
 
@@ -389,13 +458,15 @@ def list_profiles() -> list[dict]:
     for filepath in sorted(PROFILES_DIR.glob("*.json"), reverse=True):
         try:
             profile = load_profile(filepath)
-            profiles.append({
-                "filepath": str(filepath),
-                "name": profile.name,
-                "age": profile.age,
-                "risk_level": profile.risk_profile.tolerance_level,
-                "updated_at": profile.updated_at,
-            })
+            profiles.append(
+                {
+                    "filepath": str(filepath),
+                    "name": profile.name,
+                    "age": profile.age,
+                    "risk_level": profile.risk_profile.tolerance_level,
+                    "updated_at": profile.updated_at,
+                }
+            )
         except Exception as e:
             logger.warning("Skipping corrupt profile file %s: %s", filepath, e)
             continue
@@ -429,10 +500,10 @@ def delete_profile(filepath: Path) -> bool:
         return False
 
 
-
 @dataclass
 class BehavioralBias:
     """A detected behavioral finance bias."""
+
     bias_type: str
     name: str
     description: str
@@ -445,129 +516,137 @@ def identify_behavioral_biases(profile: ClientProfile) -> list[BehavioralBias]:
     biases: list[BehavioralBias] = []
     rp = profile.risk_profile
 
-
     if rp.ability_score > 0 and rp.willingness_score > 0:
         if rp.willingness_score <= 2.0 and rp.ability_score >= 3.5:
-            biases.append(BehavioralBias(
-                bias_type="loss_aversion",
-                name="Loss Aversion / 损失厌恶",
-                description=(
-                    "Your willingness to take risk is significantly lower than "
-                    "your financial ability. This suggests you may be overly "
-                    "focused on potential losses rather than long-term gains. / "
-                    "您的风险承担意愿明显低于您的财务能力。这表明您可能过度关注"
-                    "潜在损失而非长期收益。"
-                ),
-                severity="high",
-                recommendation=(
-                    "Consider that short-term volatility is the 'price of admission' "
-                    "for long-term equity returns. Focus on your long-term goals "
-                    "rather than daily fluctuations. / "
-                    "请考虑短期波动是获得长期股票收益的'入场费'。"
-                    "请关注您的长期目标而非每日波动。"
-                ),
-            ))
-
+            biases.append(
+                BehavioralBias(
+                    bias_type="loss_aversion",
+                    name="Loss Aversion / 损失厌恶",
+                    description=(
+                        "Your willingness to take risk is significantly lower than "
+                        "your financial ability. This suggests you may be overly "
+                        "focused on potential losses rather than long-term gains. / "
+                        "您的风险承担意愿明显低于您的财务能力。这表明您可能过度关注"
+                        "潜在损失而非长期收益。"
+                    ),
+                    severity="high",
+                    recommendation=(
+                        "Consider that short-term volatility is the 'price of admission' "
+                        "for long-term equity returns. Focus on your long-term goals "
+                        "rather than daily fluctuations. / "
+                        "请考虑短期波动是获得长期股票收益的'入场费'。"
+                        "请关注您的长期目标而非每日波动。"
+                    ),
+                )
+            )
 
     if rp.ability_score >= 4.0 and rp.willingness_score >= 4.5:
-        biases.append(BehavioralBias(
-            bias_type="overconfidence",
-            name="Overconfidence / 过度自信",
-            description=(
-                "Your extremely high risk tolerance may indicate overconfidence "
-                "in your ability to predict market movements. Research shows "
-                "most active traders underperform passive strategies. / "
-                "您极高的风险承受能力可能表明您对预测市场走势过度自信。"
-                "研究表明大多数主动交易者的表现不如被动策略。"
-            ),
-            severity="medium",
-            recommendation=(
-                "Remember that markets are largely efficient. Consider a "
-                "core-satellite approach: passive index funds for core holdings, "
-                "with limited active bets. / "
-                "请记住市场在很大程度上是有效的。考虑核心-卫星策略："
-                "核心持仓使用被动指数基金，有限的主动投资。"
-            ),
-        ))
+        biases.append(
+            BehavioralBias(
+                bias_type="overconfidence",
+                name="Overconfidence / 过度自信",
+                description=(
+                    "Your extremely high risk tolerance may indicate overconfidence "
+                    "in your ability to predict market movements. Research shows "
+                    "most active traders underperform passive strategies. / "
+                    "您极高的风险承受能力可能表明您对预测市场走势过度自信。"
+                    "研究表明大多数主动交易者的表现不如被动策略。"
+                ),
+                severity="medium",
+                recommendation=(
+                    "Remember that markets are largely efficient. Consider a "
+                    "core-satellite approach: passive index funds for core holdings, "
+                    "with limited active bets. / "
+                    "请记住市场在很大程度上是有效的。考虑核心-卫星策略："
+                    "核心持仓使用被动指数基金，有限的主动投资。"
+                ),
+            )
+        )
 
     # When ability and willingness conflict, use the lower score
     if rp.ability_score > 0 and rp.willingness_score > 0:
         score_diff = abs(rp.ability_score - rp.willingness_score)
         if score_diff >= 1.5:
-            higher = "ability" if rp.ability_score > rp.willingness_score else "willingness"
-            biases.append(BehavioralBias(
-                bias_type="risk_mismatch",
-                name="Risk Tolerance Mismatch / 风险承受能力错配",
+            higher = (
+                "ability" if rp.ability_score > rp.willingness_score else "willingness"
+            )
+            biases.append(
+                BehavioralBias(
+                    bias_type="risk_mismatch",
+                    name="Risk Tolerance Mismatch / 风险承受能力错配",
+                    description=(
+                        f"There is a significant gap ({score_diff:.1f} points) between "
+                        f"your objective risk ability and subjective willingness. "
+                        f"Your {higher} score is notably higher. / "
+                        f"您的客观风险能力与主观意愿之间存在显著差距（{score_diff:.1f}分）。"
+                        f"您的{higher}评分明显更高。"
+                    ),
+                    severity="high",
+                    recommendation=(
+                        "Per prudential guidelines, we use the lower score to protect you. "
+                        "Consider discussing with an advisor to align your comfort "
+                        "level with your financial capacity. / "
+                        "根据审慎原则，我们采用较低评分以保护您。"
+                        "建议与顾问讨论，使您的心理舒适度与财务能力相匹配。"
+                    ),
+                )
+            )
+
+    if profile.financial.debt_to_asset_ratio > 0.5 and rp.willingness_score >= 4.0:
+        biases.append(
+            BehavioralBias(
+                bias_type="leverage_risk",
+                name="Leverage Risk Behavior / 杠杆风险行为",
                 description=(
-                    f"There is a significant gap ({score_diff:.1f} points) between "
-                    f"your objective risk ability and subjective willingness. "
-                    f"Your {higher} score is notably higher. / "
-                    f"您的客观风险能力与主观意愿之间存在显著差距（{score_diff:.1f}分）。"
-                    f"您的{higher}评分明显更高。"
+                    f"Your debt-to-asset ratio is "
+                    f"{format_ratio(profile.financial.debt_to_asset_ratio)}, "
+                    f"yet you show high risk tolerance. This combination "
+                    f"increases financial vulnerability. / "
+                    f"您的资产负债率为 {format_ratio(profile.financial.debt_to_asset_ratio)}，"
+                    f"但您显示出高风险容忍度。这种组合增加了财务脆弱性。"
                 ),
                 severity="high",
                 recommendation=(
-                    "Per prudential guidelines, we use the lower score to protect you. "
-                    "Consider discussing with an advisor to align your comfort "
-                    "level with your financial capacity. / "
-                    "根据审慎原则，我们采用较低评分以保护您。"
-                    "建议与顾问讨论，使您的心理舒适度与财务能力相匹配。"
+                    "Prioritize debt reduction before increasing investment risk. "
+                    "High leverage combined with aggressive investing can lead to "
+                    "forced liquidation during market downturns. / "
+                    "请在增加投资风险之前优先减少债务。"
+                    "高杠杆与激进投资相结合可能导致市场下跌时被迫清算。"
                 ),
-            ))
-
-
-    if profile.financial.debt_to_asset_ratio > 0.5 and rp.willingness_score >= 4.0:
-        biases.append(BehavioralBias(
-            bias_type="leverage_risk",
-            name="Leverage Risk Behavior / 杠杆风险行为",
-            description=(
-                f"Your debt-to-asset ratio is "
-                f"{format_ratio(profile.financial.debt_to_asset_ratio)}, "
-                f"yet you show high risk tolerance. This combination "
-                f"increases financial vulnerability. / "
-                f"您的资产负债率为 {format_ratio(profile.financial.debt_to_asset_ratio)}，"
-                f"但您显示出高风险容忍度。这种组合增加了财务脆弱性。"
-            ),
-            severity="high",
-            recommendation=(
-                "Prioritize debt reduction before increasing investment risk. "
-                "High leverage combined with aggressive investing can lead to "
-                "forced liquidation during market downturns. / "
-                "请在增加投资风险之前优先减少债务。"
-                "高杠杆与激进投资相结合可能导致市场下跌时被迫清算。"
-            ),
-        ))
-
+            )
+        )
 
     if profile.financial.emergency_fund_months < 3 and rp.willingness_score >= 3.0:
-        biases.append(BehavioralBias(
-            bias_type="inadequate_safety_net",
-            name="Inadequate Safety Net / 安全网不足",
-            description=(
-                f"Your emergency fund covers only "
-                f"{profile.financial.emergency_fund_months:.0f} months of expenses, "
-                f"below the recommended 3-6 months. Yet you show moderate-to-high "
-                f"risk tolerance. / "
-                f"您的应急基金仅覆盖 {profile.financial.emergency_fund_months:.0f} 个月的支出，"
-                f"低于推荐的 3-6 个月。但您显示出中等至高的风险容忍度。"
-            ),
-            severity="medium",
-            recommendation=(
-                "Build your emergency fund to at least 3-6 months of expenses "
-                "before taking on significant investment risk. This prevents "
-                "the need to sell investments at unfavorable times. / "
-                "请在承担重大投资风险之前，将应急基金建立到至少 3-6 个月的支出。"
-                "这可以避免在不利时机被迫出售投资。"
-            ),
-        ))
+        biases.append(
+            BehavioralBias(
+                bias_type="inadequate_safety_net",
+                name="Inadequate Safety Net / 安全网不足",
+                description=(
+                    f"Your emergency fund covers only "
+                    f"{profile.financial.emergency_fund_months:.0f} months of expenses, "
+                    f"below the recommended 3-6 months. Yet you show moderate-to-high "
+                    f"risk tolerance. / "
+                    f"您的应急基金仅覆盖 {profile.financial.emergency_fund_months:.0f} 个月的支出，"
+                    f"低于推荐的 3-6 个月。但您显示出中等至高的风险容忍度。"
+                ),
+                severity="medium",
+                recommendation=(
+                    "Build your emergency fund to at least 3-6 months of expenses "
+                    "before taking on significant investment risk. This prevents "
+                    "the need to sell investments at unfavorable times. / "
+                    "请在承担重大投资风险之前，将应急基金建立到至少 3-6 个月的支出。"
+                    "这可以避免在不利时机被迫出售投资。"
+                ),
+            )
+        )
 
     return biases
-
 
 
 @dataclass
 class ProfileComparison:
     """Comparison results across multiple client profiles."""
+
     client_names: list[str] = field(default_factory=list)
     risk_score_comparison: dict[str, float] = field(default_factory=dict)
     risk_level_comparison: dict[str, str] = field(default_factory=dict)
@@ -592,7 +671,6 @@ def compare_profiles(profiles: list[ClientProfile]) -> ProfileComparison:
     for profile in profiles:
         name = profile.name
         comparison.client_names.append(name)
-
 
         rp = profile.risk_profile
         comparison.risk_score_comparison[name] = rp.final_score
@@ -629,7 +707,6 @@ def _generate_comparison_insights(
     """Generate analytical insights from profile comparison."""
     insights: list[str] = []
 
-
     risk_scores = comparison.risk_score_comparison
     if risk_scores:
         max_risk_name = max(risk_scores, key=risk_scores.get)
@@ -645,7 +722,6 @@ def _generate_comparison_insights(
                 f"({risk_scores[min_risk_name]:.1f})。"
             )
 
-
     net_worths = comparison.net_worth_comparison
     if net_worths:
         max_nw_name = max(net_worths, key=net_worths.get)
@@ -653,7 +729,8 @@ def _generate_comparison_insights(
         if max_nw_name != min_nw_name:
             nw_ratio = (
                 net_worths[max_nw_name] / net_worths[min_nw_name]
-                if net_worths[min_nw_name] > 0 else float('inf')
+                if net_worths[min_nw_name] > 0
+                else float("inf")
             )
             insights.append(
                 f"Net worth range: {max_nw_name} has {nw_ratio:.1f}x "
@@ -661,13 +738,11 @@ def _generate_comparison_insights(
                 f"净资产范围：{max_nw_name} 是 {min_nw_name} 的 {nw_ratio:.1f} 倍。"
             )
 
-
     savings_rates = comparison.savings_rate_comparison
     if savings_rates:
         avg_rate = sum(savings_rates.values()) / len(savings_rates)
         high_savers = [
-            name for name, rate in savings_rates.items()
-            if rate > avg_rate * 1.5
+            name for name, rate in savings_rates.items() if rate > avg_rate * 1.5
         ]
         if high_savers:
             insights.append(
@@ -676,14 +751,12 @@ def _generate_comparison_insights(
                 f"高储蓄率客户 ({', '.join(high_savers)}) 可能适合更激进的投资策略。"
             )
 
-
     bias_counts = comparison.bias_count_comparison
     if bias_counts:
         max_biases = max(bias_counts.values())
         if max_biases > 0:
             high_bias_clients = [
-                name for name, count in bias_counts.items()
-                if count == max_biases
+                name for name, count in bias_counts.items() if count == max_biases
             ]
             insights.append(
                 f"Client(s) with most behavioral biases "
@@ -693,7 +766,6 @@ def _generate_comparison_insights(
                 f"({', '.join(high_bias_clients)}: {max_biases} 个偏差) "
                 f"可能需要更多的行为金融指导。"
             )
-
 
     for profile in profiles:
         rp = profile.risk_profile

@@ -30,7 +30,7 @@ Key Outputs / 关键输出:
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import numpy as np
 import pandas as pd
@@ -108,7 +108,7 @@ def main():
     print(f"  Volatility / 波动率: {max_sharpe['volatility']:.2%}")
     print(f"  Sharpe Ratio / 夏普比率: {max_sharpe['sharpe']:.2f}")
     print("  Weights / 权重:")
-    for asset, weight in max_sharpe['weights'].items():
+    for asset, weight in max_sharpe["weights"].items():
         print(f"    {asset}: {weight:.1%}")
 
     print("\n" + "-" * 40)
@@ -147,9 +147,11 @@ def main():
     # Define investor views (more conservative estimates)
     # 定义投资者观点（更保守的估计）
     views = [
-        ViewInput('absolute', 'US_Equity', 0.10, 60.0),  # US Equity: 10%
-        ViewInput('relative', 'US_Equity', 'Intl_Equity', 0.02, 50.0),  # US > Intl by 2%
-        ViewInput('absolute', 'Gold', 0.06, 40.0),  # Gold: 6%
+        ViewInput("absolute", "US_Equity", 0.10, 60.0),  # US Equity: 10%
+        ViewInput(
+            "relative", "US_Equity", "Intl_Equity", 0.02, 50.0
+        ),  # US > Intl by 2%
+        ViewInput("absolute", "Gold", 0.06, 40.0),  # Gold: 6%
     ]
 
     print("\nInvestor Views / 投资者观点:")
@@ -177,7 +179,7 @@ def main():
     print(f"  Volatility / 波动率: {bl_result['volatility']:.2%}")
     print(f"  Sharpe Ratio / 夏普比率: {bl_result['sharpe']:.2f}")
     print("  Weights / 权重:")
-    for asset, weight in bl_result['weights'].items():
+    for asset, weight in bl_result["weights"].items():
         print(f"    {asset}: {weight:.1%}")
 
     # Compare MVO vs BL
@@ -188,7 +190,9 @@ def main():
     print(f"{'Metric':<20} {'MVO':>10} {'BL':>10}")
     print("-" * 40)
     print(f"{'Return':<20} {max_sharpe['return']:>9.2%} {bl_result['return']:>9.2%}")
-    print(f"{'Volatility':<20} {max_sharpe['volatility']:>9.2%} {bl_result['volatility']:>9.2%}")
+    print(
+        f"{'Volatility':<20} {max_sharpe['volatility']:>9.2%} {bl_result['volatility']:>9.2%}"
+    )
     print(f"{'Sharpe':<20} {max_sharpe['sharpe']:>9.2f} {bl_result['sharpe']:>9.2f}")
 
     # ============================================================
@@ -210,15 +214,17 @@ def main():
     desired_income = 150000
 
     print("\nClient Profile / 客户画像:")
-    print(f"  Age: {current_age}, Retire at: {retirement_age}, Live to: {life_expectancy}")
+    print(
+        f"  Age: {current_age}, Retire at: {retirement_age}, Live to: {life_expectancy}"
+    )
     print(f"  Current Savings: ${current_savings:,.0f}")
     print(f"  Annual Savings: ${annual_savings:,.0f}")
     print(f"  Desired Retirement Income: ${desired_income:,.0f}/year")
 
     # Use MVO-optimized portfolio characteristics (more realistic for simulation)
     # 使用MVO优化后的组合特征（用于模拟更现实）
-    expected_return = max_sharpe['return']
-    volatility = max_sharpe['volatility']
+    expected_return = max_sharpe["return"]
+    volatility = max_sharpe["volatility"]
 
     print("\nUsing MVO-Optimized Portfolio for Simulation:")
     print(f"  Expected Return: {expected_return:.2%}")
@@ -249,9 +255,13 @@ def main():
     # Print results
     # 打印结果
     print("\n" + "-" * 40)
-    print("Accumulation Phase (Age {} to {}) / 积累阶段".format(current_age, retirement_age))
+    print(
+        "Accumulation Phase (Age {} to {}) / 积累阶段".format(
+            current_age, retirement_age
+        )
+    )
     print("-" * 40)
-    accum = result['accumulation']
+    accum = result["accumulation"]
     print(f"  Duration: {result['accumulation_years']} years")
     print(f"  Mean Terminal Value: ${accum.mean_terminal:,.0f}")
     print(f"  Median Terminal Value: ${accum.median_terminal:,.0f}")
@@ -259,7 +269,11 @@ def main():
     print(f"  95th Percentile: ${accum.percentile_95:,.0f}")
 
     print("\n" + "-" * 40)
-    print("Distribution Phase (Age {} to {}) / 分配阶段".format(retirement_age, life_expectancy))
+    print(
+        "Distribution Phase (Age {} to {}) / 分配阶段".format(
+            retirement_age, life_expectancy
+        )
+    )
     print("-" * 40)
     print(f"  Duration: {result['distribution_years']} years")
     print(f"  Annual Withdrawal: ${desired_income:,.0f}")
@@ -271,10 +285,10 @@ def main():
     print("  退休期间资金不耗尽的概率:")
     print(f"  {result['survival_rate']:.1%}")
 
-    if result['survival_rate'] >= 0.90:
+    if result["survival_rate"] >= 0.90:
         print("\n  ✓ EXCELLENT: High confidence of retirement success")
         print("    优秀：退休成功的高置信度")
-    elif result['survival_rate'] >= 0.75:
+    elif result["survival_rate"] >= 0.75:
         print("\n  ⚠ MODERATE: Consider increasing savings")
         print("    中等：考虑增加储蓄")
     else:
@@ -297,7 +311,9 @@ def main():
     print("\n2. Black-Litterman Model / Black-Litterman模型:")
     print("   - Incorporated 3 investor views")
     print("   - 纳入了3个投资者观点")
-    print(f"   - BL Sharpe: {bl_result['sharpe']:.2f} vs MVO Sharpe: {max_sharpe['sharpe']:.2f}")
+    print(
+        f"   - BL Sharpe: {bl_result['sharpe']:.2f} vs MVO Sharpe: {max_sharpe['sharpe']:.2f}"
+    )
     print("   - Demonstrates how views affect allocation")
     print("   - 展示观点如何影响配置")
 

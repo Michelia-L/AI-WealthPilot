@@ -30,6 +30,7 @@ from src.portfolio.views import ViewInput, ViewProcessor
 # Fixtures / 测试夹具
 # ============================================================
 
+
 @pytest.fixture
 def sample_returns():
     """
@@ -63,8 +64,8 @@ def absolute_view():
     示例绝对观点：US_EQ 预期收益 15%。
     """
     return ViewInput(
-        view_type='absolute',
-        asset_long='US_EQ',
+        view_type="absolute",
+        asset_long="US_EQ",
         expected_return=0.15,
         confidence=70.0,
     )
@@ -77,9 +78,9 @@ def relative_view():
     示例相对观点：US_EQ 将比 INTL_EQ 高出 3%。
     """
     return ViewInput(
-        view_type='relative',
-        asset_long='US_EQ',
-        asset_short='INTL_EQ',
+        view_type="relative",
+        asset_long="US_EQ",
+        asset_short="INTL_EQ",
         expected_return=0.03,
         confidence=60.0,
     )
@@ -110,6 +111,7 @@ def view_processor():
 # Test Classes / 测试类
 # ============================================================
 
+
 class TestImpliedEquilibriumReturns:
     """
     Test suite for market-implied equilibrium returns.
@@ -130,13 +132,9 @@ class TestImpliedEquilibriumReturns:
         """
         expected_Pi = (
             bl_optimizer.risk_free_rate
-            + bl_optimizer.delta
-            * bl_optimizer.cov_matrix.values
-            @ market_cap_weights
+            + bl_optimizer.delta * bl_optimizer.cov_matrix.values @ market_cap_weights
         )
-        np.testing.assert_array_almost_equal(
-            bl_optimizer.Pi, expected_Pi, decimal=10
-        )
+        np.testing.assert_array_almost_equal(bl_optimizer.Pi, expected_Pi, decimal=10)
 
     def test_Pi_linear_in_delta(self, sample_returns):
         """
@@ -175,9 +173,7 @@ class TestViewProcessor:
         绝对观点应设置 P[0, 资产索引] = 1。
         """
         cov = pd.DataFrame(np.eye(4) * 0.04)
-        P, Q, Omega = view_processor.generate_P_Q_omega(
-            [absolute_view], cov
-        )
+        P, Q, Omega = view_processor.generate_P_Q_omega([absolute_view], cov)
         # US_EQ is index 0
         assert P[0, 0] == 1.0
         assert P[0, 1:] == pytest.approx(0.0, abs=1e-10)
@@ -188,9 +184,7 @@ class TestViewProcessor:
         Q 应包含绝对观点的预期收益。
         """
         cov = pd.DataFrame(np.eye(4) * 0.04)
-        P, Q, Omega = view_processor.generate_P_Q_omega(
-            [absolute_view], cov
-        )
+        P, Q, Omega = view_processor.generate_P_Q_omega([absolute_view], cov)
         assert Q[0] == 0.15
 
     def test_relative_view_P_matrix(self, view_processor, relative_view):
@@ -199,9 +193,7 @@ class TestViewProcessor:
         相对观点：P[k, 多头] = 1, P[k, 空头] = -1。
         """
         cov = pd.DataFrame(np.eye(4) * 0.04)
-        P, Q, Omega = view_processor.generate_P_Q_omega(
-            [relative_view], cov
-        )
+        P, Q, Omega = view_processor.generate_P_Q_omega([relative_view], cov)
         # US_EQ (index 0) = 1, INTL_EQ (index 1) = -1
         assert P[0, 0] == 1.0
         assert P[0, 1] == -1.0
@@ -213,9 +205,7 @@ class TestViewProcessor:
         Q 应包含相对观点的收益差。
         """
         cov = pd.DataFrame(np.eye(4) * 0.04)
-        P, Q, Omega = view_processor.generate_P_Q_omega(
-            [relative_view], cov
-        )
+        P, Q, Omega = view_processor.generate_P_Q_omega([relative_view], cov)
         assert Q[0] == 0.03
 
     def test_multiple_views(self, view_processor, absolute_view, relative_view):
@@ -236,9 +226,7 @@ class TestViewProcessor:
         Omega 应为对角矩阵（观点独立）。
         """
         cov = pd.DataFrame(np.eye(4) * 0.04)
-        P, Q, Omega = view_processor.generate_P_Q_omega(
-            [absolute_view], cov
-        )
+        P, Q, Omega = view_processor.generate_P_Q_omega([absolute_view], cov)
         # Off-diagonal elements should be zero
         np.testing.assert_array_almost_equal(Omega, np.diag(np.diag(Omega)))
 
@@ -248,12 +236,16 @@ class TestViewProcessor:
         高置信度应产生小的 omega。
         """
         view_high = ViewInput(
-            view_type='absolute', asset_long='US_EQ',
-            expected_return=0.15, confidence=95.0
+            view_type="absolute",
+            asset_long="US_EQ",
+            expected_return=0.15,
+            confidence=95.0,
         )
         view_low = ViewInput(
-            view_type='absolute', asset_long='US_EQ',
-            expected_return=0.15, confidence=20.0
+            view_type="absolute",
+            asset_long="US_EQ",
+            expected_return=0.15,
+            confidence=20.0,
         )
 
         cov = pd.DataFrame(np.eye(4) * 0.04)
@@ -269,9 +261,7 @@ class TestViewProcessor:
         Omega 对角元素应为正数。
         """
         cov = pd.DataFrame(np.eye(4) * 0.04)
-        P, Q, Omega = view_processor.generate_P_Q_omega(
-            [absolute_view], cov
-        )
+        P, Q, Omega = view_processor.generate_P_Q_omega([absolute_view], cov)
         assert np.all(np.diag(Omega) > 0)
 
     def test_validate_views_valid(self, view_processor, absolute_view):
@@ -288,8 +278,10 @@ class TestViewProcessor:
         无效资产名称应产生警告。
         """
         view = ViewInput(
-            view_type='absolute', asset_long='INVALID',
-            expected_return=0.15, confidence=70.0
+            view_type="absolute",
+            asset_long="INVALID",
+            expected_return=0.15,
+            confidence=70.0,
         )
         warnings = view_processor.validate_views([view])
         assert len(warnings) > 0
@@ -298,10 +290,12 @@ class TestViewProcessor:
 
     def test_validate_views_invalid_asset_en(self):
         """English locale produces English-only warnings."""
-        vp = ViewProcessor(['US_EQ', 'INTL_EQ', 'BONDS', 'GOLD'], locale="en")
+        vp = ViewProcessor(["US_EQ", "INTL_EQ", "BONDS", "GOLD"], locale="en")
         view = ViewInput(
-            view_type='absolute', asset_long='INVALID',
-            expected_return=0.15, confidence=70.0
+            view_type="absolute",
+            asset_long="INVALID",
+            expected_return=0.15,
+            confidence=70.0,
         )
         warnings = vp.validate_views([view])
         assert len(warnings) > 0
@@ -310,14 +304,16 @@ class TestViewProcessor:
     def test_unknown_asset_error_locale(self):
         """generate_P_Q_omega raises in the processor's locale."""
         view = ViewInput(
-            view_type='absolute', asset_long='INVALID',
-            expected_return=0.15, confidence=70.0
+            view_type="absolute",
+            asset_long="INVALID",
+            expected_return=0.15,
+            confidence=70.0,
         )
         cov = pd.DataFrame(np.eye(4) * 0.04)
-        vp_zh = ViewProcessor(['US_EQ', 'INTL_EQ', 'BONDS', 'GOLD'])
+        vp_zh = ViewProcessor(["US_EQ", "INTL_EQ", "BONDS", "GOLD"])
         with pytest.raises(ValueError, match="检测到无效观点"):
             vp_zh.generate_P_Q_omega([view], cov)
-        vp_en = ViewProcessor(['US_EQ', 'INTL_EQ', 'BONDS', 'GOLD'], locale="en")
+        vp_en = ViewProcessor(["US_EQ", "INTL_EQ", "BONDS", "GOLD"], locale="en")
         with pytest.raises(ValueError, match="Invalid views detected"):
             vp_en.generate_P_Q_omega([view], cov)
 
@@ -334,8 +330,10 @@ class TestBlackLittermanPosterior:
         置信度非常低时，BL 后验应接近均衡收益。
         """
         view = ViewInput(
-            view_type='absolute', asset_long='US_EQ',
-            expected_return=0.50, confidence=0.1  # Very low confidence
+            view_type="absolute",
+            asset_long="US_EQ",
+            expected_return=0.50,
+            confidence=0.1,  # Very low confidence
         )
         bl_optimizer.apply_views([view])
 
@@ -350,8 +348,10 @@ class TestBlackLittermanPosterior:
         高置信度观点应将后验拉向观点方向。
         """
         view = ViewInput(
-            view_type='absolute', asset_long='US_EQ',
-            expected_return=0.30, confidence=99.0  # Very high confidence
+            view_type="absolute",
+            asset_long="US_EQ",
+            expected_return=0.30,
+            confidence=99.0,  # Very high confidence
         )
         bl_optimizer.apply_views([view])
 
@@ -369,7 +369,8 @@ class TestBlackLittermanPosterior:
         """
         bl_optimizer.apply_views([absolute_view])
         assert bl_optimizer.Sigma_bl.shape == (
-            bl_optimizer.n_assets, bl_optimizer.n_assets
+            bl_optimizer.n_assets,
+            bl_optimizer.n_assets,
         )
 
     def test_posterior_covariance_symmetric(self, bl_optimizer, absolute_view):
@@ -382,7 +383,9 @@ class TestBlackLittermanPosterior:
             bl_optimizer.Sigma_bl, bl_optimizer.Sigma_bl.T
         )
 
-    def test_posterior_covariance_positive_semidefinite(self, bl_optimizer, absolute_view):
+    def test_posterior_covariance_positive_semidefinite(
+        self, bl_optimizer, absolute_view
+    ):
         """
         Posterior covariance should be positive semi-definite.
         后验协方差矩阵应为半正定矩阵。
@@ -393,12 +396,14 @@ class TestBlackLittermanPosterior:
             "Posterior covariance should be positive semi-definite"
         )
 
-    def test_posterior_covariance_increases_with_tau(self, sample_returns, market_cap_weights):
+    def test_posterior_covariance_increases_with_tau(
+        self, sample_returns, market_cap_weights
+    ):
         """
         Larger tau should increase posterior covariance.
         更大的 tau 应增加后验协方差。
         """
-        views = [ViewInput('absolute', 'US_EQ', 0.15, 70.0)]
+        views = [ViewInput("absolute", "US_EQ", 0.15, 70.0)]
 
         opt1 = BlackLittermanOptimizer(
             sample_returns, market_cap_weights=market_cap_weights, tau=0.01
@@ -428,15 +433,20 @@ class TestBlackLittermanPosterior:
         相对观点"A > B"应增加 A 相对于 B 的收益。
         """
         view = ViewInput(
-            view_type='relative', asset_long='US_EQ',
-            asset_short='INTL_EQ', expected_return=0.05, confidence=80.0
+            view_type="relative",
+            asset_long="US_EQ",
+            asset_short="INTL_EQ",
+            expected_return=0.05,
+            confidence=80.0,
         )
         bl_optimizer.apply_views([view])
 
         # US_EQ should have higher posterior return than INTL_EQ
         assert bl_optimizer.mu_bl[0] > bl_optimizer.mu_bl[1]
 
-    def test_posterior_survives_singular_matrices_via_pinv(self, bl_optimizer, absolute_view, monkeypatch):
+    def test_posterior_survives_singular_matrices_via_pinv(
+        self, bl_optimizer, absolute_view, monkeypatch
+    ):
         """
         If any matrix inversion is singular (e.g. extreme-confidence views
         making the composite numerically rank-deficient), the pinv fallback
@@ -444,6 +454,7 @@ class TestBlackLittermanPosterior:
         任何矩阵求逆奇异时（如极端置信度导致复合矩阵数值秩亏），pinv 兜底
         仍应产出有限的后验结果。
         """
+
         def always_singular(_matrix):
             raise np.linalg.LinAlgError("forced singular")
 
@@ -453,7 +464,8 @@ class TestBlackLittermanPosterior:
         assert np.all(np.isfinite(bl_optimizer.mu_bl))
         assert np.all(np.isfinite(bl_optimizer.Sigma_bl))
         assert bl_optimizer.Sigma_bl.shape == (
-            bl_optimizer.n_assets, bl_optimizer.n_assets
+            bl_optimizer.n_assets,
+            bl_optimizer.n_assets,
         )
 
 
@@ -602,15 +614,12 @@ class TestEdgeCases:
         """
         np.random.seed(42)
         returns = pd.DataFrame(
-            np.random.randn(1000) * 0.01 + 0.0004,
-            columns=["SINGLE"]
+            np.random.randn(1000) * 0.01 + 0.0004, columns=["SINGLE"]
         )
 
-        opt = BlackLittermanOptimizer(
-            returns, market_cap_weights=np.array([1.0])
-        )
+        opt = BlackLittermanOptimizer(returns, market_cap_weights=np.array([1.0]))
 
-        view = ViewInput('absolute', 'SINGLE', 0.20, 80.0)
+        view = ViewInput("absolute", "SINGLE", 0.20, 80.0)
         opt.apply_views([view])
 
         result = opt.bl_maximize_sharpe()
@@ -624,14 +633,12 @@ class TestEdgeCases:
         np.random.seed(42)
         returns = pd.DataFrame(
             np.random.randn(1000, 2) * 0.01 + np.array([0.0004, 0.0003]),
-            columns=["A", "B"]
+            columns=["A", "B"],
         )
 
-        opt = BlackLittermanOptimizer(
-            returns, market_cap_weights=np.array([0.5, 0.5])
-        )
+        opt = BlackLittermanOptimizer(returns, market_cap_weights=np.array([0.5, 0.5]))
 
-        view = ViewInput('relative', 'A', 'B', 0.05, 70.0)
+        view = ViewInput("relative", "A", "B", 0.05, 70.0)
         opt.apply_views([view])
 
         # A should have higher weight than B (view is A outperforms B)
@@ -644,7 +651,7 @@ class TestEdgeCases:
         应能优雅处理极端置信度值。
         """
         # Very high confidence
-        view_high = ViewInput('absolute', 'US_EQ', 0.50, 99.9)
+        view_high = ViewInput("absolute", "US_EQ", 0.50, 99.9)
         bl_optimizer.apply_views([view_high])
         assert np.all(np.isfinite(bl_optimizer.mu_bl))
 
@@ -653,7 +660,7 @@ class TestEdgeCases:
             bl_optimizer.returns,
             market_cap_weights=bl_optimizer.market_cap_weights,
         )
-        view_low = ViewInput('absolute', 'US_EQ', 0.50, 0.1)
+        view_low = ViewInput("absolute", "US_EQ", 0.50, 0.1)
         opt2.apply_views([view_low])
         assert np.all(np.isfinite(opt2.mu_bl))
 
@@ -663,8 +670,8 @@ class TestEdgeCases:
         应能处理对同一资产的多个观点。
         """
         views = [
-            ViewInput('absolute', 'US_EQ', 0.10, 50.0),
-            ViewInput('absolute', 'US_EQ', 0.20, 80.0),
+            ViewInput("absolute", "US_EQ", 0.10, 50.0),
+            ViewInput("absolute", "US_EQ", 0.20, 80.0),
         ]
         bl_optimizer.apply_views(views)
 
@@ -680,9 +687,7 @@ class TestEdgeCases:
         opt = BlackLittermanOptimizer(sample_returns)  # No market_cap_weights
 
         expected_weights = np.ones(4) / 4
-        np.testing.assert_array_almost_equal(
-            opt.market_cap_weights, expected_weights
-        )
+        np.testing.assert_array_almost_equal(opt.market_cap_weights, expected_weights)
 
     def test_custom_tau(self, sample_returns, market_cap_weights):
         """
@@ -690,9 +695,7 @@ class TestEdgeCases:
         自定义 tau 值应被使用。
         """
         opt = BlackLittermanOptimizer(
-            sample_returns,
-            market_cap_weights=market_cap_weights,
-            tau=0.05
+            sample_returns, market_cap_weights=market_cap_weights, tau=0.05
         )
         assert opt.tau == 0.05
 
@@ -702,9 +705,7 @@ class TestEdgeCases:
         自定义 delta 值应被使用。
         """
         opt = BlackLittermanOptimizer(
-            sample_returns,
-            market_cap_weights=market_cap_weights,
-            delta=3.0
+            sample_returns, market_cap_weights=market_cap_weights, delta=3.0
         )
         assert opt.delta == 3.0
 
@@ -716,7 +717,7 @@ class TestEdgeCases:
         with pytest.raises(ValueError, match="must match number of assets"):
             BlackLittermanOptimizer(
                 sample_returns,
-                market_cap_weights=np.array([0.5, 0.5])  # Wrong length
+                market_cap_weights=np.array([0.5, 0.5]),  # Wrong length
             )
 
     def test_invalid_market_weights_sum(self, sample_returns):
@@ -727,7 +728,7 @@ class TestEdgeCases:
         with pytest.raises(ValueError, match="must sum to 1.0"):
             BlackLittermanOptimizer(
                 sample_returns,
-                market_cap_weights=np.array([0.5, 0.5, 0.5, 0.5])  # Sums to 2.0
+                market_cap_weights=np.array([0.5, 0.5, 0.5, 0.5]),  # Sums to 2.0
             )
 
 
@@ -735,13 +736,12 @@ class TestEdgeCases:
 # External prior override (CME expected returns as BL prior)
 # ============================================================
 
+
 class TestUsePrior:
     """use_prior replaces the equilibrium Π before views are applied."""
 
     def test_prior_replaces_equilibrium(self, sample_returns):
-        opt = BlackLittermanOptimizer(
-            sample_returns, risk_free_rate=0.02, delta=2.5
-        )
+        opt = BlackLittermanOptimizer(sample_returns, risk_free_rate=0.02, delta=2.5)
         eq = opt.implied_equilibrium_returns().copy()
         assert opt.prior_source == "equilibrium"
         np.testing.assert_allclose(opt.Pi, eq)
@@ -760,6 +760,7 @@ class TestUsePrior:
 
     def test_posterior_tilts_from_custom_prior(self, sample_returns):
         """Boosting the BONDS prior lifts its posterior vs the equilibrium run."""
+
         def bonds_posterior(prior_boost: float) -> float:
             opt = BlackLittermanOptimizer(
                 sample_returns, risk_free_rate=0.02, delta=2.5
@@ -770,12 +771,16 @@ class TestUsePrior:
                     + np.array([0.0, 0.0, prior_boost, 0.0]),
                     source="cme",
                 )
-            opt.apply_views([
-                ViewInput(
-                    view_type="absolute", asset_long="US_EQ",
-                    expected_return=0.08, confidence=50.0,
-                )
-            ])
+            opt.apply_views(
+                [
+                    ViewInput(
+                        view_type="absolute",
+                        asset_long="US_EQ",
+                        expected_return=0.08,
+                        confidence=50.0,
+                    )
+                ]
+            )
             return opt.mu_bl[2]  # BONDS
 
         assert bonds_posterior(0.06) > bonds_posterior(0.0)
@@ -785,15 +790,24 @@ class TestUsePrior:
 # View diagnostics: cycle detection + prior divergence
 # ============================================================
 
+
 class TestViewDiagnostics:
     """ViewProcessor.detect_relative_cycles / divergence_warnings."""
 
     def test_detects_two_cycle(self, view_processor):
         views = [
-            ViewInput(view_type="relative", asset_long="US_EQ",
-                      asset_short="BONDS", expected_return=0.02),
-            ViewInput(view_type="relative", asset_long="BONDS",
-                      asset_short="US_EQ", expected_return=0.01),
+            ViewInput(
+                view_type="relative",
+                asset_long="US_EQ",
+                asset_short="BONDS",
+                expected_return=0.02,
+            ),
+            ViewInput(
+                view_type="relative",
+                asset_long="BONDS",
+                asset_short="US_EQ",
+                expected_return=0.01,
+            ),
         ]
         warnings = view_processor.detect_relative_cycles(views)
         assert len(warnings) == 1
@@ -801,32 +815,52 @@ class TestViewDiagnostics:
 
     def test_detects_three_cycle(self, view_processor):
         views = [
-            ViewInput(view_type="relative", asset_long="US_EQ",
-                      asset_short="BONDS", expected_return=0.02),
-            ViewInput(view_type="relative", asset_long="BONDS",
-                      asset_short="GOLD", expected_return=0.01),
-            ViewInput(view_type="relative", asset_long="GOLD",
-                      asset_short="US_EQ", expected_return=0.01),
+            ViewInput(
+                view_type="relative",
+                asset_long="US_EQ",
+                asset_short="BONDS",
+                expected_return=0.02,
+            ),
+            ViewInput(
+                view_type="relative",
+                asset_long="BONDS",
+                asset_short="GOLD",
+                expected_return=0.01,
+            ),
+            ViewInput(
+                view_type="relative",
+                asset_long="GOLD",
+                asset_short="US_EQ",
+                expected_return=0.01,
+            ),
         ]
         warnings = view_processor.detect_relative_cycles(views)
         assert len(warnings) == 1
 
     def test_consistent_chain_no_warning(self, view_processor):
         views = [
-            ViewInput(view_type="relative", asset_long="US_EQ",
-                      asset_short="BONDS", expected_return=0.02),
-            ViewInput(view_type="relative", asset_long="BONDS",
-                      asset_short="GOLD", expected_return=0.01),
+            ViewInput(
+                view_type="relative",
+                asset_long="US_EQ",
+                asset_short="BONDS",
+                expected_return=0.02,
+            ),
+            ViewInput(
+                view_type="relative",
+                asset_long="BONDS",
+                asset_short="GOLD",
+                expected_return=0.01,
+            ),
         ]
         assert view_processor.detect_relative_cycles(views) == []
 
     def test_divergence_warning_beyond_3_sigma(self, view_processor, sample_returns):
         prior = np.array([0.08, 0.06, 0.03, 0.04])
         sigma = np.array([0.20, 0.15, 0.06, 0.15])
-        far = ViewInput(view_type="absolute", asset_long="US_EQ",
-                        expected_return=0.90)  # 0.82 away >> 3σ=0.60
-        near = ViewInput(view_type="absolute", asset_long="BONDS",
-                         expected_return=0.05)
+        far = ViewInput(
+            view_type="absolute", asset_long="US_EQ", expected_return=0.90
+        )  # 0.82 away >> 3σ=0.60
+        near = ViewInput(view_type="absolute", asset_long="BONDS", expected_return=0.05)
         warnings = view_processor.divergence_warnings([far, near], prior, sigma)
         assert len(warnings) == 1
         assert "US_EQ" in warnings[0]
@@ -835,8 +869,7 @@ class TestViewDiagnostics:
         vp = ViewProcessor(["US_EQ", "INTL_EQ", "BONDS", "GOLD"], locale="en")
         prior = np.array([0.08, 0.06, 0.03, 0.04])
         sigma = np.array([0.20, 0.15, 0.06, 0.15])
-        far = ViewInput(view_type="absolute", asset_long="BONDS",
-                        expected_return=0.50)
+        far = ViewInput(view_type="absolute", asset_long="BONDS", expected_return=0.50)
         warnings = vp.divergence_warnings([far], prior, sigma)
         assert "diverges from the prior" in warnings[0]
 
@@ -845,6 +878,7 @@ class TestViewDiagnostics:
 # Confidence exactness of the closed-form Omega (view space)
 # ============================================================
 
+
 class TestConfidenceExactness:
     """ω = (1/c − 1)·P'τΣP is exact in view space: for a single view the
     posterior mean of the viewed portfolio sits exactly c of the way from
@@ -852,12 +886,20 @@ class TestConfidenceExactness:
     confidence semantics (multi-view posteriors interact and are not
     required to satisfy this per-view)."""
 
-    def test_absolute_view_exact_in_view_space(self, sample_returns, market_cap_weights):
-        view = ViewInput(view_type="absolute", asset_long="US_EQ",
-                         expected_return=0.12, confidence=60.0)
+    def test_absolute_view_exact_in_view_space(
+        self, sample_returns, market_cap_weights
+    ):
+        view = ViewInput(
+            view_type="absolute",
+            asset_long="US_EQ",
+            expected_return=0.12,
+            confidence=60.0,
+        )
         opt = BlackLittermanOptimizer(
-            sample_returns, risk_free_rate=0.02,
-            market_cap_weights=market_cap_weights, delta=2.5,
+            sample_returns,
+            risk_free_rate=0.02,
+            market_cap_weights=market_cap_weights,
+            delta=2.5,
         )
         Pi = opt.Pi.copy()
         opt.apply_views([view])
@@ -868,13 +910,21 @@ class TestConfidenceExactness:
         rhs = 0.6 * (0.12 - float(P @ Pi))
         assert lhs == pytest.approx(rhs, abs=1e-6)
 
-    def test_relative_view_exact_in_view_space(self, sample_returns, market_cap_weights):
-        view = ViewInput(view_type="relative", asset_long="US_EQ",
-                         asset_short="BONDS", expected_return=0.04,
-                         confidence=70.0)
+    def test_relative_view_exact_in_view_space(
+        self, sample_returns, market_cap_weights
+    ):
+        view = ViewInput(
+            view_type="relative",
+            asset_long="US_EQ",
+            asset_short="BONDS",
+            expected_return=0.04,
+            confidence=70.0,
+        )
         opt = BlackLittermanOptimizer(
-            sample_returns, risk_free_rate=0.02,
-            market_cap_weights=market_cap_weights, delta=2.5,
+            sample_returns,
+            risk_free_rate=0.02,
+            market_cap_weights=market_cap_weights,
+            delta=2.5,
         )
         Pi = opt.Pi.copy()
         opt.apply_views([view])

@@ -59,7 +59,7 @@ class PortfolioOptimizer:
         self,
         returns: pd.DataFrame,
         risk_free_rate: float = RISK_FREE_RATE,
-        covariance_method: str = 'sample',
+        covariance_method: str = "sample",
         expected_returns: Optional[pd.Series] = None,
     ):
         """Initialize with historical return data.
@@ -75,7 +75,7 @@ class PortfolioOptimizer:
                 historical returns. Assets missing from the vector keep
                 their sample mean.
         """
-        if covariance_method not in ['sample', 'ledoit-wolf', 'oas']:
+        if covariance_method not in ["sample", "ledoit-wolf", "oas"]:
             raise ValueError(
                 f"Unknown covariance method: {covariance_method}. "
                 f"Supported methods are 'sample', 'ledoit-wolf', 'oas'."
@@ -97,18 +97,30 @@ class PortfolioOptimizer:
             )
 
         # Estimate annualized covariance matrix
-        if covariance_method == 'ledoit-wolf':
+        if covariance_method == "ledoit-wolf":
             from sklearn.covariance import ledoit_wolf
+
             shrunk_cov, _ = ledoit_wolf(returns.values)
-            self.cov_matrix = pd.DataFrame(
-                shrunk_cov, index=returns.columns, columns=returns.columns,
-            ) * TRADING_DAYS_PER_YEAR
-        elif covariance_method == 'oas':
+            self.cov_matrix = (
+                pd.DataFrame(
+                    shrunk_cov,
+                    index=returns.columns,
+                    columns=returns.columns,
+                )
+                * TRADING_DAYS_PER_YEAR
+            )
+        elif covariance_method == "oas":
             from sklearn.covariance import oas
+
             shrunk_cov, _ = oas(returns.values)
-            self.cov_matrix = pd.DataFrame(
-                shrunk_cov, index=returns.columns, columns=returns.columns,
-            ) * TRADING_DAYS_PER_YEAR
+            self.cov_matrix = (
+                pd.DataFrame(
+                    shrunk_cov,
+                    index=returns.columns,
+                    columns=returns.columns,
+                )
+                * TRADING_DAYS_PER_YEAR
+            )
         else:
             self.cov_matrix = returns.cov() * TRADING_DAYS_PER_YEAR
 
@@ -127,12 +139,12 @@ class PortfolioOptimizer:
         try:
             return np.linalg.cond(self.cov_matrix.values)
         except np.linalg.LinAlgError:
-            return float('inf')
+            return float("inf")
 
     def _regularize_covariance_matrix(
         self,
         epsilon: float = 1e-6,
-        method: str = 'diagonal',
+        method: str = "diagonal",
     ) -> pd.DataFrame:
         """Regularize covariance matrix for numerical stability.
 
@@ -145,13 +157,15 @@ class PortfolioOptimizer:
         """
         cov_values = self.cov_matrix.values
 
-        if method == 'diagonal':
+        if method == "diagonal":
             # Σ_reg = Σ + ε × I
             regularized = cov_values + epsilon * np.eye(self.n_assets)
-        elif method == 'eigenvalue':
+        elif method == "eigenvalue":
             eigenvalues, eigenvectors = np.linalg.eigh(cov_values)
             regularized_eigenvalues = np.maximum(eigenvalues, epsilon)
-            regularized = eigenvectors @ np.diag(regularized_eigenvalues) @ eigenvectors.T
+            regularized = (
+                eigenvectors @ np.diag(regularized_eigenvalues) @ eigenvectors.T
+            )
         else:
             raise ValueError(f"Unknown regularization method: {method}")
 
@@ -226,10 +240,12 @@ class PortfolioOptimizer:
 
         constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1}]
         if target_return is not None:
-            constraints.append({
-                "type": "eq",
-                "fun": lambda w: np.dot(w, mean_vals) - target_return,
-            })
+            constraints.append(
+                {
+                    "type": "eq",
+                    "fun": lambda w: np.dot(w, mean_vals) - target_return,
+                }
+            )
 
         # Minimize variance (equivalent to min vol); Jacobian = 2Σw
         result = minimize(
@@ -291,14 +307,22 @@ class PortfolioOptimizer:
                 # Bind loop variables as defaults so each lambda captures its
                 # own indices/bounds (same pattern as
                 # optimize_with_asset_class_constraints).
-                constraints.append({
-                    "type": "ineq",
-                    "fun": lambda w, idx=indices, m=min_weight: sum(w[i] for i in idx) - m,
-                })
-                constraints.append({
-                    "type": "ineq",
-                    "fun": lambda w, idx=indices, m=max_weight: m - sum(w[i] for i in idx),
-                })
+                constraints.append(
+                    {
+                        "type": "ineq",
+                        "fun": lambda w, idx=indices, m=min_weight: (
+                            sum(w[i] for i in idx) - m
+                        ),
+                    }
+                )
+                constraints.append(
+                    {
+                        "type": "ineq",
+                        "fun": lambda w, idx=indices, m=max_weight: (
+                            m - sum(w[i] for i in idx)
+                        ),
+                    }
+                )
 
         neg_sharpe = _neg_sharpe_objective(
             lambda w: self.portfolio_performance(w, mean_override),
@@ -450,27 +474,31 @@ class PortfolioOptimizer:
                 mean_override=mean_override,
                 **objective_kwargs,
             )
-            if result['success']:
-                all_weights.append(np.array(list(result['weights'].values())))
+            if result["success"]:
+                all_weights.append(np.array(list(result["weights"].values())))
 
         if not all_weights:
             equal_weights = np.ones(self.n_assets) / self.n_assets
             ret, vol, sharpe = self.portfolio_performance(equal_weights)
             return {
-                'weights': dict(zip(self.asset_names, equal_weights, strict=False)),
-                'return': ret, 'volatility': vol, 'sharpe': sharpe,
-                'success': False,
+                "weights": dict(zip(self.asset_names, equal_weights, strict=False)),
+                "return": ret,
+                "volatility": vol,
+                "sharpe": sharpe,
+                "success": False,
             }
 
         avg_weights = np.mean(all_weights, axis=0)
         avg_weights /= np.sum(avg_weights)
         ret, vol, sharpe = self.portfolio_performance(avg_weights)
         return {
-            'weights': dict(zip(self.asset_names, avg_weights, strict=False)),
-            'return': ret, 'volatility': vol, 'sharpe': sharpe,
-            'success': True,
-            'n_simulations': n_simulations,
-            'weight_std': np.std(all_weights, axis=0).tolist(),
+            "weights": dict(zip(self.asset_names, avg_weights, strict=False)),
+            "return": ret,
+            "volatility": vol,
+            "sharpe": sharpe,
+            "success": True,
+            "n_simulations": n_simulations,
+            "weight_std": np.std(all_weights, axis=0).tolist(),
         }
 
     def resampled_maximize_sharpe(
@@ -488,7 +516,9 @@ class PortfolioOptimizer:
             Dict with averaged weights and performance metrics.
         """
         return self._resampled_optimize(
-            self.maximize_sharpe, n_simulations, allow_short,
+            self.maximize_sharpe,
+            n_simulations,
+            allow_short,
         )
 
     def resampled_minimize_volatility(
@@ -508,7 +538,9 @@ class PortfolioOptimizer:
             Dict with averaged weights and performance metrics.
         """
         return self._resampled_optimize(
-            self.minimize_volatility, n_simulations, allow_short,
+            self.minimize_volatility,
+            n_simulations,
+            allow_short,
             target_return=target_return,
         )
 
@@ -555,32 +587,39 @@ class PortfolioOptimizer:
             return pd.DataFrame()
 
         # Interpolate all frontiers onto a common return axis, then average
-        all_ret_values = np.concatenate([f['return'].values for f in all_frontiers])
-        unified_returns = np.linspace(all_ret_values.min(), all_ret_values.max(), n_points)
+        all_ret_values = np.concatenate([f["return"].values for f in all_frontiers])
+        unified_returns = np.linspace(
+            all_ret_values.min(), all_ret_values.max(), n_points
+        )
 
-        weight_cols = [c for c in all_frontiers[0].columns
-                       if c not in ('return', 'volatility', 'sharpe')]
-        interp_cols = ['volatility'] + weight_cols
+        weight_cols = [
+            c
+            for c in all_frontiers[0].columns
+            if c not in ("return", "volatility", "sharpe")
+        ]
+        interp_cols = ["volatility"] + weight_cols
 
         interpolated = []
         for frontier in all_frontiers:
-            frontier_sorted = frontier.sort_values('return')
-            row_data = {'return': unified_returns}
+            frontier_sorted = frontier.sort_values("return")
+            row_data = {"return": unified_returns}
             for col in interp_cols:
                 row_data[col] = np.interp(
                     unified_returns,
-                    frontier_sorted['return'].values,
+                    frontier_sorted["return"].values,
                     frontier_sorted[col].values,
                 )
             interpolated.append(pd.DataFrame(row_data))
 
         resampled_frontier = pd.concat(interpolated).groupby(level=0).mean()
-        resampled_frontier['return'] = unified_returns
-        if 'return' in resampled_frontier.columns and 'volatility' in resampled_frontier.columns:
-            resampled_frontier['sharpe'] = (
-                (resampled_frontier['return'] - self.risk_free_rate) /
-                resampled_frontier['volatility']
-            )
+        resampled_frontier["return"] = unified_returns
+        if (
+            "return" in resampled_frontier.columns
+            and "volatility" in resampled_frontier.columns
+        ):
+            resampled_frontier["sharpe"] = (
+                resampled_frontier["return"] - self.risk_free_rate
+            ) / resampled_frontier["volatility"]
         return resampled_frontier
 
     def optimize_with_asset_class_constraints(
@@ -603,7 +642,7 @@ class PortfolioOptimizer:
         n = self.n_assets
         init_weights = np.ones(n) / n
         bounds = ((-1, 1) if allow_short else (0, 1),) * n
-        constraints = [{'type': 'eq', 'fun': lambda w: np.sum(w) - 1}]
+        constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1}]
 
         # Use ndarray (self.cov_values) and the .values of the mean Series on
         # the SLSQP hot path; passing the pandas objects here triggers
@@ -612,29 +651,39 @@ class PortfolioOptimizer:
         mean_vals = self.mean_returns.values
 
         if target_return is not None:
-            constraints.append({
-                'type': 'eq',
-                'fun': lambda w: np.dot(w, mean_vals) - target_return,
-            })
+            constraints.append(
+                {
+                    "type": "eq",
+                    "fun": lambda w: np.dot(w, mean_vals) - target_return,
+                }
+            )
 
         asset_class_indices = {}
         for class_name, class_config in asset_classes.items():
-            assets = class_config['assets']
+            assets = class_config["assets"]
             if isinstance(assets[0], str):
                 indices = [self.asset_names.index(a) for a in assets]
             else:
                 indices = assets
             asset_class_indices[class_name] = indices
-            min_weight = class_config.get('min', 0.0)
-            max_weight = class_config.get('max', 1.0)
-            constraints.append({
-                'type': 'ineq',
-                'fun': lambda w, idx=indices, m=min_weight: sum(w[i] for i in idx) - m,
-            })
-            constraints.append({
-                'type': 'ineq',
-                'fun': lambda w, idx=indices, m=max_weight: m - sum(w[i] for i in idx),
-            })
+            min_weight = class_config.get("min", 0.0)
+            max_weight = class_config.get("max", 1.0)
+            constraints.append(
+                {
+                    "type": "ineq",
+                    "fun": lambda w, idx=indices, m=min_weight: (
+                        sum(w[i] for i in idx) - m
+                    ),
+                }
+            )
+            constraints.append(
+                {
+                    "type": "ineq",
+                    "fun": lambda w, idx=indices, m=max_weight: (
+                        m - sum(w[i] for i in idx)
+                    ),
+                }
+            )
 
         def portfolio_volatility(w):
             return np.sqrt(np.dot(w.T, np.dot(cov, w)))
@@ -642,7 +691,7 @@ class PortfolioOptimizer:
         result = minimize(
             fun=portfolio_volatility,
             x0=init_weights,
-            method='SLSQP',
+            method="SLSQP",
             bounds=bounds,
             constraints=constraints,
         )
@@ -650,14 +699,15 @@ class PortfolioOptimizer:
         weights = result.x
         ret, vol, sharpe = self.portfolio_performance(weights)
         asset_class_weights = {
-            cn: sum(weights[i] for i in idx)
-            for cn, idx in asset_class_indices.items()
+            cn: sum(weights[i] for i in idx) for cn, idx in asset_class_indices.items()
         }
         return {
-            'weights': dict(zip(self.asset_names, weights, strict=False)),
-            'return': ret, 'volatility': vol, 'sharpe': sharpe,
-            'success': result.success,
-            'asset_class_weights': asset_class_weights,
+            "weights": dict(zip(self.asset_names, weights, strict=False)),
+            "return": ret,
+            "volatility": vol,
+            "sharpe": sharpe,
+            "success": result.success,
+            "asset_class_weights": asset_class_weights,
         }
 
     # ------------------------------------------------------------------
@@ -698,11 +748,13 @@ class PortfolioOptimizer:
         S = R.shape[0]
         n = self.n_assets
 
-        c = np.concatenate([
-            np.zeros(n),
-            [1.0],
-            np.full(S, 1.0 / ((1.0 - beta) * S)),
-        ])
+        c = np.concatenate(
+            [
+                np.zeros(n),
+                [1.0],
+                np.full(S, 1.0 / ((1.0 - beta) * S)),
+            ]
+        )
 
         # Tail constraints: −R·w − α − z ≤ 0
         A_ub = np.hstack([-R, -np.ones((S, 1)), -np.eye(S)])
@@ -710,13 +762,18 @@ class PortfolioOptimizer:
 
         if target_return is not None:
             mu_daily = R.mean(axis=0)
-            A_ub = np.vstack([
-                A_ub,
-                np.concatenate([-mu_daily, [0.0], np.zeros(S)]),
-            ])
-            b_ub = np.concatenate([
-                b_ub, [-target_return / TRADING_DAYS_PER_YEAR],
-            ])
+            A_ub = np.vstack(
+                [
+                    A_ub,
+                    np.concatenate([-mu_daily, [0.0], np.zeros(S)]),
+                ]
+            )
+            b_ub = np.concatenate(
+                [
+                    b_ub,
+                    [-target_return / TRADING_DAYS_PER_YEAR],
+                ]
+            )
 
         A_eq = np.concatenate([np.ones(n), [0.0], np.zeros(S)]).reshape(1, -1)
         b_eq = np.ones(1)
@@ -725,13 +782,17 @@ class PortfolioOptimizer:
         bounds = [w_bound] * n + [(None, None)] + [(0.0, None)] * S
 
         result = linprog(
-            c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq,
-            bounds=bounds, method="highs",
+            c,
+            A_ub=A_ub,
+            b_ub=b_ub,
+            A_eq=A_eq,
+            b_eq=b_eq,
+            bounds=bounds,
+            method="highs",
         )
         if not result.success:
             raise ValueError(
-                f"Mean-CVaR LP infeasible (status {result.status}: "
-                f"{result.message})"
+                f"Mean-CVaR LP infeasible (status {result.status}: {result.message})"
             )
 
         return {
@@ -803,7 +864,8 @@ class PortfolioOptimizer:
         for target in target_returns:
             try:
                 result = self.minimize_cvar(
-                    beta=beta, allow_short=allow_short,
+                    beta=beta,
+                    allow_short=allow_short,
                     target_return=float(target),
                 )
             except ValueError:
@@ -899,10 +961,14 @@ class PortfolioOptimizer:
 
         constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1}]
         if target_return is not None:
-            constraints.append({
-                "type": "ineq",
-                "fun": lambda w: np.dot(w, mean_vals) - k * liability_mean - target_return,
-            })
+            constraints.append(
+                {
+                    "type": "ineq",
+                    "fun": lambda w: (
+                        np.dot(w, mean_vals) - k * liability_mean - target_return
+                    ),
+                }
+            )
 
         result = minimize(
             fun=lambda w: w @ cov @ w - 2.0 * k * (w @ c),
@@ -1073,8 +1139,7 @@ class PortfolioOptimizer:
         )
         if not result.success:
             raise ValueError(
-                f"Risk-parity solve failed (status {result.status}: "
-                f"{result.message})"
+                f"Risk-parity solve failed (status {result.status}: {result.message})"
             )
 
         weights = result.x / np.sum(result.x)
@@ -1106,7 +1171,7 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
         market_cap_weights: Optional[np.ndarray] = None,
         delta: Optional[float] = None,
         tau: float = 0.025,
-        covariance_method: str = 'sample',
+        covariance_method: str = "sample",
     ):
         """Initialize Black-Litterman optimizer.
 
@@ -1145,9 +1210,15 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
             # δ = (R_mkt - R_f) / σ²_mkt
             market_return = np.dot(self.market_cap_weights, self.mean_returns)
             market_variance = float(
-                self.market_cap_weights.T @ self.cov_matrix.values @ self.market_cap_weights
+                self.market_cap_weights.T
+                @ self.cov_matrix.values
+                @ self.market_cap_weights
             )
-            self.delta = (market_return - self.risk_free_rate) / market_variance if market_variance > 0 else 2.5
+            self.delta = (
+                (market_return - self.risk_free_rate) / market_variance
+                if market_variance > 0
+                else 2.5
+            )
 
         self.Pi = self.implied_equilibrium_returns()
         self.prior_source = "equilibrium"
@@ -1166,7 +1237,10 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
         Returns:
             Implied total return vector (N,).
         """
-        return self.risk_free_rate + self.delta * self.cov_matrix.values @ self.market_cap_weights
+        return (
+            self.risk_free_rate
+            + self.delta * self.cov_matrix.values @ self.market_cap_weights
+        )
 
     def use_prior(self, prior: np.ndarray, source: str = "cme") -> None:
         """Override the equilibrium prior with an external return vector.
@@ -1246,6 +1320,7 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
             locale: Language for view-validation errors ("zh" / "en").
         """
         from src.portfolio.views import ViewProcessor
+
         view_processor = ViewProcessor(self.asset_names, locale)
         P, Q, Omega = view_processor.generate_P_Q_omega(
             views, self.cov_matrix, self.tau
@@ -1266,7 +1341,9 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
             Tuple of (return, volatility, sharpe).
         """
         if not self.views_applied:
-            raise ValueError("Must call apply_views() before bl_portfolio_performance().")
+            raise ValueError(
+                "Must call apply_views() before bl_portfolio_performance()."
+            )
 
         portfolio_return = float(np.dot(weights, self.mu_bl))
         portfolio_volatility = float(
@@ -1301,15 +1378,20 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
         )
 
         result = minimize(
-            fun=neg_sharpe_bl, x0=init_weights,
-            method="SLSQP", bounds=bounds, constraints=constraints,
+            fun=neg_sharpe_bl,
+            x0=init_weights,
+            method="SLSQP",
+            bounds=bounds,
+            constraints=constraints,
         )
 
         weights = result.x
         ret, vol, sharpe = self.bl_portfolio_performance(weights)
         return {
             "weights": dict(zip(self.asset_names, weights, strict=False)),
-            "return": ret, "volatility": vol, "sharpe": sharpe,
+            "return": ret,
+            "volatility": vol,
+            "sharpe": sharpe,
             "success": result.success,
         }
 
@@ -1336,24 +1418,31 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
         constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1}]
 
         if target_return is not None:
-            constraints.append({
-                "type": "eq",
-                "fun": lambda w: np.dot(w, self.mu_bl) - target_return,
-            })
+            constraints.append(
+                {
+                    "type": "eq",
+                    "fun": lambda w: np.dot(w, self.mu_bl) - target_return,
+                }
+            )
 
         def bl_volatility(w):
             return np.sqrt(np.dot(w.T, np.dot(self.Sigma_bl, w)))
 
         result = minimize(
-            fun=bl_volatility, x0=init_weights,
-            method="SLSQP", bounds=bounds, constraints=constraints,
+            fun=bl_volatility,
+            x0=init_weights,
+            method="SLSQP",
+            bounds=bounds,
+            constraints=constraints,
         )
 
         weights = result.x
         ret, vol, sharpe = self.bl_portfolio_performance(weights)
         return {
             "weights": dict(zip(self.asset_names, weights, strict=False)),
-            "return": ret, "volatility": vol, "sharpe": sharpe,
+            "return": ret,
+            "volatility": vol,
+            "sharpe": sharpe,
             "success": result.success,
         }
 

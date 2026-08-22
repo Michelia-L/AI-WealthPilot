@@ -58,8 +58,7 @@ def resolve_personal_inflation(
         return custom_rate
     if preset not in PERSONAL_INFLATION_DELTAS:
         raise ValueError(
-            f"Unknown inflation preset {preset!r}; "
-            f"expected one of {INFLATION_PRESETS}"
+            f"Unknown inflation preset {preset!r}; expected one of {INFLATION_PRESETS}"
         )
     return base_rate + PERSONAL_INFLATION_DELTAS[preset]
 

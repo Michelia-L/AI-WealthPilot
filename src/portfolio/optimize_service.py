@@ -136,7 +136,8 @@ def run_cvar(
     max_ratio = min_cvar
     if not frontier.empty:
         weight_cols = [
-            c for c in frontier.columns
+            c
+            for c in frontier.columns
             if c not in ("return", "volatility", "sharpe", "cvar")
         ]
         safe_cvar = frontier["cvar"].where(frontier["cvar"] > 1e-12)
@@ -174,17 +175,18 @@ def run_risk_parity(
     frontier. Long-only by construction (Spinu log-barrier).
     """
     if allow_short:
-        raise ValueError("Risk parity is long-only by construction (Spinu log-barrier).")
+        raise ValueError(
+            "Risk parity is long-only by construction (Spinu log-barrier)."
+        )
     optimizer = PortfolioOptimizer(
-        returns, risk_free_rate=risk_free_rate,
+        returns,
+        risk_free_rate=risk_free_rate,
         expected_returns=expected_returns,
     )
     selected = optimizer.risk_parity()
     max_sharpe = optimizer.maximize_sharpe(allow_short=False)
     min_vol = optimizer.minimize_volatility(allow_short=False)
-    frontier = optimizer.efficient_frontier(
-        n_points=FRONTIER_POINTS, allow_short=False
-    )
+    frontier = optimizer.efficient_frontier(n_points=FRONTIER_POINTS, allow_short=False)
     random_ports = optimizer.random_portfolios(n_portfolios=RANDOM_PORTFOLIOS)
     return optimizer, selected, max_sharpe, min_vol, frontier, random_ports, {}
 
@@ -299,8 +301,7 @@ def run_bl(
         fallback = set(cme_fallback or [])
         prior = np.array(
             [
-                equilibrium[i] if name in fallback
-                else float(expected_returns[name])
+                equilibrium[i] if name in fallback else float(expected_returns[name])
                 for i, name in enumerate(names)
             ]
         )
@@ -340,13 +341,22 @@ def run_bl(
         view_inputs
     ) + view_processor.divergence_warnings(view_inputs, optimizer.Pi, sigma_vec)
     impacts = bl_view_impacts(
-        returns, optimizer, view_inputs, names,
-        allow_short=allow_short, risk_free_rate=risk_free_rate, locale=locale,
+        returns,
+        optimizer,
+        view_inputs,
+        names,
+        allow_short=allow_short,
+        risk_free_rate=risk_free_rate,
+        locale=locale,
     )
 
     extra = {
-        "equilibrium_returns": {n: float(r) for n, r in zip(names, equilibrium, strict=False)},
-        "posterior_returns": {n: float(r) for n, r in zip(names, posterior, strict=False)},
+        "equilibrium_returns": {
+            n: float(r) for n, r in zip(names, equilibrium, strict=False)
+        },
+        "posterior_returns": {
+            n: float(r) for n, r in zip(names, posterior, strict=False)
+        },
         "prior_source": optimizer.prior_source,
         "prior_returns": (
             {n: float(r) for n, r in zip(names, optimizer.Pi, strict=False)}
@@ -421,8 +431,7 @@ def run_surplus(
         k = pv / surplus_raw["investable_assets"]
         mu_L = rf
         positive = [
-            g for g in surplus_raw["goals"]
-            if float(g.get("target_amount", 0.0)) > 0
+            g for g in surplus_raw["goals"] if float(g.get("target_amount", 0.0)) > 0
         ]
         cash_flows = len(positive)
         horizon = float(max(int(g.get("years", 0)) for g in positive))
@@ -484,8 +493,12 @@ def run_surplus(
         k, mu_L, sigma_L, cov_vec, allow_short=allow_short
     )
     frontier = optimizer.surplus_efficient_frontier(
-        k, mu_L, sigma_L, cov_vec,
-        n_points=FRONTIER_POINTS, allow_short=allow_short,
+        k,
+        mu_L,
+        sigma_L,
+        cov_vec,
+        n_points=FRONTIER_POINTS,
+        allow_short=allow_short,
     )
     selected = max_sharpe if mode == "max-sharpe" else min_vol
     random_ports = optimizer.random_portfolios(n_portfolios=RANDOM_PORTFOLIOS)

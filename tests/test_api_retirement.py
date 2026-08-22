@@ -110,9 +110,7 @@ class TestRetirementGuardrails:
         )
 
         # The baseline must equal a pure fixed request (same seed, SEED=42).
-        res_fixed = client.post(
-            "/api/retirement/simulate", json=_minimal_payload()
-        )
+        res_fixed = client.post("/api/retirement/simulate", json=_minimal_payload())
         assert res_fixed.status_code == 200
         assert comp["fixed_survival_rate"] == res_fixed.json()["survival_rate"]
 
@@ -124,9 +122,7 @@ class TestRetirementGuardrails:
     def test_guardrail_band_out_of_range_422(self, client):
         res = client.post(
             "/api/retirement/simulate",
-            json=_minimal_payload(
-                withdrawal_strategy="guardrails", guardrail_band=0.9
-            ),
+            json=_minimal_payload(withdrawal_strategy="guardrails", guardrail_band=0.9),
         )
         assert res.status_code == 422
 
@@ -149,20 +145,35 @@ class TestCmeSuggestion:
 
         classes = [
             AssetClassCME(
-                name="固定收益", ticker="AGG", expected_return=0.04,
-                volatility=0.06, sharpe_ratio=0.0, max_drawdown=-0.1,
-                var_95=0.01, cvar_95=0.02, blended_volatility=0.06,
+                name="固定收益",
+                ticker="AGG",
+                expected_return=0.04,
+                volatility=0.06,
+                sharpe_ratio=0.0,
+                max_drawdown=-0.1,
+                var_95=0.01,
+                cvar_95=0.02,
+                blended_volatility=0.06,
             ),
             AssetClassCME(
-                name="另类-黄金", ticker="GLD", expected_return=0.10,
-                volatility=0.15, sharpe_ratio=0.0, max_drawdown=-0.2,
-                var_95=0.02, cvar_95=0.03, blended_volatility=0.15,
+                name="另类-黄金",
+                ticker="GLD",
+                expected_return=0.10,
+                volatility=0.15,
+                sharpe_ratio=0.0,
+                max_drawdown=-0.2,
+                var_95=0.02,
+                cvar_95=0.03,
+                blended_volatility=0.15,
             ),
         ][:n_classes]
         return CMEReport(
-            as_of_date="2026-08-15", data_lookback_years=5,
-            risk_free_rate=0.02, inflation_assumption=0.025,
-            asset_classes=classes, correlation_matrix={},
+            as_of_date="2026-08-15",
+            data_lookback_years=5,
+            risk_free_rate=0.02,
+            inflation_assumption=0.025,
+            asset_classes=classes,
+            correlation_matrix={},
         )
 
     def test_happy_path(self, client, monkeypatch):

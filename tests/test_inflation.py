@@ -62,10 +62,16 @@ class TestSuggestInflationPreset:
         assert suggest_inflation_preset(PERSONAL_INFLATION_ELDERLY_MIN_AGE) == "elderly"
 
     def test_elderly_above_threshold(self):
-        assert suggest_inflation_preset(PERSONAL_INFLATION_ELDERLY_MIN_AGE + 15) == "elderly"
+        assert (
+            suggest_inflation_preset(PERSONAL_INFLATION_ELDERLY_MIN_AGE + 15)
+            == "elderly"
+        )
 
     def test_standard_below_threshold(self):
-        assert suggest_inflation_preset(PERSONAL_INFLATION_ELDERLY_MIN_AGE - 1) == "standard"
+        assert (
+            suggest_inflation_preset(PERSONAL_INFLATION_ELDERLY_MIN_AGE - 1)
+            == "standard"
+        )
 
     def test_standard_for_unknown_age(self):
         assert suggest_inflation_preset(None) == "standard"

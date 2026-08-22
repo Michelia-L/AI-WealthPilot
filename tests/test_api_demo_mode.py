@@ -142,9 +142,7 @@ def test_advisor_stream_demo_replays_fixture(client, demo_on):
     assert len(reasoning) >= 1
     first_token_idx = next(i for i, e in enumerate(events) if e["type"] == "token")
     assert all(
-        i < first_token_idx
-        for i, e in enumerate(events)
-        if e["type"] == "reasoning"
+        i < first_token_idx for i, e in enumerate(events) if e["type"] == "reasoning"
     )
     # Client-name placeholder is substituted in the reasoning preamble too.
     reasoning_text = "".join(e["text"] for e in reasoning)
@@ -229,7 +227,9 @@ def test_ips_generate_demo_error_path(client, demo_on, monkeypatch):
     monkeypatch.setattr("src.agents.demo_mode.ips_storage.save_ips", _boom)
     profile_id = _create_profile(client)
 
-    task_id = client.post("/api/ips/generate", json={"profile_id": profile_id}).json()["task_id"]
+    task_id = client.post("/api/ips/generate", json={"profile_id": profile_id}).json()[
+        "task_id"
+    ]
     events = _parse_sse(client.get(f"/api/ips/tasks/{task_id}/events").text)
 
     assert events[-1]["type"] == "error"
@@ -245,7 +245,10 @@ def test_ips_generate_demo_error_path(client, demo_on, monkeypatch):
 def test_monitoring_advice_demo_replays_fixture(client, demo_on, monkeypatch):
     monkeypatch.setattr(
         "api.routers.monitoring.compute_monitoring",
-        lambda document_id, locale="zh": {"client_name": DEMO_CLIENT_NAME, "document_id": document_id},
+        lambda document_id, locale="zh": {
+            "client_name": DEMO_CLIENT_NAME,
+            "document_id": document_id,
+        },
     )
     profile_id = _create_profile(client)
 
@@ -264,9 +267,7 @@ def test_monitoring_advice_demo_replays_fixture(client, demo_on, monkeypatch):
     assert len(reasoning) >= 1
     first_token_idx = next(i for i, e in enumerate(events) if e["type"] == "token")
     assert all(
-        i < first_token_idx
-        for i, e in enumerate(events)
-        if e["type"] == "reasoning"
+        i < first_token_idx for i, e in enumerate(events) if e["type"] == "reasoning"
     )
 
     text = "".join(e["text"] for e in tokens)
@@ -285,9 +286,7 @@ def test_monitoring_advice_demo_document_not_found(client, demo_on, monkeypatch)
     def _raise_keyerror(document_id, locale="zh"):
         raise KeyError(document_id)
 
-    monkeypatch.setattr(
-        "api.routers.monitoring.compute_monitoring", _raise_keyerror
-    )
+    monkeypatch.setattr("api.routers.monitoring.compute_monitoring", _raise_keyerror)
     resp = client.post(
         "/api/monitoring/advice",
         json={"document_id": "ips_nobody_20260101_000000"},
@@ -390,9 +389,7 @@ def test_demo_rebalance_stream_generator_contract():
 def test_demo_rebalance_stream_emits_reasoning_before_tokens():
     """The shared reasoning fixture precedes the rebalance token replay."""
     monitoring = {"client_name": "王小明"}
-    events, report = _collect_events(
-        demo_mode.demo_rebalance_stream(monitoring, None)
-    )
+    events, report = _collect_events(demo_mode.demo_rebalance_stream(monitoring, None))
     types = [e["type"] for e in events]
     assert "reasoning" in types
     assert types.index("reasoning") < types.index("token")

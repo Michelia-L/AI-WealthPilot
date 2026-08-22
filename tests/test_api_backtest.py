@@ -85,10 +85,14 @@ def ips_dir(tmp_path):
 
 def test_backtest_full_contract(client, ips_dir, monkeypatch):
     df = _stub_market(monkeypatch)
-    doc_id = _write_ips_doc(ips_dir, "ips_bt_20260601_093000", [
-        _saa_entry("国内权益（A股/沪深300）", 0.6, 0.5, 0.7),
-        _saa_entry("固定收益", 0.4, 0.3, 0.5),
-    ])
+    doc_id = _write_ips_doc(
+        ips_dir,
+        "ips_bt_20260601_093000",
+        [
+            _saa_entry("国内权益（A股/沪深300）", 0.6, 0.5, 0.7),
+            _saa_entry("固定收益", 0.4, 0.3, 0.5),
+        ],
+    )
 
     resp = client.get(f"/api/monitoring/{doc_id}/backtest?period=5y")
     assert resp.status_code == 200
@@ -106,8 +110,15 @@ def test_backtest_full_contract(client, ips_dir, monkeypatch):
 
     # Metrics blocks: portfolio and benchmark share the same field set.
     metric_fields = {
-        "total_return", "cagr", "ann_volatility", "sharpe", "max_drawdown",
-        "max_drawdown_peak", "max_drawdown_trough", "best_day", "worst_day",
+        "total_return",
+        "cagr",
+        "ann_volatility",
+        "sharpe",
+        "max_drawdown",
+        "max_drawdown_peak",
+        "max_drawdown_trough",
+        "best_day",
+        "worst_day",
     }
     assert metric_fields <= set(body["metrics"])
     assert metric_fields <= set(body["benchmark"]["metrics"])
@@ -143,17 +154,24 @@ def test_backtest_full_contract(client, ips_dir, monkeypatch):
 
 
 def test_backtest_document_not_found(client):
-    assert client.get("/api/monitoring/ips_nobody_20260101_000000/backtest").status_code == 404
+    assert (
+        client.get("/api/monitoring/ips_nobody_20260101_000000/backtest").status_code
+        == 404
+    )
     assert client.get("/api/monitoring/..%2F..%2Fsecret/backtest").status_code == 404
 
 
 def test_backtest_en_locale(bare_client, ips_dir, monkeypatch):
     """No X-Locale header -> English-only scenario names and notes (P22)."""
     _stub_market(monkeypatch)
-    doc_id = _write_ips_doc(ips_dir, "ips_bt_en_20260601_093000", [
-        _saa_entry("国内权益（A股/沪深300）", 0.6, 0.5, 0.7),
-        _saa_entry("固定收益", 0.4, 0.3, 0.5),
-    ])
+    doc_id = _write_ips_doc(
+        ips_dir,
+        "ips_bt_en_20260601_093000",
+        [
+            _saa_entry("国内权益（A股/沪深300）", 0.6, 0.5, 0.7),
+            _saa_entry("固定收益", 0.4, 0.3, 0.5),
+        ],
+    )
     resp = bare_client.get(f"/api/monitoring/{doc_id}/backtest?period=5y")
     assert resp.status_code == 200
     body = resp.json()
@@ -163,9 +181,13 @@ def test_backtest_en_locale(bare_client, ips_dir, monkeypatch):
 
 def test_backtest_invalid_period_422(client, ips_dir, monkeypatch):
     _stub_market(monkeypatch)
-    doc_id = _write_ips_doc(ips_dir, "ips_bt_period_20260601_093000", [
-        _saa_entry("固定收益", 1.0, 0.9, 1.0),
-    ])
+    doc_id = _write_ips_doc(
+        ips_dir,
+        "ips_bt_period_20260601_093000",
+        [
+            _saa_entry("固定收益", 1.0, 0.9, 1.0),
+        ],
+    )
     resp = client.get(f"/api/monitoring/{doc_id}/backtest?period=7y")
     assert resp.status_code == 422
     assert "回测区间" in resp.json()["detail"]
@@ -186,10 +208,14 @@ def test_backtest_insufficient_data_502(client, ips_dir, monkeypatch):
         index=pd.bdate_range("2024-01-01", periods=30),
     )
     _stub_market(monkeypatch, df=short)
-    doc_id = _write_ips_doc(ips_dir, "ips_bt_sparse_20260601_093000", [
-        _saa_entry("国内权益（A股/沪深300）", 0.6, 0.5, 0.7),
-        _saa_entry("固定收益", 0.4, 0.3, 0.5),
-    ])
+    doc_id = _write_ips_doc(
+        ips_dir,
+        "ips_bt_sparse_20260601_093000",
+        [
+            _saa_entry("国内权益（A股/沪深300）", 0.6, 0.5, 0.7),
+            _saa_entry("固定收益", 0.4, 0.3, 0.5),
+        ],
+    )
     resp = client.get(f"/api/monitoring/{doc_id}/backtest")
     assert resp.status_code == 502
     assert "无法执行回测" in resp.json()["detail"]
@@ -211,7 +237,9 @@ def test_backtest_fee_from_total_expense_ratio(client, ips_dir, monkeypatch):
     """A positive TER drives the fee drag; components are ignored."""
     _stub_market(monkeypatch)
     doc_id = _write_ips_doc(
-        ips_dir, "ips_bt_fee_ter_20260601_093000", _saa_two_way(),
+        ips_dir,
+        "ips_bt_fee_ter_20260601_093000",
+        _saa_two_way(),
         fee_schedule={
             "management_fee_rate": 0.008,
             "custody_fee_rate": 0.001,
@@ -249,7 +277,9 @@ def test_backtest_fee_components_fallback(client, ips_dir, monkeypatch):
     """No TER: management + custody + transaction components are summed."""
     _stub_market(monkeypatch)
     doc_id = _write_ips_doc(
-        ips_dir, "ips_bt_fee_comp_20260601_093000", _saa_two_way(),
+        ips_dir,
+        "ips_bt_fee_comp_20260601_093000",
+        _saa_two_way(),
         fee_schedule={
             "management_fee_rate": 0.008,
             "custody_fee_rate": 0.001,
@@ -262,17 +292,13 @@ def test_backtest_fee_components_fallback(client, ips_dir, monkeypatch):
     body = resp.json()
     assert body["fee"]["annual_rate"] == pytest.approx(0.008 + 0.001 + 0.003)
     assert body["fee"]["source"] == "ips_fee_schedule"
-    assert any(
-        "缺少 total_expense_ratio" in n and "1.20%" in n for n in body["notes"]
-    )
+    assert any("缺少 total_expense_ratio" in n and "1.20%" in n for n in body["notes"])
 
 
 def test_backtest_fee_missing_schedule(client, ips_dir, monkeypatch):
     """No fee_schedule at all: rate 0, source 'none', disclosure notes."""
     _stub_market(monkeypatch)
-    doc_id = _write_ips_doc(
-        ips_dir, "ips_bt_fee_none_20260601_093000", _saa_two_way()
-    )
+    doc_id = _write_ips_doc(ips_dir, "ips_bt_fee_none_20260601_093000", _saa_two_way())
 
     resp = client.get(f"/api/monitoring/{doc_id}/backtest")
     assert resp.status_code == 200
@@ -289,7 +315,9 @@ def test_backtest_fee_outlier_ter_clipped(client, ips_dir, monkeypatch):
     """An out-of-range TER (50%) is clipped to the 10% cap with a note."""
     _stub_market(monkeypatch)
     doc_id = _write_ips_doc(
-        ips_dir, "ips_bt_fee_clip_20260601_093000", _saa_two_way(),
+        ips_dir,
+        "ips_bt_fee_clip_20260601_093000",
+        _saa_two_way(),
         fee_schedule={"total_expense_ratio": 0.5},
     )
 
@@ -309,9 +337,7 @@ def test_backtest_fee_outlier_ter_clipped(client, ips_dir, monkeypatch):
 def test_backtest_includes_attribution(client, ips_dir, monkeypatch):
     """The response carries a Carino-consistent attribution block."""
     _stub_market(monkeypatch)
-    doc_id = _write_ips_doc(
-        ips_dir, "ips_bt_attr_20260601_093000", _saa_two_way()
-    )
+    doc_id = _write_ips_doc(ips_dir, "ips_bt_attr_20260601_093000", _saa_two_way())
 
     resp = client.get(f"/api/monitoring/{doc_id}/backtest?period=5y")
     assert resp.status_code == 200
@@ -320,10 +346,9 @@ def test_backtest_includes_attribution(client, ips_dir, monkeypatch):
     assert attr is not None
     assert attr["months"] >= 24
     # Carino-linked effects sum exactly to the cumulative active return.
-    assert (
-        attr["allocation"] + attr["selection"] + attr["interaction"]
-        == pytest.approx(attr["active_return"])
-    )
+    assert attr["allocation"] + attr["selection"] + attr[
+        "interaction"
+    ] == pytest.approx(attr["active_return"])
     # Benchmark legs (SPY/AGG) + portfolio sleeves group as expected.
     groups = {g["group"] for g in attr["groups"]}
     assert {"equity", "bond"} <= groups
@@ -333,7 +358,9 @@ def test_backtest_attribution_gross_note_with_fee(client, ips_dir, monkeypatch):
     """With a fee drag, notes disclose the gross attribution basis."""
     _stub_market(monkeypatch)
     doc_id = _write_ips_doc(
-        ips_dir, "ips_bt_attr_fee_20260601_093000", _saa_two_way(),
+        ips_dir,
+        "ips_bt_attr_fee_20260601_093000",
+        _saa_two_way(),
         fee_schedule={"total_expense_ratio": 0.012},
     )
 

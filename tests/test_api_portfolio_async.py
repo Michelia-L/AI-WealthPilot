@@ -40,12 +40,18 @@ def _dummy_result(weight: float) -> OptimizeResponse:
 def fake_optimize(monkeypatch):
     monkeypatch.setattr(
         "api.routers.portfolio._prepare_optimize",
-        lambda req, locale="zh": (["US_EQUITY", "US_BOND"], pd.DataFrame(), 0.045, None),
+        lambda req, locale="zh": (
+            ["US_EQUITY", "US_BOND"],
+            pd.DataFrame(),
+            0.045,
+            None,
+        ),
     )
     monkeypatch.setattr(
         "api.routers.portfolio._solve_optimize",
-        lambda req, keys, returns, rf, risk_constraints=None, locale="zh",
-        surplus_raw=None, proxy_returns=None: _dummy_result(0.6),
+        lambda req, keys, returns, rf, risk_constraints=None, locale="zh", surplus_raw=None, proxy_returns=None: (
+            _dummy_result(0.6)
+        ),
     )
 
 
@@ -86,7 +92,9 @@ def test_async_task_streams_progress_and_result(client, fake_optimize):
 
 def test_async_eager_validation(client, fake_optimize):
     # Fewer than 2 valid assets → 422 synchronously, no task created.
-    resp = client.post("/api/portfolio/optimize/async", json=_async_body(assets=["NOPE"]))
+    resp = client.post(
+        "/api/portfolio/optimize/async", json=_async_body(assets=["NOPE"])
+    )
     assert resp.status_code == 422
 
     # BL without views → 422 synchronously.
@@ -106,7 +114,9 @@ def test_async_eager_validation_en(bare_client, fake_optimize):
     assert resp.status_code == 422
     assert "at least one investor view" in resp.json()["detail"]
 
-    resp = bare_client.post("/api/portfolio/optimize/async", json=_async_body(assets=["NOPE"]))
+    resp = bare_client.post(
+        "/api/portfolio/optimize/async", json=_async_body(assets=["NOPE"])
+    )
     assert resp.status_code == 422
     assert "At least 2 valid asset classes" in resp.json()["detail"]
 
@@ -119,7 +129,9 @@ def test_async_http_error_becomes_error_event(client, monkeypatch):
 
     monkeypatch.setattr("api.routers.portfolio._prepare_optimize", boom)
 
-    task_id = client.post("/api/portfolio/optimize/async", json=_async_body()).json()["task_id"]
+    task_id = client.post("/api/portfolio/optimize/async", json=_async_body()).json()[
+        "task_id"
+    ]
     events = _parse_sse(client.get(f"/api/portfolio/tasks/{task_id}/events").text)
 
     assert events[-1]["type"] == "error"
@@ -132,7 +144,9 @@ def test_async_unexpected_error_becomes_error_event(client, monkeypatch):
         lambda req, locale="zh": (_ for _ in ()).throw(RuntimeError("kaboom")),
     )
 
-    task_id = client.post("/api/portfolio/optimize/async", json=_async_body()).json()["task_id"]
+    task_id = client.post("/api/portfolio/optimize/async", json=_async_body()).json()[
+        "task_id"
+    ]
     events = _parse_sse(client.get(f"/api/portfolio/tasks/{task_id}/events").text)
 
     assert events[-1]["type"] == "error"

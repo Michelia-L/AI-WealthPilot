@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 # Data Structures
 
+
 @dataclass
 class ForwardReturnConfig:
     """
@@ -45,6 +46,7 @@ class ForwardReturnConfig:
             proxy itself carries no dividend data (e.g. the CSI 300
             index 000300.SS → ASHR ETF).
     """
+
     kind: str
     growth: float = 0.0
     yield_ticker: Optional[str] = None
@@ -62,6 +64,7 @@ class ForwardReturnData:
             '股息率1.8%+增长6.0%'.
         source: Data source label for the market-derived input.
     """
+
     ticker: str
     forward_return: float
     basis: str
@@ -100,6 +103,7 @@ FORWARD_RETURN_MAP: dict[str, Optional[ForwardReturnConfig]] = {
 
 
 # Market-Data Helpers (all degrade to None)
+
 
 def _normalize_yield(raw: object) -> Optional[float]:
     """
@@ -168,7 +172,10 @@ def _fetch_tnx_yield() -> Optional[float]:
 
 # Per-Kind Builders
 
-def _forward_equity(ticker: str, cfg: ForwardReturnConfig) -> Optional[ForwardReturnData]:
+
+def _forward_equity(
+    ticker: str, cfg: ForwardReturnConfig
+) -> Optional[ForwardReturnData]:
     """Equity/REIT: E(R) = dividend yield + long-run growth."""
     info = _fetch_info_fields(ticker)
     div_yield = _normalize_yield(info.get("dividendYield")) if info else None
@@ -176,8 +183,7 @@ def _forward_equity(ticker: str, cfg: ForwardReturnConfig) -> Optional[ForwardRe
     if div_yield is None and cfg.yield_ticker:
         proxy_info = _fetch_info_fields(cfg.yield_ticker)
         div_yield = (
-            _normalize_yield(proxy_info.get("dividendYield"))
-            if proxy_info else None
+            _normalize_yield(proxy_info.get("dividendYield")) if proxy_info else None
         )
         source = f"yfinance dividendYield ({cfg.yield_ticker} proxy)"
     if div_yield is None:
@@ -214,6 +220,7 @@ def _forward_bond(ticker: str) -> Optional[ForwardReturnData]:
 
 
 # Public Entry Point
+
 
 def fetch_forward_returns(
     asset_tickers: list[str],

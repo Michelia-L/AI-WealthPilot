@@ -44,9 +44,7 @@ def _write_doc_without_saa(ips_dir, doc_id: str) -> None:
 def test_msg_renders_and_formats():
     assert msg("common.task_not_found", "en") == "Task not found"
     assert msg("common.task_not_found", "zh") == "任务不存在"
-    assert (
-        msg("common.profile_not_found", "en", id=7) == "Profile not found (id=7)"
-    )
+    assert msg("common.profile_not_found", "en", id=7) == "Profile not found (id=7)"
     # Unsupported locale falls back to English; unknown keys fail loudly.
     assert msg("common.task_not_found", "fr") == "Task not found"
     with pytest.raises(KeyError):
@@ -157,7 +155,9 @@ def test_fleet_note_english_function_level(ips_dir):
     doc_id = "ips_en_fleet_20260601_093000"
     _write_doc_without_saa(ips_dir, doc_id)
     item = next(
-        i for i in compute_fleet_status(locale="en")["items"] if i["document_id"] == doc_id
+        i
+        for i in compute_fleet_status(locale="en")["items"]
+        if i["document_id"] == doc_id
     )
     assert item["status"] == "unknown"
     assert "strategic asset allocation" in item["note"]
@@ -170,9 +170,7 @@ def test_fleet_note_english_via_api(bare_client, ips_dir, monkeypatch):
     try:
         resp = bare_client.get("/api/monitoring/status")
         assert resp.status_code == 200
-        item = next(
-            i for i in resp.json()["items"] if i["document_id"] == doc_id
-        )
+        item = next(i for i in resp.json()["items"] if i["document_id"] == doc_id)
         assert "strategic asset allocation" in item["note"]
     finally:
         # The fleet TTL cache is process-level: do not leak the en entry

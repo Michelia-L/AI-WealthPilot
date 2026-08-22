@@ -49,7 +49,9 @@ def test_stream_emits_reasoning_then_tokens_and_captures_usage(mock_get_client):
 
     assert [e["type"] for e in events] == ["reasoning", "reasoning", "token", "token"]
     assert events[0]["text"] == "先核对各资产类别的越带情况。"
-    assert "".join(e["text"] for e in events if e["type"] == "token") == REBALANCE_CONTENT
+    assert (
+        "".join(e["text"] for e in events if e["type"] == "token") == REBALANCE_CONTENT
+    )
 
     assert report.success is True
     assert report.client_name == "测试客户"

@@ -91,27 +91,31 @@ def put_llm_settings(
     if not base_url or not model:
         raise HTTPException(
             status_code=422,
-            detail=msg("settings.custom_endpoint_fields_required", get_request_locale(request)),
+            detail=msg(
+                "settings.custom_endpoint_fields_required", get_request_locale(request)
+            ),
         )
 
     _upsert(session, KEY_BASE_URL, base_url)
     _upsert(session, KEY_API_KEY, api_key)
     _upsert(session, KEY_MODEL, model)
     session.commit()
-    logger.info("LLM endpoint settings updated (base_url=%s, model=%s)", base_url, model)
+    logger.info(
+        "LLM endpoint settings updated (base_url=%s, model=%s)", base_url, model
+    )
     return _current_settings()
 
 
 def _fetch_models(base_url: str, api_key: str) -> list[str]:
     """List model ids from an OpenAI-compatible endpoint (10s, no retries)."""
-    client = OpenAI(
-        api_key=api_key, base_url=base_url, timeout=10.0, max_retries=0
-    )
+    client = OpenAI(api_key=api_key, base_url=base_url, timeout=10.0, max_retries=0)
     return sorted(m.id for m in client.models.list())
 
 
 @router.post("/llm/models", response_model=LlmModelsResponse)
-def list_llm_models(payload: LlmModelsFetchRequest, request: Request) -> LlmModelsResponse:
+def list_llm_models(
+    payload: LlmModelsFetchRequest, request: Request
+) -> LlmModelsResponse:
     locale = get_request_locale(request)
     try:
         return LlmModelsResponse(

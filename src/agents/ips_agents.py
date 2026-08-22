@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 # Model Configuration
 
+
 def _get_model() -> OpenAIChatModel:
     """
     Create PydanticAI model from the resolved LLM config (FR-002).
@@ -54,8 +55,7 @@ def _get_model() -> OpenAIChatModel:
     cfg = get_llm_config()
     if not cfg.configured:
         raise ValueError(
-            "DEEPSEEK_API_KEY is not configured. "
-            "Please set it in your .env file."
+            "DEEPSEEK_API_KEY is not configured. Please set it in your .env file."
         )
     provider = OpenAIProvider(
         base_url=cfg.base_url,
@@ -443,6 +443,7 @@ def get_system_prompt(role: str, locale: str = "zh") -> str:
 
 # Shared Model Settings
 
+
 def _get_model_settings() -> ModelSettings:
     """Build model settings for the resolved endpoint.
 
@@ -464,6 +465,7 @@ def _get_model_settings() -> ModelSettings:
 
 
 # Agent Factory Functions
+
 
 def create_ips_generator_agent(locale: str = "zh") -> Agent[None, IPSDocument]:
     """
@@ -577,6 +579,7 @@ def create_ips_reviser_agent(locale: str = "zh") -> Agent[None, IPSDocument]:
 
 
 # Prompt Construction Helpers
+
 
 def build_generation_prompt(
     client_profile_json: str,

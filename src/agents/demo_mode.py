@@ -132,9 +132,9 @@ def demo_rebalance_stream(
     for chunk in _iter_chunks(content):
         yield {"type": "token", "text": chunk}
     completion_tokens = _estimated_tokens(content)
-    prompt_tokens = _estimated_tokens(
-        json.dumps(monitoring, ensure_ascii=False, default=str)
-    ) + 700  # system prompt overhead
+    prompt_tokens = (
+        _estimated_tokens(json.dumps(monitoring, ensure_ascii=False, default=str)) + 700
+    )  # system prompt overhead
     return AdvisorReport(
         content=content,
         model=DEMO_MODEL,

@@ -23,12 +23,24 @@ def _clear_quotes_cache():
 def _stub_quotes(monkeypatch):
     df = pd.DataFrame(
         [
-            {"ticker": "GC=F", "name": "Gold Futures", "category": "Commodity",
-             "price": 4068.0, "previous_close": 4031.0,
-             "change": 37.0, "change_pct": 0.9178},
-            {"ticker": "SI=F", "name": "Silver Futures", "category": "Commodity",
-             "price": 58.66, "previous_close": 57.55,
-             "change": 1.11, "change_pct": 1.9288},
+            {
+                "ticker": "GC=F",
+                "name": "Gold Futures",
+                "category": "Commodity",
+                "price": 4068.0,
+                "previous_close": 4031.0,
+                "change": 37.0,
+                "change_pct": 0.9178,
+            },
+            {
+                "ticker": "SI=F",
+                "name": "Silver Futures",
+                "category": "Commodity",
+                "price": 58.66,
+                "previous_close": 57.55,
+                "change": 1.11,
+                "change_pct": 1.9288,
+            },
         ]
     )
     monkeypatch.setattr(market_router, "get_latest_quotes", lambda tickers: df)
@@ -37,15 +49,14 @@ def _stub_quotes(monkeypatch):
 
 def _closes_frame(tickers, n=30):
     idx = pd.date_range("2026-06-15", periods=n, freq="B")
-    return pd.DataFrame(
-        {t: [100.0 + i for i in range(n)] for t in tickers}, index=idx
-    )
+    return pd.DataFrame({t: [100.0 + i for i in range(n)] for t in tickers}, index=idx)
 
 
 def test_quotes_include_sparklines(client, monkeypatch):
     _stub_quotes(monkeypatch)
     monkeypatch.setattr(
-        market_router, "fetch_price_history",
+        market_router,
+        "fetch_price_history",
         lambda **_: _closes_frame(["GC=F", "SI=F"]),
     )
 
@@ -76,7 +87,8 @@ def test_quotes_spark_handles_missing_ticker_column(client, monkeypatch):
     _stub_quotes(monkeypatch)
     # History returns only GC=F; SI=F must degrade to an empty spark.
     monkeypatch.setattr(
-        market_router, "fetch_price_history",
+        market_router,
+        "fetch_price_history",
         lambda **_: _closes_frame(["GC=F"]),
     )
 

@@ -198,7 +198,10 @@ def get_quotes(tickers: Optional[str] = Query(None)) -> QuotesResponse:
         cache_key,
         QUOTES_TTL_SECONDS,
         lambda: _attach_sparks(
-            [_with_display_meta(r) for r in _clean_records(get_latest_quotes(selected))],
+            [
+                _with_display_meta(r)
+                for r in _clean_records(get_latest_quotes(selected))
+            ],
             selected,
         ),
     )

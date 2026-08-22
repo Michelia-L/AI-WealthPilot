@@ -113,7 +113,9 @@ def _distribution_inflation(req: RetirementRequest) -> float:
     )
 
 
-def _run_plan(req: RetirementRequest, annual_savings: float, n_simulations: int) -> dict:
+def _run_plan(
+    req: RetirementRequest, annual_savings: float, n_simulations: int
+) -> dict:
     sim = MonteCarloSimulator(
         expected_return=req.expected_return,
         volatility=req.volatility,
@@ -167,7 +169,8 @@ def simulate(req: RetirementRequest) -> RetirementResponse:
         )
     if req.life_expectancy <= req.retirement_age:
         raise HTTPException(
-            status_code=422, detail="life_expectancy must be greater than retirement_age."
+            status_code=422,
+            detail="life_expectancy must be greater than retirement_age.",
         )
 
     result = _run_plan(req, req.annual_savings, req.n_simulations)

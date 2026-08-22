@@ -23,6 +23,7 @@ from src.agents.ips_storage import (
 # Fixtures
 # ============================================================
 
+
 @pytest.fixture
 def sample_ips_dict() -> dict:
     """A complete sample IPS dict for export testing."""
@@ -76,9 +77,27 @@ def sample_ips_dict() -> dict:
         },
         "investment_guidelines": {
             "strategic_allocation": [
-                {"asset_class": "权益类", "target_weight": 0.60, "min_weight": 0.50, "max_weight": 0.70, "rationale": "长期增长"},
-                {"asset_class": "固定收益", "target_weight": 0.30, "min_weight": 0.20, "max_weight": 0.40, "rationale": "稳定收益"},
-                {"asset_class": "现金等价物", "target_weight": 0.10, "min_weight": 0.05, "max_weight": 0.15, "rationale": "流动性储备"},
+                {
+                    "asset_class": "权益类",
+                    "target_weight": 0.60,
+                    "min_weight": 0.50,
+                    "max_weight": 0.70,
+                    "rationale": "长期增长",
+                },
+                {
+                    "asset_class": "固定收益",
+                    "target_weight": 0.30,
+                    "min_weight": 0.20,
+                    "max_weight": 0.40,
+                    "rationale": "稳定收益",
+                },
+                {
+                    "asset_class": "现金等价物",
+                    "target_weight": 0.10,
+                    "min_weight": 0.05,
+                    "max_weight": 0.15,
+                    "rationale": "流动性储备",
+                },
             ],
             "permitted_instruments": ["ETF", "公募基金", "国债"],
             "prohibited_instruments": ["杠杆ETF", "期货"],
@@ -108,6 +127,7 @@ def sample_ips_dict() -> dict:
 # Test: CJK Font Discovery
 # ============================================================
 
+
 class TestCJKFontDiscovery:
     """Tests for CJK font finding utility."""
 
@@ -121,6 +141,7 @@ class TestCJKFontDiscovery:
 # ============================================================
 # Test: PDF Export
 # ============================================================
+
 
 class TestPDFExport:
     """Tests for PDF export functionality."""
@@ -153,8 +174,13 @@ class TestPDFExport:
         """Test PDF export works without quantitative risk anchors."""
         data = sample_ips_dict.copy()
         risk = data["risk_tolerance"].copy()
-        for k in ["max_acceptable_annual_loss", "target_volatility_min",
-                   "target_volatility_max", "var_tolerance_95", "max_drawdown_tolerance"]:
+        for k in [
+            "max_acceptable_annual_loss",
+            "target_volatility_min",
+            "target_volatility_max",
+            "var_tolerance_95",
+            "max_drawdown_tolerance",
+        ]:
             risk.pop(k, None)
         data["risk_tolerance"] = risk
         output = tmp_path / "no_anchors.pdf"
@@ -179,6 +205,7 @@ class TestPDFExport:
 # ============================================================
 # Test: Markdown Export Enhancements
 # ============================================================
+
 
 class TestMarkdownExportEnhancements:
     """Tests for markdown export with P1 features."""
@@ -219,8 +246,13 @@ class TestMarkdownExportEnhancements:
         """Test that risk anchor table is omitted when no anchors provided."""
         data = sample_ips_dict.copy()
         risk = data["risk_tolerance"].copy()
-        for k in ["max_acceptable_annual_loss", "target_volatility_min",
-                   "target_volatility_max", "var_tolerance_95", "max_drawdown_tolerance"]:
+        for k in [
+            "max_acceptable_annual_loss",
+            "target_volatility_min",
+            "target_volatility_max",
+            "var_tolerance_95",
+            "max_drawdown_tolerance",
+        ]:
             risk.pop(k, None)
         data["risk_tolerance"] = risk
         md = export_ips_markdown(data)

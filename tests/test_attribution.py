@@ -18,6 +18,7 @@ from src.portfolio.attribution import (
 
 # ------------------------------------------------------------- grouping --
 
+
 class TestGrouping:
     def test_known_tickers(self):
         assert group_of_ticker("SPY") == "equity"
@@ -36,6 +37,7 @@ class TestGrouping:
 
 
 # ------------------------------------------------------- hand-computed --
+
 
 def _hand_frame() -> pd.DataFrame:
     """Two spans with exact boundary returns: SPY +10%/−5%, AGG 0%/+2%."""
@@ -102,6 +104,7 @@ class TestHandComputed:
 
 # ------------------------------------------------------------- property --
 
+
 class TestIdentityProperty:
     def test_per_span_identity_random_multi_group(self):
         """Σ_g(A+S+I) == R_p,m − R_b,m per span, random 4-asset data."""
@@ -119,7 +122,9 @@ class TestIdentityProperty:
         rows_b = monthly_group_series(prices, bench)
         assert len(rows_p) == len(rows_b) >= 2
 
-        for (w_p, R_p_g, R_p_m), (w_b, R_b_g, R_b_m) in zip(rows_p, rows_b, strict=False):
+        for (w_p, R_p_g, R_p_m), (w_b, R_b_g, R_b_m) in zip(
+            rows_p, rows_b, strict=False
+        ):
             total = 0.0
             for g in set(w_p) | set(w_b):
                 wp, wb = w_p.get(g, 0.0), w_b.get(g, 0.0)
@@ -129,9 +134,7 @@ class TestIdentityProperty:
                 if np.isnan(rp) or np.isnan(rb):
                     continue
                 total += (
-                    (wp - wb) * (rb - R_b_m)
-                    + wb * (rp - rb)
-                    + (wp - wb) * (rp - rb)
+                    (wp - wb) * (rb - R_b_m) + wb * (rp - rb) + (wp - wb) * (rp - rb)
                 )
             assert total == pytest.approx(R_p_m - R_b_m, abs=1e-12)
 
@@ -148,13 +151,13 @@ class TestIdentityProperty:
             monthly_group_series(prices, {"SPY": 0.6, "AGG": 0.4}),
         )
         assert result is not None
-        assert (
-            result["allocation"] + result["selection"] + result["interaction"]
-            == pytest.approx(result["active_return"])
-        )
+        assert result["allocation"] + result["selection"] + result[
+            "interaction"
+        ] == pytest.approx(result["active_return"])
 
 
 # ----------------------------------------------------------------- edges --
+
 
 class TestEdges:
     def test_unknown_ticker_grouped_as_other(self):
@@ -175,7 +178,10 @@ class TestEdges:
             {"SPY": np.linspace(100, 105, 20), "AGG": np.linspace(50, 50.5, 20)},
             index=idx,
         )
-        assert brinson_attribution(
-            monthly_group_series(prices, {"SPY": 0.6, "AGG": 0.4}),
-            monthly_group_series(prices, {"SPY": 0.6, "AGG": 0.4}),
-        ) is None
+        assert (
+            brinson_attribution(
+                monthly_group_series(prices, {"SPY": 0.6, "AGG": 0.4}),
+                monthly_group_series(prices, {"SPY": 0.6, "AGG": 0.4}),
+            )
+            is None
+        )

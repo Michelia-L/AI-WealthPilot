@@ -38,9 +38,11 @@ def _goal_priority_rank(goal) -> int:
 
 # Data Model — Portfolio Recommendation
 
+
 @dataclass
 class PortfolioRecommendation:
     """Represents a personalized portfolio recommendation with allocation and rationale."""
+
     risk_level: str = ""
     suggested_allocation: dict = field(default_factory=dict)
     expected_return: float = 0.0
@@ -68,15 +70,35 @@ class PortfolioRecommendation:
 # Breakpoints align with RISK_SCORE_BREAKPOINTS from profiler.
 RISK_VOLATILITY_MAP = {
     # Conservative: 1.0-1.5 → 5-8% volatility
-    "conservative": {"min_score": 1.0, "max_score": RISK_SCORE_BREAKPOINTS[0], "target_vol": 0.06},
+    "conservative": {
+        "min_score": 1.0,
+        "max_score": RISK_SCORE_BREAKPOINTS[0],
+        "target_vol": 0.06,
+    },
     # Moderately Conservative: 1.5-2.5 → 8-12% volatility
-    "moderately_conservative": {"min_score": RISK_SCORE_BREAKPOINTS[0], "max_score": RISK_SCORE_BREAKPOINTS[1], "target_vol": 0.10},
+    "moderately_conservative": {
+        "min_score": RISK_SCORE_BREAKPOINTS[0],
+        "max_score": RISK_SCORE_BREAKPOINTS[1],
+        "target_vol": 0.10,
+    },
     # Moderate: 2.5-3.5 → 12-15% volatility
-    "moderate": {"min_score": RISK_SCORE_BREAKPOINTS[1], "max_score": RISK_SCORE_BREAKPOINTS[2], "target_vol": 0.13},
+    "moderate": {
+        "min_score": RISK_SCORE_BREAKPOINTS[1],
+        "max_score": RISK_SCORE_BREAKPOINTS[2],
+        "target_vol": 0.13,
+    },
     # Moderately Aggressive: 3.5-4.5 → 15-18% volatility
-    "moderately_aggressive": {"min_score": RISK_SCORE_BREAKPOINTS[2], "max_score": RISK_SCORE_BREAKPOINTS[3], "target_vol": 0.16},
+    "moderately_aggressive": {
+        "min_score": RISK_SCORE_BREAKPOINTS[2],
+        "max_score": RISK_SCORE_BREAKPOINTS[3],
+        "target_vol": 0.16,
+    },
     # Aggressive: 4.5-5.0 → 18-22% volatility
-    "aggressive": {"min_score": RISK_SCORE_BREAKPOINTS[3], "max_score": 5.0, "target_vol": 0.20},
+    "aggressive": {
+        "min_score": RISK_SCORE_BREAKPOINTS[3],
+        "max_score": 5.0,
+        "target_vol": 0.20,
+    },
 }
 
 
@@ -114,6 +136,7 @@ def _get_target_volatility(risk_score: float) -> float:
 
 
 # Core Recommendation Function
+
 
 def _solve_at_target_volatility(
     optimizer: PortfolioOptimizer,
@@ -247,9 +270,7 @@ def _evaluate_goal(
         # the frontier: higher vol, lower return.)
         goal_portfolio = gmv
     else:
-        goal_portfolio = optimizer.minimize_volatility(
-            target_return=required_return
-        )
+        goal_portfolio = optimizer.minimize_volatility(target_return=required_return)
     if not goal_portfolio.get("success", False):
         return "infeasible", None
     if goal_portfolio["volatility"] <= target_volatility + _VOL_TOLERANCE:
@@ -302,9 +323,7 @@ def recommend_portfolio(
     goal_name = ""
     goal_required_return: Optional[float] = None
     goal_details: list = []
-    evaluable_goals = [
-        g for g in profile.goals if g.years > 0 and g.target_amount > 0
-    ]
+    evaluable_goals = [g for g in profile.goals if g.years > 0 and g.target_amount > 0]
     if evaluable_goals:
         # Priority order (stable for ties); the primary goal drives the
         # portfolio-level decision.
@@ -326,16 +345,18 @@ def recommend_portfolio(
             status, goal_portfolio = _evaluate_goal(
                 optimizer, gmv, required, target_volatility
             )
-            goal_details.append({
-                "name": goal.name,
-                "priority": goal.priority,
-                "years": goal.years,
-                "target_amount": float(goal.target_amount),
-                "allocated_assets": float(allocated),
-                "annual_contribution": float(contribution),
-                "required_return": float(required),
-                "status": status,
-            })
+            goal_details.append(
+                {
+                    "name": goal.name,
+                    "priority": goal.priority,
+                    "years": goal.years,
+                    "target_amount": float(goal.target_amount),
+                    "allocated_assets": float(allocated),
+                    "annual_contribution": float(contribution),
+                    "required_return": float(required),
+                    "status": status,
+                }
+            )
             if goal is primary_goal:
                 goal_status, goal_name = status, goal.name
                 goal_required_return = required
@@ -348,7 +369,10 @@ def recommend_portfolio(
 
     # Generate rationale
     rationale = _generate_rationale(
-        profile, risk_level, target_volatility, result,
+        profile,
+        risk_level,
+        target_volatility,
+        result,
         goal_status=goal_status,
         goal_name=goal_name,
         goal_required_return=goal_required_return,
@@ -412,19 +436,23 @@ def _generate_rationale(
 
     # Add conflict note if applicable
     if abs(rp.ability_score - rp.willingness_score) >= 1.0:
-        rationale_parts.extend([
-            "⚠️ **Note**: There is a significant difference between your "
-            "objective risk ability and subjective willingness. "
-            "Per prudential guidelines, we use the lower score to protect you.",
-            "",
-        ])
+        rationale_parts.extend(
+            [
+                "⚠️ **Note**: There is a significant difference between your "
+                "objective risk ability and subjective willingness. "
+                "Per prudential guidelines, we use the lower score to protect you.",
+                "",
+            ]
+        )
 
     # Add allocation explanation
-    rationale_parts.extend([
-        "The recommended allocation is optimized using **Mean-Variance "
-        "Optimization (MVO)** based on Modern Portfolio Theory (MPT):",
-        "",
-    ])
+    rationale_parts.extend(
+        [
+            "The recommended allocation is optimized using **Mean-Variance "
+            "Optimization (MVO)** based on Modern Portfolio Theory (MPT):",
+            "",
+        ]
+    )
 
     # List top allocations
     sorted_alloc = sorted(
@@ -488,11 +516,13 @@ def _generate_rationale(
                 "constrained": ("beyond the risk budget", "超出风险预算"),
                 "infeasible": ("beyond the asset universe", "超出资产可实现范围"),
             }
-            rationale_parts.extend([
-                "",
-                "All goals, by priority / 全部目标(按优先级):",
-                "",
-            ])
+            rationale_parts.extend(
+                [
+                    "",
+                    "All goals, by priority / 全部目标(按优先级):",
+                    "",
+                ]
+            )
             for detail in goal_details:
                 en_label, zh_label = _STATUS_LABELS[detail["status"]]
                 detail_req = (
@@ -509,6 +539,7 @@ def _generate_rationale(
 
 
 # Utility Functions
+
 
 def get_recommended_allocation_text(recommendation: PortfolioRecommendation) -> str:
     """Format portfolio recommendation as readable markdown text.
@@ -539,11 +570,13 @@ def get_recommended_allocation_text(recommendation: PortfolioRecommendation) -> 
         if weight > 0.001:  # Only show > 0.1%
             lines.append(f"- {asset}: {weight:.1%}")
 
-    lines.extend([
-        "",
-        "### Rationale / 配置理由",
-        "",
-        recommendation.rationale,
-    ])
+    lines.extend(
+        [
+            "",
+            "### Rationale / 配置理由",
+            "",
+            recommendation.rationale,
+        ]
+    )
 
     return "\n".join(lines)

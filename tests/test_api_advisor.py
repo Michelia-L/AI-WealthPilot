@@ -154,13 +154,17 @@ def test_save_list_get_delete_report(client):
     assert detail.status_code == 200
     assert detail.json()["content"] == "# Report\nSome advice."
 
-    assert client.delete(f"/api/advisor/reports/{summary['report_id']}").status_code == 204
+    assert (
+        client.delete(f"/api/advisor/reports/{summary['report_id']}").status_code == 204
+    )
     assert client.get(f"/api/advisor/reports/{summary['report_id']}").status_code == 404
 
 
 def test_report_not_found(client):
     assert client.get("/api/advisor/reports/20990101_000000_000000").status_code == 404
-    assert client.delete("/api/advisor/reports/20990101_000000_000000").status_code == 404
+    assert (
+        client.delete("/api/advisor/reports/20990101_000000_000000").status_code == 404
+    )
     # Malformed ids are 404 too, never a path traversal.
     assert client.get("/api/advisor/reports/..%2F..%2Fetc").status_code == 404
 
@@ -284,6 +288,5 @@ def test_export_report_pdf(client):
 
 def test_export_report_pdf_not_found(client):
     assert (
-        client.get("/api/advisor/reports/20990101_000000_000000/pdf").status_code
-        == 404
+        client.get("/api/advisor/reports/20990101_000000_000000/pdf").status_code == 404
     )

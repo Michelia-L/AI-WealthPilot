@@ -46,6 +46,7 @@ from src.agents.profiler import (
 # Fixtures
 # ============================================================
 
+
 @pytest.fixture
 def sample_profile():
     """Create a sample client profile for testing."""
@@ -62,8 +63,12 @@ def sample_profile():
             emergency_fund_months=6.0,
         ),
         goals=[
-            InvestmentGoal(name="Retirement", target_amount=3_000_000, years=25, priority="high"),
-            InvestmentGoal(name="Education", target_amount=300_000, years=10, priority="medium"),
+            InvestmentGoal(
+                name="Retirement", target_amount=3_000_000, years=25, priority="high"
+            ),
+            InvestmentGoal(
+                name="Education", target_amount=300_000, years=10, priority="medium"
+            ),
         ],
         time_horizon_years=25,
         risk_profile=RiskProfile(
@@ -206,7 +211,7 @@ def mock_stream_chunks():
         "## 📋 Client Summary / 客户概况总结\nClient summary goes here.\n",
         "## 🎯 Investment Objectives Analysis / 投资目标分析\nGoal is feasible.\n",
         "## ⚖️ Risk Tolerance / 风险承受能力\nScore is aligned.\n",
-        "## 📊 Recommended Asset Allocation / 建议资产配置\n## 💡 Implementation Strategy / 实施策略\n## ⚠️ Risk Disclosure / 风险披露"
+        "## 📊 Recommended Asset Allocation / 建议资产配置\n## 💡 Implementation Strategy / 实施策略\n## ⚠️ Risk Disclosure / 风险披露",
     ]
     return [_make_stream_chunk(content=text) for text in text_chunks] + [
         _make_usage_chunk()
@@ -216,6 +221,7 @@ def mock_stream_chunks():
 # ============================================================
 # Test AdvisorReport Data Model
 # ============================================================
+
 
 class TestAdvisorReport:
     """Tests for AdvisorReport data model."""
@@ -268,6 +274,7 @@ class TestAdvisorReport:
 # Test Report Validation
 # ============================================================
 
+
 class TestReportValidation:
     """Tests for advisory report content validation."""
 
@@ -294,6 +301,7 @@ class TestReportValidation:
         """
         assert len(content) > 100
         from src.agents.advisor import validate_report_content
+
         is_valid, err = validate_report_content(content)
         assert is_valid is True
         assert err == ""
@@ -311,6 +319,7 @@ class TestReportValidation:
             "easily exceed the one-hundred-character minimum length gate."
         )
         from src.agents.advisor import validate_report_content
+
         is_valid, err = validate_report_content(content)
         assert is_valid is False
         assert "heading" in err.lower()
@@ -319,6 +328,7 @@ class TestReportValidation:
         """Test validation fails when content is too short."""
         content = "Short summary."
         from src.agents.advisor import validate_report_content
+
         is_valid, err = validate_report_content(content)
         assert is_valid is False
         assert "too short" in err
@@ -333,6 +343,7 @@ class TestReportValidation:
         but it is missing other parts.
         """
         from src.agents.advisor import validate_report_content
+
         is_valid, err = validate_report_content(content)
         assert is_valid is False
         assert "Missing required sections" in err
@@ -341,6 +352,7 @@ class TestReportValidation:
 # ============================================================
 # Test Prompt Construction
 # ============================================================
+
 
 class TestPromptConstruction:
     """Tests for _build_user_prompt function."""
@@ -359,7 +371,7 @@ class TestPromptConstruction:
         prompt = _build_user_prompt(sample_profile)
 
         assert "150,000" in prompt  # income
-        assert "80,000" in prompt   # expenses
+        assert "80,000" in prompt  # expenses
         assert "500,000" in prompt  # investable assets
         assert "200,000" in prompt  # liabilities
 
@@ -437,6 +449,7 @@ class TestPromptConstruction:
 # Test API Configuration
 # ============================================================
 
+
 class TestAPIConfiguration:
     """Tests for API configuration checks."""
 
@@ -460,11 +473,14 @@ class TestAPIConfiguration:
 # Test Report Generation (with Mock)
 # ============================================================
 
+
 class TestReportGeneration:
     """Tests for report generation functions using mocks."""
 
     @patch("src.agents.advisor._get_client")
-    def test_generate_advice_success(self, mock_get_client, sample_profile, mock_openai_response):
+    def test_generate_advice_success(
+        self, mock_get_client, sample_profile, mock_openai_response
+    ):
         """Test successful report generation."""
         # Setup mock
         mock_client = Mock()
@@ -512,7 +528,9 @@ class TestReportGeneration:
         assert "Network error" in report.error_message
 
     @patch("src.agents.advisor._get_client")
-    def test_generate_advice_calls_api_correctly(self, mock_get_client, sample_profile, mock_openai_response):
+    def test_generate_advice_calls_api_correctly(
+        self, mock_get_client, sample_profile, mock_openai_response
+    ):
         """Test that API is called with correct parameters."""
         # Setup mock
         mock_client = Mock()
@@ -536,11 +554,14 @@ class TestReportGeneration:
 # Test Streaming Report Generation
 # ============================================================
 
+
 class TestStreamingGeneration:
     """Tests for streaming report generation."""
 
     @patch("src.agents.advisor._get_client")
-    def test_generate_advice_stream_success(self, mock_get_client, sample_profile, mock_stream_chunks):
+    def test_generate_advice_stream_success(
+        self, mock_get_client, sample_profile, mock_stream_chunks
+    ):
         """Test successful streaming report generation."""
         # Setup mock
         mock_client = Mock()
@@ -563,7 +584,9 @@ class TestStreamingGeneration:
         assert report.reasoning_tokens == 0
 
     @patch("src.agents.advisor._get_client")
-    def test_generate_advice_stream_with_reasoning(self, mock_get_client, sample_profile):
+    def test_generate_advice_stream_with_reasoning(
+        self, mock_get_client, sample_profile
+    ):
         """Reasoner chunks stream as reasoning events before token events."""
         half = len(MOCK_REPORT_CONTENT) // 2
         chunks = [
@@ -580,10 +603,18 @@ class TestStreamingGeneration:
         events, report = _drain(generate_advice_stream(sample_profile))
 
         # Reasoning phase arrives first, then content tokens, in order.
-        assert [e["type"] for e in events] == ["reasoning", "reasoning", "token", "token"]
+        assert [e["type"] for e in events] == [
+            "reasoning",
+            "reasoning",
+            "token",
+            "token",
+        ]
         assert events[0]["text"] == "先分析客户画像与风险评分。"
         assert events[1]["text"] == "再测算教育金与养老目标。"
-        assert "".join(e["text"] for e in events if e["type"] == "token") == MOCK_REPORT_CONTENT
+        assert (
+            "".join(e["text"] for e in events if e["type"] == "token")
+            == MOCK_REPORT_CONTENT
+        )
 
         # Usage (incl. reasoning_tokens) flows onto the returned report.
         assert report.success is True
@@ -597,7 +628,9 @@ class TestStreamingGeneration:
         assert call_args.kwargs["stream_options"] == {"include_usage": True}
 
     @patch("src.agents.advisor._get_client")
-    def test_generate_advice_stream_missing_reasoning_details(self, mock_get_client, sample_profile, mock_stream_chunks):
+    def test_generate_advice_stream_missing_reasoning_details(
+        self, mock_get_client, sample_profile, mock_stream_chunks
+    ):
         """Usage without completion_tokens_details leaves reasoning_tokens at 0."""
         chunks = mock_stream_chunks[:-1] + [
             _make_stream_chunk(
@@ -620,7 +653,9 @@ class TestStreamingGeneration:
         assert report.total_tokens == 30
 
     @patch("src.agents.advisor._get_client")
-    def test_stream_advice_wrapper(self, mock_get_client, sample_profile, mock_stream_chunks):
+    def test_stream_advice_wrapper(
+        self, mock_get_client, sample_profile, mock_stream_chunks
+    ):
         """Test stream_advice wrapper for Streamlit integration."""
         # Setup mock
         mock_client = Mock()
@@ -686,6 +721,7 @@ class TestStreamingGeneration:
 # Test System Prompt
 # ============================================================
 
+
 class TestSystemPrompt:
     """Tests for system prompt content."""
 
@@ -716,6 +752,7 @@ class TestSystemPrompt:
 # ============================================================
 # Integration Test
 # ============================================================
+
 
 class TestAdvisorIntegration:
     """Integration tests for advisor module."""

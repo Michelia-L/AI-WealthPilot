@@ -16,7 +16,7 @@ Usage / 使用方法:
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import numpy as np
 import pandas as pd
@@ -94,7 +94,7 @@ def demo_resampled_mvo():
     print(f"  Volatility / 波动率: {traditional_result['volatility']:.2%}")
     print(f"  Sharpe Ratio / 夏普比率: {traditional_result['sharpe']:.2f}")
     print("  Weights / 权重:")
-    for asset, weight in traditional_result['weights'].items():
+    for asset, weight in traditional_result["weights"].items():
         print(f"    {asset}: {weight:.2%}")
 
     print("\nResampled MVO (Maximum Sharpe):")
@@ -104,16 +104,16 @@ def demo_resampled_mvo():
     print(f"  Sharpe Ratio / 夏普比率: {resampled_result['sharpe']:.2f}")
     print(f"  Simulations / 模拟次数: {resampled_result['n_simulations']}")
     print("  Weights / 权重:")
-    for asset, weight in resampled_result['weights'].items():
+    for asset, weight in resampled_result["weights"].items():
         print(f"    {asset}: {weight:.2%}")
 
     # Compare diversification
     # 比较多元化程度
-    traditional_weights = np.array(list(traditional_result['weights'].values()))
-    resampled_weights = np.array(list(resampled_result['weights'].values()))
+    traditional_weights = np.array(list(traditional_result["weights"].values()))
+    resampled_weights = np.array(list(resampled_result["weights"].values()))
 
-    traditional_hhi = np.sum(traditional_weights ** 2)
-    resampled_hhi = np.sum(resampled_weights ** 2)
+    traditional_hhi = np.sum(traditional_weights**2)
+    resampled_hhi = np.sum(resampled_weights**2)
 
     print("\nDiversification Comparison / 多元化比较:")
     print(f"  Traditional HHI / 传统HHI: {traditional_hhi:.4f}")
@@ -140,20 +140,20 @@ def demo_asset_class_constraints():
     # Define asset class constraints
     # 定义资产类别约束
     asset_classes = {
-        'equity': {
-            'assets': ['US_Equity', 'Intl_Equity'],
-            'min': 0.40,  # At least 40% in equities
-            'max': 0.80,  # At most 80% in equities
+        "equity": {
+            "assets": ["US_Equity", "Intl_Equity"],
+            "min": 0.40,  # At least 40% in equities
+            "max": 0.80,  # At most 80% in equities
         },
-        'bonds': {
-            'assets': ['US_Bonds'],
-            'min': 0.15,  # At least 15% in bonds
-            'max': 0.40,  # At most 40% in bonds
+        "bonds": {
+            "assets": ["US_Bonds"],
+            "min": 0.15,  # At least 15% in bonds
+            "max": 0.40,  # At most 40% in bonds
         },
-        'alternatives': {
-            'assets': ['Gold'],
-            'min': 0.05,  # At least 5% in alternatives
-            'max': 0.25,  # At most 25% in alternatives
+        "alternatives": {
+            "assets": ["Gold"],
+            "min": 0.05,  # At least 5% in alternatives
+            "max": 0.25,  # At most 25% in alternatives
         },
     }
 
@@ -171,15 +171,17 @@ def demo_asset_class_constraints():
     print(f"  Sharpe Ratio / 夏普比率: {result['sharpe']:.2f}")
 
     print("\nAsset Class Weights / 资产类别权重:")
-    for class_name, weight in result['asset_class_weights'].items():
+    for class_name, weight in result["asset_class_weights"].items():
         constraint = asset_classes[class_name]
-        min_w = constraint['min']
-        max_w = constraint['max']
+        min_w = constraint["min"]
+        max_w = constraint["max"]
         status = "✓" if min_w <= weight <= max_w else "✗"
-        print(f"  {class_name}: {weight:.2%} (constraint: {min_w:.0%}-{max_w:.0%}) {status}")
+        print(
+            f"  {class_name}: {weight:.2%} (constraint: {min_w:.0%}-{max_w:.0%}) {status}"
+        )
 
     print("\nIndividual Asset Weights / 单个资产权重:")
-    for asset, weight in result['weights'].items():
+    for asset, weight in result["weights"].items():
         print(f"  {asset}: {weight:.2%}")
 
 
@@ -209,9 +211,9 @@ def demo_resampled_frontier():
         print("-" * 32)
 
         for idx in frontier.index[:5]:  # Show first 5 points
-            ret = frontier.loc[idx, 'return']
-            vol = frontier.loc[idx, 'volatility']
-            sharpe = frontier.loc[idx, 'sharpe']
+            ret = frontier.loc[idx, "return"]
+            vol = frontier.loc[idx, "volatility"]
+            sharpe = frontier.loc[idx, "sharpe"]
             print(f"{ret:>10.2%} {vol:>12.2%} {sharpe:>8.2f}")
 
         if len(frontier) > 5:

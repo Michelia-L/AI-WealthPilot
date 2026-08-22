@@ -211,9 +211,7 @@ def _build_user_prompt(
     if locale == "en":
         return _build_user_prompt_en(monitoring, profile)
     client_name = str(monitoring.get("client_name") or "Unknown")
-    data_json = json.dumps(
-        _slim_monitoring(monitoring), ensure_ascii=False, indent=2
-    )
+    data_json = json.dumps(_slim_monitoring(monitoring), ensure_ascii=False, indent=2)
 
     profile_text = ""
     if profile is not None:
@@ -256,9 +254,7 @@ def _build_user_prompt_en(
 ) -> str:
     """English-only variant of _build_user_prompt (Phase 22)."""
     client_name = str(monitoring.get("client_name") or "Unknown")
-    data_json = json.dumps(
-        _slim_monitoring(monitoring), ensure_ascii=False, indent=2
-    )
+    data_json = json.dumps(_slim_monitoring(monitoring), ensure_ascii=False, indent=2)
 
     profile_text = ""
     if profile is not None:
@@ -316,7 +312,8 @@ def validate_rebalance_content(content: str) -> tuple[bool, str]:
     import re
 
     heading_lines = [
-        stripped for line in content.splitlines()
+        stripped
+        for line in content.splitlines()
         if re.match(r"#{1,6}\s", (stripped := line.lstrip()))
     ]
     if len(heading_lines) < 2:
@@ -355,12 +352,13 @@ def generate_rebalance_advice_stream(
 
         messages = [
             {"role": "system", "content": _system_prompt(locale)},
-            {"role": "user", "content": _build_user_prompt(monitoring, profile, locale)},
+            {
+                "role": "user",
+                "content": _build_user_prompt(monitoring, profile, locale),
+            },
         ]
 
-        logger.info(
-            "Starting streaming rebalance advice for: %s", report.client_name
-        )
+        logger.info("Starting streaming rebalance advice for: %s", report.client_name)
 
         stream = client.chat.completions.create(
             model=cfg.model,
@@ -387,7 +385,9 @@ def generate_rebalance_advice_stream(
             usage = getattr(chunk, "usage", None)
             if usage:
                 report.prompt_tokens = getattr(usage, "prompt_tokens", None) or 0
-                report.completion_tokens = getattr(usage, "completion_tokens", None) or 0
+                report.completion_tokens = (
+                    getattr(usage, "completion_tokens", None) or 0
+                )
                 report.total_tokens = getattr(usage, "total_tokens", None) or 0
                 details = getattr(usage, "completion_tokens_details", None)
                 report.reasoning_tokens = (
@@ -403,9 +403,7 @@ def generate_rebalance_advice_stream(
             report.error_message = err_msg
             logger.error(f"Rebalance report validation failed: {err_msg}")
 
-        logger.info(
-            "Streaming rebalance advice completed for: %s", report.client_name
-        )
+        logger.info("Streaming rebalance advice completed for: %s", report.client_name)
 
     except ValueError as e:
         report.error_message = str(e)

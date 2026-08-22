@@ -45,6 +45,7 @@ from src.agents.report_storage import (
 # Fixtures
 # ============================================================
 
+
 @pytest.fixture
 def sample_profile():
     """Create a sample client profile for testing."""
@@ -61,8 +62,12 @@ def sample_profile():
             emergency_fund_months=6.0,
         ),
         goals=[
-            InvestmentGoal(name="Retirement", target_amount=3_000_000, years=25, priority="high"),
-            InvestmentGoal(name="Education", target_amount=300_000, years=10, priority="medium"),
+            InvestmentGoal(
+                name="Retirement", target_amount=3_000_000, years=25, priority="high"
+            ),
+            InvestmentGoal(
+                name="Education", target_amount=300_000, years=10, priority="medium"
+            ),
         ],
         time_horizon_years=25,
         risk_profile=RiskProfile(
@@ -144,6 +149,7 @@ Based on the analysis, the client demonstrates moderate risk tolerance.
 # Test Profile Update/Delete
 # ============================================================
 
+
 class TestProfileUpdateDelete:
     """Tests for profile update and delete functionality."""
 
@@ -152,11 +158,14 @@ class TestProfileUpdateDelete:
         # Save initial profile
         profile_path = tmp_path / "test_profile.json"
         with open(profile_path, "w", encoding="utf-8") as f:
-            json.dump({
-                "name": sample_profile.name,
-                "age": sample_profile.age,
-                "updated_at": datetime.now().isoformat(),
-            }, f)
+            json.dump(
+                {
+                    "name": sample_profile.name,
+                    "age": sample_profile.age,
+                    "updated_at": datetime.now().isoformat(),
+                },
+                f,
+            )
 
         # Update profile
         sample_profile.age = 36
@@ -194,6 +203,7 @@ class TestProfileUpdateDelete:
 # ============================================================
 # Test Behavioral Bias Identification
 # ============================================================
+
 
 class TestBehavioralBiasIdentification:
     """Tests for behavioral bias identification."""
@@ -265,6 +275,7 @@ class TestBehavioralBiasIdentification:
 # ============================================================
 # Test Report Storage
 # ============================================================
+
 
 class TestReportStorage:
     """Tests for advisory report storage module."""
@@ -379,6 +390,7 @@ class TestReportStorage:
 # ============================================================
 # Integration Test
 # ============================================================
+
 
 class TestPhase3Integration:
     """Integration test for Phase 3 features."""

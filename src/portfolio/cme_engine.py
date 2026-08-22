@@ -65,6 +65,7 @@ _FALLBACK_CME_PATH = (
 
 # Core CME Computation
 
+
 def compute_cme(
     lookback_years: int = CME_LOOKBACK_YEARS,
     inflation: float = CME_INFLATION_ASSUMPTION,
@@ -121,7 +122,10 @@ def compute_cme(
     # --- Cache layer ---
     cache = CMECacheManager(ttl_days=cache_ttl_days)
     params_hash = CMECacheManager.compute_params_hash(
-        lookback_years, inflation, asset_tickers, iv_blending_tau,
+        lookback_years,
+        inflation,
+        asset_tickers,
+        iv_blending_tau,
         forward_blending_omega=forward_blending_omega,
         base_currency=BASE_CURRENCY,
     )
@@ -140,7 +144,8 @@ def compute_cme(
     # --- Fresh computation ---
     logger.info(
         "Computing CME with %d-year lookback, IV blending τ=%.2f%s",
-        lookback_years, iv_blending_tau,
+        lookback_years,
+        iv_blending_tau,
         " (force_refresh)" if force_refresh else "",
     )
 
@@ -161,9 +166,7 @@ def compute_cme(
     if cache.is_stale():
         stale_data = cache.load()
         if stale_data is not None:
-            logger.warning(
-                "Fresh CME computation failed, using stale cache"
-            )
+            logger.warning("Fresh CME computation failed, using stale cache")
             return CMEReport(**stale_data), "stale"
 
     # --- Static fallback ---
@@ -261,7 +264,8 @@ def _compute_cme_fresh(
         if len(asset_returns) < 60:  # Need at least ~3 months of daily data
             logger.warning(
                 "Insufficient data for %s (%d points), skipping",
-                ticker, len(asset_returns),
+                ticker,
+                len(asset_returns),
             )
             continue
 
@@ -292,16 +296,17 @@ def _compute_cme_fresh(
         if ticker_iv is not None:
             implied_vol = ticker_iv.implied_volatility
             blended_vol = (
-                iv_blending_tau * implied_vol
-                + (1 - iv_blending_tau) * ann_vol
+                iv_blending_tau * implied_vol + (1 - iv_blending_tau) * ann_vol
             )
-            iv_source_label = (
-                f"{ticker_iv.iv_index_name} ({ticker_iv.iv_index_ticker})"
-            )
+            iv_source_label = f"{ticker_iv.iv_index_name} ({ticker_iv.iv_index_ticker})"
             regime = _classify_vol_regime(implied_vol, ann_vol)
             logger.debug(
                 "%s: σ_hist=%.4f, σ_iv=%.4f, σ_blended=%.4f, regime=%s",
-                ticker, ann_vol, implied_vol, blended_vol, regime,
+                ticker,
+                ann_vol,
+                implied_vol,
+                blended_vol,
+                regime,
             )
         else:
             implied_vol = None
@@ -309,24 +314,28 @@ def _compute_cme_fresh(
             iv_source_label = None
             regime = None
 
-        asset_cme_list.append(AssetClassCME(
-            name=name,
-            ticker=ticker,
-            expected_return=round(expected_return, 6),
-            volatility=round(ann_vol, 6),
-            sharpe_ratio=round(sr, 4),
-            max_drawdown=round(mdd["max_drawdown"], 4),
-            var_95=round(var95, 6),
-            cvar_95=round(cvar95, 6),
-            data_points=len(asset_returns),
-            implied_volatility=round(implied_vol, 6) if implied_vol is not None else None,
-            iv_source=iv_source_label,
-            blended_volatility=round(blended_vol, 6),
-            volatility_regime=regime,
-            historical_return=round(ann_return, 6),
-            forward_return=round(fwd_return, 6) if fwd_return is not None else None,
-            forward_basis=fwd_basis,
-        ))
+        asset_cme_list.append(
+            AssetClassCME(
+                name=name,
+                ticker=ticker,
+                expected_return=round(expected_return, 6),
+                volatility=round(ann_vol, 6),
+                sharpe_ratio=round(sr, 4),
+                max_drawdown=round(mdd["max_drawdown"], 4),
+                var_95=round(var95, 6),
+                cvar_95=round(cvar95, 6),
+                data_points=len(asset_returns),
+                implied_volatility=round(implied_vol, 6)
+                if implied_vol is not None
+                else None,
+                iv_source=iv_source_label,
+                blended_volatility=round(blended_vol, 6),
+                volatility_regime=regime,
+                historical_return=round(ann_return, 6),
+                forward_return=round(fwd_return, 6) if fwd_return is not None else None,
+                forward_basis=fwd_basis,
+            )
+        )
 
     if not asset_cme_list:
         logger.warning("No asset classes computed")
@@ -409,12 +418,17 @@ def _compute_cme_fresh(
 
     logger.info(
         "CME computed: %d asset classes, rf=%.4f (%s), iv_available=%s, as_of=%s",
-        len(asset_cme_list), rf_rate, rf_source, iv_available, as_of,
+        len(asset_cme_list),
+        rf_rate,
+        rf_source,
+        iv_available,
+        as_of,
     )
     return report
 
 
 # Risk-Free Rate with Source Tracking
+
 
 def _fetch_risk_free_rate_with_source() -> tuple[float, str]:
     """
@@ -431,6 +445,7 @@ def _fetch_risk_free_rate_with_source() -> tuple[float, str]:
 
 
 # Volatility Regime Classification
+
 
 def _classify_vol_regime(implied_vol: float, historical_vol: float) -> str:
     """
@@ -468,6 +483,7 @@ def _classify_vol_regime(implied_vol: float, historical_vol: float) -> str:
 
 # Fallback CME Loading
 
+
 def _load_fallback_cme() -> CMEReport:
     """
     Load the static fallback CME document.
@@ -494,6 +510,7 @@ def _load_fallback_cme() -> CMEReport:
 
 
 # LLM Prompt Formatting
+
 
 def format_cme_for_prompt(report: CMEReport) -> str:
     """
@@ -551,18 +568,25 @@ def format_cme_for_prompt(report: CMEReport) -> str:
 
     for ac in report.asset_classes:
         fwd_display = (
-            f"{ac.forward_return:>10.2%}" if ac.forward_return is not None
+            f"{ac.forward_return:>10.2%}"
+            if ac.forward_return is not None
             else f"{'N/A':>10}"
         )
-        base_cols = (
-            f"{ac.name:<24} {ac.expected_return:>10.2%} "
-        )
+        base_cols = f"{ac.name:<24} {ac.expected_return:>10.2%} "
         if has_fwd:
             base_cols += f"{fwd_display} "
 
         if has_iv:
-            iv_display = f"{ac.implied_volatility:>10.2%}" if ac.implied_volatility is not None else f"{'N/A':>10}"
-            blended_display = f"{ac.blended_volatility:>10.2%}" if ac.blended_volatility is not None else f"{'N/A':>10}"
+            iv_display = (
+                f"{ac.implied_volatility:>10.2%}"
+                if ac.implied_volatility is not None
+                else f"{'N/A':>10}"
+            )
+            blended_display = (
+                f"{ac.blended_volatility:>10.2%}"
+                if ac.blended_volatility is not None
+                else f"{'N/A':>10}"
+            )
             regime_tag = f" [{ac.volatility_regime}]" if ac.volatility_regime else ""
 
             base_cols += (
@@ -636,6 +660,7 @@ def format_cme_for_prompt(report: CMEReport) -> str:
 
 # Reference-Portfolio Suggestion (retirement planning)
 
+
 def reference_portfolio_suggestion(
     report: CMEReport,
     allocation: Optional[dict[str, float]] = None,
@@ -704,9 +729,7 @@ def reference_portfolio_suggestion(
     return {
         "expected_return": round(mu, 6),
         "volatility": round(sigma, 6),
-        "allocation": {
-            names[i]: round(weights[i], 4) for i in range(len(entries))
-        },
+        "allocation": {names[i]: round(weights[i], 4) for i in range(len(entries))},
     }
 
 

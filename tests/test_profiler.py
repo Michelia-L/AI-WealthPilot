@@ -8,6 +8,7 @@ Tests for the IPS-based client profiling system, covering:
 - Questionnaire scoring logic (问卷评分逻辑)
 - JSON persistence (JSON 持久化)
 """
+
 import json
 
 import pytest
@@ -30,6 +31,7 @@ from src.agents.profiler import (
 # ============================================================
 # Fixtures
 # ============================================================
+
 
 @pytest.fixture
 def sample_financial():
@@ -59,8 +61,12 @@ def sample_profile():
             emergency_fund_months=6.0,
         ),
         goals=[
-            InvestmentGoal(name="Retirement", target_amount=2_000_000, years=30, priority="high"),
-            InvestmentGoal(name="House", target_amount=500_000, years=5, priority="medium"),
+            InvestmentGoal(
+                name="Retirement", target_amount=2_000_000, years=30, priority="high"
+            ),
+            InvestmentGoal(
+                name="House", target_amount=500_000, years=5, priority="medium"
+            ),
         ],
         time_horizon_years=30,
         risk_profile=RiskProfile(
@@ -74,23 +80,27 @@ def sample_profile():
 @pytest.fixture
 def all_ability_answers():
     """All ability questions answered with the highest option."""
-    return {q_key: list(q_data["options"].keys())[-1]
-            for q_key, q_data in RISK_ABILITY_QUESTIONS.items()}
+    return {
+        q_key: list(q_data["options"].keys())[-1]
+        for q_key, q_data in RISK_ABILITY_QUESTIONS.items()
+    }
 
 
 @pytest.fixture
 def all_willingness_answers():
     """All willingness questions answered with the highest option."""
-    return {q_key: list(q_data["options"].keys())[-1]
-            for q_key, q_data in RISK_WILLINGNESS_QUESTIONS.items()}
+    return {
+        q_key: list(q_data["options"].keys())[-1]
+        for q_key, q_data in RISK_WILLINGNESS_QUESTIONS.items()
+    }
 
 
 # ============================================================
 # FinancialSituation Tests
 # ============================================================
 
-class TestFinancialSituation:
 
+class TestFinancialSituation:
     def test_net_worth(self, sample_financial):
         """Net worth = investable_assets - total_liabilities."""
         assert sample_financial.net_worth == 150_000
@@ -136,8 +146,8 @@ class TestFinancialSituation:
 # RiskProfile Tests
 # ============================================================
 
-class TestRiskProfile:
 
+class TestRiskProfile:
     def test_final_score_uses_minimum(self):
         """Prudential principle: final score = min(ability, willingness)."""
         rp = RiskProfile(ability_score=4.0, willingness_score=2.5)
@@ -153,17 +163,20 @@ class TestRiskProfile:
         rp = RiskProfile(ability_score=0, willingness_score=3.0)
         assert rp.final_score == 0.0
 
-    @pytest.mark.parametrize("score,expected", [
-        (1.0, "Conservative / 保守型"),
-        (1.5, "Conservative / 保守型"),
-        (2.0, "Moderately Conservative / 稳健型"),
-        (2.5, "Moderately Conservative / 稳健型"),
-        (3.0, "Moderate / 平衡型"),
-        (3.5, "Moderate / 平衡型"),
-        (4.0, "Moderately Aggressive / 成长型"),
-        (4.5, "Moderately Aggressive / 成长型"),
-        (5.0, "Aggressive / 进取型"),
-    ])
+    @pytest.mark.parametrize(
+        "score,expected",
+        [
+            (1.0, "Conservative / 保守型"),
+            (1.5, "Conservative / 保守型"),
+            (2.0, "Moderately Conservative / 稳健型"),
+            (2.5, "Moderately Conservative / 稳健型"),
+            (3.0, "Moderate / 平衡型"),
+            (3.5, "Moderate / 平衡型"),
+            (4.0, "Moderately Aggressive / 成长型"),
+            (4.5, "Moderately Aggressive / 成长型"),
+            (5.0, "Aggressive / 进取型"),
+        ],
+    )
     def test_classify_levels(self, score, expected):
         """Risk classification should map scores to correct levels."""
         rp = RiskProfile(ability_score=score, willingness_score=score)
@@ -174,8 +187,8 @@ class TestRiskProfile:
 # Risk Scoring Tests
 # ============================================================
 
-class TestRiskScoring:
 
+class TestRiskScoring:
     def test_ability_score_highest_all(self, all_ability_answers):
         """All highest answers should yield score 5.0."""
         score = compute_ability_score(all_ability_answers)
@@ -183,8 +196,10 @@ class TestRiskScoring:
 
     def test_ability_score_lowest_all(self):
         """All lowest answers should yield score 1.0."""
-        answers = {q_key: list(q_data["options"].keys())[0]
-                   for q_key, q_data in RISK_ABILITY_QUESTIONS.items()}
+        answers = {
+            q_key: list(q_data["options"].keys())[0]
+            for q_key, q_data in RISK_ABILITY_QUESTIONS.items()
+        }
         score = compute_ability_score(answers)
         assert score == 1.0
 
@@ -199,8 +214,10 @@ class TestRiskScoring:
 
     def test_willingness_score_lowest_all(self):
         """All lowest answers should yield score 1.0."""
-        answers = {q_key: list(q_data["options"].keys())[0]
-                   for q_key, q_data in RISK_WILLINGNESS_QUESTIONS.items()}
+        answers = {
+            q_key: list(q_data["options"].keys())[0]
+            for q_key, q_data in RISK_WILLINGNESS_QUESTIONS.items()
+        }
         score = compute_willingness_score(answers)
         assert score == 1.0
 
@@ -218,7 +235,9 @@ class TestRiskScoring:
         score = compute_ability_score(answers)
         assert score == 3.0
 
-    def test_assess_risk_integration(self, all_ability_answers, all_willingness_answers):
+    def test_assess_risk_integration(
+        self, all_ability_answers, all_willingness_answers
+    ):
         """assess_risk should return a valid RiskProfile."""
         # Set ability to all 5s, willingness to all 3s (mixed)
         mixed_willingness = {}
@@ -230,15 +249,17 @@ class TestRiskScoring:
         assert profile.ability_score == 5.0
         assert profile.willingness_score == 3.0
         assert profile.final_score == 3.0  # min(5, 3)
-        assert "Moderate" in profile.tolerance_level or "平衡" in profile.tolerance_level
+        assert (
+            "Moderate" in profile.tolerance_level or "平衡" in profile.tolerance_level
+        )
 
 
 # ============================================================
 # ClientProfile Tests
 # ============================================================
 
-class TestClientProfile:
 
+class TestClientProfile:
     def test_default_profile(self):
         """Default profile should have reasonable defaults."""
         profile = ClientProfile()
@@ -266,8 +287,8 @@ class TestClientProfile:
 # JSON Persistence Tests
 # ============================================================
 
-class TestProfilePersistence:
 
+class TestProfilePersistence:
     def test_save_and_load(self, sample_profile):
         """Saved profile should be loadable and match original."""
         filepath = save_profile(sample_profile)
@@ -279,7 +300,10 @@ class TestProfilePersistence:
         assert loaded.financial.annual_income == sample_profile.financial.annual_income
         assert loaded.financial.net_worth == sample_profile.financial.net_worth
         assert len(loaded.goals) == len(sample_profile.goals)
-        assert loaded.risk_profile.ability_score == sample_profile.risk_profile.ability_score
+        assert (
+            loaded.risk_profile.ability_score
+            == sample_profile.risk_profile.ability_score
+        )
 
     def test_save_and_load_with_answers(self, sample_profile):
         """Should save and load raw questionnaire answers correctly."""

@@ -52,6 +52,7 @@ def _no_forward_returns(monkeypatch):
 # Fixtures
 # ============================================================
 
+
 @pytest.fixture
 def sample_asset_cme() -> AssetClassCME:
     """Create a sample AssetClassCME for testing."""
@@ -126,6 +127,7 @@ def mock_price_data() -> pd.DataFrame:
 # Test CME Models
 # ============================================================
 
+
 class TestCMEModels:
     """Test Pydantic model creation and validation."""
 
@@ -182,6 +184,7 @@ class TestCMEModels:
 # Test CME Formatting
 # ============================================================
 
+
 class TestCMEFormatting:
     """Test format_cme_for_prompt output."""
 
@@ -211,6 +214,7 @@ class TestCMEFormatting:
 # Test Fallback CME
 # ============================================================
 
+
 class TestFallbackCME:
     """Test static fallback CME loading."""
 
@@ -218,7 +222,9 @@ class TestFallbackCME:
         """The fallback CME JSON file should exist."""
         fallback_path = (
             Path(__file__).parent.parent
-            / "docs" / "ips_reference" / "cme_fallback.json"
+            / "docs"
+            / "ips_reference"
+            / "cme_fallback.json"
         )
         assert fallback_path.exists(), f"Fallback CME file not found: {fallback_path}"
 
@@ -244,6 +250,7 @@ class TestFallbackCME:
 # ============================================================
 # Test CME Computation
 # ============================================================
+
 
 class TestCMEComputation:
     """Test compute_cme with mocked market data."""
@@ -281,7 +288,8 @@ class TestCMEComputation:
         }
 
         report, cache_status = compute_cme(
-            asset_tickers=test_tickers, force_refresh=True,
+            asset_tickers=test_tickers,
+            force_refresh=True,
         )
 
         assert isinstance(report, CMEReport)
@@ -358,6 +366,7 @@ class TestCMEComputation:
 # Test Risk-Free Rate Fetching
 # ============================================================
 
+
 class TestRiskFreeRate:
     """Test risk-free rate fetching with source tracking."""
 
@@ -384,13 +393,14 @@ class TestRiskFreeRate:
 # Test Volatility Regime Classification
 # ============================================================
 
+
 class TestVolRegimeClassification:
     """Test _classify_vol_regime threshold logic."""
 
     def test_regime_low(self):
         """IV/HV < 0.8 should return 'low'."""
-        assert _classify_vol_regime(0.10, 0.20) == "low"   # ratio = 0.5
-        assert _classify_vol_regime(0.15, 0.20) == "low"   # ratio = 0.75
+        assert _classify_vol_regime(0.10, 0.20) == "low"  # ratio = 0.5
+        assert _classify_vol_regime(0.15, 0.20) == "low"  # ratio = 0.75
 
     def test_regime_normal(self):
         """0.8 ≤ IV/HV < 1.2 should return 'normal'."""
@@ -406,8 +416,8 @@ class TestVolRegimeClassification:
 
     def test_regime_high(self):
         """IV/HV ≥ 1.6 should return 'high'."""
-        assert _classify_vol_regime(0.34, 0.20) == "high"    # ratio = 1.7
-        assert _classify_vol_regime(0.50, 0.20) == "high"    # ratio = 2.5
+        assert _classify_vol_regime(0.34, 0.20) == "high"  # ratio = 1.7
+        assert _classify_vol_regime(0.50, 0.20) == "high"  # ratio = 2.5
 
     def test_regime_zero_historical_vol(self):
         """Should return 'normal' when historical vol is zero."""
@@ -422,6 +432,7 @@ class TestVolRegimeClassification:
 # Test CME Computation with IV Blending
 # ============================================================
 
+
 class TestCMEWithIVBlending:
     """Test compute_cme with implied volatility data available."""
 
@@ -430,7 +441,12 @@ class TestCMEWithIVBlending:
     @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
     @patch("src.portfolio.cme_engine.compute_correlation_matrix")
     def test_iv_blending_applied_when_available(
-        self, mock_corr, mock_rf, mock_prices, mock_iv, mock_price_data,
+        self,
+        mock_corr,
+        mock_rf,
+        mock_prices,
+        mock_iv,
+        mock_price_data,
     ):
         """When IV data is available, blended_vol should differ from historical vol."""
         mock_prices.return_value = mock_price_data
@@ -457,7 +473,8 @@ class TestCMEWithIVBlending:
         }
 
         report, cache_status = compute_cme(
-            asset_tickers=test_tickers, iv_blending_tau=0.5,
+            asset_tickers=test_tickers,
+            iv_blending_tau=0.5,
             force_refresh=True,
         )
 
@@ -489,7 +506,12 @@ class TestCMEWithIVBlending:
     @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
     @patch("src.portfolio.cme_engine.compute_correlation_matrix")
     def test_pure_historical_when_tau_zero(
-        self, mock_corr, mock_rf, mock_prices, mock_iv, mock_price_data,
+        self,
+        mock_corr,
+        mock_rf,
+        mock_prices,
+        mock_iv,
+        mock_price_data,
     ):
         """τ=0 should give pure historical volatility (blended = hist)."""
         mock_prices.return_value = mock_price_data
@@ -514,7 +536,8 @@ class TestCMEWithIVBlending:
         }
 
         report, cache_status = compute_cme(
-            asset_tickers=test_tickers, iv_blending_tau=0.0,
+            asset_tickers=test_tickers,
+            iv_blending_tau=0.0,
             force_refresh=True,
         )
         agg_cme = report.asset_classes[0]
@@ -527,7 +550,12 @@ class TestCMEWithIVBlending:
     @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
     @patch("src.portfolio.cme_engine.compute_correlation_matrix")
     def test_pure_implied_when_tau_one(
-        self, mock_corr, mock_rf, mock_prices, mock_iv, mock_price_data,
+        self,
+        mock_corr,
+        mock_rf,
+        mock_prices,
+        mock_iv,
+        mock_price_data,
     ):
         """τ=1.0 should give pure implied volatility (blended = IV)."""
         mock_prices.return_value = mock_price_data
@@ -551,7 +579,8 @@ class TestCMEWithIVBlending:
         }
 
         report, cache_status = compute_cme(
-            asset_tickers=test_tickers, iv_blending_tau=1.0,
+            asset_tickers=test_tickers,
+            iv_blending_tau=1.0,
             force_refresh=True,
         )
         agg_cme = report.asset_classes[0]
@@ -563,7 +592,12 @@ class TestCMEWithIVBlending:
     @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
     @patch("src.portfolio.cme_engine.compute_correlation_matrix")
     def test_format_cme_with_iv_data(
-        self, mock_corr, mock_rf, mock_prices, mock_iv, mock_price_data,
+        self,
+        mock_corr,
+        mock_rf,
+        mock_prices,
+        mock_iv,
+        mock_price_data,
     ):
         """format_cme_for_prompt should include IV columns when IV data is available."""
         mock_prices.return_value = mock_price_data
@@ -589,7 +623,8 @@ class TestCMEWithIVBlending:
         }
 
         report, cache_status = compute_cme(
-            asset_tickers=test_tickers, force_refresh=True,
+            asset_tickers=test_tickers,
+            force_refresh=True,
         )
         text = format_cme_for_prompt(report)
 
@@ -606,7 +641,12 @@ class TestCMEWithIVBlending:
     @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
     @patch("src.portfolio.cme_engine.compute_correlation_matrix")
     def test_format_cme_without_iv_data(
-        self, mock_corr, mock_rf, mock_prices, mock_iv, mock_price_data,
+        self,
+        mock_corr,
+        mock_rf,
+        mock_prices,
+        mock_iv,
+        mock_price_data,
     ):
         """format_cme_for_prompt should not show IV columns when no IV data."""
         mock_prices.return_value = mock_price_data
@@ -627,7 +667,8 @@ class TestCMEWithIVBlending:
         }
 
         report, cache_status = compute_cme(
-            asset_tickers=test_tickers, force_refresh=True,
+            asset_tickers=test_tickers,
+            force_refresh=True,
         )
         text = format_cme_for_prompt(report)
 
@@ -642,7 +683,12 @@ class TestCMEWithIVBlending:
     @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
     @patch("src.portfolio.cme_engine.compute_correlation_matrix")
     def test_blended_vol_between_iv_and_hist(
-        self, mock_corr, mock_rf, mock_prices, mock_iv, mock_price_data,
+        self,
+        mock_corr,
+        mock_rf,
+        mock_prices,
+        mock_iv,
+        mock_price_data,
     ):
         """Blended vol should be between IV and historical when 0 < τ < 1."""
         mock_prices.return_value = mock_price_data
@@ -666,7 +712,8 @@ class TestCMEWithIVBlending:
         }
 
         report, cache_status = compute_cme(
-            asset_tickers=test_tickers, iv_blending_tau=0.5,
+            asset_tickers=test_tickers,
+            iv_blending_tau=0.5,
             force_refresh=True,
         )
         agg_cme = report.asset_classes[0]
@@ -685,6 +732,7 @@ class TestCMEWithIVBlending:
 # Test Forward-Looking Expected Return Blending
 # ============================================================
 
+
 class TestForwardReturnBlending:
     """Tests for ω-blending of building-blocks forward returns."""
 
@@ -693,8 +741,13 @@ class TestForwardReturnBlending:
     @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
     @patch("src.portfolio.cme_engine.compute_correlation_matrix")
     def test_forward_blending_applied(
-        self, mock_corr, mock_rf, mock_prices, mock_iv,
-        mock_price_data, monkeypatch,
+        self,
+        mock_corr,
+        mock_rf,
+        mock_prices,
+        mock_iv,
+        mock_price_data,
+        monkeypatch,
     ):
         """expected_return = ω·forward + (1-ω)·historical when forward exists."""
         mock_prices.return_value = mock_price_data
@@ -734,8 +787,13 @@ class TestForwardReturnBlending:
     @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
     @patch("src.portfolio.cme_engine.compute_correlation_matrix")
     def test_pure_historical_when_omega_zero(
-        self, mock_corr, mock_rf, mock_prices, mock_iv,
-        mock_price_data, monkeypatch,
+        self,
+        mock_corr,
+        mock_rf,
+        mock_prices,
+        mock_iv,
+        mock_price_data,
+        monkeypatch,
     ):
         """ω=0 keeps the historical mean even when forward data exists."""
         mock_prices.return_value = mock_price_data
@@ -747,8 +805,10 @@ class TestForwardReturnBlending:
             "src.portfolio.cme_engine.fetch_forward_returns",
             lambda tickers, inflation, risk_free_rate: {
                 "AGG": ForwardReturnData(
-                    ticker="AGG", forward_return=0.04,
-                    basis="b", source="s",
+                    ticker="AGG",
+                    forward_return=0.04,
+                    basis="b",
+                    source="s",
                 ),
             },
         )
@@ -768,7 +828,12 @@ class TestForwardReturnBlending:
     @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
     @patch("src.portfolio.cme_engine.compute_correlation_matrix")
     def test_degrades_to_historical_when_forward_unavailable(
-        self, mock_corr, mock_rf, mock_prices, mock_iv, mock_price_data,
+        self,
+        mock_corr,
+        mock_rf,
+        mock_prices,
+        mock_iv,
+        mock_price_data,
     ):
         """No forward input → expected_return equals the historical mean."""
         mock_prices.return_value = mock_price_data
@@ -803,14 +868,21 @@ class TestForwardReturnBlending:
 # Reference-Portfolio Suggestion (retirement planner)
 # ============================================================
 
+
 class TestReferenceSuggestion:
     """reference_portfolio_suggestion: w'μ and √(w'Σw) from a CMEReport."""
 
     @staticmethod
     def _ac(name, ticker, er, vol) -> AssetClassCME:
         return AssetClassCME(
-            name=name, ticker=ticker, expected_return=er, volatility=vol,
-            sharpe_ratio=0.0, max_drawdown=-0.1, var_95=0.01, cvar_95=0.02,
+            name=name,
+            ticker=ticker,
+            expected_return=er,
+            volatility=vol,
+            sharpe_ratio=0.0,
+            max_drawdown=-0.1,
+            var_95=0.01,
+            cvar_95=0.02,
             blended_volatility=vol,
         )
 
@@ -826,9 +898,12 @@ class TestReferenceSuggestion:
             else {}
         )
         return CMEReport(
-            as_of_date="2026-08-15", data_lookback_years=5,
-            risk_free_rate=0.02, inflation_assumption=0.025,
-            asset_classes=[fi, gold], correlation_matrix=corr,
+            as_of_date="2026-08-15",
+            data_lookback_years=5,
+            risk_free_rate=0.02,
+            inflation_assumption=0.025,
+            asset_classes=[fi, gold],
+            correlation_matrix=corr,
         )
 
     def test_mu_sigma_math(self):
@@ -871,6 +946,7 @@ class TestReferenceSuggestion:
 # Risk-Level-Keyed Reference Allocation
 # ============================================================
 
+
 class TestReferenceAllocationForLevel:
     """reference_allocation_for_level: caps-derived reference weights."""
 
@@ -886,8 +962,11 @@ class TestReferenceAllocationForLevel:
     def test_equity_share_monotonic_in_risk_level(self):
         from src.portfolio.cme_engine import reference_allocation_for_level
 
-        equity_keys = {"domestic_equity", "international_equity_dm",
-                       "international_equity_hk"}
+        equity_keys = {
+            "domestic_equity",
+            "international_equity_dm",
+            "international_equity_hk",
+        }
 
         def equity_share(level: str) -> float:
             alloc = reference_allocation_for_level(level)
@@ -896,7 +975,10 @@ class TestReferenceAllocationForLevel:
         # 保守型 caps sum to 0.25 ≤ 0.95 → sits exactly at the equity cap
         assert equity_share("保守型") == pytest.approx(0.15)
         # Monotonic across the ladder (进取型 caps sum to 1.20 → scaled)
-        shares = [equity_share(lv) for lv in ("保守型", "稳健型", "平衡型", "成长型", "进取型")]
+        shares = [
+            equity_share(lv)
+            for lv in ("保守型", "稳健型", "平衡型", "成长型", "进取型")
+        ]
         assert shares == sorted(shares)
         assert shares[-1] > shares[0]
 

@@ -172,6 +172,7 @@ def _list_sep(locale: str) -> str:
 
 # Public Entry Point
 
+
 def compute_monitoring(document_id: str, locale: str = "zh") -> dict:
     """
     Compute drift monitoring and rebalancing diagnostics for a stored IPS.
@@ -217,7 +218,11 @@ def compute_monitoring(document_id: str, locale: str = "zh") -> dict:
     portfolio = _portfolio_metrics(
         [h["target_weight"] for h in holdings],
         [h["cme"] for h in holdings],
-        corr, rf, notes, noted_corr_pairs, locale,
+        corr,
+        rf,
+        notes,
+        noted_corr_pairs,
+        locale,
     )
 
     # Market-value drift since the IPS was saved
@@ -240,7 +245,11 @@ def compute_monitoring(document_id: str, locale: str = "zh") -> dict:
         drifted_portfolio = _portfolio_metrics(
             [h["drifted_weight"] for h in holdings],
             [h["cme"] for h in holdings],
-            corr, rf, notes, noted_corr_pairs, locale,
+            corr,
+            rf,
+            notes,
+            noted_corr_pairs,
+            locale,
         )
 
     rebalance = _compute_rebalance(holdings)
@@ -333,6 +342,7 @@ def resolve_saa_weights(document_id: str, locale: str = "zh") -> dict:
 
 # IPS Document Loading
 
+
 def _find_ips_file(document_id: str) -> Optional[Path]:
     """Locate an IPS file by stem; glob keeps lookups inside IPS_DIR."""
     if not document_id or not all(c.isalnum() or c in "_-" for c in document_id):
@@ -343,6 +353,7 @@ def _find_ips_file(document_id: str) -> Optional[Path]:
 
 # SAA Mapping & Weight Normalization
 
+
 def _match_asset_class_key(name: str) -> Optional[str]:
     """Map an SAA Chinese display name to an IPS_ASSET_CLASS_TICKERS key."""
     for keyword, key in _SAA_KEYWORDS:
@@ -351,7 +362,9 @@ def _match_asset_class_key(name: str) -> Optional[str]:
     return None
 
 
-def _build_holdings(saa: list[dict], notes: list[str], locale: str = "zh") -> list[dict]:
+def _build_holdings(
+    saa: list[dict], notes: list[str], locale: str = "zh"
+) -> list[dict]:
     """Convert raw SAA entries into internal holding records."""
     holdings = []
     for entry in saa:
@@ -362,23 +375,27 @@ def _build_holdings(saa: list[dict], notes: list[str], locale: str = "zh") -> li
             ticker = IPS_ASSET_CLASS_TICKERS.get(key, {}).get("ticker")
         else:
             notes.append(_t("unmapped_asset", locale, name=name))
-        holdings.append({
-            "key": key,
-            "name": name,
-            "ticker": ticker,
-            "target_weight": float(entry.get("target_weight", 0.0) or 0.0),
-            "min_weight": float(entry.get("min_weight", 0.0) or 0.0),
-            "max_weight": float(entry.get("max_weight", 0.0) or 0.0),
-            "period_return": None,
-            "drifted_weight": None,
-            "drift_pp": None,
-            "band_status": "unknown",
-            "cme": None,
-        })
+        holdings.append(
+            {
+                "key": key,
+                "name": name,
+                "ticker": ticker,
+                "target_weight": float(entry.get("target_weight", 0.0) or 0.0),
+                "min_weight": float(entry.get("min_weight", 0.0) or 0.0),
+                "max_weight": float(entry.get("max_weight", 0.0) or 0.0),
+                "period_return": None,
+                "drifted_weight": None,
+                "drift_pp": None,
+                "band_status": "unknown",
+                "cme": None,
+            }
+        )
     return holdings
 
 
-def _normalize_weights(holdings: list[dict], notes: list[str], locale: str = "zh") -> None:
+def _normalize_weights(
+    holdings: list[dict], notes: list[str], locale: str = "zh"
+) -> None:
     """
     Normalize SAA target weights in place.
 
@@ -398,20 +415,22 @@ def _normalize_weights(holdings: list[dict], notes: list[str], locale: str = "zh
             notes.append(_t("cash_plug_existing", locale, total=total, deficit=deficit))
         else:
             info = IPS_ASSET_CLASS_TICKERS["cash"]
-            holdings.append({
-                "key": "cash",
-                "name": info["name"],
-                "ticker": info["ticker"],
-                "target_weight": deficit,
-                # Synthetic plug: no policy band exists, use [0, target].
-                "min_weight": 0.0,
-                "max_weight": deficit,
-                "period_return": None,
-                "drifted_weight": None,
-                "drift_pp": None,
-                "band_status": "unknown",
-                "cme": None,
-            })
+            holdings.append(
+                {
+                    "key": "cash",
+                    "name": info["name"],
+                    "ticker": info["ticker"],
+                    "target_weight": deficit,
+                    # Synthetic plug: no policy band exists, use [0, target].
+                    "min_weight": 0.0,
+                    "max_weight": deficit,
+                    "period_return": None,
+                    "drifted_weight": None,
+                    "drift_pp": None,
+                    "band_status": "unknown",
+                    "cme": None,
+                }
+            )
             notes.append(_t("cash_plug_new", locale, total=total, deficit=deficit))
     elif total > 1.001:
         scale = 1.0 / total
@@ -423,6 +442,7 @@ def _normalize_weights(holdings: list[dict], notes: list[str], locale: str = "zh
 
 
 # Portfolio-Level Metrics (CME-based)
+
 
 def _effective_volatility(ac: AssetClassCME) -> float:
     """Prefer Bayesian-blended volatility, fall back to historical."""
@@ -450,7 +470,8 @@ def _portfolio_metrics(
     """
     result = {"expected_return": None, "volatility": None, "sharpe": None}
     known = [
-        (w, ac) for w, ac in zip(weights, cmes, strict=False)
+        (w, ac)
+        for w, ac in zip(weights, cmes, strict=False)
         if ac is not None and w is not None
     ]
     if not known:
@@ -473,7 +494,12 @@ def _portfolio_metrics(
                 if pair not in noted_corr_pairs:
                     noted_corr_pairs.add(pair)
                     notes.append(
-                        _t("missing_corr_pair", locale, name_i=names[i], name_j=names[j])
+                        _t(
+                            "missing_corr_pair",
+                            locale,
+                            name_i=names[i],
+                            name_j=names[j],
+                        )
                     )
                 c = 0.0
             corr_mat[i, j] = corr_mat[j, i] = float(c)
@@ -493,7 +519,10 @@ def _portfolio_metrics(
 
 # Drift Measurement (market-value weights since saved_at)
 
-def _parse_saved_date(saved_at: str, notes: list[str], locale: str = "zh") -> Optional[date]:
+
+def _parse_saved_date(
+    saved_at: str, notes: list[str], locale: str = "zh"
+) -> Optional[date]:
     """Parse metadata.saved_at (ISO) into a date; None if unusable."""
     if not saved_at:
         notes.append(_t("saved_at_missing", locale))
@@ -508,8 +537,13 @@ def _parse_saved_date(saved_at: str, notes: list[str], locale: str = "zh") -> Op
 def _choose_period(days: int) -> str:
     """Map elapsed days to the smallest yfinance period string covering them."""
     for limit, period in (
-        (31, "1mo"), (93, "3mo"), (186, "6mo"), (366, "1y"),
-        (731, "2y"), (1826, "5y"), (3652, "10y"),
+        (31, "1mo"),
+        (93, "3mo"),
+        (186, "6mo"),
+        (366, "1y"),
+        (731, "2y"),
+        (1826, "5y"),
+        (3652, "10y"),
     ):
         if days <= limit:
             return period
@@ -576,7 +610,13 @@ def _compute_period_returns(
         ret, n_obs = _period_return_from_series(prices[t], cutoff)
         if ret is None:
             notes.append(
-                _t("window_too_short", locale, ticker=t, since=saved_date.isoformat(), n_obs=n_obs)
+                _t(
+                    "window_too_short",
+                    locale,
+                    ticker=t,
+                    since=saved_date.isoformat(),
+                    n_obs=n_obs,
+                )
             )
             continue
         result[t] = ret
@@ -637,6 +677,7 @@ def _apply_bands(holdings: list[dict]) -> None:
 
 # Fleet-Wide Status Aggregation (P17 — overview alert lamp)
 
+
 def compute_fleet_status(locale: str = "zh") -> dict:
     """
     Lightweight drift-band check across all stored IPS documents.
@@ -665,11 +706,15 @@ def compute_fleet_status(locale: str = "zh") -> dict:
     entries = _parse_fleet_documents(locale)
 
     # One shared fetch for the union of tickers, sized for the oldest SAA.
-    tickers = sorted({
-        h["ticker"]
-        for e in entries if e["holdings"]
-        for h in e["holdings"] if h["ticker"]
-    })
+    tickers = sorted(
+        {
+            h["ticker"]
+            for e in entries
+            if e["holdings"]
+            for h in e["holdings"]
+            if h["ticker"]
+        }
+    )
     saved_dates = [e["saved_date"] for e in entries if e["saved_date"] is not None]
 
     prices: Optional[pd.DataFrame] = None
@@ -731,7 +776,9 @@ def _parse_fleet_documents(locale: str = "zh") -> list[dict]:
             ips = record.get("ips", {})
             meta = record.get("metadata", {})
             entry["client_name"] = (
-                meta.get("client_name") or ips.get("client_name") or entry["client_name"]
+                meta.get("client_name")
+                or ips.get("client_name")
+                or entry["client_name"]
             )
             entry["saved_at"] = meta.get("saved_at", "") or entry["saved_at"]
             saa = ips.get("investment_guidelines", {}).get("strategic_allocation") or []
@@ -747,7 +794,8 @@ def _parse_fleet_documents(locale: str = "zh") -> list[dict]:
         except Exception as e:
             logger.warning(
                 "Fleet status: cannot parse IPS document %s: %s",
-                summary.get("filepath"), e,
+                summary.get("filepath"),
+                e,
             )
             entry["error"] = _t("fleet_parse_failed", locale, error=e)
         entries.append(entry)
@@ -793,7 +841,13 @@ def _fleet_item(
             ret, n_obs = _period_return_from_series(prices[t], cutoff)
             if ret is None:
                 entry["notes"].append(
-                    _t("window_too_short", locale, ticker=t, since=saved_date.isoformat(), n_obs=n_obs)
+                    _t(
+                        "window_too_short",
+                        locale,
+                        ticker=t,
+                        since=saved_date.isoformat(),
+                        n_obs=n_obs,
+                    )
                 )
             period_returns[t] = ret
         _apply_drift(holdings, period_returns, entry["notes"], locale)
@@ -815,13 +869,18 @@ def _fleet_item(
         if fetch_note is not None:
             item["note"] = fetch_note
         elif entry["notes"]:
-            item["note"] = "；".join(entry["notes"]) if locale == "zh" else "; ".join(entry["notes"])
+            item["note"] = (
+                "；".join(entry["notes"])
+                if locale == "zh"
+                else "; ".join(entry["notes"])
+            )
         else:
             item["note"] = _t("fleet_insufficient_data", locale)
     return item
 
 
 # Rebalancing
+
 
 def _compute_rebalance(holdings: list[dict]) -> dict:
     """
@@ -835,16 +894,19 @@ def _compute_rebalance(holdings: list[dict]) -> dict:
         if h["band_status"] not in ("above", "below"):
             continue
         weight_pp = h["target_weight"] - h["drifted_weight"]
-        trades.append({
-            "key": h["key"],
-            "name": h["name"],
-            "action": "buy" if weight_pp > 0 else "sell",
-            "weight_pp": float(weight_pp),
-        })
+        trades.append(
+            {
+                "key": h["key"],
+                "name": h["name"],
+                "action": "buy" if weight_pp > 0 else "sell",
+                "weight_pp": float(weight_pp),
+            }
+        )
     return {"needed": bool(trades), "trades": trades}
 
 
 # Serialization
+
 
 def _serialize_holding(h: dict) -> dict:
     """Convert an internal holding record to the API contract shape."""

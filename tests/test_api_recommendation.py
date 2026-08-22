@@ -38,11 +38,10 @@ def fake_market(monkeypatch):
     # Cash is near-deterministic — keep the optimizer well-behaved.
     returns["Cash Equivalents (BIL)"] = 0.0001
     monkeypatch.setattr(
-        "api.routers.portfolio._fetch_returns", lambda keys, period, locale="zh": returns
+        "api.routers.portfolio._fetch_returns",
+        lambda keys, period, locale="zh": returns,
     )
-    monkeypatch.setattr(
-        "api.routers.portfolio.fetch_risk_free_rate", lambda **_: 0.045
-    )
+    monkeypatch.setattr("api.routers.portfolio.fetch_risk_free_rate", lambda **_: 0.045)
 
 
 def _create_profile(client) -> int:

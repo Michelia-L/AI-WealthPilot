@@ -51,7 +51,9 @@ def sortino_ratio(
     n = len(returns)
     if n > 1:
         # Downside deviation uses full sample denominator (N-1)
-        downside_vol = np.sqrt(np.sum(downside_diff ** 2) / (n - 1)) * np.sqrt(TRADING_DAYS_PER_YEAR)
+        downside_vol = np.sqrt(np.sum(downside_diff**2) / (n - 1)) * np.sqrt(
+            TRADING_DAYS_PER_YEAR
+        )
     else:
         downside_vol = 0.0
     return excess / downside_vol if downside_vol > 0 else 0.0
@@ -99,6 +101,7 @@ def value_at_risk(
         return -float(np.percentile(returns, (1 - confidence) * 100))
     elif method == "parametric":
         from scipy.stats import norm
+
         z = norm.ppf(1 - confidence)
         # VaR = -(μ + z_α × σ)
         return -(returns.mean() + z * returns.std())

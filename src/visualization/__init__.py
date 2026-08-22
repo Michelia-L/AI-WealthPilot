@@ -1,4 +1,5 @@
 """AI WealthPilot - Visualization Module"""
+
 from src.visualization.charts import (
     plot_allocation_pie,
     plot_correlation_heatmap,

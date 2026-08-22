@@ -38,9 +38,7 @@ def _patch(monkeypatch, aum=None) -> None:
         "api.routers.portfolio._fetch_returns",
         lambda keys, period, locale="zh": _fake_returns(),
     )
-    monkeypatch.setattr(
-        "api.routers.portfolio.fetch_fund_aum", lambda tickers: aum
-    )
+    monkeypatch.setattr("api.routers.portfolio.fetch_fund_aum", lambda tickers: aum)
 
 
 def _body(**overrides) -> dict:
@@ -122,8 +120,12 @@ def test_custom_market_weights_source(client, monkeypatch):
     _patch(monkeypatch)
     body = _body(
         bl={
-            "market_weights": {"US_EQUITY": 0.25, "INTL_EQUITY": 0.25,
-                               "US_BOND": 0.25, "GOLD": 0.25},
+            "market_weights": {
+                "US_EQUITY": 0.25,
+                "INTL_EQUITY": 0.25,
+                "US_BOND": 0.25,
+                "GOLD": 0.25,
+            },
             "views": [
                 {
                     "view_type": "absolute",

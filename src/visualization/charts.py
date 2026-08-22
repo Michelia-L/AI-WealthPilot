@@ -3,6 +3,7 @@ AI WealthPilot - Visualization Module
 
 Plotly-based chart components for portfolio analysis dashboards.
 """
+
 import logging
 from typing import Optional
 
@@ -15,17 +16,17 @@ logger = logging.getLogger(__name__)
 
 # Color Palette — Premium dark theme (Vantablack-Gold-Emerald)
 COLORS = {
-    "primary": "#D4AF37",      # Luxury Gold
-    "secondary": "#10B981",    # Emerald
-    "accent": "#06B6D4",       # Teal
-    "success": "#10B981",      # Emerald
-    "warning": "#FFD700",      # Iconic Gold
-    "danger": "#ef4444",       # Red
-    "bg_dark": "#050505",      # OLED Vantablack
-    "bg_card": "#09090b",      # Deep Core Card
-    "text": "#f8fafc",         # Slate 50
-    "text_muted": "#94a3b8",   # Slate 400
-    "grid": "rgba(255, 255, 255, 0.03)", # Ultra-thin transparent grid lines
+    "primary": "#D4AF37",  # Luxury Gold
+    "secondary": "#10B981",  # Emerald
+    "accent": "#06B6D4",  # Teal
+    "success": "#10B981",  # Emerald
+    "warning": "#FFD700",  # Iconic Gold
+    "danger": "#ef4444",  # Red
+    "bg_dark": "#050505",  # OLED Vantablack
+    "bg_card": "#09090b",  # Deep Core Card
+    "text": "#f8fafc",  # Slate 50
+    "text_muted": "#94a3b8",  # Slate 400
+    "grid": "rgba(255, 255, 255, 0.03)",  # Ultra-thin transparent grid lines
 }
 
 CHART_LAYOUT = dict(
@@ -37,12 +38,16 @@ CHART_LAYOUT = dict(
     xaxis=dict(
         gridcolor=COLORS["grid"],
         linecolor="rgba(255, 255, 255, 0.05)",
-        tickfont=dict(family="JetBrains Mono, monospace", size=10, color=COLORS["text_muted"]),
+        tickfont=dict(
+            family="JetBrains Mono, monospace", size=10, color=COLORS["text_muted"]
+        ),
     ),
     yaxis=dict(
         gridcolor=COLORS["grid"],
         linecolor="rgba(255, 255, 255, 0.05)",
-        tickfont=dict(family="JetBrains Mono, monospace", size=10, color=COLORS["text_muted"]),
+        tickfont=dict(
+            family="JetBrains Mono, monospace", size=10, color=COLORS["text_muted"]
+        ),
     ),
     hoverlabel=dict(
         bgcolor="#09090b",
@@ -67,19 +72,25 @@ def get_asset_color(name_or_ticker: str, index: int) -> str:
 
         # 2. Check matches in DEFAULT_ASSET_CLASSES
         for key, info in DEFAULT_ASSET_CLASSES.items():
-            if name_or_ticker == info.get("ticker") or name_or_ticker == info.get("name"):
+            if name_or_ticker == info.get("ticker") or name_or_ticker == info.get(
+                "name"
+            ):
                 if "gold" in name_or_ticker.lower() or info.get("ticker") == "GLD":
                     return "#FFD700"  # Iconic Gold
-                if "btc" in name_or_ticker.lower() or "bitcoin" in name_or_ticker.lower() or info.get("ticker") == "BTC-USD":
+                if (
+                    "btc" in name_or_ticker.lower()
+                    or "bitcoin" in name_or_ticker.lower()
+                    or info.get("ticker") == "BTC-USD"
+                ):
                     return "#F7931A"  # Bitcoin Orange
 
                 premium_colors = {
-                    "EQUITY": "#06B6D4",      # Teal
-                    "BOND": "#3B82F6",        # Blue
-                    "TREASURY": "#60A5FA",    # Light blue
-                    "COMMODITIES": "#A855F7", # Purple
-                    "REIT": "#EC4899",        # Pink
-                    "CASH": "#9CA3AF",        # Gray
+                    "EQUITY": "#06B6D4",  # Teal
+                    "BOND": "#3B82F6",  # Blue
+                    "TREASURY": "#60A5FA",  # Light blue
+                    "COMMODITIES": "#A855F7",  # Purple
+                    "REIT": "#EC4899",  # Pink
+                    "CASH": "#9CA3AF",  # Gray
                 }
                 for cls_key, color in premium_colors.items():
                     if cls_key in key:
@@ -98,7 +109,6 @@ def get_asset_color(name_or_ticker: str, index: int) -> str:
         "#F59E0B",  # Amber
     ]
     return fallback_palette[index % len(fallback_palette)]
-
 
 
 def plot_efficient_frontier(
@@ -123,55 +133,67 @@ def plot_efficient_frontier(
 
     # Random portfolios cloud
     if random_portfolios is not None:
-        fig.add_trace(go.Scattergl(
-            x=random_portfolios["volatility"] * 100,
-            y=random_portfolios["return"] * 100,
-            mode="markers",
-            marker=dict(
-                size=3,
-                color=random_portfolios["sharpe"],
-                colorscale="Viridis",
-                showscale=True,
-                colorbar=dict(title="Sharpe"),
-                opacity=0.4,
-            ),
-            name="Random Portfolios",
-            hovertemplate="Return: %{y:.1f}%<br>Volatility: %{x:.1f}%<extra></extra>",
-        ))
+        fig.add_trace(
+            go.Scattergl(
+                x=random_portfolios["volatility"] * 100,
+                y=random_portfolios["return"] * 100,
+                mode="markers",
+                marker=dict(
+                    size=3,
+                    color=random_portfolios["sharpe"],
+                    colorscale="Viridis",
+                    showscale=True,
+                    colorbar=dict(title="Sharpe"),
+                    opacity=0.4,
+                ),
+                name="Random Portfolios",
+                hovertemplate="Return: %{y:.1f}%<br>Volatility: %{x:.1f}%<extra></extra>",
+            )
+        )
 
     # Efficient frontier line
-    fig.add_trace(go.Scatter(
-        x=frontier["volatility"] * 100,
-        y=frontier["return"] * 100,
-        mode="lines",
-        line=dict(color=COLORS["accent"], width=3),
-        name="Efficient Frontier",
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=frontier["volatility"] * 100,
+            y=frontier["return"] * 100,
+            mode="lines",
+            line=dict(color=COLORS["accent"], width=3),
+            name="Efficient Frontier",
+        )
+    )
 
     # Max Sharpe portfolio
     if max_sharpe is not None:
-        fig.add_trace(go.Scatter(
-            x=[max_sharpe["volatility"] * 100],
-            y=[max_sharpe["return"] * 100],
-            mode="markers",
-            marker=dict(size=16, color=COLORS["warning"], symbol="star"),
-            name=f"Max Sharpe ({max_sharpe['sharpe']:.2f})",
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=[max_sharpe["volatility"] * 100],
+                y=[max_sharpe["return"] * 100],
+                mode="markers",
+                marker=dict(size=16, color=COLORS["warning"], symbol="star"),
+                name=f"Max Sharpe ({max_sharpe['sharpe']:.2f})",
+            )
+        )
 
     # Min volatility portfolio
     if min_vol is not None:
-        fig.add_trace(go.Scatter(
-            x=[min_vol["volatility"] * 100],
-            y=[min_vol["return"] * 100],
-            mode="markers",
-            marker=dict(size=14, color=COLORS["success"], symbol="diamond"),
-            name=f"Min Volatility ({min_vol['volatility']:.1%})",
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=[min_vol["volatility"] * 100],
+                y=[min_vol["return"] * 100],
+                mode="markers",
+                marker=dict(size=14, color=COLORS["success"], symbol="diamond"),
+                name=f"Min Volatility ({min_vol['volatility']:.1%})",
+            )
+        )
 
     # Capital Allocation Line (CAL): E(R) = Rf + Sharpe_max * σ
     # The CAL connects the risk-free asset (0, Rf) with the tangency portfolio
     # and extends beyond it (representing leveraged positions).
-    if risk_free_rate is not None and max_sharpe is not None and max_sharpe.get("success", True):
+    if (
+        risk_free_rate is not None
+        and max_sharpe is not None
+        and max_sharpe.get("success", True)
+    ):
         rf_pct = risk_free_rate * 100
         tangency_vol = max_sharpe["volatility"] * 100
         sharpe_ratio = max_sharpe["sharpe"]
@@ -184,20 +206,22 @@ def plot_efficient_frontier(
         cal_vols = [0, cal_max_vol]
         cal_rets = [rf_pct, rf_pct + sharpe_ratio * cal_max_vol]
 
-        fig.add_trace(go.Scatter(
-            x=cal_vols,
-            y=cal_rets,
-            mode="lines",
-            line=dict(color=COLORS["primary"], width=2, dash="dash"),
-            name=f"Capital Allocation Line (Sharpe={sharpe_ratio:.2f})",
-            hovertemplate=(
-                "CAL<br>"
-                "Volatility: %{x:.1f}%<br>"
-                "Expected Return: %{y:.1f}%<br>"
-                "<i>E(R) = Rf + Sharpe × σ</i>"
-                "<extra></extra>"
-            ),
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=cal_vols,
+                y=cal_rets,
+                mode="lines",
+                line=dict(color=COLORS["primary"], width=2, dash="dash"),
+                name=f"Capital Allocation Line (Sharpe={sharpe_ratio:.2f})",
+                hovertemplate=(
+                    "CAL<br>"
+                    "Volatility: %{x:.1f}%<br>"
+                    "Expected Return: %{y:.1f}%<br>"
+                    "<i>E(R) = Rf + Sharpe × σ</i>"
+                    "<extra></extra>"
+                ),
+            )
+        )
 
     fig.update_layout(
         **CHART_LAYOUT,
@@ -210,24 +234,30 @@ def plot_efficient_frontier(
     return fig
 
 
-def plot_allocation_pie(weights: dict, title: str = "Portfolio Allocation") -> go.Figure:
+def plot_allocation_pie(
+    weights: dict, title: str = "Portfolio Allocation"
+) -> go.Figure:
     """Pie chart of portfolio allocation weights."""
     # Filter out near-zero weights
     filtered = {k: v for k, v in weights.items() if abs(v) > 0.005}
 
     # Resolve colors dynamically using our premium color resolver
-    asset_colors = [get_asset_color(label, i) for i, label in enumerate(filtered.keys())]
+    asset_colors = [
+        get_asset_color(label, i) for i, label in enumerate(filtered.keys())
+    ]
 
-    fig = go.Figure(go.Pie(
-        labels=list(filtered.keys()),
-        values=list(filtered.values()),
-        hole=0.45,
-        textinfo="label+percent",
-        marker=dict(
-            colors=asset_colors,
-            line=dict(color="#030712", width=2),
-        ),
-    ))
+    fig = go.Figure(
+        go.Pie(
+            labels=list(filtered.keys()),
+            values=list(filtered.values()),
+            hole=0.45,
+            textinfo="label+percent",
+            marker=dict(
+                colors=asset_colors,
+                line=dict(color="#030712", width=2),
+            ),
+        )
+    )
 
     fig.update_layout(
         **CHART_LAYOUT,
@@ -254,14 +284,17 @@ def plot_monte_carlo_paths(
     # Sample paths (semi-transparent)
     indices = np.random.choice(n_sims, min(n_display, n_sims), replace=False)
     for i in indices:
-        fig.add_trace(go.Scatter(
-            x=x, y=paths[i],
-            mode="lines",
-            line=dict(width=0.5, color=COLORS["primary"]),
-            opacity=0.1,
-            showlegend=False,
-            hoverinfo="skip",
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=paths[i],
+                mode="lines",
+                line=dict(width=0.5, color=COLORS["primary"]),
+                opacity=0.1,
+                showlegend=False,
+                hoverinfo="skip",
+            )
+        )
 
     if percentiles:
         # Percentile bands
@@ -269,23 +302,35 @@ def plot_monte_carlo_paths(
         p50 = np.percentile(paths, 50, axis=0)
         p95 = np.percentile(paths, 95, axis=0)
 
-        fig.add_trace(go.Scatter(
-            x=x, y=p95, mode="lines",
-            line=dict(width=0, color=COLORS["success"]),
-            showlegend=False,
-        ))
-        fig.add_trace(go.Scatter(
-            x=x, y=p5, mode="lines",
-            fill="tonexty",
-            fillcolor="rgba(16, 185, 129, 0.15)",
-            line=dict(width=0),
-            name="5th-95th percentile",
-        ))
-        fig.add_trace(go.Scatter(
-            x=x, y=p50, mode="lines",
-            line=dict(width=3, color=COLORS["warning"]),
-            name="Median",
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=p95,
+                mode="lines",
+                line=dict(width=0, color=COLORS["success"]),
+                showlegend=False,
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=p5,
+                mode="lines",
+                fill="tonexty",
+                fillcolor="rgba(16, 185, 129, 0.15)",
+                line=dict(width=0),
+                name="5th-95th percentile",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=p50,
+                mode="lines",
+                line=dict(width=3, color=COLORS["warning"]),
+                name="Median",
+            )
+        )
 
     # Goal line
     if goal_amount is not None:
@@ -309,18 +354,20 @@ def plot_monte_carlo_paths(
 
 def plot_correlation_heatmap(corr_matrix: pd.DataFrame) -> go.Figure:
     """Correlation heatmap of asset returns."""
-    fig = go.Figure(go.Heatmap(
-        z=corr_matrix.values,
-        x=corr_matrix.columns,
-        y=corr_matrix.index,
-        colorscale="RdBu_r",
-        zmid=0,
-        zmin=-1,
-        zmax=1,
-        text=corr_matrix.round(2).values,
-        texttemplate="%{text}",
-        textfont=dict(size=11),
-    ))
+    fig = go.Figure(
+        go.Heatmap(
+            z=corr_matrix.values,
+            x=corr_matrix.columns,
+            y=corr_matrix.index,
+            colorscale="RdBu_r",
+            zmid=0,
+            zmin=-1,
+            zmax=1,
+            text=corr_matrix.round(2).values,
+            texttemplate="%{text}",
+            textfont=dict(size=11),
+        )
+    )
 
     fig.update_layout(
         **CHART_LAYOUT,
@@ -355,14 +402,16 @@ def plot_price_history(
     fig = go.Figure()
 
     for i, col in enumerate(data.columns):
-        fig.add_trace(go.Scatter(
-            x=data.index,
-            y=data[col],
-            mode="lines",
-            name=col,
-            line=dict(width=2, color=get_asset_color(col, i)),
-            connectgaps=True,
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=data.index,
+                y=data[col],
+                mode="lines",
+                name=col,
+                line=dict(width=2, color=get_asset_color(col, i)),
+                connectgaps=True,
+            )
+        )
 
     fig.update_layout(
         **CHART_LAYOUT,
@@ -389,33 +438,39 @@ def plot_backtest_equity(equity: pd.DataFrame, benchmark_name: str) -> go.Figure
     fig = go.Figure()
 
     has_gross = "portfolio_gross" in equity.columns
-    fig.add_trace(go.Scatter(
-        x=equity.index,
-        y=equity["portfolio"],
-        mode="lines",
-        name="Portfolio (net)" if has_gross else "Portfolio",
-        line=dict(width=3, color=COLORS["primary"]),
-        connectgaps=True,
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=equity.index,
+            y=equity["portfolio"],
+            mode="lines",
+            name="Portfolio (net)" if has_gross else "Portfolio",
+            line=dict(width=3, color=COLORS["primary"]),
+            connectgaps=True,
+        )
+    )
     if has_gross:
-        fig.add_trace(go.Scatter(
-            x=equity.index,
-            y=equity["portfolio_gross"],
-            mode="lines",
-            name="Portfolio (gross)",
-            line=dict(width=1.5, color=COLORS["primary"], dash="dashdot"),
-            opacity=0.45,
-            connectgaps=True,
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=equity.index,
+                y=equity["portfolio_gross"],
+                mode="lines",
+                name="Portfolio (gross)",
+                line=dict(width=1.5, color=COLORS["primary"], dash="dashdot"),
+                opacity=0.45,
+                connectgaps=True,
+            )
+        )
     if "benchmark" in equity.columns:
-        fig.add_trace(go.Scatter(
-            x=equity.index,
-            y=equity["benchmark"],
-            mode="lines",
-            name=benchmark_name,
-            line=dict(width=2, color=COLORS["text_muted"], dash="dot"),
-            connectgaps=True,
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=equity.index,
+                y=equity["benchmark"],
+                mode="lines",
+                name=benchmark_name,
+                line=dict(width=2, color=COLORS["text_muted"], dash="dot"),
+                connectgaps=True,
+            )
+        )
 
     fig.update_layout(
         **CHART_LAYOUT,
@@ -444,25 +499,29 @@ def plot_drawdown(
     """
     fig = go.Figure()
 
-    fig.add_trace(go.Scatter(
-        x=drawdown.index,
-        y=drawdown,
-        mode="lines",
-        name="Portfolio",
-        fill="tozeroy",
-        fillcolor="rgba(239, 68, 68, 0.15)",
-        line=dict(width=2, color=COLORS["danger"]),
-        connectgaps=True,
-    ))
-    if benchmark_drawdown is not None:
-        fig.add_trace(go.Scatter(
-            x=benchmark_drawdown.index,
-            y=benchmark_drawdown,
+    fig.add_trace(
+        go.Scatter(
+            x=drawdown.index,
+            y=drawdown,
             mode="lines",
-            name="Benchmark",
-            line=dict(width=1.5, color=COLORS["text_muted"], dash="dot"),
+            name="Portfolio",
+            fill="tozeroy",
+            fillcolor="rgba(239, 68, 68, 0.15)",
+            line=dict(width=2, color=COLORS["danger"]),
             connectgaps=True,
-        ))
+        )
+    )
+    if benchmark_drawdown is not None:
+        fig.add_trace(
+            go.Scatter(
+                x=benchmark_drawdown.index,
+                y=benchmark_drawdown,
+                mode="lines",
+                name="Benchmark",
+                line=dict(width=1.5, color=COLORS["text_muted"], dash="dot"),
+                connectgaps=True,
+            )
+        )
 
     fig.update_layout(
         **CHART_LAYOUT,

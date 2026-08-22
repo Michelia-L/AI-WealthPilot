@@ -31,6 +31,7 @@ from src.portfolio.cme_models import AssetClassCME, CMEReport
 # Fixtures
 # ============================================================
 
+
 @pytest.fixture
 def minimal_ips_dict() -> dict:
     """Minimal IPS document as dict for testing."""
@@ -114,6 +115,7 @@ def minimal_ips_dict() -> dict:
 # Test: State Model
 # ============================================================
 
+
 class TestIPSWorkflowState:
     """Tests for the IPSWorkflowState model."""
 
@@ -139,6 +141,7 @@ class TestIPSWorkflowState:
 # Test: Routing Functions
 # ============================================================
 
+
 class TestRouting:
     """Tests for the conditional routing functions."""
 
@@ -146,9 +149,24 @@ class TestRouting:
         """Route to 'pass' when all reviews pass."""
         state = IPSWorkflowState(
             review_results=[
-                {"dimension": "suitability", "passed": True, "issues": [], "summary": "OK"},
-                {"dimension": "compliance", "passed": True, "issues": [], "summary": "OK"},
-                {"dimension": "consistency", "passed": True, "issues": [], "summary": "OK"},
+                {
+                    "dimension": "suitability",
+                    "passed": True,
+                    "issues": [],
+                    "summary": "OK",
+                },
+                {
+                    "dimension": "compliance",
+                    "passed": True,
+                    "issues": [],
+                    "summary": "OK",
+                },
+                {
+                    "dimension": "consistency",
+                    "passed": True,
+                    "issues": [],
+                    "summary": "OK",
+                },
             ],
             revision_count=0,
         )
@@ -158,9 +176,24 @@ class TestRouting:
         """Route to 'revise' when issues found and budget remains."""
         state = IPSWorkflowState(
             review_results=[
-                {"dimension": "suitability", "passed": False, "issues": [{"severity": "warning"}], "summary": "Issues"},
-                {"dimension": "compliance", "passed": True, "issues": [], "summary": "OK"},
-                {"dimension": "consistency", "passed": True, "issues": [], "summary": "OK"},
+                {
+                    "dimension": "suitability",
+                    "passed": False,
+                    "issues": [{"severity": "warning"}],
+                    "summary": "Issues",
+                },
+                {
+                    "dimension": "compliance",
+                    "passed": True,
+                    "issues": [],
+                    "summary": "OK",
+                },
+                {
+                    "dimension": "consistency",
+                    "passed": True,
+                    "issues": [],
+                    "summary": "OK",
+                },
             ],
             revision_count=0,
             max_revisions=3,
@@ -171,7 +204,12 @@ class TestRouting:
         """Route to 'escalate' when max revisions reached."""
         state = IPSWorkflowState(
             review_results=[
-                {"dimension": "suitability", "passed": False, "issues": [], "summary": "Issues"},
+                {
+                    "dimension": "suitability",
+                    "passed": False,
+                    "issues": [],
+                    "summary": "Issues",
+                },
             ],
             revision_count=3,
             max_revisions=3,
@@ -192,6 +230,7 @@ class TestRouting:
 # ============================================================
 # Test: Helper Functions
 # ============================================================
+
 
 class TestHelpers:
     """Tests for workflow helper functions."""
@@ -263,6 +302,7 @@ class TestHelpers:
 # Test: Graph Construction
 # ============================================================
 
+
 class TestGraphConstruction:
     """Tests for LangGraph workflow construction."""
 
@@ -284,6 +324,7 @@ class TestGraphConstruction:
 # Test: SAA Validation Node (P0-1 Enhancement)
 # ============================================================
 
+
 class TestSAAValidation:
     """Tests for the enhanced validate_saa_node with real volatility computation."""
 
@@ -296,17 +337,19 @@ class TestSAAValidation:
         """Build a CMEReport dict for testing."""
         cme_list = []
         for ac in asset_classes:
-            cme_list.append(AssetClassCME(
-                name=ac["name"],
-                ticker=ac.get("ticker", "TEST"),
-                expected_return=ac["expected_return"],
-                volatility=ac["volatility"],
-                sharpe_ratio=ac.get("sharpe", 0.5),
-                max_drawdown=ac.get("mdd", -0.20),
-                var_95=ac.get("var_95", 0.02),
-                cvar_95=ac.get("cvar_95", 0.03),
-                data_points=ac.get("data_points", 1000),
-            ))
+            cme_list.append(
+                AssetClassCME(
+                    name=ac["name"],
+                    ticker=ac.get("ticker", "TEST"),
+                    expected_return=ac["expected_return"],
+                    volatility=ac["volatility"],
+                    sharpe_ratio=ac.get("sharpe", 0.5),
+                    max_drawdown=ac.get("mdd", -0.20),
+                    var_95=ac.get("var_95", 0.02),
+                    cvar_95=ac.get("cvar_95", 0.03),
+                    data_points=ac.get("data_points", 1000),
+                )
+            )
         report = CMEReport(
             as_of_date="2026-06-01",
             data_lookback_years=5,
@@ -335,6 +378,7 @@ class TestSAAValidation:
     def _run(self, coro):
         """Run an async coroutine synchronously."""
         import asyncio
+
         return asyncio.run(coro)
 
     def test_portfolio_volatility_calculation(self):
@@ -355,10 +399,20 @@ class TestSAAValidation:
         """
         cme_report = self._build_cme_report(
             asset_classes=[
-                {"name": "权益", "expected_return": 0.10, "volatility": 0.20,
-                 "var_95": 0.025, "cvar_95": 0.035},
-                {"name": "固收", "expected_return": 0.04, "volatility": 0.10,
-                 "var_95": 0.008, "cvar_95": 0.012},
+                {
+                    "name": "权益",
+                    "expected_return": 0.10,
+                    "volatility": 0.20,
+                    "var_95": 0.025,
+                    "cvar_95": 0.035,
+                },
+                {
+                    "name": "固收",
+                    "expected_return": 0.04,
+                    "volatility": 0.10,
+                    "var_95": 0.008,
+                    "cvar_95": 0.012,
+                },
             ],
             corr_matrix={
                 "权益": {"权益": 1.0, "固收": 0.3},
@@ -407,10 +461,20 @@ class TestSAAValidation:
         """
         cme_report = self._build_cme_report(
             asset_classes=[
-                {"name": "权益", "expected_return": 0.12, "volatility": 0.25,
-                 "var_95": 0.03, "cvar_95": 0.04},
-                {"name": "固收", "expected_return": 0.03, "volatility": 0.05,
-                 "var_95": 0.005, "cvar_95": 0.007},
+                {
+                    "name": "权益",
+                    "expected_return": 0.12,
+                    "volatility": 0.25,
+                    "var_95": 0.03,
+                    "cvar_95": 0.04,
+                },
+                {
+                    "name": "固收",
+                    "expected_return": 0.03,
+                    "volatility": 0.05,
+                    "var_95": 0.005,
+                    "cvar_95": 0.007,
+                },
             ],
             corr_matrix={
                 "权益": {"权益": 1.0, "固收": 0.2},
@@ -441,9 +505,9 @@ class TestSAAValidation:
         # Check that a CRITICAL volatility issue was raised
         issues = result.get("all_review_issues", [])
         vol_issues = [
-            i for i in issues
-            if "波动率" in i.get("description", "")
-            and i.get("severity") == "critical"
+            i
+            for i in issues
+            if "波动率" in i.get("description", "") and i.get("severity") == "critical"
         ]
         assert len(vol_issues) >= 1
 
@@ -451,8 +515,13 @@ class TestSAAValidation:
         """Test that SAA assets not matching any CME class are flagged."""
         cme_report = self._build_cme_report(
             asset_classes=[
-                {"name": "权益", "expected_return": 0.10, "volatility": 0.20,
-                 "var_95": 0.02, "cvar_95": 0.03},
+                {
+                    "name": "权益",
+                    "expected_return": 0.10,
+                    "volatility": 0.20,
+                    "var_95": 0.02,
+                    "cvar_95": 0.03,
+                },
             ],
             corr_matrix={"权益": {"权益": 1.0}},
         )
@@ -475,8 +544,7 @@ class TestSAAValidation:
         # Check unmatched asset issue was raised
         issues = result.get("all_review_issues", [])
         unmatched = [
-            i for i in issues
-            if "无法与 CME 数据匹配" in i.get("description", "")
+            i for i in issues if "无法与 CME 数据匹配" in i.get("description", "")
         ]
         assert len(unmatched) == 1
         assert "私募信贷" in unmatched[0]["description"]
@@ -495,10 +563,20 @@ class TestSAAValidation:
         """Test that weight sum != 100% triggers CRITICAL issue."""
         cme_report = self._build_cme_report(
             asset_classes=[
-                {"name": "权益", "expected_return": 0.10, "volatility": 0.20,
-                 "var_95": 0.02, "cvar_95": 0.03},
-                {"name": "固收", "expected_return": 0.04, "volatility": 0.08,
-                 "var_95": 0.008, "cvar_95": 0.012},
+                {
+                    "name": "权益",
+                    "expected_return": 0.10,
+                    "volatility": 0.20,
+                    "var_95": 0.02,
+                    "cvar_95": 0.03,
+                },
+                {
+                    "name": "固收",
+                    "expected_return": 0.04,
+                    "volatility": 0.08,
+                    "var_95": 0.008,
+                    "cvar_95": 0.012,
+                },
             ],
             corr_matrix={
                 "权益": {"权益": 1.0, "固收": 0.3},
@@ -522,17 +600,15 @@ class TestSAAValidation:
         result = self._run(validate_saa_node(state))
 
         issues = result.get("all_review_issues", [])
-        weight_issues = [
-            i for i in issues if "权重之和" in i.get("description", "")
-        ]
+        weight_issues = [i for i in issues if "权重之和" in i.get("description", "")]
         assert len(weight_issues) == 1
         assert weight_issues[0]["severity"] == "critical"
-
 
 
 # ============================================================
 # Test: CME Generation Node — personal inflation injection
 # ============================================================
+
 
 class TestGenerateCMENodeInflation:
     """generate_cme_node adjusts the CME inflation assumption to the client
@@ -541,6 +617,7 @@ class TestGenerateCMENodeInflation:
     def _run(self, coro):
         """Run an async coroutine synchronously."""
         import asyncio
+
         return asyncio.run(coro)
 
     def _fake_cme(self, monkeypatch) -> MagicMock:

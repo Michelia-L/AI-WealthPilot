@@ -36,6 +36,7 @@ from src.agents.ips_models import (
 # Fixtures — Minimal Valid Data
 # ============================================================
 
+
 @pytest.fixture
 def minimal_return_objective() -> dict:
     """Minimal valid ReturnObjective data."""
@@ -63,7 +64,11 @@ def minimal_time_horizon() -> dict:
     """Minimal valid TimeHorizonAnalysis data."""
     return {
         "stages": [
-            {"name": "Accumulation", "years": 20, "description": "Wealth building phase"}
+            {
+                "name": "Accumulation",
+                "years": 20,
+                "description": "Wealth building phase",
+            }
         ],
         "overall_horizon_years": 20,
         "horizon_narrative": "Long-term investment horizon",
@@ -148,6 +153,7 @@ def minimal_ips_data(
 # ============================================================
 # Test: IPS Document Section Models
 # ============================================================
+
 
 class TestReturnObjective:
     """Tests for the ReturnObjective model."""
@@ -429,7 +435,11 @@ class TestFeeSchedule:
         assert fee.transaction_cost_estimate == 0.003
         assert fee.total_expense_ratio == 0.015
         # Verify TER = sum of component fees
-        computed_ter = fee.management_fee_rate + fee.custody_fee_rate + fee.transaction_cost_estimate
+        computed_ter = (
+            fee.management_fee_rate
+            + fee.custody_fee_rate
+            + fee.transaction_cost_estimate
+        )
         assert abs(fee.total_expense_ratio - computed_ter) < 0.0001
 
     def test_serialization_roundtrip(self):
@@ -452,6 +462,7 @@ class TestFeeSchedule:
 # ============================================================
 # Test: Complete IPSDocument
 # ============================================================
+
 
 class TestIPSDocument:
     """Tests for the complete IPSDocument model."""
@@ -516,8 +527,7 @@ class TestIPSDocument:
         """Test that allocation weights can be validated."""
         doc = IPSDocument(**minimal_ips_data)
         total = sum(
-            a.target_weight
-            for a in doc.investment_guidelines.strategic_allocation
+            a.target_weight for a in doc.investment_guidelines.strategic_allocation
         )
         assert abs(total - 1.0) < 0.01  # Weights should sum to ~100%
 
@@ -525,6 +535,7 @@ class TestIPSDocument:
 # ============================================================
 # Test: Review Models
 # ============================================================
+
 
 class TestReviewModels:
     """Tests for review-related models."""
@@ -583,6 +594,7 @@ class TestReviewModels:
 # ============================================================
 # Test: Audit Trail Models
 # ============================================================
+
 
 class TestAuditTrailModels:
     """Tests for audit trail models."""

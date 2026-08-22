@@ -151,8 +151,11 @@ class CMECacheManager:
 
         # Check parameter consistency
         if metadata.get("params_hash") != params_hash:
-            logger.debug("CME cache params mismatch: expected %s, got %s",
-                         params_hash, metadata.get("params_hash"))
+            logger.debug(
+                "CME cache params mismatch: expected %s, got %s",
+                params_hash,
+                metadata.get("params_hash"),
+            )
             return False
 
         # Check TTL
@@ -168,10 +171,7 @@ class CMECacheManager:
         Returns:
             True if cache files exist on disk (regardless of TTL/params).
         """
-        return (
-            self._report_path.exists()
-            and self._metadata_path.exists()
-        )
+        return self._report_path.exists() and self._metadata_path.exists()
 
     def get_metadata(self) -> Optional[dict]:
         """
