@@ -8,16 +8,16 @@ Covers:
     - export_ips_to_file format routing
 """
 
-import pytest
 from pathlib import Path
 
+import pytest
+
 from src.agents.ips_storage import (
+    _find_cjk_font,
     export_ips_markdown,
     export_ips_pdf,
     export_ips_to_file,
-    _find_cjk_font,
 )
-
 
 # ============================================================
 # Fixtures

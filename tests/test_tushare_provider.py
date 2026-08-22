@@ -4,7 +4,6 @@ Tests for the Tushare Pro provider and the market-data routing layer.
 The tushare client and the yfinance fetch are both stubbed — no network.
 """
 
-import numpy as np
 import pandas as pd
 import pytest
 

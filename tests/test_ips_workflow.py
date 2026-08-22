@@ -9,31 +9,23 @@ without requiring a live API key.
 """
 
 import json
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 
-from src.agents.ips_models import (
-    IPSDocument,
-    ReviewResult,
-    ReviewDimension,
-    IssueSeverity,
-    ReviewIssue,
-)
 from src.agents.ips_workflow import (
     IPSWorkflowState,
-    route_after_review,
-    route_after_revision,
     _all_passed,
     _has_critical_issues,
     _ips_version_hash,
-    _fuzzy_asset_match,
     build_ips_workflow,
     generate_cme_node,
+    route_after_review,
+    route_after_revision,
     validate_saa_node,
 )
-from src.portfolio.cme_models import CMEReport, AssetClassCME, SAAValidationResult
-
+from src.portfolio.cme_models import AssetClassCME, CMEReport
 
 # ============================================================
 # Fixtures

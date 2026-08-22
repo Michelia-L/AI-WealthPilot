@@ -16,8 +16,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import Session
 
 from api.db import ProfileRecord, get_session
-from api.routers.market import _fig_json
 from api.i18n import get_request_locale, msg
+from api.routers.market import _fig_json
 from api.schemas import (
     CmeSuggestionResponse,
     DepletionAnalysis,

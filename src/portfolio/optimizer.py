@@ -22,14 +22,13 @@ References:
 """
 
 import logging
+from typing import Optional
 
 import numpy as np
 import pandas as pd
 from scipy.optimize import linprog, minimize
-from typing import Optional
 
 from src.config import RISK_FREE_RATE, TRADING_DAYS_PER_YEAR
-
 
 logger = logging.getLogger(__name__)
 

@@ -11,8 +11,6 @@ from typing import Optional
 from pydantic import BaseModel, Field, model_validator
 
 
-
-
 class RiskToleranceLevel(str, Enum):
     """Risk tolerance level enumeration."""
     CONSERVATIVE = "conservative"

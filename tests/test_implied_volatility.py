@@ -15,21 +15,20 @@ Usage:
 
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.data.implied_volatility import (
-    IVProxyConfig,
-    ImpliedVolData,
-    IV_PROXY_MAP,
     IV_INDEX_NAMES,
-    fetch_implied_volatility,
+    IV_PROXY_MAP,
+    ImpliedVolData,
+    IVProxyConfig,
     _fetch_single_iv_index,
+    fetch_implied_volatility,
 )
-
 
 # ============================================================
 # Test IVProxyConfig and ImpliedVolData Dataclasses

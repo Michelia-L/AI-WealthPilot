@@ -8,10 +8,9 @@ Risk Tolerance = min(Ability, Willingness).
 
 import json
 import logging
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from src.config import DATA_DIR
 from src.utils import sanitize_filename

@@ -6,7 +6,6 @@ task lifecycle, SSE progress protocol, persistence and document library,
 not the LLM-driven workflow itself (covered by src tests).
 """
 
-import json
 
 import pytest
 

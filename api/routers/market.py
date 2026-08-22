@@ -23,7 +23,6 @@ from api.schemas import (
     Quote,
     QuotesResponse,
     RiskFreeRateResponse,
-    RiskStat,
     UniverseResponse,
 )
 from src.config import ASSET_UNIVERSE, BASE_CURRENCY, TRADING_DAYS_PER_YEAR

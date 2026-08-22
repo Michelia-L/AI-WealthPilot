@@ -16,7 +16,6 @@ from src.portfolio.forward_returns import (
     fetch_forward_returns,
 )
 
-
 # ------------------------------------------------------- yield parsing -----
 
 class TestNormalizeYield:

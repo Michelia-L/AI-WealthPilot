@@ -13,7 +13,6 @@ import pytest
 from src.portfolio import backtest
 from src.portfolio.backtest import InsufficientDataError, run_backtest
 
-
 # ---------------------------------------------------------------------------
 # Stub builders
 # ---------------------------------------------------------------------------

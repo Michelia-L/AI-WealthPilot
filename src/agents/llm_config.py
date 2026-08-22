@@ -22,7 +22,9 @@ from dataclasses import dataclass
 from sqlmodel import Session, select
 
 from api import db
-from src import config as _env_config  # attributes read at call time (tests monkeypatch)
+from src import (
+    config as _env_config,  # attributes read at call time (tests monkeypatch)
+)
 
 logger = logging.getLogger(__name__)
 

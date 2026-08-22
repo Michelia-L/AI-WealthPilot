@@ -25,28 +25,28 @@ Output / 输出:
 
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+import tempfile
+import webbrowser
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import webbrowser
-import tempfile
 
 # Import core modules
 # 导入核心模块
-from src.portfolio.optimizer import PortfolioOptimizer, BlackLittermanOptimizer
-from src.portfolio.simulator import MonteCarloSimulator
+from src.portfolio.optimizer import BlackLittermanOptimizer, PortfolioOptimizer
 from src.portfolio.risk_metrics import compute_all_metrics
-from src.portfolio.views import ViewInput, ViewProcessor
+from src.portfolio.simulator import MonteCarloSimulator
+from src.portfolio.views import ViewInput
 from src.visualization.charts import (
-    plot_efficient_frontier,
     plot_allocation_pie,
-    plot_monte_carlo_paths,
     plot_correlation_heatmap,
+    plot_efficient_frontier,
+    plot_monte_carlo_paths,
 )
 
 # Set random seed for reproducibility
@@ -377,8 +377,8 @@ def demo_monte_carlo_simulation(bl_result):
     expected_return = bl_result['return']
     volatility = bl_result['volatility']
 
-    print(f"\nUsing BL-Optimized Portfolio Characteristics:")
-    print(f"使用BL优化后的组合特征:")
+    print("\nUsing BL-Optimized Portfolio Characteristics:")
+    print("使用BL优化后的组合特征:")
     print(f"  Expected Return / 预期收益率: {expected_return:.2%}")
     print(f"  Volatility / 波动率: {volatility:.2%}")
 
@@ -433,8 +433,8 @@ def demo_monte_carlo_simulation(bl_result):
     print("\n" + "=" * 50)
     print("PORTFOLIO SURVIVAL RATE / 组合存活率")
     print("=" * 50)
-    print(f"  Probability of NOT running out of money:")
-    print(f"  退休期间资金不耗尽的概率:")
+    print("  Probability of NOT running out of money:")
+    print("  退休期间资金不耗尽的概率:")
     print(f"  {result['survival_rate']:.1%}")
 
     # Interpretation
@@ -591,19 +591,19 @@ def main():
 
     print("\nBased on the analysis:")
     print("基于分析：")
-    print(f"\n1. Optimal Portfolio (BL with Views) / 最优组合（含观点的BL）:")
+    print("\n1. Optimal Portfolio (BL with Views) / 最优组合（含观点的BL）:")
     print(f"   - Expected Return / 预期收益率: {bl_result['return']:.2%}")
     print(f"   - Volatility / 波动率: {bl_result['volatility']:.2%}")
     print(f"   - Sharpe Ratio / 夏普比率: {bl_result['sharpe']:.2f}")
 
-    print(f"\n2. Retirement Planning / 退休规划:")
+    print("\n2. Retirement Planning / 退休规划:")
     print(f"   - Survival Rate / 存活率: {mc_result['survival_rate']:.1%}")
     if mc_result['survival_rate'] >= 0.85:
         print("   - Status: ON TRACK / 状态：正常")
     else:
         print("   - Status: NEEDS ADJUSTMENT / 状态：需调整")
 
-    print(f"\n3. Key Risk Metrics (US Equity) / 关键风险指标（美股）:")
+    print("\n3. Key Risk Metrics (US Equity) / 关键风险指标（美股）:")
     us_metrics = metrics[0]
     print(f"   - Sharpe Ratio / 夏普比率: {us_metrics['sharpe_ratio']:.2f}")
     print(f"   - 95% VaR (daily) / 95%在险价值（日度）: {us_metrics['var_95_daily']:.2%}")

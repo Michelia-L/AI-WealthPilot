@@ -28,8 +28,8 @@ from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
 
+from src.agents.ips_models import IPSDocument, ReviewDimension, ReviewResult
 from src.agents.llm_config import get_llm_config
-from src.agents.ips_models import IPSDocument, ReviewResult, ReviewDimension
 
 logger = logging.getLogger(__name__)
 

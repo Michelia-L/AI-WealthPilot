@@ -30,8 +30,8 @@ from api.i18n import get_request_locale, msg
 from api.profile_convert import profile_from_data
 from api.routers.market import _fig_json
 from api.schemas import (
-    AssetClassInfo,
     AssetClassesResponse,
+    AssetClassInfo,
     AssetStat,
     BLInsight,
     GoalFeasibility,
@@ -65,12 +65,12 @@ from src.data.market_data import (
     fetch_price_history,
     fetch_risk_free_rate,
 )
-from src.portfolio.backtest import InsufficientDataError, run_backtest
-from src.portfolio.cme_engine import compute_cme
 from src.data.yield_curve import (
     fetch_china_treasury_curve,
     fetch_china_treasury_curve_history,
 )
+from src.portfolio.backtest import InsufficientDataError, run_backtest
+from src.portfolio.cme_engine import compute_cme
 from src.portfolio.optimize_service import (
     run_bl,
     run_cvar,

@@ -16,7 +16,6 @@ import pytest
 from src.data import yield_curve
 from src.data.yield_curve import fetch_china_treasury_curve, rate_at
 
-
 # ---------------------------------------------------------------- rate_at --
 
 class TestRateAt:

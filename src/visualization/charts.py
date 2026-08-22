@@ -4,13 +4,11 @@ AI WealthPilot - Visualization Module
 Plotly-based chart components for portfolio analysis dashboards.
 """
 import logging
-
-import plotly.graph_objects as go
-import plotly.express as px
-import pandas as pd
-import numpy as np
 from typing import Optional
 
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +72,7 @@ def get_asset_color(name_or_ticker: str, index: int) -> str:
                     return "#FFD700"  # Iconic Gold
                 if "btc" in name_or_ticker.lower() or "bitcoin" in name_or_ticker.lower() or info.get("ticker") == "BTC-USD":
                     return "#F7931A"  # Bitcoin Orange
-                
+
                 premium_colors = {
                     "EQUITY": "#06B6D4",      # Teal
                     "BOND": "#3B82F6",        # Blue

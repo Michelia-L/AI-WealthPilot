@@ -22,7 +22,6 @@ import pytest
 
 from src.portfolio.optimizer import PortfolioOptimizer
 
-
 # ============================================================
 # Fixtures / 测试夹具
 # ============================================================

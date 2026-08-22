@@ -16,7 +16,6 @@ from src.portfolio.attribution import (
     monthly_group_series,
 )
 
-
 # ------------------------------------------------------------- grouping --
 
 class TestGrouping:

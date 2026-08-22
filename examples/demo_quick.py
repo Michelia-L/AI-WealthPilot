@@ -27,13 +27,15 @@ Key Outputs / 关键输出:
       退休规划成功概率
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import numpy as np
 import pandas as pd
-from src.portfolio.optimizer import PortfolioOptimizer, BlackLittermanOptimizer
+
+from src.portfolio.optimizer import BlackLittermanOptimizer, PortfolioOptimizer
 from src.portfolio.simulator import MonteCarloSimulator
 from src.portfolio.views import ViewInput
 
@@ -207,7 +209,7 @@ def main():
     annual_savings = 50000
     desired_income = 150000
 
-    print(f"\nClient Profile / 客户画像:")
+    print("\nClient Profile / 客户画像:")
     print(f"  Age: {current_age}, Retire at: {retirement_age}, Live to: {life_expectancy}")
     print(f"  Current Savings: ${current_savings:,.0f}")
     print(f"  Annual Savings: ${annual_savings:,.0f}")
@@ -218,7 +220,7 @@ def main():
     expected_return = max_sharpe['return']
     volatility = max_sharpe['volatility']
 
-    print(f"\nUsing MVO-Optimized Portfolio for Simulation:")
+    print("\nUsing MVO-Optimized Portfolio for Simulation:")
     print(f"  Expected Return: {expected_return:.2%}")
     print(f"  Volatility: {volatility:.2%}")
 
@@ -265,8 +267,8 @@ def main():
     print("\n" + "=" * 60)
     print("PORTFOLIO SURVIVAL RATE / 组合存活率")
     print("=" * 60)
-    print(f"  Probability of NOT running out of money:")
-    print(f"  退休期间资金不耗尽的概率:")
+    print("  Probability of NOT running out of money:")
+    print("  退休期间资金不耗尽的概率:")
     print(f"  {result['survival_rate']:.1%}")
 
     if result['survival_rate'] >= 0.90:
@@ -289,23 +291,23 @@ def main():
     print("\n1. Efficient Frontier / 有效前沿:")
     print(f"   - Computed {len(frontier)} points on the frontier")
     print(f"   - 计算了{len(frontier)}个前沿点")
-    print(f"   - Shows risk-return tradeoff")
-    print(f"   - 展示风险-收益权衡")
+    print("   - Shows risk-return tradeoff")
+    print("   - 展示风险-收益权衡")
 
     print("\n2. Black-Litterman Model / Black-Litterman模型:")
-    print(f"   - Incorporated 3 investor views")
-    print(f"   - 纳入了3个投资者观点")
+    print("   - Incorporated 3 investor views")
+    print("   - 纳入了3个投资者观点")
     print(f"   - BL Sharpe: {bl_result['sharpe']:.2f} vs MVO Sharpe: {max_sharpe['sharpe']:.2f}")
-    print(f"   - Demonstrates how views affect allocation")
-    print(f"   - 展示观点如何影响配置")
+    print("   - Demonstrates how views affect allocation")
+    print("   - 展示观点如何影响配置")
 
     print("\n3. Monte Carlo Simulation / 蒙特卡洛模拟:")
-    print(f"   - 10,000 simulation paths")
-    print(f"   - 10,000条模拟路径")
+    print("   - 10,000 simulation paths")
+    print("   - 10,000条模拟路径")
     print(f"   - Survival rate: {result['survival_rate']:.1%}")
     print(f"   - 存活率：{result['survival_rate']:.1%}")
-    print(f"   - Accounts for uncertainty in returns")
-    print(f"   - 考虑了收益的不确定性")
+    print("   - Accounts for uncertainty in returns")
+    print("   - 考虑了收益的不确定性")
 
     print("\n" + "=" * 60)
     print("DEMO COMPLETED! / 演示完成！")

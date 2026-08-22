@@ -3,6 +3,7 @@ AI WealthPilot - Global Configuration
 """
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Load environment variables (override=True to prioritize .env file over system/terminal env vars)

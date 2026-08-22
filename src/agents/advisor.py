@@ -6,18 +6,18 @@ DeepSeek V4 Pro to produce a personalized advisory report.
 """
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Generator, Optional
+from typing import Generator
 
 from openai import OpenAI
 
+from src.agents.llm_config import get_llm_config
+from src.agents.profiler import ClientProfile, format_ratio
 from src.config import (
     DEEPSEEK_MAX_TOKENS,
     DEEPSEEK_TEMPERATURE,
 )
-from src.agents.llm_config import get_llm_config
-from src.agents.profiler import ClientProfile, format_ratio
 
 logger = logging.getLogger(__name__)
 

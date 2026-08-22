@@ -7,16 +7,19 @@ to generate personalized asset allocation recommendations based on risk scores.
 
 """
 
-import numpy as np
-import pandas as pd
 from dataclasses import dataclass, field
 from typing import Optional
 
-from src.agents.profiler import ClientProfile, RiskProfile
-from src.agents.profiler import RISK_SCORE_BREAKPOINTS, classify_risk_score
-from src.portfolio.optimizer import PortfolioOptimizer
-from src.config import RISK_FREE_RATE
+import numpy as np
+import pandas as pd
 
+from src.agents.profiler import (
+    RISK_SCORE_BREAKPOINTS,
+    ClientProfile,
+    classify_risk_score,
+)
+from src.config import RISK_FREE_RATE
+from src.portfolio.optimizer import PortfolioOptimizer
 
 # Goal priority ranking used to pick the primary (most important) goal.
 # Replaces the previous `max(goals, key=lambda g: g.priority == "high")`,
@@ -517,15 +520,15 @@ def get_recommended_allocation_text(recommendation: PortfolioRecommendation) -> 
         Formatted text string.
     """
     lines = [
-        f"## Recommended Portfolio / 推荐投资组合",
-        f"",
+        "## Recommended Portfolio / 推荐投资组合",
+        "",
         f"**Risk Level / 风险等级**: {recommendation.risk_level}",
         f"**Expected Return / 预期收益**: {recommendation.expected_return:.2%}",
         f"**Expected Volatility / 预期波动率**: {recommendation.expected_volatility:.2%}",
         f"**Sharpe Ratio / 夏普比率**: {recommendation.sharpe_ratio:.2f}",
-        f"",
-        f"### Asset Allocation / 资产配置",
-        f"",
+        "",
+        "### Asset Allocation / 资产配置",
+        "",
     ]
 
     for asset, weight in sorted(
@@ -537,9 +540,9 @@ def get_recommended_allocation_text(recommendation: PortfolioRecommendation) -> 
             lines.append(f"- {asset}: {weight:.1%}")
 
     lines.extend([
-        f"",
-        f"### Rationale / 配置理由",
-        f"",
+        "",
+        "### Rationale / 配置理由",
+        "",
         recommendation.rationale,
     ])
 

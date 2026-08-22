@@ -20,43 +20,40 @@ Pipeline:
 
 import json
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
-import pandas as pd
 
 from src.config import (
     BASE_CURRENCY,
-    CME_LOOKBACK_YEARS,
-    CME_INFLATION_ASSUMPTION,
     CME_DATA_INTERVAL,
-    CME_IV_BLENDING_TAU,
     CME_FORWARD_BLENDING_OMEGA,
+    CME_INFLATION_ASSUMPTION,
+    CME_IV_BLENDING_TAU,
+    CME_LOOKBACK_YEARS,
     CME_REFERENCE_ALLOCATION,
     IPS_ASSET_CLASS_TICKERS,
     TRADING_DAYS_PER_YEAR,
 )
-from src.portfolio.cme_cache import CMECacheManager
-from src.portfolio.forward_returns import fetch_forward_returns
-from src.data.market_data import (
-    fetch_price_history,
-    compute_returns,
-    compute_correlation_matrix,
-    fetch_risk_free_rate_detailed,
-)
 from src.data.implied_volatility import (
     fetch_implied_volatility,
-    IV_PROXY_MAP,
 )
-from src.portfolio.risk_metrics import (
-    sharpe_ratio,
-    max_drawdown,
-    value_at_risk,
-    conditional_var,
+from src.data.market_data import (
+    compute_correlation_matrix,
+    compute_returns,
+    fetch_price_history,
+    fetch_risk_free_rate_detailed,
 )
+from src.portfolio.cme_cache import CMECacheManager
 from src.portfolio.cme_models import AssetClassCME, CMEReport
+from src.portfolio.forward_returns import fetch_forward_returns
+from src.portfolio.risk_metrics import (
+    conditional_var,
+    max_drawdown,
+    sharpe_ratio,
+    value_at_risk,
+)
 
 logger = logging.getLogger(__name__)
 

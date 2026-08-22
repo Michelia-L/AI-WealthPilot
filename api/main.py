@@ -21,7 +21,17 @@ from api import db
 from api.db import ProfileRecord, init_db
 from api.migrate_profiles import maybe_auto_import
 from api.profile_convert import tolerance_level
-from api.routers import advisor, cme, ips, market, monitoring, portfolio, profiles, retirement, settings
+from api.routers import (
+    advisor,
+    cme,
+    ips,
+    market,
+    monitoring,
+    portfolio,
+    profiles,
+    retirement,
+    settings,
+)
 from api.schemas import HealthResponse
 from api.tasks import reconcile_interrupted_tasks
 from src.agents.demo_mode import is_demo_mode

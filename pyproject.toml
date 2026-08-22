@@ -1,0 +1,14 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+extend-exclude = ["scratch", "data", "docs", "notebooks"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B"]
+# E501 line-too-long: mostly Chinese template strings; code wrapping is the
+# formatter's job, so the lint rule stays off.
+ignore = ["E501"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI idiom: Depends() in argument defaults is the intended pattern.
+extend-immutable-calls = ["fastapi.Depends"]

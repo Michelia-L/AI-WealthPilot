@@ -21,18 +21,12 @@ import re
 import pytest
 
 from src.agents.advisor import (
-    AdvisorReport,
     SYSTEM_PROMPT,
     SYSTEM_PROMPT_EN,
+    AdvisorReport,
     _build_messages,
     _build_user_prompt,
     _system_prompt,
-)
-from src.agents.rebalance_advisor import (
-    REBALANCE_SYSTEM_PROMPT,
-    REBALANCE_SYSTEM_PROMPT_EN,
-    _build_user_prompt as _build_rebalance_prompt,
-    _system_prompt as _rebalance_system_prompt,
 )
 from src.agents.ips_agents import (
     build_generation_prompt,
@@ -42,12 +36,6 @@ from src.agents.ips_agents import (
 )
 from src.agents.ips_models import ReviewDimension
 from src.agents.ips_storage import export_ips_markdown, export_ips_pdf
-from src.agents.report_storage import (
-    StoredReport,
-    export_report_html,
-    export_report_markdown,
-    export_report_pdf,
-)
 from src.agents.ips_workflow import IPSWorkflowState, validate_saa_node
 from src.agents.profiler import (
     ClientProfile,
@@ -55,10 +43,25 @@ from src.agents.profiler import (
     InvestmentGoal,
     RiskProfile,
 )
+from src.agents.rebalance_advisor import (
+    REBALANCE_SYSTEM_PROMPT,
+    REBALANCE_SYSTEM_PROMPT_EN,
+)
+from src.agents.rebalance_advisor import (
+    _build_user_prompt as _build_rebalance_prompt,
+)
+from src.agents.rebalance_advisor import (
+    _system_prompt as _rebalance_system_prompt,
+)
+from src.agents.report_storage import (
+    StoredReport,
+    export_report_html,
+    export_report_markdown,
+    export_report_pdf,
+)
 from src.portfolio.cme_models import AssetClassCME, CMEReport
 from tests.test_api_advisor import _parse_sse
 from tests.test_api_profiles import sample_payload
-
 
 _CJK_RE = re.compile(r"[一-鿿]")
 

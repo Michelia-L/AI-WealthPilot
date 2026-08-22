@@ -21,19 +21,19 @@ Test Coverage / 测试覆盖:
       流式报告生成
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime
 from dataclasses import asdict
+from unittest.mock import Mock, patch
+
+import pytest
 
 from src.agents.advisor import (
+    SYSTEM_PROMPT,
     AdvisorReport,
     _build_user_prompt,
-    is_api_configured,
     generate_advice,
     generate_advice_stream,
+    is_api_configured,
     stream_advice,
-    SYSTEM_PROMPT,
 )
 from src.agents.profiler import (
     ClientProfile,
@@ -41,7 +41,6 @@ from src.agents.profiler import (
     InvestmentGoal,
     RiskProfile,
 )
-
 
 # ============================================================
 # Fixtures

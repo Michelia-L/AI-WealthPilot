@@ -6,11 +6,11 @@ Supports both absolute and relative return views.
 
 """
 
-import numpy as np
-import pandas as pd
 from dataclasses import dataclass
 from typing import Union
 
+import numpy as np
+import pandas as pd
 
 # Bilingual user-facing strings (validation errors/warnings surfaced through
 # the API as 422 details). zh keeps the Chinese half of the pre-i18n

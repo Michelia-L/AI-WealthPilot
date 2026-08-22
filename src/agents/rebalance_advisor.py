@@ -14,13 +14,13 @@ import logging
 from datetime import datetime
 from typing import Generator, Optional
 
+from src.agents.advisor import AdvisorReport, _get_client, is_api_configured
+from src.agents.llm_config import get_llm_config
+from src.agents.profiler import ClientProfile
 from src.config import (
     DEEPSEEK_MAX_TOKENS,
     DEEPSEEK_TEMPERATURE,
 )
-from src.agents.advisor import AdvisorReport, _get_client, is_api_configured
-from src.agents.llm_config import get_llm_config
-from src.agents.profiler import ClientProfile
 
 logger = logging.getLogger(__name__)
 

@@ -7,9 +7,10 @@ indicators used in portfolio evaluation and wealth management.
     - Basel III framework for VaR / CVaR
 """
 
+from typing import Optional
+
 import numpy as np
 import pandas as pd
-from typing import Optional
 
 from src.config import RISK_FREE_RATE, TRADING_DAYS_PER_YEAR
 

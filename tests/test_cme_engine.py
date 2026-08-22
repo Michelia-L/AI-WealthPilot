@@ -12,11 +12,9 @@ Usage:
     python -m pytest tests/test_cme_engine.py -v
 """
 
-import json
 import sys
-from datetime import datetime
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -24,16 +22,16 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.portfolio.cme_models import AssetClassCME, CMEReport, SAAValidationResult
+from src.data.implied_volatility import ImpliedVolData
 from src.portfolio.cme_engine import (
+    _classify_vol_regime,
+    _fetch_risk_free_rate_with_source,
+    _load_fallback_cme,
     compute_cme,
     format_cme_for_prompt,
     reference_portfolio_suggestion,
-    _load_fallback_cme,
-    _fetch_risk_free_rate_with_source,
-    _classify_vol_regime,
 )
-from src.data.implied_volatility import ImpliedVolData
+from src.portfolio.cme_models import AssetClassCME, CMEReport, SAAValidationResult
 from src.portfolio.forward_returns import ForwardReturnData
 
 

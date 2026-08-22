@@ -20,7 +20,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 from src.config import CME_CACHE_DIR, CME_CACHE_TTL_DAYS
 

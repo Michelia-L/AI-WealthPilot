@@ -17,7 +17,6 @@ Requirements:
 """
 
 import asyncio
-import json
 import logging
 import sys
 from pathlib import Path
@@ -25,17 +24,17 @@ from pathlib import Path
 # Ensure project root is in path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from src.agents.ips_storage import (
+    export_ips_markdown,
+    export_ips_to_file,
+    save_ips,
+)
+from src.agents.ips_workflow import generate_ips
 from src.agents.profiler import (
     ClientProfile,
     FinancialSituation,
     InvestmentGoal,
     RiskProfile,
-)
-from src.agents.ips_workflow import generate_ips
-from src.agents.ips_storage import (
-    save_ips,
-    export_ips_markdown,
-    export_ips_to_file,
 )
 
 # Configure logging to show workflow progress
@@ -164,7 +163,7 @@ async def run_demo():
 
     if result.get("ips"):
         ips = result["ips"]
-        print(f"\n   ✅ IPS 生成成功!")
+        print("\n   ✅ IPS 生成成功!")
         print(f"   客户: {ips.get('client_name', 'N/A')}")
         print(f"   风险等级: {ips.get('risk_tolerance', {}).get('overall_risk_level', 'N/A')}")
 
@@ -172,7 +171,7 @@ async def run_demo():
         guidelines = ips.get("investment_guidelines", {})
         allocation = guidelines.get("strategic_allocation", [])
         if allocation:
-            print(f"\n   📊 战略性资产配置:")
+            print("\n   📊 战略性资产配置:")
             for a in allocation:
                 print(f"      - {a['asset_class']}: {a['target_weight']:.1%}")
 
@@ -223,7 +222,7 @@ async def run_demo():
         # CME metadata from audit trail
         metadata = audit.get("generation_metadata", {})
         if metadata.get("cme_as_of_date"):
-            print(f"\n   📈 资本市场预期 (CME):")
+            print("\n   📈 资本市场预期 (CME):")
             print(f"      数据截止: {metadata.get('cme_as_of_date', 'N/A')}")
             print(f"      回溯年数: {metadata.get('cme_lookback_years', 'N/A')}")
             print(f"      无风险利率: {metadata.get('cme_risk_free_rate', 'N/A')}")

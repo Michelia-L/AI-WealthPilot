@@ -9,24 +9,23 @@ Tests for the IPS-based client profiling system, covering:
 - JSON persistence (JSON 持久化)
 """
 import json
+
 import pytest
-from pathlib import Path
 
 from src.agents.profiler import (
+    RISK_ABILITY_QUESTIONS,
+    RISK_WILLINGNESS_QUESTIONS,
     ClientProfile,
     FinancialSituation,
     InvestmentGoal,
     RiskProfile,
+    assess_risk,
     compute_ability_score,
     compute_willingness_score,
-    assess_risk,
-    save_profile,
-    load_profile,
     list_profiles,
-    RISK_ABILITY_QUESTIONS,
-    RISK_WILLINGNESS_QUESTIONS,
+    load_profile,
+    save_profile,
 )
-
 
 # ============================================================
 # Fixtures

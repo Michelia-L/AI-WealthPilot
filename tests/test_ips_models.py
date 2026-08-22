@@ -8,39 +8,29 @@ and constraint enforcement.
 
 """
 
-import json
 import pytest
 from pydantic import ValidationError
 
 from src.agents.ips_models import (
+    AuditTrail,
+    CurrencyPolicy,
+    FeeSchedule,
+    GoalReturnRequirement,
     # IPS Document models
     IPSDocument,
-    GoalReturnRequirement,
+    IssueSeverity,
     ReturnObjective,
+    ReviewDimension,
+    ReviewIssue,
+    # Review models
+    ReviewResult,
+    # Audit trail models
+    RevisionRecord,
     RiskToleranceAssessment,
     RiskToleranceLevel,
     TimeHorizonAnalysis,
     TimeHorizonStage,
-    LiquidityConstraint,
-    TaxConstraint,
-    LegalConstraint,
-    UniqueCircumstance,
-    AssetAllocationTarget,
-    InvestmentGuideline,
-    BenchmarkSpec,
-    MonitoringPolicy,
-    CurrencyPolicy,
-    FeeSchedule,
-    # Review models
-    ReviewResult,
-    ReviewIssue,
-    ReviewDimension,
-    IssueSeverity,
-    # Audit trail models
-    RevisionRecord,
-    AuditTrail,
 )
-
 
 # ============================================================
 # Fixtures — Minimal Valid Data

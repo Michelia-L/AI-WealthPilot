@@ -14,33 +14,32 @@ Phase 3 新增功能的测试：
 """
 
 import json
-import pytest
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
+import pytest
 
 from src.agents.profiler import (
+    BehavioralBias,
     ClientProfile,
     FinancialSituation,
     InvestmentGoal,
     RiskProfile,
-    BehavioralBias,
-    update_profile,
     delete_profile,
     identify_behavioral_biases,
-    save_profile,
     load_profile,
+    save_profile,
+    update_profile,
 )
 from src.agents.report_storage import (
-    StoredReport,
-    save_report,
-    load_report,
-    list_reports,
     delete_report,
-    get_reports_for_profile,
     export_report_markdown,
+    get_reports_for_profile,
+    list_reports,
+    load_report,
+    save_report,
     update_report_notes,
 )
-
 
 # ============================================================
 # Fixtures

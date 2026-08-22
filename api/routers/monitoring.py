@@ -29,8 +29,8 @@ from api.schemas import (
     RebalanceAdviceRequest,
 )
 from api.tasks import sse
-from src.agents.profiler import ClientProfile
 from src.agents.demo_mode import demo_rebalance_stream, is_demo_mode
+from src.agents.profiler import ClientProfile
 from src.agents.rebalance_advisor import (
     AdvisorReport,
     generate_rebalance_advice_stream,
@@ -38,6 +38,8 @@ from src.agents.rebalance_advisor import (
 )
 from src.portfolio.backtest import (
     VALID_PERIODS as BACKTEST_PERIODS,
+)
+from src.portfolio.backtest import (
     InsufficientDataError,
     run_backtest,
 )

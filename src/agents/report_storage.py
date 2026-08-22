@@ -9,16 +9,16 @@ as JSON files with metadata and maintains associations with client profiles.
 import html
 import json
 import re
-import markdown
-import nh3
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import markdown
+import nh3
+
 from src.config import DATA_DIR, PROJECT_ROOT
 from src.utils import sanitize_filename
-
 
 # Allowlist for sanitizing LLM-generated report content before it is embedded
 # in HTML (#8). The `markdown` library with the 'extra' extension passes raw

@@ -13,14 +13,15 @@ Usage / 使用方法:
     python demo_advanced_optimization.py
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import numpy as np
 import pandas as pd
-from src.portfolio.optimizer import PortfolioOptimizer
 
+from src.portfolio.optimizer import PortfolioOptimizer
 
 
 def create_sample_data():
@@ -114,7 +115,7 @@ def demo_resampled_mvo():
     traditional_hhi = np.sum(traditional_weights ** 2)
     resampled_hhi = np.sum(resampled_weights ** 2)
 
-    print(f"\nDiversification Comparison / 多元化比较:")
+    print("\nDiversification Comparison / 多元化比较:")
     print(f"  Traditional HHI / 传统HHI: {traditional_hhi:.4f}")
     print(f"  Resampled HHI / 重抽样HHI: {resampled_hhi:.4f}")
 

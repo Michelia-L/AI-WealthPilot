@@ -23,9 +23,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.portfolio.optimizer import PortfolioOptimizer, BlackLittermanOptimizer
+from src.portfolio.optimizer import BlackLittermanOptimizer, PortfolioOptimizer
 from src.portfolio.views import ViewInput, ViewProcessor
-
 
 # ============================================================
 # Fixtures / 测试夹具

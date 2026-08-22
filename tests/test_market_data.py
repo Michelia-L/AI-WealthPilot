@@ -6,20 +6,20 @@ Unit tests for the market data acquisition, returns, and correlation computation
 市场数据获取、收益率计算及相关性分析的单元测试。
 """
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pandas as pd
 import pytest
-from unittest.mock import patch, MagicMock
 
 from src.data.market_data import (
-    fetch_price_history,
-    compute_returns,
     compute_correlation_matrix,
-    get_latest_quotes,
+    compute_returns,
+    fetch_price_history,
     fetch_risk_free_rate,
     fetch_risk_free_rate_detailed,
+    get_latest_quotes,
 )
-
 
 # ============================================================
 # Test Cases — 单元测试用例
@@ -127,7 +127,7 @@ class TestFetchPriceHistory:
         """Should convert non-USD prices to USD correctly using downloaded exchange rates."""
         tickers = ["000300.SS", "^GSPC"]
         expected_download = ["000300.SS", "^GSPC", "CNY=X"]
-        
+
         dates = pd.date_range(start="2026-06-01", periods=3)
         mock_data = {
             ("Close", "^GSPC"): [100.0, 101.0, 102.0],
@@ -143,7 +143,7 @@ class TestFetchPriceHistory:
         called_args = mock_download.call_args[0][0]
         assert set(called_args) == set(expected_download)
         assert list(result.columns) == tickers
-        
+
         np.testing.assert_array_almost_equal(result["^GSPC"].values, [100.0, 101.0, 102.0])
         np.testing.assert_array_almost_equal(result["000300.SS"].values, [1000.0, 1000.0, 1000.0])
 
@@ -152,7 +152,7 @@ class TestFetchPriceHistory:
         """Should convert USD and other prices to CNY correctly using downloaded exchange rates."""
         tickers = ["000300.SS", "^GSPC"]
         expected_download = ["000300.SS", "^GSPC", "CNY=X"]
-        
+
         dates = pd.date_range(start="2026-06-01", periods=3)
         mock_data = {
             ("Close", "^GSPC"): [100.0, 101.0, 102.0],
@@ -168,7 +168,7 @@ class TestFetchPriceHistory:
         called_args = mock_download.call_args[0][0]
         assert set(called_args) == set(expected_download)
         assert list(result.columns) == tickers
-        
+
         np.testing.assert_array_almost_equal(result["000300.SS"].values, [7000.0, 7100.0, 7200.0])
         np.testing.assert_array_almost_equal(result["^GSPC"].values, [700.0, 717.1, 734.4])
 
@@ -421,7 +421,7 @@ class TestFetchRiskFreeRate:
         mock_fast_info = MagicMock()
         mock_fast_info.get.return_value = None  # fast_info fails
         mock_ticker.fast_info = mock_fast_info
-        
+
         # Mock history DataFrame
         mock_hist = pd.DataFrame({"Close": [3.55]}, index=pd.date_range("2026-06-01", periods=1))
         mock_ticker.history.return_value = mock_hist

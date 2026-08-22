@@ -13,6 +13,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from src.agents.portfolio_recommender import (
+    PortfolioRecommendation,
+    _get_target_volatility,
+    _solve_required_return,
+    get_recommended_allocation_text,
+    recommend_portfolio,
+)
 from src.agents.profiler import (
     ClientProfile,
     FinancialSituation,
@@ -20,15 +27,7 @@ from src.agents.profiler import (
     RiskProfile,
     classify_risk_score,
 )
-from src.agents.portfolio_recommender import (
-    PortfolioRecommendation,
-    _get_target_volatility,
-    _solve_required_return,
-    recommend_portfolio,
-    get_recommended_allocation_text,
-)
 from src.portfolio.optimizer import PortfolioOptimizer
-
 
 # ============================================================
 # Fixtures

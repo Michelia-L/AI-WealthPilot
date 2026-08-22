@@ -8,36 +8,34 @@ START → CME → generate → review(×3) → validate_saa → finalize/revise.
 import hashlib
 import json
 import logging
-from dataclasses import asdict
 from datetime import datetime
 from typing import Any, Optional
 
 import numpy as np
-import pandas as pd
-from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.agents.ips_models import (
-    IPSDocument,
-    ReviewResult,
-    ReviewDimension,
-    ReviewIssue,
-    IssueSeverity,
-    RevisionRecord,
-    AuditTrail,
-)
 from src.agents.ips_agents import (
-    create_ips_generator_agent,
-    create_suitability_reviewer,
-    create_compliance_reviewer,
-    create_consistency_reviewer,
-    create_ips_reviser_agent,
     build_generation_prompt,
     build_review_prompt,
     build_revision_prompt,
-    load_ips_template,
+    create_compliance_reviewer,
+    create_consistency_reviewer,
+    create_ips_generator_agent,
+    create_ips_reviser_agent,
+    create_suitability_reviewer,
     load_compliance_checklist,
+    load_ips_template,
+)
+from src.agents.ips_models import (
+    AuditTrail,
+    IPSDocument,
+    IssueSeverity,
+    ReviewDimension,
+    ReviewIssue,
+    ReviewResult,
+    RevisionRecord,
 )
 from src.agents.llm_config import get_llm_config
 from src.config import CME_INFLATION_ASSUMPTION

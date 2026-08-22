@@ -14,15 +14,12 @@ Key Features:
 """
 
 import json
-from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 from src.config import DATA_DIR
 from src.utils import sanitize_filename
-from src.agents.ips_models import IPSDocument, AuditTrail
-
 
 # Storage Directory
 

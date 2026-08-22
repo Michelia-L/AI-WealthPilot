@@ -8,12 +8,12 @@ planning (accumulation → distribution) with survival rate estimation.
     - Glasserman (2003). Monte Carlo Methods in Financial Engineering.
 """
 
-import numpy as np
-import pandas as pd
 from dataclasses import dataclass
 from typing import Optional
 
-from src.config import MONTE_CARLO_SIMULATIONS, MONTE_CARLO_YEARS, TRADING_DAYS_PER_YEAR
+import numpy as np
+
+from src.config import MONTE_CARLO_SIMULATIONS, MONTE_CARLO_YEARS
 
 
 @dataclass

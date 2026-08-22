@@ -7,7 +7,6 @@ Tests for Phase 3 Step 6 (Profile Comparison) and Step 7 (Enhanced Export).
 """
 
 import json
-import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -20,21 +19,16 @@ from src.agents.profiler import (
     RiskProfile,
     compare_profiles,
     format_comparison_report,
-    identify_behavioral_biases,
-    save_profile,
-    load_profile,
 )
 from src.agents.report_storage import (
     StoredReport,
-    save_report,
-    load_report,
-    export_report_markdown,
+    _markdown_to_html,
     export_report_html,
     export_report_to_file,
-    _markdown_to_html,
     get_export_formats,
+    load_report,
+    save_report,
 )
-
 
 # ============================================================
 # Fixtures / 测试夹具
