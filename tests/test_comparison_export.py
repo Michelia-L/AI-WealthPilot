@@ -7,6 +7,7 @@ Tests for Phase 3 Step 6 (Profile Comparison) and Step 7 (Enhanced Export).
 """
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -661,6 +662,18 @@ class TestExportFormats:
             assert "format" in fmt
             assert "extension" in fmt
             assert "description" in fmt
+
+    def test_get_export_formats_en_locale(self):
+        """
+        Test en locale returns English-only descriptions; zh stays bilingual.
+        测试 en 语言返回纯英文描述；zh 保持双语。
+        """
+        en_formats = get_export_formats(locale="en")
+        for fmt in en_formats:
+            assert not re.search(r"[一-鿿]", fmt["description"])
+
+        zh_formats = get_export_formats()
+        assert any(re.search(r"[一-鿿]", f["description"]) for f in zh_formats)
 
     def test_export_to_html_file(self, sample_report, tmp_path):
         """

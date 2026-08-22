@@ -180,6 +180,16 @@ _SAA_STRINGS: dict[str, dict[str, str]] = {
         "zh": "审查过程出错: {error}",
         "en": "The review process failed: {error}",
     },
+    # Node exception messages: surface in state.error_message and leak into the
+    # SSE error event (api/routers/ips.py prefers it over the i18n fallback).
+    "generation_error": {
+        "zh": "IPS 生成失败: {error}",
+        "en": "IPS generation failed: {error}",
+    },
+    "revision_error": {
+        "zh": "IPS 修订失败: {error}",
+        "en": "IPS revision failed: {error}",
+    },
 }
 
 
@@ -291,7 +301,9 @@ async def generate_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
     except Exception as e:
         logger.error("IPS generation failed: %s", e, exc_info=True)
         state_updates["status"] = "error"
-        state_updates["error_message"] = f"IPS generation failed: {str(e)}"
+        state_updates["error_message"] = _t(
+            "generation_error", state.locale, error=str(e)
+        )
 
     return state_updates
 
@@ -454,7 +466,7 @@ async def revise_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
         return {
             "revision_count": state.revision_count + 1,
             "status": "revision_error",
-            "error_message": f"IPS revision failed: {str(e)}",
+            "error_message": _t("revision_error", state.locale, error=str(e)),
         }
 
 

@@ -137,6 +137,22 @@ def list_ips_documents(limit: int = 50) -> list[dict]:
 # Export Functions
 
 
+_CURRENCY_SYMBOLS = {
+    "CNY": "¥",
+    "USD": "$",
+    "EUR": "€",
+    "GBP": "£",
+    "JPY": "¥",
+    "HKD": "HK$",
+}
+
+
+def _currency_symbol(ips_dict: dict) -> str:
+    """Derive the currency symbol from currency_policy, defaulting to CNY."""
+    base = (ips_dict.get("currency_policy") or {}).get("base_currency", "CNY")
+    return _CURRENCY_SYMBOLS.get(base, base + " ")
+
+
 def export_ips_markdown(
     ips_dict: dict,
     audit_trail_dict: Optional[dict] = None,
@@ -426,17 +442,7 @@ def _render_ips_markdown(
 
     # Liquidity
     liq = ips.get("liquidity", {})
-    # Derive currency symbol from currency_policy or default to ¥ (CNY)
-    _currency_symbols = {
-        "CNY": "¥",
-        "USD": "$",
-        "EUR": "€",
-        "GBP": "£",
-        "JPY": "¥",
-        "HKD": "HK$",
-    }
-    _base_curr = (ips.get("currency_policy") or {}).get("base_currency", "CNY")
-    _curr_sym = _currency_symbols.get(_base_curr, _base_curr + " ")
+    _curr_sym = _currency_symbol(ips)
     lines.append(L["sec_liquidity"])
     lines.append("")
     lines.append(
@@ -787,6 +793,12 @@ class _IPSPDF:
             self.pdf.add_font("CJK", "B", font_path)
             self._font_family = "CJK"
 
+    def _t(self, text: str) -> str:
+        """Sanitize text for the active font (graceful latin-1 degradation)."""
+        if self._font_family == "CJK":
+            return text
+        return text.encode("latin-1", "replace").decode("latin-1")
+
     def _header_footer(self, client_name: str) -> None:
         """Configure header/footer via subclass-like callback setup."""
         # fpdf2 doesn't use subclassing for headers — we draw them manually
@@ -799,7 +811,7 @@ class _IPSPDF:
         self.pdf.cell(
             0,
             5,
-            f"AI WealthPilot — {client_name} {self._labels['header_suffix']}",
+            self._t(f"AI WealthPilot — {client_name} {self._labels['header_suffix']}"),
             align="C",
         )
         self.pdf.ln(3)
@@ -814,7 +826,10 @@ class _IPSPDF:
         self.pdf.set_font(self._font_family, "", 8)
         self.pdf.set_text_color(120, 120, 120)
         self.pdf.cell(
-            0, 10, self._labels["page_fmt"].format(page=self.pdf.page_no()), align="C"
+            0,
+            10,
+            self._t(self._labels["page_fmt"].format(page=self.pdf.page_no())),
+            align="C",
         )
         self.pdf.set_text_color(0, 0, 0)
 
@@ -823,7 +838,7 @@ class _IPSPDF:
         self.pdf.set_font(self._font_family, "B", 14)
         self.pdf.set_text_color(26, 54, 93)  # Dark blue
         self.pdf.ln(4)
-        self.pdf.cell(0, 8, title)
+        self.pdf.cell(0, 8, self._t(title))
         self.pdf.ln(2)
         self.pdf.set_draw_color(44, 82, 130)
         self.pdf.line(20, self.pdf.get_y(), 190, self.pdf.get_y())
@@ -834,7 +849,7 @@ class _IPSPDF:
         """Render a subsection title (h3 equivalent)."""
         self.pdf.set_font(self._font_family, "B", 11)
         self.pdf.set_text_color(44, 82, 130)
-        self.pdf.cell(0, 7, title)
+        self.pdf.cell(0, 7, self._t(title))
         self.pdf.ln(6)
         self.pdf.set_text_color(0, 0, 0)
 
@@ -843,15 +858,15 @@ class _IPSPDF:
         if not text:
             return
         self.pdf.set_font(self._font_family, "", 10)
-        self.pdf.multi_cell(0, 5, text)
+        self.pdf.multi_cell(0, 5, self._t(text))
         self.pdf.ln(3)
 
     def _key_value(self, key: str, value: str) -> None:
         """Render a key-value pair."""
         self.pdf.set_font(self._font_family, "B", 10)
-        self.pdf.cell(50, 6, f"{key}:")
+        self.pdf.cell(50, 6, self._t(f"{key}:"))
         self.pdf.set_font(self._font_family, "", 10)
-        self.pdf.cell(0, 6, value)
+        self.pdf.cell(0, 6, self._t(value))
         self.pdf.ln(6)
 
     def _simple_table(
@@ -869,14 +884,16 @@ class _IPSPDF:
         self.pdf.set_font(self._font_family, "B", 9)
         self.pdf.set_fill_color(237, 242, 247)
         for i, header in enumerate(headers):
-            self.pdf.cell(col_widths[i], 7, header, border=1, fill=True, align="C")
+            self.pdf.cell(
+                col_widths[i], 7, self._t(header), border=1, fill=True, align="C"
+            )
         self.pdf.ln()
 
         # Data rows
         self.pdf.set_font(self._font_family, "", 9)
         for row in rows:
             for i, cell in enumerate(row):
-                self.pdf.cell(col_widths[i], 6, cell, border=1, align="C")
+                self.pdf.cell(col_widths[i], 6, self._t(cell), border=1, align="C")
             self.pdf.ln()
         self.pdf.ln(3)
 
@@ -910,7 +927,7 @@ class _IPSPDF:
         self.pdf.set_font(self._font_family, "B", 22)
         self.pdf.set_text_color(26, 54, 93)
         self.pdf.ln(10)
-        self.pdf.cell(0, 12, L["doc_title"], align="C")
+        self.pdf.cell(0, 12, self._t(L["doc_title"]), align="C")
         self.pdf.ln(15)
         self.pdf.set_text_color(0, 0, 0)
 
@@ -994,8 +1011,13 @@ class _IPSPDF:
         # ── 6. Liquidity ──
         liq = ips.get("liquidity", {})
         self._section_title(L["sec_liquidity"])
-        self._key_value(L["kv_immediate"], f"¥{liq.get('immediate_needs', 0):,.0f}")
-        self._key_value(L["kv_ongoing"], f"¥{liq.get('ongoing_needs', 0):,.0f}")
+        _curr_sym = _currency_symbol(ips)
+        self._key_value(
+            L["kv_immediate"], f"{_curr_sym}{liq.get('immediate_needs', 0):,.0f}"
+        )
+        self._key_value(
+            L["kv_ongoing"], f"{_curr_sym}{liq.get('ongoing_needs', 0):,.0f}"
+        )
         self._key_value(
             L["kv_emergency"],
             f"{liq.get('emergency_reserve_months', 0)} {L['months_unit']}",
@@ -1100,11 +1122,11 @@ class _IPSPDF:
         self.pdf.line(20, self.pdf.get_y(), 190, self.pdf.get_y())
         self.pdf.ln(8)
         self.pdf.set_font(self._font_family, "B", 10)
-        self.pdf.cell(85, 8, f"{L['sig_client']}: _________________")
-        self.pdf.cell(85, 8, f"{L['sig_date']}: _________________")
+        self.pdf.cell(85, 8, self._t(f"{L['sig_client']}: _________________"))
+        self.pdf.cell(85, 8, self._t(f"{L['sig_date']}: _________________"))
         self.pdf.ln(10)
-        self.pdf.cell(85, 8, f"{L['sig_advisor']}: _________________")
-        self.pdf.cell(85, 8, f"{L['sig_date']}: _________________")
+        self.pdf.cell(85, 8, self._t(f"{L['sig_advisor']}: _________________"))
+        self.pdf.cell(85, 8, self._t(f"{L['sig_date']}: _________________"))
 
         # ── Footer on all pages ──
         for page_num in range(1, self.pdf.pages_count + 1):

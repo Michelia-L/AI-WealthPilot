@@ -973,26 +973,34 @@ def export_report_to_file(
     return output_path
 
 
-def get_export_formats() -> list[dict[str, str]]:
+def get_export_formats(locale: str = "zh") -> list[dict[str, str]]:
     """Get list of supported export formats with descriptions.
+
+    Args:
+        locale: "zh" keeps the original bilingual descriptions verbatim,
+            "en" returns English-only descriptions.
 
     Returns:
         list[dict[str, str]]: List of dicts with export format descriptions.
     """
+    if locale == "en":
+        descriptions = {
+            "markdown": "Markdown format for documentation",
+            "html": "HTML format — formal letterhead styling for viewing/printing",
+            "json": "JSON format with full metadata",
+        }
+    else:
+        descriptions = {
+            "markdown": "Markdown format for documentation / 用于文档的 Markdown 格式",
+            "html": "HTML format — formal letterhead styling for viewing/printing / 正式信纸样式 HTML，适合查看/打印",
+            "json": "JSON format with full metadata / 包含完整元数据的 JSON 格式",
+        }
+    extensions = {"markdown": ".md", "html": ".html", "json": ".json"}
     return [
         {
-            "format": "markdown",
-            "extension": ".md",
-            "description": "Markdown format for documentation / 用于文档的 Markdown 格式",
-        },
-        {
-            "format": "html",
-            "extension": ".html",
-            "description": "HTML format — formal letterhead styling for viewing/printing / 正式信纸样式 HTML，适合查看/打印",
-        },
-        {
-            "format": "json",
-            "extension": ".json",
-            "description": "JSON format with full metadata / 包含完整元数据的 JSON 格式",
-        },
+            "format": fmt,
+            "extension": extensions[fmt],
+            "description": descriptions[fmt],
+        }
+        for fmt in ("markdown", "html", "json")
     ]

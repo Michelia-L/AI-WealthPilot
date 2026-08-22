@@ -13,6 +13,8 @@ from pathlib import Path
 import pytest
 
 from src.agents.ips_storage import (
+    _IPSPDF,
+    _currency_symbol,
     _find_cjk_font,
     export_ips_markdown,
     export_ips_pdf,
@@ -257,3 +259,51 @@ class TestMarkdownExportEnhancements:
         data["risk_tolerance"] = risk
         md = export_ips_markdown(data)
         assert "量化风险指标" not in md
+
+
+# ============================================================
+# Test: Currency symbol derivation
+# ============================================================
+
+
+class TestCurrencySymbol:
+    """_currency_symbol is shared by the Markdown and PDF liquidity sections."""
+
+    def test_defaults_to_cny(self):
+        assert _currency_symbol({}) == "¥"
+
+    def test_derives_from_currency_policy(self):
+        ips = {"currency_policy": {"base_currency": "USD"}}
+        assert _currency_symbol(ips) == "$"
+
+    def test_unknown_currency_falls_back_to_code(self):
+        ips = {"currency_policy": {"base_currency": "CHF"}}
+        assert _currency_symbol(ips) == "CHF "
+
+    def test_pdf_export_with_usd_base_currency(self, sample_ips_dict, tmp_path):
+        """PDF liquidity section honors currency_policy instead of hardcoding ¥."""
+        data = sample_ips_dict.copy()
+        data["currency_policy"] = {"base_currency": "USD"}
+        output = tmp_path / "usd.pdf"
+        result = export_ips_pdf(data, output)
+        assert result.exists()
+        assert result.stat().st_size > 0
+
+
+# ============================================================
+# Test: PDF latin-1 fallback (no CJK font)
+# ============================================================
+
+
+class TestPDFLatin1Fallback:
+    """Without a CJK font the builder sanitizes text instead of raising."""
+
+    def test_zh_pdf_without_cjk_font(self, sample_ips_dict):
+        builder = _IPSPDF(font_path=None, locale="zh")
+        pdf_bytes = builder.build(sample_ips_dict, None)
+        assert pdf_bytes[:5] == b"%PDF-"
+
+    def test_en_pdf_without_cjk_font(self, sample_ips_dict):
+        builder = _IPSPDF(font_path=None, locale="en")
+        pdf_bytes = builder.build(sample_ips_dict, None)
+        assert pdf_bytes[:5] == b"%PDF-"

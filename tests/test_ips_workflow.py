@@ -21,6 +21,8 @@ from src.agents.ips_workflow import (
     _ips_version_hash,
     build_ips_workflow,
     generate_cme_node,
+    generate_ips_node,
+    revise_ips_node,
     route_after_review,
     route_after_revision,
     validate_saa_node,
@@ -667,3 +669,49 @@ class TestGenerateCMENodeInflation:
         assert result["status"] == "cme_generated"
         inflation = mock_compute.call_args.kwargs["inflation"]
         assert inflation == pytest.approx(0.025)
+
+
+# ============================================================
+# Test: Node error message localization
+# ============================================================
+
+
+class TestNodeErrorLocalization:
+    """Node exception messages render via _t() in state.locale."""
+
+    @staticmethod
+    def _run(coro):
+        import asyncio
+
+        return asyncio.run(coro)
+
+    @staticmethod
+    def _boom(locale="zh"):
+        raise RuntimeError("boom")
+
+    def test_generate_node_error_zh(self, monkeypatch):
+        """zh locale: generation failure surfaces a Chinese error_message."""
+        monkeypatch.setattr(
+            "src.agents.ips_workflow.create_ips_generator_agent", self._boom
+        )
+        result = self._run(generate_ips_node(IPSWorkflowState(locale="zh")))
+        assert result["status"] == "error"
+        assert result["error_message"] == "IPS 生成失败: boom"
+
+    def test_generate_node_error_en(self, monkeypatch):
+        """en locale: generation failure surfaces an English error_message."""
+        monkeypatch.setattr(
+            "src.agents.ips_workflow.create_ips_generator_agent", self._boom
+        )
+        result = self._run(generate_ips_node(IPSWorkflowState(locale="en")))
+        assert result["status"] == "error"
+        assert result["error_message"] == "IPS generation failed: boom"
+
+    def test_revise_node_error_en(self, monkeypatch):
+        """en locale: revision failure surfaces an English error_message."""
+        monkeypatch.setattr(
+            "src.agents.ips_workflow.create_ips_reviser_agent", self._boom
+        )
+        result = self._run(revise_ips_node(IPSWorkflowState(locale="en")))
+        assert result["status"] == "revision_error"
+        assert result["error_message"] == "IPS revision failed: boom"
