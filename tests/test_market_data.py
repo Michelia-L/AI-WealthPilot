@@ -397,6 +397,44 @@ class TestGetLatestQuotes:
         assert df.iloc[0]["ticker"] == "SUCCESS"
         assert df.iloc[0]["price"] == 150.0
 
+    def test_get_latest_quotes_preserves_ticker_order(self, monkeypatch):
+        """Concurrent fetching must preserve the requested ticker order."""
+        from src.data import market_data
+
+        def fake_fetch(ticker):
+            return {
+                "ticker": ticker,
+                "name": ticker,
+                "category": "Unknown",
+                "price": float(len(ticker)),  # distinct per ticker
+                "previous_close": 1.0,
+            }
+
+        monkeypatch.setattr(market_data, "_fetch_quote_record", fake_fetch)
+        tickers = ["AAAA", "B", "CCC", "DD"]
+        df = get_latest_quotes(tickers)
+        assert df["ticker"].tolist() == tickers
+        assert df["price"].tolist() == [4.0, 1.0, 3.0, 2.0]
+
+    def test_get_latest_quotes_skips_none_records(self, monkeypatch):
+        """A None from the per-ticker fetcher (any failure) drops the ticker."""
+        from src.data import market_data
+
+        def fake_fetch(ticker):
+            if ticker == "GONE":
+                return None
+            return {
+                "ticker": ticker,
+                "name": ticker,
+                "category": "Unknown",
+                "price": 10.0,
+                "previous_close": 9.0,
+            }
+
+        monkeypatch.setattr(market_data, "_fetch_quote_record", fake_fetch)
+        df = get_latest_quotes(["KEEP", "GONE", "KEEP2"])
+        assert df["ticker"].tolist() == ["KEEP", "KEEP2"]
+
 
 class TestFetchRiskFreeRate:
     """

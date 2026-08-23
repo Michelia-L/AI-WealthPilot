@@ -12,14 +12,29 @@ import requests
 import pandas as pd
 import yfinance as yf
 import numpy as np
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import Optional
 
 # Import the asset universe definition, trading days constant, base currency, default risk-free rates, and FRED API Key from project config
-from src.config import ASSET_UNIVERSE, TRADING_DAYS_PER_YEAR, BASE_CURRENCY, DEFAULT_RISK_FREE_RATE, DEFAULT_RISK_FREE_RATE_CNY, FRED_API_KEY, TUSHARE_TICKER_MAP
-from src.data import akshare_provider, tushare_provider
+from src import config
+from src.config import (
+    ASSET_UNIVERSE,
+    TRADING_DAYS_PER_YEAR,
+    BASE_CURRENCY,
+    DEFAULT_RISK_FREE_RATE,
+    DEFAULT_RISK_FREE_RATE_CNY,
+    FRED_API_KEY,
+    TUSHARE_TICKER_MAP,
+)
+from src.data import akshare_provider, demo_market, tushare_provider
 
 logger = logging.getLogger(__name__)
+
+
+def _demo_mode() -> bool:
+    """Read the flag dynamically so tests can monkeypatch src.config.DEMO_MODE."""
+    return bool(config.DEMO_MODE)
 
 
 def fetch_price_history(
@@ -39,6 +54,10 @@ def fetch_price_history(
     if tickers is None:
         tickers = list(ASSET_UNIVERSE.keys())
 
+    # DEMO_MODE: deterministic synthetic series, zero network (KI-002).
+    if _demo_mode():
+        return demo_market.demo_price_history(tickers, period)
+
     routed = (
         [t for t in tickers if t in TUSHARE_TICKER_MAP]
         if interval == "1d" and tushare_provider.is_configured()
@@ -49,7 +68,9 @@ def fetch_price_history(
     frames = []
     if rest:
         frames.append(
-            _fetch_price_history_yf(rest, period, interval, base_currency, adjust_currency)
+            _fetch_price_history_yf(
+                rest, period, interval, base_currency, adjust_currency
+            )
         )
     if routed:
         frames.append(
@@ -89,7 +110,9 @@ def _fetch_cn_routed(
         "CN 数据源均不可用（%s），回退 yfinance。",
         "; ".join(errors) if errors else "无可用 provider",
     )
-    return _fetch_price_history_yf(tickers, period, interval, base_currency, adjust_currency)
+    return _fetch_price_history_yf(
+        tickers, period, interval, base_currency, adjust_currency
+    )
 
 
 # A provider frame whose latest price is older than this is treated as a
@@ -164,12 +187,14 @@ def _fetch_price_history_yf(
 
     # Combine download list (preserving original tickers order)
     all_download_tickers = []
-    for t in (tickers + fx_tickers_to_download):
+    for t in tickers + fx_tickers_to_download:
         if t not in all_download_tickers:
             all_download_tickers.append(t)
 
     # auto_adjust=True: prices already account for splits and dividends
-    data = yf.download(all_download_tickers, period=period, interval=interval, auto_adjust=True)
+    data = yf.download(
+        all_download_tickers, period=period, interval=interval, auto_adjust=True
+    )
 
     # Extract Close prices, unify to a DataFrame with tickers as columns
     if data.empty:
@@ -178,13 +203,17 @@ def _fetch_price_history_yf(
         if "Close" in data.columns.levels[0]:
             prices = data["Close"].copy()
         else:
-            prices = pd.DataFrame(np.nan, index=data.index, columns=all_download_tickers)
+            prices = pd.DataFrame(
+                np.nan, index=data.index, columns=all_download_tickers
+            )
     else:
         if "Close" in data.columns:
             prices = data[["Close"]].copy()
             prices.columns = all_download_tickers
         else:
-            prices = pd.DataFrame(np.nan, index=data.index, columns=all_download_tickers)
+            prices = pd.DataFrame(
+                np.nan, index=data.index, columns=all_download_tickers
+            )
 
     # Ensure all download tickers exist in the DataFrame to prevent downstream KeyErrors
     for col in all_download_tickers:
@@ -250,29 +279,40 @@ def compute_correlation_matrix(prices: pd.DataFrame) -> pd.DataFrame:
     return returns.corr()
 
 
+def _fetch_quote_record(ticker: str) -> Optional[dict]:
+    """Fetch one ticker's latest quote via fast_info; None on any failure."""
+    try:
+        # fast_info provides lightweight real-time quote data, faster than the info property
+        info = yf.Ticker(ticker).fast_info
+        # Get the asset's display name and category from the ASSET_UNIVERSE config
+        asset_info = ASSET_UNIVERSE.get(ticker, {})
+        return {
+            "ticker": ticker,
+            "name": asset_info.get("name", ticker),
+            "category": asset_info.get("category", "Unknown"),
+            "price": info.get("lastPrice", None),
+            "previous_close": info.get("previousClose", None),
+        }
+    except Exception:
+        # If a ticker fails to fetch (e.g., network issue, invalid symbol), skip it
+        return None
+
+
 def get_latest_quotes(tickers: Optional[list[str]] = None) -> pd.DataFrame:
-    """Get latest quote data (price, change, change_pct) for a list of tickers."""
+    """Get latest quote data (price, change, change_pct) for a list of tickers.
+
+    Per-ticker fetches run concurrently (a sequential loop made cold loads
+    take ~1s per ticker through high-latency networks, KI-002).
+    """
     # If no tickers specified, use the default asset universe
     if tickers is None:
         tickers = list(ASSET_UNIVERSE.keys())
 
-    records = []
-    for ticker in tickers:
-        try:
-            # fast_info provides lightweight real-time quote data, faster than the info property
-            info = yf.Ticker(ticker).fast_info
-            # Get the asset's display name and category from the ASSET_UNIVERSE config
-            asset_info = ASSET_UNIVERSE.get(ticker, {})
-            records.append({
-                "ticker": ticker,
-                "name": asset_info.get("name", ticker),
-                "category": asset_info.get("category", "Unknown"),
-                "price": info.get("lastPrice", None),
-                "previous_close": info.get("previousClose", None),
-            })
-        except Exception:
-            # If a ticker fails to fetch (e.g., network issue, invalid symbol), skip it
-            continue
+    # DEMO_MODE swaps in deterministic synthetic records (KI-002).
+    fetcher = demo_market.demo_quote_record if _demo_mode() else _fetch_quote_record
+    # executor.map preserves ticker order; failures come back as None
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        records = [r for r in pool.map(fetcher, tickers) if r is not None]
 
     df = pd.DataFrame(records)
 
@@ -322,16 +362,33 @@ def fetch_risk_free_rate_detailed(
     """
     currency = (currency or "USD").upper()
 
+    # DEMO_MODE: skip all external legs, straight to the static default (KI-002).
+    if _demo_mode():
+        fallback = (
+            default_rate
+            if default_rate is not None
+            else (
+                DEFAULT_RISK_FREE_RATE_CNY
+                if currency == "CNY"
+                else DEFAULT_RISK_FREE_RATE
+            )
+        )
+        return fallback, "static_fallback"
+
     # CNY leg: ChinaBond 1Y treasury yield via akshare -> static CNY default
     if currency == "CNY":
-        fallback_cny = default_rate if default_rate is not None else DEFAULT_RISK_FREE_RATE_CNY
+        fallback_cny = (
+            default_rate if default_rate is not None else DEFAULT_RISK_FREE_RATE_CNY
+        )
         if akshare_provider.is_available():
             try:
                 yield_pct = akshare_provider.fetch_cgb_yield_1y()
                 if yield_pct is not None and yield_pct > 0:
                     return float(yield_pct) / 100.0, "akshare_cgb_1y"
             except Exception as e:
-                logger.warning("akshare CGB 1Y yield fetch failed, using static fallback: %s", e)
+                logger.warning(
+                    "akshare CGB 1Y yield fetch failed, using static fallback: %s", e
+                )
         return fallback_cny, "static_fallback"
 
     # USD leg: FRED -> yfinance -> static default
@@ -347,7 +404,7 @@ def fetch_risk_free_rate_detailed(
                 "api_key": api_key,
                 "file_type": "json",
                 "sort_order": "desc",
-                "limit": 1
+                "limit": 1,
             }
             response = requests.get(url, params=params, timeout=5)
             if response.status_code == 200:
@@ -358,7 +415,9 @@ def fetch_risk_free_rate_detailed(
                     if val_str and val_str != ".":
                         return float(val_str) / 100.0, "fred_api"
         except Exception as e:
-            logger.warning("FRED DGS3MO fetch failed, falling back to yfinance ^IRX: %s", e)
+            logger.warning(
+                "FRED DGS3MO fetch failed, falling back to yfinance ^IRX: %s", e
+            )
 
     # 2. Try yfinance ^IRX (13-Week Treasury Bill)
     try:
