@@ -352,7 +352,7 @@ AI-WealthPilot/
 
 ### 运行环境
 
-- **Docker Desktop**（推荐），或使用 **Python 3.12** 与 **Node.js 20+** 从源码运行（Windows 用户推荐 WSL2——CI 与 e2e 均为 Linux 语义）
+- **Docker Desktop**（推荐），或使用 **Python 3.12** 与 **Node.js 22+** 从源码运行（Windows 用户推荐 WSL2——CI 与 e2e 均为 Linux 语义；开发环境经 `web/.nvmrc` 锁定 Node 24）
 - Git
 
 ### 方式 A —— Docker（推荐）

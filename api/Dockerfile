@@ -6,7 +6,7 @@
 # requirements.txt is the single runtime dependency set (Streamlit was
 # retired in Phase 6; dev-only extras live in requirements-dev.txt).
 
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 

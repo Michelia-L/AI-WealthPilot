@@ -356,7 +356,7 @@ AI-WealthPilot/
 
 ### Prerequisites
 
-- **Docker Desktop** (recommended), or **Python 3.12** & **Node.js 20+** for running from source (on Windows, WSL2 is recommended — CI and the e2e suite run on Linux semantics)
+- **Docker Desktop** (recommended), or **Python 3.12** & **Node.js 22+** for running from source (on Windows, WSL2 is recommended — CI and the e2e suite run on Linux semantics; dev pins Node 24 via `web/.nvmrc`)
 - Git
 
 ### Option A — Docker (recommended)
