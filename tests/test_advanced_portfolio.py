@@ -972,3 +972,58 @@ class TestRiskParity:
         ):
             assert key in result
         assert set(result["risk_contributions"]) == set(sample_returns.columns)
+
+
+class TestSeededReproducibility:
+    """Seeded RNG plumbing (phase 26): same seed ⇒ identical stochastic output.
+
+    Covers the three global-RNG call sites converted to ``self._rng``:
+    ``random_portfolios`` (Dirichlet) and both resampled-MVO paths
+    (multivariate-normal mean draws).
+    """
+
+    def test_resampled_maximize_sharpe_same_seed_identical(self, sample_returns):
+        """Two optimizers with the same seed produce bitwise-identical results."""
+        kwargs = {"n_simulations": 30}
+        r1 = PortfolioOptimizer(sample_returns, seed=7).resampled_maximize_sharpe(
+            **kwargs
+        )
+        r2 = PortfolioOptimizer(sample_returns, seed=7).resampled_maximize_sharpe(
+            **kwargs
+        )
+        assert r1 == r2
+
+    def test_resampled_maximize_sharpe_different_seed_differs(self, sample_returns):
+        """Different seeds (almost surely) produce different averaged weights."""
+        kwargs = {"n_simulations": 30}
+        r1 = PortfolioOptimizer(sample_returns, seed=7).resampled_maximize_sharpe(
+            **kwargs
+        )
+        r2 = PortfolioOptimizer(sample_returns, seed=8).resampled_maximize_sharpe(
+            **kwargs
+        )
+        assert r1["weights"] != r2["weights"]
+
+    def test_resampled_frontier_same_seed_identical(self, sample_returns):
+        """Seeded resampled frontier reproduces frame-for-frame."""
+        kwargs = {"n_points": 10, "n_simulations": 30}
+        f1 = PortfolioOptimizer(sample_returns, seed=11).resampled_efficient_frontier(
+            **kwargs
+        )
+        f2 = PortfolioOptimizer(sample_returns, seed=11).resampled_efficient_frontier(
+            **kwargs
+        )
+        pd.testing.assert_frame_equal(f1, f2)
+
+    def test_random_portfolios_same_seed_identical(self, sample_returns):
+        """Seeded Dirichlet sampling reproduces the exact same frame."""
+        p1 = PortfolioOptimizer(sample_returns, seed=5).random_portfolios(50)
+        p2 = PortfolioOptimizer(sample_returns, seed=5).random_portfolios(50)
+        pd.testing.assert_frame_equal(p1, p2)
+
+    def test_default_seed_none_still_works(self, sample_returns):
+        """seed=None (default) keeps the legacy non-seeded behavior."""
+        opt = PortfolioOptimizer(sample_returns)
+        result = opt.resampled_maximize_sharpe(n_simulations=30)
+        assert result["success"]
+        assert abs(sum(result["weights"].values()) - 1.0) < 1e-6

@@ -61,6 +61,7 @@ class PortfolioOptimizer:
         risk_free_rate: float = RISK_FREE_RATE,
         covariance_method: str = "sample",
         expected_returns: Optional[pd.Series] = None,
+        seed: Optional[int] = None,
     ):
         """Initialize with historical return data.
 
@@ -74,6 +75,9 @@ class PortfolioOptimizer:
                 sample means; covariance is always estimated from the
                 historical returns. Assets missing from the vector keep
                 their sample mean.
+            seed: Optional random seed driving the stochastic paths
+                (random_portfolios, resampled MVO). None (default) keeps
+                non-reproducible draws, matching previous behavior.
         """
         if covariance_method not in ["sample", "ledoit-wolf", "oas"]:
             raise ValueError(
@@ -133,6 +137,8 @@ class PortfolioOptimizer:
             self.is_regularized = False
 
         self.cov_values = self.cov_matrix.values
+
+        self._rng = np.random.default_rng(seed)
 
     def _check_condition_number(self) -> float:
         """Check 2-norm condition number of the covariance matrix."""
@@ -406,7 +412,7 @@ class PortfolioOptimizer:
         """
         records = []
         for _ in range(n_portfolios):
-            weights = np.random.dirichlet(np.ones(self.n_assets))
+            weights = self._rng.dirichlet(np.ones(self.n_assets))
             ret, vol, sharpe = self.portfolio_performance(weights)
             records.append({"return": ret, "volatility": vol, "sharpe": sharpe})
         return pd.DataFrame(records)
@@ -467,7 +473,7 @@ class PortfolioOptimizer:
         # The previous try/finally save-restore raced with any concurrent
         # reader of self.mean_returns (e.g. portfolio_performance), #1.
         for _ in range(n_simulations):
-            sampled = np.random.multivariate_normal(daily_mean, cov_over_T)
+            sampled = self._rng.multivariate_normal(daily_mean, cov_over_T)
             mean_override = sampled * TRADING_DAYS_PER_YEAR
             result = objective_fn(
                 allow_short=allow_short,
@@ -573,7 +579,7 @@ class PortfolioOptimizer:
         # Pass sampled means via mean_override instead of mutating
         # self.mean_returns (thread-safety, #1).
         for _ in range(n_simulations):
-            sampled = np.random.multivariate_normal(daily_mean, cov_over_T)
+            sampled = self._rng.multivariate_normal(daily_mean, cov_over_T)
             mean_override = sampled * TRADING_DAYS_PER_YEAR
             frontier = self.efficient_frontier(
                 n_points=n_points,
@@ -1172,6 +1178,7 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
         delta: Optional[float] = None,
         tau: float = 0.025,
         covariance_method: str = "sample",
+        seed: Optional[int] = None,
     ):
         """Initialize Black-Litterman optimizer.
 
@@ -1182,11 +1189,15 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
             delta: Risk aversion. If None, estimated as (R_mkt - R_f) / σ²_mkt.
             tau: Prior uncertainty scaling (typically 0.025-0.05).
             covariance_method: 'sample', 'ledoit-wolf', or 'oas'.
+            seed: Optional random seed for the inherited stochastic paths
+                (random_portfolios, resampled MVO). BL prior/posterior math
+                itself is deterministic.
         """
         super().__init__(
             returns=returns,
             risk_free_rate=risk_free_rate,
             covariance_method=covariance_method,
+            seed=seed,
         )
         self.tau = tau
 
@@ -1512,11 +1523,11 @@ class BlackLittermanOptimizer(PortfolioOptimizer):
 
 
 if __name__ == "__main__":
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
     n_days = 252 * 5
     assets = ["US Equity", "Intl Equity", "Bonds", "Gold"]
     returns_data = pd.DataFrame(
-        np.random.randn(n_days, len(assets)) * 0.01
+        rng.standard_normal((n_days, len(assets))) * 0.01
         + np.array([0.0004, 0.0003, 0.0001, 0.0002]),
         columns=assets,
     )

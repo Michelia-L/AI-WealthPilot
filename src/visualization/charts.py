@@ -273,16 +273,22 @@ def plot_monte_carlo_paths(
     n_display: int = 200,
     percentiles: bool = True,
     goal_amount: Optional[float] = None,
+    seed: Optional[int] = None,
 ) -> go.Figure:
     """
     Plot Monte Carlo simulation paths with percentile bands.
+
+    seed: optional seed for the displayed-path subsample; None (default)
+    keeps a non-reproducible pick.
     """
     fig = go.Figure()
     n_sims, n_periods = paths.shape
     x = list(range(n_periods))
 
     # Sample paths (semi-transparent)
-    indices = np.random.choice(n_sims, min(n_display, n_sims), replace=False)
+    indices = np.random.default_rng(seed).choice(
+        n_sims, min(n_display, n_sims), replace=False
+    )
     for i in indices:
         fig.add_trace(
             go.Scatter(
