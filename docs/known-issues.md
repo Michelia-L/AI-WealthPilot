@@ -65,13 +65,22 @@
 
 ### 根因
 
-`api/cache.py` 的 TTLCache 是**进程内存级**：每次 e2e 运行拉起新后端进程即冷缓存，首个命中报价链路的测试要等待 yfinance 真实下载（经代理 15s+），并行 smoke 测试中谁先撞上冷取数谁超时。CI 无网络时 yfinance 立即失败、页面秒级降级到离线态，故 CI 稳定绿；本地结果取决于代理速度——「零网络依赖」的设计意图在「有网但慢」的环境下不成立。
+实测定位（2026-08-23，DEMO_MODE 探针后端 + curl 计时）：
+
+- **DEMO_MODE 只覆盖 LLM 端点**，行情链路（quotes/analytics）在 e2e 中仍走真实 yfinance——「零网络依赖」对行情页不成立。
+- **`/market/quotes` 冷启动是唯一长杆**：`get_latest_quotes` 对 17 个 ticker **串行**调用 `yf.Ticker(t).fast_info`（实测合计约 12s），外加 `_attach_sparks` 一次批量下载（约 2s），**冷响应实测 14.2s**；对照 `/market/analytics`（单次批量 `yf.download`）冷 2.0s，暖缓存命中均为毫秒级。
+- **挂起机制**：`/market` 页三个数据节走 Suspense 流式渲染，文档流要等全部边界解析完才关闭，浏览器 `load` 事件随之延迟；`page.goto` 默认等 `load`，30s 超时时内容其实已渲染完（失败快照佐证）。`/`（总览）同样引用 quotes 组件，故同病。
+- **为何 CI 绿、本地抽签**：yfinance 无显式超时配置；GitHub runner 直连雅虎快（秒级），本地经代理时延抖动大——代理快时 14s 能过 30s 线，慢时越线即失败。进程内存级 TTLCache（`api/cache.py`）导致每次 e2e 运行新进程必冷启动，无法跨进程预热。
 
 ### 候选方向
 
-- e2e 后端环境加离线/夹具开关（如 `AIWP_OFFLINE_MARKET=1`），让报价链路直接走降级路径，与 CI 语义对齐。
-- 或 playwright webServer env 指向预种子缓存目录，冷启动即从磁盘读。
-- 临时缓解：失败后重跑（缓存同进程内即热）。
+- **A（性能治本，生产同益）**：`get_latest_quotes` 串行 fast_info 改批量/并发（`yf.Tickers` 或线程池），冷启动 14s→2s 级——市场页冷加载本身就是真实性能问题。
+- **B（hermetic 治本）**：DEMO_MODE 扩展到行情层，quotes/analytics 回放内置夹具（参照 CME 的 `data/cache/cme` 文件缓存模式），e2e 真零网络且仍覆盖有数据渲染。
+- **C（对齐 CI 语义）**：行情链路加离线开关（如 `AIWP_OFFLINE_MARKET=1`），e2e 直接走降级路径；smoke 契约本就是「页面不崩」，但会损失有数据时的渲染覆盖。
+- **D（治标）**：playwright webServer 启动后先预热 `/market/quotes` 再开跑，或 smoke 的 `goto` 放宽 `waitUntil`/`timeout`；代理极慢时仍会挂。
+- 临时缓解：失败后重跑（同进程缓存即热）。
+
+推荐 A+B 组合：A 修真实性能缺陷，B 让 e2e 彻底脱网。
 
 ---
 
