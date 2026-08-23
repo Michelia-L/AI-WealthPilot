@@ -141,22 +141,24 @@ export default function OptimizerWorkspace({
           </div>
         </Group>
 
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+        {/* 方法选项多且文案长，独占一行，避免在窄列里溢出与相邻控件重叠 */}
+        <Group label={t.optimizer.methodLabel}>
+          <Segmented
+            size="sm"
+            options={METHOD_OPTIONS}
+            value={method}
+            onChange={setMethod}
+            className="flex-wrap"
+          />
+        </Group>
+
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           <Group label={t.optimizer.historyWindow}>
             <Segmented
               size="sm"
               options={OPTIMIZER_PERIOD_OPTIONS}
               value={period}
               onChange={setPeriod}
-            />
-          </Group>
-
-          <Group label={t.optimizer.methodLabel}>
-            <Segmented
-              size="sm"
-              options={METHOD_OPTIONS}
-              value={method}
-              onChange={setMethod}
             />
           </Group>
 
