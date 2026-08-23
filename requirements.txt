@@ -8,7 +8,7 @@
 
 # Core
 numpy==2.2.6
-pandas==2.3.3
+pandas==3.0.5
 scipy==1.17.1
 scikit-learn==1.8.0
 
