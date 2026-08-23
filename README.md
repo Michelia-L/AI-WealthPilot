@@ -376,6 +376,8 @@ AI-WealthPilot/
    # (falls back to akshare/yfinance when unset).
    # No DeepSeek key? Set DEMO_MODE=1 to replay recorded sample outputs
    # (advisor report, IPS workflow, rebalancing advice) so every page works.
+   # Demo mode is fully offline: market data is served as deterministic
+   # synthetic series (src/data/demo_market.py), no yfinance calls.
    ```
 
    You can also configure any OpenAI-compatible endpoint (DeepSeek, Qwen,

@@ -372,6 +372,8 @@ AI-WealthPilot/
    # （未配置时自动降级 akshare / yfinance）。
    # 没有 DeepSeek key？可设 DEMO_MODE=1 回放录制的虚构样例
    # （顾问建议书 / IPS 生成 / 复衡建议），所有页面照常完整可演示。
+   # 演示模式完全离线：行情数据由确定性合成序列提供（src/data/demo_market.py），
+   # 不发起任何 yfinance 调用。
    ```
 
    也可以在启动后通过侧边栏「设置」页直接配置任何 OpenAI 兼容端点

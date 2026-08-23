@@ -57,7 +57,7 @@
 
 ## KI-002 · 本地 e2e  smoke 测试依赖网络状态，偶发 page.goto 超时
 
-**发现日期**：2026-08-23（P26 门禁期间）　**状态**：待修复　**优先级**：中
+**发现日期**：2026-08-23（P26 门禁期间）　**状态**：已修复（2026-08-23）　**优先级**：中
 
 ### 现象
 
@@ -72,15 +72,14 @@
 - **挂起机制**：`/market` 页三个数据节走 Suspense 流式渲染，文档流要等全部边界解析完才关闭，浏览器 `load` 事件随之延迟；`page.goto` 默认等 `load`，30s 超时时内容其实已渲染完（失败快照佐证）。`/`（总览）同样引用 quotes 组件，故同病。
 - **为何 CI 绿、本地抽签**：yfinance 无显式超时配置；GitHub runner 直连雅虎快（秒级），本地经代理时延抖动大——代理快时 14s 能过 30s 线，慢时越线即失败。进程内存级 TTLCache（`api/cache.py`）导致每次 e2e 运行新进程必冷启动，无法跨进程预热。
 
-### 候选方向
+### 修复记录（2026-08-23）
 
-- **A（性能治本，生产同益）**：`get_latest_quotes` 串行 fast_info 改批量/并发（`yf.Tickers` 或线程池），冷启动 14s→2s 级——市场页冷加载本身就是真实性能问题。
-- **B（hermetic 治本）**：DEMO_MODE 扩展到行情层，quotes/analytics 回放内置夹具（参照 CME 的 `data/cache/cme` 文件缓存模式），e2e 真零网络且仍覆盖有数据渲染。
-- **C（对齐 CI 语义）**：行情链路加离线开关（如 `AIWP_OFFLINE_MARKET=1`），e2e 直接走降级路径；smoke 契约本就是「页面不崩」，但会损失有数据时的渲染覆盖。
-- **D（治标）**：playwright webServer 启动后先预热 `/market/quotes` 再开跑，或 smoke 的 `goto` 放宽 `waitUntil`/`timeout`；代理极慢时仍会挂。
-- 临时缓解：失败后重跑（同进程缓存即热）。
+按 A+B 组合落地：
 
-推荐 A+B 组合：A 修真实性能缺陷，B 让 e2e 彻底脱网。
+- **A · quotes 取数并发化**：`get_latest_quotes` 的单 ticker 抓取抽为 `_fetch_quote_record`，17 次 `fast_info` 改 `ThreadPoolExecutor(max_workers=8)` 并发（`executor.map` 保序、失败返回 None 跳过）。真实网络实测冷启动 14.2s → **2.9s**（市场页/总览冷加载同益）。
+- **B · DEMO_MODE 行情合成数据**：新模块 `src/data/demo_market.py`——按 ASSET_UNIVERSE 类别分档参数的 GBM，种子由 ticker 稳定哈希派生、网格锚定固定参考日（`REFERENCE_END`），跨进程/跨天零漂移；`market_data.py` 三个咽喉加 demo 早退分支（`fetch_price_history` / `get_latest_quotes` / `fetch_risk_free_rate_detailed` 直接静态兜底），demo 下整个应用（市场页、优化器、监控、回测）零网络且仍走真实渲染/计算链路。
+- **测试**：`tests/test_demo_market.py` 14 条（确定性/网格/离线 poison/关时回归/API 端到端）+ `test_market_data.py` 补并发保序与跳过用例。
+- **验收**：e2e 连跑 3 次全绿，总时长 37-45s（原抽签失败）；pytest 全套绿。
 
 ---
 
@@ -213,4 +212,4 @@ AI 顾问/调仓建议等流式生成等待数十秒，期间只看着正文逐�
 - **RNG 收口**：`PortfolioOptimizer.__init__` 新增 `seed: Optional[int] = None`，持 `self._rng = np.random.default_rng(seed)`；`random_portfolios` 的 Dirichlet、`_resampled_optimize` 与 `resampled_efficient_frontier` 的 multivariate_normal 三处全局调用改走 `self._rng`；`__main__` demo 块改局部 `default_rng(42)`；`BlackLittermanOptimizer` 透传 seed（BL 先验/后验数学本身确定性）；`plot_monte_carlo_paths` 加可选 `seed`。至此 src/ 下全局 `np.random.*` 调用清零。**行为不变**：seed 默认 None 保持既有非复现行为，未透传到 API（如需用户指定种子再单独立项）。
 - **复现测试**：`tests/test_advanced_portfolio.py::TestSeededReproducibility`（5 条）——同 seed 两次 resampled 最大夏普/重抽样前沿/随机组合逐位一致，不同 seed 对照不同，默认 None 回归。
 - **迁移卫生核查结论**（WSL 迁入验收）：全仓 CRLF 扫描仅 `data/sample/.gitkeep` 一处行尾污染（已还原）；`data/` 仅 `sample/.gitkeep` 被跟踪，`.gitignore`/`.gitattributes`（LF 规范化）覆盖正确；pip 双 requirements 全 pin + npm lockfile/`npm ci` 链路完整，均无需改动。
-- **顺带修复**：`web/Dockerfile` 的 `COPY --from=builder /app/public` 在仓库无 `web/public/` 目录时直接失败（潜在缺陷，CI 不跑 docker build 故从未暴露）——补 `web/public/.gitkeep` 兜底，两套镜像实测构建通过。另记录 KI-002（本地 e2e 受代理网速影响偶发 smoke 超时，待修复）。
+- **顺带修复**：`web/Dockerfile` 的 `COPY --from=builder /app/public` 在仓库无 `web/public/` 目录时直接失败（潜在缺陷，CI 不跑 docker build 故从未暴露）——补 `web/public/.gitkeep` 兜底，两套镜像实测构建通过。另记录 KI-002（本地 e2e 受代理网速影响偶发 smoke 超时），已于同日修复（见该条目）。
