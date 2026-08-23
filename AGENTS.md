@@ -32,7 +32,7 @@ ruff check && ruff format --check   # Python lint/格式门禁（配置在 pypro
 cd web && npm test             # 前端 Vitest（lib 单测 + 组件测试）
 cd web && npm run typecheck    # tsc --noEmit 全量类型检查（含测试文件；next build 不覆盖测试文件）
 cd web && npm run lint && npm run build
-cd web && npm run test:e2e     # Playwright 全栈 e2e（需先 npm run build；自动拉起 DEMO_MODE 后端 :8300 + web :3300，独立临时 SQLite）
+cd web && npm run test:e2e     # Playwright 全栈 e2e（需先 npm run build；自动拉起 DEMO_MODE 后端 :8300 + web :3300，独立临时 SQLite；后端以裸 `python` 拉起，PATH 上须有 python——WSL/Linux 下先 `source .venv/bin/activate`）
 
 # 全栈 Docker
 docker compose up --build
@@ -59,6 +59,7 @@ docker compose up --build
 
 ## 环境
 
+- 日常开发环境为 WSL2（Ubuntu 24.04，仓库克隆在 `~/projects/AI-WealthPilot`；Windows 桌面旧副本仅为迁移过渡期的备份，不要双侧并行修改——SQLite 数据会分叉）。WSL 资源上限经 `.wslconfig` 设 12GB/8 核；WSL 内 git 须设 `core.autocrlf=false`，行尾由 `.gitattributes` 统一 LF。
 - `.env` 配 `DEEPSEEK_API_KEY`（AI 顾问 / IPS 必需）、`FRED_API_KEY`（可选，无风险利率首选源）、`TUSHARE_TOKEN`（可选，A 股映射指数与中债收益率曲线的付费主干源，未配置时自动降级 akshare / yfinance）。
 - LLM 端点可在 /settings 页面改用任意 OpenAI 兼容服务：保存进 `app_settings` 表后按字段覆盖 env 默认（DB 非空值优先，见 `src/agents/llm_config.py` 的 `get_llm_config()`，所有 LLM 消费方统一走它）；清空 API Key 即删行回退 env。
 - 未配置 DeepSeek key 时量化功能照常可用，LLM 端点返回 503；除非 `.env` 设 `DEMO_MODE=1`（phase 20 演示模式），此时三个 LLM 端点无条件回放 `src/agents/demo_fixtures/` 的虚构样例（`src/agents/demo_mode.py`），零网络调用；回放按请求 locale 选夹具——en 用 `*_en` 英文夹具（占位名 Evelyn Lin），其余用中文夹具（占位名「林晓兰」），占位名在回放时替换为真实画像名；启动时若画像表为空还会种子一个虚构客户「林晓兰」。

@@ -352,7 +352,7 @@ AI-WealthPilot/
 
 ### 运行环境
 
-- **Docker Desktop**（推荐），或使用 **Python 3.11+** 与 **Node.js 20+** 从源码运行
+- **Docker Desktop**（推荐），或使用 **Python 3.12** 与 **Node.js 20+** 从源码运行（Windows 用户推荐 WSL2——CI 与 e2e 均为 Linux 语义）
 - Git
 
 ### 方式 A —— Docker（推荐）
@@ -430,6 +430,9 @@ cd web
 npm test              # Vitest 单元/组件测试
 npm run test:e2e      # Playwright 全栈 e2e
 ```
+
+> [!NOTE]
+> e2e 以裸 `python` 命令拉起 API（见 `web/playwright.config.ts`），需保证 `python` 在 `PATH` 上——macOS/Linux/WSL 下先激活仓库 venv（`source .venv/bin/activate`）再运行。
 
 ---
 

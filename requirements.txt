@@ -2,7 +2,7 @@
 # the API Docker image installs). Dev extras (pytest) live in
 # requirements-dev.txt.
 #
-# Versions are pinned to the set the test suite (880 tests) was verified
+# Versions are pinned to the set the test suite (969 tests) was verified
 # against; bump deliberately after re-running the suite. pip-audit in CI
 # guards the pinned set against newly disclosed CVEs.
 

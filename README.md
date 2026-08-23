@@ -356,7 +356,7 @@ AI-WealthPilot/
 
 ### Prerequisites
 
-- **Docker Desktop** (recommended), or **Python 3.11+** & **Node.js 20+** for running from source
+- **Docker Desktop** (recommended), or **Python 3.12** & **Node.js 20+** for running from source (on Windows, WSL2 is recommended — CI and the e2e suite run on Linux semantics)
 - Git
 
 ### Option A — Docker (recommended)
@@ -435,6 +435,9 @@ cd web
 npm test              # Vitest
 npm run test:e2e      # Playwright (builds and boots the stack automatically)
 ```
+
+> [!NOTE]
+> The e2e suite launches the API with a bare `python` command (see `web/playwright.config.ts`), so `python` must resolve on `PATH` — on macOS/Linux/WSL, activate the repo venv first (`source .venv/bin/activate`).
 
 ---
 
