@@ -55,6 +55,26 @@
 
 ---
 
+## KI-002 · 本地 e2e  smoke 测试依赖网络状态，偶发 page.goto 超时
+
+**发现日期**：2026-08-23（P26 门禁期间）　**状态**：待修复　**优先级**：中
+
+### 现象
+
+本地（有网络但走代理）跑 `npm run test:e2e`，smoke 的路由渲染测试偶发 `page.goto: Test timeout of 30000ms exceeded`——失败测试的页面快照显示内容其实已完整渲染，是 `load` 事件未在 30s 内触发。同一套代码在 CI（无网络）全绿。
+
+### 根因
+
+`api/cache.py` 的 TTLCache 是**进程内存级**：每次 e2e 运行拉起新后端进程即冷缓存，首个命中报价链路的测试要等待 yfinance 真实下载（经代理 15s+），并行 smoke 测试中谁先撞上冷取数谁超时。CI 无网络时 yfinance 立即失败、页面秒级降级到离线态，故 CI 稳定绿；本地结果取决于代理速度——「零网络依赖」的设计意图在「有网但慢」的环境下不成立。
+
+### 候选方向
+
+- e2e 后端环境加离线/夹具开关（如 `AIWP_OFFLINE_MARKET=1`），让报价链路直接走降级路径，与 CI 语义对齐。
+- 或 playwright webServer env 指向预种子缓存目录，冷启动即从磁盘读。
+- 临时缓解：失败后重跑（缓存同进程内即热）。
+
+---
+
 ## FR-001 · AI 生成过程实时显示思维链
 
 **提出日期**：2026-07-26　**状态**：已实现（2026-07-26，v0.9.0）　**优先级**：中（体验增强）
@@ -173,3 +193,15 @@ AI 顾问/调仓建议等流式生成等待数十秒，期间只看着正文逐�
 **问题**：风险等级→目标波动带存在两份来源且数值已漂移——validate_saa 校验与生成器 prompt 一致（4-8/8-12/10-15/13-18/16-25%），而 `portfolio_recommender.RISK_VOLATILITY_MAP` 停留在旧口径（5-8/…/18-22%，且该常量已无消费方）；一致性评审 prompt 的权益上限（30/45/60/75/90）比优化器真实执行的 `risk_constraints.RISK_LEVEL_CAPS`（15/30/50/70/90）松，评审口径与执行口径脱节。
 
 **解决方式**：规范波动带单源化为 `config.RISK_VOLATILITY_BANDS`，validate_saa 校验、推荐器插值、prompt 组合三方共读；删除死常量 `RISK_VOLATILITY_MAP`，`_get_target_volatility` 改为规范带上分段线性插值（段界仍 `RISK_SCORE_BREAKPOINTS`，端点契约 1.0→4%、5.0→25%）；prompt 数字改为 `__VOL_BANDS__`/`__EQUITY_CAPS__` 占位符，在 `get_system_prompt()` 统一注入；一致性评审权益上限收紧对齐执行口径。**有意的行为变化**：推荐器 moderate 目标 0.13→0.125、aggressive 区间 18-22%→16-25%；评审变严、执行不变。
+
+### ~~P26-repro-1 · 运行时版本口径漂移与全局 RNG 未收口~~（已解决 2026-08-23，P26）
+
+**问题**：两套可复现性缺口——其一，运行时版本三方/四方漂移：Python 在 CI 与本地为 3.12 而 `api/Dockerfile` 是 3.11-slim；Node 在 CI 为 20、`web/Dockerfile` 为 22-alpine、本地为 24，且无 `.nvmrc`/`engines`/`.python-version` 锚点。其二，量化引擎的随机路径走 NumPy 全局 RNG 且不可播种：`optimizer.py` 的 `random_portfolios`（Dirichlet）与两条 resampled MVO 路径（multivariate_normal），加上 `charts.py` 蒙特卡洛路径图的展示抽样——同输入无法复现同输出（对照：`simulator.py` 已是 `default_rng(seed)` 规范管道，CVaR 走 HiGHS LP 确定性求解）。
+
+**解决方式**：
+
+- **版本口径收敛**：`api/Dockerfile` → `python:3.12-slim`；CI 两处 `node-version: 24`；`web/Dockerfile` 三处 `node:24-alpine`；新增 `web/.nvmrc`（24）与根 `.python-version`（3.12）；`web/package.json` 加 `engines.node >=22`（底限声明，开发/CI/Docker 实际统一 24）；`@types/node` 升 `^24`（lockfile 同步）；README 双语先决条件同步为 Node.js 22+。
+- **RNG 收口**：`PortfolioOptimizer.__init__` 新增 `seed: Optional[int] = None`，持 `self._rng = np.random.default_rng(seed)`；`random_portfolios` 的 Dirichlet、`_resampled_optimize` 与 `resampled_efficient_frontier` 的 multivariate_normal 三处全局调用改走 `self._rng`；`__main__` demo 块改局部 `default_rng(42)`；`BlackLittermanOptimizer` 透传 seed（BL 先验/后验数学本身确定性）；`plot_monte_carlo_paths` 加可选 `seed`。至此 src/ 下全局 `np.random.*` 调用清零。**行为不变**：seed 默认 None 保持既有非复现行为，未透传到 API（如需用户指定种子再单独立项）。
+- **复现测试**：`tests/test_advanced_portfolio.py::TestSeededReproducibility`（5 条）——同 seed 两次 resampled 最大夏普/重抽样前沿/随机组合逐位一致，不同 seed 对照不同，默认 None 回归。
+- **迁移卫生核查结论**（WSL 迁入验收）：全仓 CRLF 扫描仅 `data/sample/.gitkeep` 一处行尾污染（已还原）；`data/` 仅 `sample/.gitkeep` 被跟踪，`.gitignore`/`.gitattributes`（LF 规范化）覆盖正确；pip 双 requirements 全 pin + npm lockfile/`npm ci` 链路完整，均无需改动。
+- **顺带修复**：`web/Dockerfile` 的 `COPY --from=builder /app/public` 在仓库无 `web/public/` 目录时直接失败（潜在缺陷，CI 不跑 docker build 故从未暴露）——补 `web/public/.gitkeep` 兜底，两套镜像实测构建通过。另记录 KI-002（本地 e2e 受代理网速影响偶发 smoke 超时，待修复）。
