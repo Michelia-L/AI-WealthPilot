@@ -94,7 +94,8 @@ export default function OptimizerResults({
         )}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {/* 两图上下排：各自吃满整行宽度，半宽并排时甜甜圈标签和前沿点簇都太挤 */}
+      <div className="grid gap-4">
         <Panel pad={false} innerClassName="p-2">
           <PlotChart figure={result.frontier_chart} height={480} />
         </Panel>
