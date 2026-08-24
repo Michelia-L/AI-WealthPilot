@@ -125,55 +125,9 @@
 
 AI WealthPilot 采用分层解耦的现代化全栈架构设计：
 
-```mermaid
-flowchart TB
-    subgraph Frontend ["🖥️ 前端展示层 (web/ Next.js 16 + React 19)"]
-        UI["墨金私行设计系统 (Tailwind v4 @theme)"]
-        Components["Plotly 图表 / 顾问工作区 / 资产监控大盘"]
-        ClientProxy["同源代理路由 (web/src/app/api/ -> lib/proxy.ts)"]
-        I18N["Bilingual Dictionaries (Cookie wp_locale: en / zh)"]
-    end
-
-    subgraph Transport ["⚡ 传输与持久化层 (api/ FastAPI Shell)"]
-        Routers["FastAPI 路由群 (Market / Portfolio / IPS / Advisor / Retirement)"]
-        TaskEngine["异步任务总线 & SSE 写穿透回放 (api/tasks.py)"]
-        SQLiteDB["SQLite + SQLModel (Client Profiles / App Settings / Task Logs)"]
-        I18NMsg["i18n 消息国际化 (api/i18n.py)"]
-    end
-
-    subgraph Engine ["🧮 计算与业务核心 (src/)"]
-        subgraph Quant ["量化与风险计算 (src/portfolio/)"]
-            Optimizer["组合优化器 (MVO / Resampled / BL / CVaR / LDI / ERC)"]
-            CME["资本市场预期引擎 (Implied Vol + Building Blocks)"]
-            Backtest["历史回测与 Brinson 归因 (Carino Linking)"]
-            Simulator["GBM 蒙特卡洛财富仿真器"]
-            Monitoring["组合偏离度监控 & 再平衡生成"]
-        end
-
-        subgraph Agents ["AI 智能体编排 (src/agents/)"]
-            LangGraphWF["LangGraph IPS 多智能体工作流 (PydanticAI)"]
-            AdvisorLLM["DeepSeek V4 Pro AI 顾问 (流式思维链)"]
-            RebalanceLLM["调仓解析专家智能体"]
-            Storage["交付物持久化 (Markdown / PDF / JSON)"]
-        end
-
-        subgraph DataPipeline ["数据管道 (src/data/)"]
-            MarketData["yfinance / AkShare / Tushare Pro 行情适配器"]
-            YieldCurve["中债 / 美债收益率曲线与无风险利率提取"]
-            DemoMarket["离线确定性 GBM 合成市场 (DEMO_MODE)"]
-        end
-    end
-
-    UI --> ClientProxy
-    ClientProxy --> Routers
-    Routers --> TaskEngine
-    Routers --> Quant
-    Routers --> Agents
-    Agents --> Quant
-    Quant --> DataPipeline
-    Agents --> Storage
-    TaskEngine --> SQLiteDB
-```
+<div align="center">
+  <img src="docs/diagrams/architecture-zh.svg" alt="分层系统架构" width="900" />
+</div>
 
 ### 架构分工守则
 * **`src/` 是纯粹计算核心**：所有量化数学、金融公式、AI Prompt 与 LangGraph 编排均收敛在此，禁止依赖上层 Web 或 API 传输协议。
@@ -186,29 +140,9 @@ flowchart TB
 
 投资政策声明（IPS）的生成采用 LangGraph 状态图与 PydanticAI 构建的多智能体流水线，通过量化硬门禁与多角度审查确保机构级合规与数理严谨：
 
-```mermaid
-flowchart LR
-    Start([开始]) --> CME[CME 预期生成]
-    CME --> Gen[IPS 生成 Agent]
-    Gen --> Select[加载合规核查清单]
-
-    subgraph Reviewers ["三维度独立审查"]
-        Select --> Rev1[适配性审查 Agent]
-        Rev1 --> Rev2[监管合规审查 Agent]
-        Rev2 --> Rev3[逻辑一致性审查 Agent]
-    end
-
-    Rev3 --> QuantCheck{SAA 量化硬门禁<br/>validate_saa}
-
-    QuantCheck -- "指标异常/未通过" --> RouteCheck{轮次 < 3?}
-    RouteCheck -- "是" --> Revise[IPS 自动修订 Agent]
-    Revise --> Select
-    RouteCheck -- "达到上限" --> Escalate[升级人工专家介入]
-
-    QuantCheck -- "全部合格" --> Finalize[完成批准 & 审计归档]
-    Escalate --> Finalize
-    Finalize --> End([导出 Markdown / PDF])
-```
+<div align="center">
+  <img src="docs/diagrams/ips-pipeline-zh.svg" alt="LangGraph 多智能体 IPS 流水线" width="900" />
+</div>
 
 ### 审查与门禁要点
 1. **适配性审查 (Suitability)**：客户投资目标、期限、流动性需求与风险承受力是否相称。

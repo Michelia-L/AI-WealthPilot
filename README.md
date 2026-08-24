@@ -125,55 +125,9 @@
 
 AI WealthPilot follows a decoupled, layered architectural blueprint:
 
-```mermaid
-flowchart TB
-    subgraph Frontend ["🖥️ Frontend Presentation (web/ Next.js 16 + React 19)"]
-        UI["Ink & Gold Theme (Tailwind v4 @theme)"]
-        Components["Plotly Visualizations / Advisor Workspace / Fleet Dashboard"]
-        ClientProxy["Same-Origin Proxy Routes (web/src/app/api/ -> lib/proxy.ts)"]
-        I18N["Bilingual Dictionaries (Cookie wp_locale: en / zh)"]
-    end
-
-    subgraph Transport ["⚡ Transport & Persistence (api/ FastAPI Shell)"]
-        Routers["FastAPI Routers (Market / Portfolio / IPS / Advisor / Retirement)"]
-        TaskEngine["Async Task Event Bus & SSE Replay (api/tasks.py)"]
-        SQLiteDB["SQLite + SQLModel (Client Profiles / App Settings / Task Logs)"]
-        I18NMsg["i18n Message Catalog (api/i18n.py)"]
-    end
-
-    subgraph Engine ["🧮 Core Computation & Agents (src/)"]
-        subgraph Quant ["Quantitative Portfolio Engine (src/portfolio/)"]
-            Optimizer["Portfolio Optimizer (MVO / Resampled / BL / CVaR / LDI / ERC)"]
-            CME["Capital Market Expectations Engine (Implied Vol + Building Blocks)"]
-            Backtest["Backtesting & Brinson Attribution (Carino Linking)"]
-            Simulator["GBM Monte Carlo Wealth Simulator"]
-            Monitoring["Fleet Drift Monitoring & Trade Generator"]
-        end
-
-        subgraph Agents ["Multi-Agent AI Systems (src/agents/)"]
-            LangGraphWF["LangGraph IPS Multi-Agent Workflow (PydanticAI)"]
-            AdvisorLLM["DeepSeek V4 Pro Advisory Agent (Streaming Reasoning)"]
-            RebalanceLLM["Rebalancing Advisor Agent"]
-            Storage["Deliverables Storage (Markdown / PDF / JSON)"]
-        end
-
-        subgraph DataPipeline ["Data Adapters (src/data/)"]
-            MarketData["yfinance / AkShare / Tushare Pro Adapters"]
-            YieldCurve["Treasury Yield Curves & Risk-Free Extraction"]
-            DemoMarket["Offline Deterministic GBM Synthetic Market (DEMO_MODE)"]
-        end
-    end
-
-    UI --> ClientProxy
-    ClientProxy --> Routers
-    Routers --> TaskEngine
-    Routers --> Quant
-    Routers --> Agents
-    Agents --> Quant
-    Quant --> DataPipeline
-    Agents --> Storage
-    TaskEngine --> SQLiteDB
-```
+<div align="center">
+  <img src="docs/diagrams/architecture.svg" alt="Layered System Architecture" width="900" />
+</div>
 
 ### Architectural Guardrails
 * **`src/` is the Computational Core**: All mathematical models, financial engineering algorithms, prompt graphs, and agent definitions reside here. No dependencies on web transport layers.
@@ -186,29 +140,9 @@ flowchart TB
 
 The Investment Policy Statement (IPS) workflow is orchestrated using LangGraph state machines and PydanticAI structured agents:
 
-```mermaid
-flowchart LR
-    Start([Start]) --> CME[Generate CME]
-    CME --> Gen[Generate Draft IPS]
-    Gen --> Select[Load Compliance Checklist]
-
-    subgraph Reviewers ["Parallel 3-Dimensional Audit"]
-        Select --> Rev1[Suitability Reviewer]
-        Rev1 --> Rev2[Compliance Reviewer]
-        Rev2 --> Rev3[Consistency Reviewer]
-    end
-
-    Rev3 --> QuantCheck{Quantitative SAA Gate<br/>validate_saa}
-
-    QuantCheck -- "Issues Found / OOB" --> RouteCheck{Round < 3?}
-    RouteCheck -- "Yes" --> Revise[IPS Reviser Agent]
-    Revise --> Select
-    RouteCheck -- "Max Rounds" --> Escalate[Escalate to Human]
-
-    QuantCheck -- "All Passed" --> Finalize[Finalize & Assemble Audit Trail]
-    Escalate --> Finalize
-    Finalize --> End([Export Markdown / PDF])
-```
+<div align="center">
+  <img src="docs/diagrams/ips-pipeline.svg" alt="LangGraph Multi-Agent IPS Pipeline" width="900" />
+</div>
 
 ### Audit Dimensions & Quantitative Gates
 1. **Suitability Review**: Checks client goal feasibility, time horizon alignment, liquidity reserves, and risk capacity.

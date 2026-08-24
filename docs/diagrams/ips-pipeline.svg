@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="650" viewBox="0 0 1240 650" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <pattern id="dots" width="8" height="8" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.2" fill="#c9a227" opacity="0.35"/>
+    </pattern>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 z" fill="#d4b36a"/>
+    </marker>
+    <marker id="arrow-jade" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 z" fill="#4aa37e"/>
+    </marker>
+    <marker id="arrow-cinnabar" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 z" fill="#c4553d"/>
+    </marker>
+  </defs>
+
+  <rect width="1240" height="650" fill="#0f1218" rx="16"/>
+
+  <!-- Title -->
+  <rect x="330" y="20" width="580" height="46" fill="url(#dots)" rx="6"/>
+  <text x="620" y="53" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="31" font-weight="700" fill="#ece5d3">LangGraph Multi-Agent IPS Pipeline</text>
+  <text x="620" y="88" text-anchor="middle" font-size="15" fill="#98a2b3">draft → review → quantitative gate → revise — a closed refinement loop</text>
+
+  <!-- Box 1: CME Engine -->
+  <g>
+    <rect x="60" y="140" width="320" height="170" rx="18" fill="#171c26" stroke="#c9a227" stroke-width="2" stroke-dasharray="10 7"/>
+    <circle cx="92" cy="140" r="17" fill="#c9a227"/>
+    <text x="92" y="146" text-anchor="middle" font-size="19" font-weight="700" fill="#0f1218">1</text>
+    <g stroke="#d4b36a" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M194 196 V160 M194 196 H246"/>
+      <polyline points="198,190 212,174 224,182 242,166"/>
+    </g>
+    <text x="220" y="238" text-anchor="middle" font-size="21" font-weight="700" fill="#ece5d3">CME Engine</text>
+    <text x="220" y="266" text-anchor="middle" font-size="14.5" fill="#98a2b3">forward-looking μ · σ · ρ</text>
+    <text x="220" y="288" text-anchor="middle" font-size="14.5" fill="#98a2b3">per asset class</text>
+  </g>
+
+  <!-- Box 2: IPS Generator -->
+  <g>
+    <rect x="460" y="140" width="320" height="170" rx="18" fill="#171c26" stroke="#c9a227" stroke-width="2" stroke-dasharray="10 7"/>
+    <circle cx="492" cy="140" r="17" fill="#c9a227"/>
+    <text x="492" y="146" text-anchor="middle" font-size="19" font-weight="700" fill="#0f1218">2</text>
+    <g stroke="#d4b36a" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="604" y="158" width="26" height="34" rx="3"/>
+      <path d="M610 166 H624 M610 173 H624"/>
+      <path d="M634 192 L646 180 M646 180 L649 177 M634 192 L631 195"/>
+    </g>
+    <text x="620" y="238" text-anchor="middle" font-size="21" font-weight="700" fill="#ece5d3">IPS Generator</text>
+    <text x="620" y="266" text-anchor="middle" font-size="14.5" fill="#98a2b3">drafts the SAA strategy</text>
+    <text x="620" y="288" text-anchor="middle" font-size="14.5" fill="#98a2b3">CurrencyPolicy · FeeSchedule</text>
+  </g>
+
+  <!-- Box 3: 3-Dim Review -->
+  <g>
+    <rect x="860" y="140" width="320" height="170" rx="18" fill="#171c26" stroke="#c9a227" stroke-width="2" stroke-dasharray="10 7"/>
+    <circle cx="892" cy="140" r="17" fill="#c9a227"/>
+    <text x="892" y="146" text-anchor="middle" font-size="19" font-weight="700" fill="#0f1218">3</text>
+    <g stroke="#d4b36a" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M1020 156 L1036 162 V176 Q1036 190 1020 196 Q1004 190 1004 176 V162 Z"/>
+      <path d="M1013 177 L1018 182 L1028 171"/>
+    </g>
+    <text x="1020" y="238" text-anchor="middle" font-size="21" font-weight="700" fill="#ece5d3">3-Dim Review</text>
+    <text x="1020" y="266" text-anchor="middle" font-size="14.5" fill="#98a2b3">Suitability · Compliance</text>
+    <text x="1020" y="288" text-anchor="middle" font-size="14.5" fill="#98a2b3">Consistency</text>
+  </g>
+
+  <!-- Box 4: SAA Quant Gate -->
+  <g>
+    <rect x="860" y="400" width="320" height="170" rx="18" fill="#171c26" stroke="#c9a227" stroke-width="2" stroke-dasharray="10 7"/>
+    <circle cx="892" cy="400" r="17" fill="#c9a227"/>
+    <text x="892" y="406" text-anchor="middle" font-size="19" font-weight="700" fill="#0f1218">4</text>
+    <g stroke="#d4b36a" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M1002 452 A 20 20 0 0 1 1038 452"/>
+      <path d="M1020 452 L1031 439"/>
+      <circle cx="1020" cy="452" r="2.5" fill="#d4b36a"/>
+    </g>
+    <text x="1020" y="498" text-anchor="middle" font-size="21" font-weight="700" fill="#ece5d3">SAA Quant Gate</text>
+    <text x="1020" y="526" text-anchor="middle" font-size="14.5" fill="#98a2b3">σ_p within the risk band?</text>
+    <text x="1020" y="548" text-anchor="middle" font-size="14.5" fill="#98a2b3">hard math check, no hallucinations</text>
+  </g>
+
+  <!-- Box 5: Reviser -->
+  <g>
+    <rect x="460" y="400" width="320" height="170" rx="18" fill="#171c26" stroke="#c9a227" stroke-width="2" stroke-dasharray="10 7"/>
+    <circle cx="492" cy="400" r="17" fill="#c9a227"/>
+    <text x="492" y="406" text-anchor="middle" font-size="19" font-weight="700" fill="#0f1218">5</text>
+    <g stroke="#d4b36a" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M604 447 A 17 17 0 0 1 630 435"/>
+      <path d="M630 435 L630 442 M630 435 L623 436"/>
+      <path d="M636 451 A 17 17 0 0 1 610 463"/>
+      <path d="M610 463 L610 456 M610 463 L617 462"/>
+    </g>
+    <text x="620" y="498" text-anchor="middle" font-size="21" font-weight="700" fill="#ece5d3">Reviser Agent</text>
+    <text x="620" y="526" text-anchor="middle" font-size="14.5" fill="#98a2b3">precision fix on review issues</text>
+  </g>
+
+  <!-- Box 6: Finalize & Audit -->
+  <g>
+    <rect x="60" y="400" width="320" height="170" rx="18" fill="#171c26" stroke="#c9a227" stroke-width="2" stroke-dasharray="10 7"/>
+    <circle cx="92" cy="400" r="17" fill="#c9a227"/>
+    <text x="92" y="406" text-anchor="middle" font-size="19" font-weight="700" fill="#0f1218">6</text>
+    <g stroke="#d4b36a" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="204" y="444" width="32" height="20" rx="3"/>
+      <path d="M220 452 V428 M213 435 L220 428 L227 435"/>
+    </g>
+    <text x="220" y="498" text-anchor="middle" font-size="21" font-weight="700" fill="#ece5d3">Finalize &amp; Audit</text>
+    <text x="220" y="526" text-anchor="middle" font-size="14.5" fill="#98a2b3">export Markdown · PDF · JSON</text>
+    <text x="220" y="548" text-anchor="middle" font-size="14.5" fill="#98a2b3">full audit trail</text>
+  </g>
+
+  <!-- Forward arrows -->
+  <line x1="382" y1="225" x2="452" y2="225" stroke="#d4b36a" stroke-width="3.5" marker-end="url(#arrow)"/>
+  <line x1="782" y1="225" x2="852" y2="225" stroke="#d4b36a" stroke-width="3.5" marker-end="url(#arrow)"/>
+  <line x1="1020" y1="312" x2="1020" y2="392" stroke="#d4b36a" stroke-width="3.5" marker-end="url(#arrow)"/>
+
+  <!-- Issues path: 4 -> 5 -->
+  <line x1="858" y1="485" x2="788" y2="485" stroke="#c4553d" stroke-width="3.5" marker-end="url(#arrow-cinnabar)"/>
+  <text x="822" y="467" text-anchor="middle" font-size="14.5" font-weight="600" fill="#c4553d">issues found</text>
+
+  <!-- Regeneration loop: 5 -> 2 -->
+  <line x1="620" y1="398" x2="620" y2="320" stroke="#c4553d" stroke-width="3" stroke-dasharray="9 7" marker-end="url(#arrow-cinnabar)"/>
+  <text x="608" y="362" text-anchor="end" font-size="14.5" font-weight="600" fill="#c4553d">regenerate · ≤ 3 rounds</text>
+
+  <!-- Pass path: 4 -> 6 -->
+  <path d="M1020 572 V614 H220 V580" stroke="#4aa37e" stroke-width="3.5" fill="none" marker-end="url(#arrow-jade)"/>
+  <text x="620" y="606" text-anchor="middle" font-size="14.5" font-weight="600" fill="#4aa37e">all passed · finalize &amp; audit</text>
+</svg>
