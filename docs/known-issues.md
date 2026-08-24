@@ -83,6 +83,28 @@
 
 ---
 
+## KI-003 · 含 Bitcoin（混合交易日历）时 Mean-CVaR 优化报 linprog 非有限输入错误
+
+**发现日期**：2026-08-24（用户实测反馈）　**状态**：已修复（2026-08-24）　**优先级**：中
+
+### 现象
+
+组合优化器选中 Bitcoin 后跑 Mean-CVaR（任意目标/置信度），422 报错 `Invalid input for linprog: A_ub must not contain values inf, nan, or None`；同组资产改跑 MVO / 重采样 / BL 均正常。
+
+### 根因
+
+- **日历错位**：BTC-USD 七日均交易，股票/ETF 仅工作日。`yf.download` 按日期并集对齐后，周末行股票列为 NaN，而 `fetch_price_history` / `compute_returns` 只 `dropna(how="all")`，这些行存活；且 `pct_change` 的 NaN 会向后传播一行（周末后的周一收益也变 NaN）。实测 SPY/EFA/BTC-USD 3Y：价格 1098 行中 347 行含 NaN，收益率矩阵 1097 行中 512 行含 NaN。
+- **LP 不容忍 NaN**：MVO 等路径经 pandas `mean`（skipna）/ `cov`（成对完整观测）天然容忍 NaN；Mean-CVaR 的 Rockafellar-Uryasev LP 把 `returns.values` 直接拼进 `A_ub`，HiGHS 拒绝非有限输入。同机制可触发的还有 A 股资产（ASHR/511010.SS 与美股假日历错位）及上市日晚于窗口起点的资产。
+
+### 修复记录（2026-08-24）
+
+- `_solve_cvar_lp` 改用完全案例（complete-case）场景集：`self.returns.dropna().values`；零完整行时抛干净的 `ValueError` 而非求解器崩溃。`cvar_efficient_frontier` 与 max-STARR 选取共用同一 LP 内核，自动受益。
+- 回归测试 `tests/test_advanced_portfolio.py::TestMeanCVaR` 新增 2 条：日历缺口行容忍（minimize_cvar + 前沿路径）、零完整场景行干净报错。真实数据端到端复跑用户场景（SPY/EFA/BTC-USD 3Y，max-sharpe / min-vol 双模式）均正常产出权重与前沿。
+- **已知取舍**：LP 场景集只保留全资产共同连续交易日（Crypto 混合时约为周二至周五），BTC 周末波动与周一缺口收益不进场景；更完整的处理是行情层先 ffill 价格再算收益（周末股票收益记 0），但会改变所有方法的既有数值口径，未纳入本次修复。
+- 门禁：pytest 991 全绿（含新增 2 条），ruff 双门禁绿。
+
+---
+
 ## FR-001 · AI 生成过程实时显示思维链
 
 **提出日期**：2026-07-26　**状态**：已实现（2026-07-26，v0.9.0）　**优先级**：中（体验增强）

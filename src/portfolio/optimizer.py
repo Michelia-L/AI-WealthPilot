@@ -750,8 +750,17 @@ class PortfolioOptimizer:
         Raises:
             ValueError: When the LP is infeasible (e.g. unreachable target).
         """
-        R = self.returns.values  # (S, N) daily scenarios
+        # Complete-case scenarios only: mixed trading calendars (crypto
+        # trades on weekends, CN/US holiday calendars differ) leave NaN
+        # cells in the returns frame, and HiGHS rejects non-finite A_ub
+        # outright. The mean/variance paths tolerate NaN via pandas
+        # skipna / pairwise cov; the LP cannot.
+        R = self.returns.dropna().values  # (S, N) daily scenarios
         S = R.shape[0]
+        if S == 0:
+            raise ValueError(
+                "Mean-CVaR LP needs at least one fully-populated return scenario"
+            )
         n = self.n_assets
 
         c = np.concatenate(

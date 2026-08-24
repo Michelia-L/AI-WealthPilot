@@ -818,6 +818,31 @@ class TestMeanCVaR:
         with pytest.raises(ValueError, match="infeasible"):
             opt.minimize_cvar(target_return=10.0)
 
+    def test_minimize_cvar_tolerates_calendar_gap_rows(self, sample_returns):
+        """Mixed trading calendars (crypto weekends, CN/US holidays) leave
+        NaN cells in the returns frame; the LP must solve on complete-case
+        scenario rows instead of feeding NaN to HiGHS."""
+        gapped = sample_returns.copy()
+        # BTC-style pattern: two weekday-only assets missing every 3rd row
+        gapped.iloc[::3, :2] = np.nan
+        opt = PortfolioOptimizer(gapped)
+        result = opt.minimize_cvar(beta=0.95)
+        assert result["success"]
+        assert np.isfinite(result["cvar"])
+        assert abs(sum(result["weights"].values()) - 1.0) < 1e-6
+        # The frontier path (max-Sharpe mode) shares the same LP core.
+        frontier = opt.cvar_efficient_frontier(n_points=5, beta=0.95)
+        assert not frontier.empty
+
+    def test_minimize_cvar_no_complete_scenarios_raises(self, sample_returns):
+        """Zero fully-populated scenario rows → clean ValueError, no solver crash."""
+        gapped = sample_returns.copy()
+        gapped.iloc[0::2, 0] = np.nan
+        gapped.iloc[1::2, 1] = np.nan
+        opt = PortfolioOptimizer(gapped)
+        with pytest.raises(ValueError, match="fully-populated"):
+            opt.minimize_cvar()
+
     def test_cvar_frontier_shape_and_columns(self, sample_returns):
         opt = PortfolioOptimizer(sample_returns)
         frontier = opt.cvar_efficient_frontier(n_points=10, beta=0.95)
