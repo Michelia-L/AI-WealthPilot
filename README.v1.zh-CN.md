@@ -1,0 +1,468 @@
+<p align="right">
+  <a href="./README.v1.md">English</a> | <strong>简体中文</strong>
+</p>
+
+<div align="center">
+  <img src="docs/images/logo.png" alt="AI WealthPilot Logo" height="120" />
+
+  # AI WealthPilot
+
+  *面向实务的智能财富管理原型与组合量化引擎*
+
+  [![Python](https://img.shields.io/badge/Python-3.11+-blue?style=flat-square&logo=python&logoColor=white)](https://www.python.org)
+  [![Next.js](https://img.shields.io/badge/Frontend-Next.js-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
+  [![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+  [![LangGraph](https://img.shields.io/badge/Agent-LangGraph-9f1239?style=flat-square&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
+  [![PydanticAI](https://img.shields.io/badge/Framework-Pydantic--AI-0284c7?style=flat-square)](https://ai.pydantic.dev/)
+  [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+  [![Build](https://github.com/Michelia-L/AI-WealthPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/Michelia-L/AI-WealthPilot/actions/workflows/ci.yml)
+
+  ⭐ 如果你喜欢这个项目，请在 GitHub 上点个 Star！这对我很有帮助！
+
+  [项目概述](#项目概述) • [核心功能](#核心功能) • [系统架构](#系统架构) • [量化数学模型](#量化数学模型) • [目录结构](#目录结构) • [快速开始](#快速开始) • [运行测试](#运行测试) • [运行演示脚本](#运行演示脚本) • [免责声明](#免责声明)
+
+</div>
+
+---
+
+## 项目概述
+
+**AI WealthPilot** 是一个面向私人财富管理场景的资产配置与决策支持原型系统。它将私人财富管理领域的业界标准方法论具象化为可运行的量化代码，在学术严谨性与现代软件工程之间架起桥梁。
+
+该系统深度融合了 **均值-方差优化 (MVO)** 与 **几何布朗运动 (GBM)** 财富生命周期蒙特卡洛路径模拟器，并搭载 **AI 顾问 Agent** 识别行为金融学偏差，生成个性化的配置建议书。
+
+> [!TIP]
+> 系统的量化优化引擎与行情看板支持完全离线使用。如果配置了 DeepSeek API Key，将能完整激活 AI 顾问的流式建议书生成服务。
+
+---
+
+## 界面一览
+
+| 总览驾驶舱 | 市场仪表盘 |
+| --- | --- |
+| ![总览驾驶舱](docs/images/screenshots/overview-zh.png) | ![市场仪表盘](docs/images/screenshots/market-zh.png) |
+| **客户枢纽** | **组合监控** |
+| ![客户枢纽](docs/images/screenshots/hub-zh.png) | ![组合监控](docs/images/screenshots/monitoring-zh.png) |
+
+---
+
+## 核心功能
+
+- 🎓 **业界标准风险评估框架**  
+  实现客观财务**承受能力 (Ability)** 与主观心理**承担意愿 (Willingness)** 的双轨制风险承受度 model。严格执行审慎原则，当两者冲突时“就低不就高”，以最大化保护客户利益。
+- 🧮 **现代投资组合理论优化与正则化 (MPT/MVO)**  
+  利用 `SciPy` 的 SLSQP 算法求解约束优化问题，绘制有效前沿 (Efficient Frontier)，求解切点组合 (Tangency Portfolio，即最大夏普比率组合) 以及资本配置线 (CAL)。实现自动条件数检测与对角加载（Diagonal Loading）或特征值裁剪（Eigenvalue Clipping）的数值正则化，确保数值稳定性。
+- 💎 **协方差矩阵收缩估计量**  
+  支持 Ledoit-Wolf 和 OAS (Oracle Approximating Shrinkage) 估计量（依赖 `scikit-learn`），与传统样本协方差相比，能够显著降低 MVO 对输入参数估计误差的敏感度，解决噪声扩展问题。
+- 📈 **资本市场预期 (CME) 引擎**  
+  基于 `yfinance` 实时行情数据，按资产类别计算年化收益率、波动率、夏普比率、最大回撤、VaR/CVaR 以及跨资产相关性矩阵。实现按基准币种的无风险利率获取链——人民币：akshare 中债国债 1 年期收益率 → 静态回退 2%；美元：FRED API（3个月期国债 DGS3MO）→ yfinance（`^IRX` 13周国库券）→ 静态回退 $4.5\%$——且 CME 全部资产类别收益统一换算为人民币口径（含未对冲汇率敞口）。，并在所有动态数据源失效时自动加载静态 JSON 回退文件。**新特性：前瞻性隐含波动率**通过 VIX（`^VIX`）和 MOVE（`^MOVE`）指数获取，并采用**固定权重加权混合**（$\sigma_{\text{blended}} = \tau \cdot \sigma_{\text{IV}} + (1-\tau) \cdot \sigma_{\text{hist}}$）与历史波动率融合，对缺乏可靠 IV 代理的资产类别优雅降级。**预期收益率升级为前视 building-blocks 与历史均值的混合**（$\mu = \omega \cdot \mu_{\text{forward}} + (1-\omega) \cdot \mu_{\text{hist}}$，$\omega$ 默认 0.5）：权益=股息率+长期增长假设，固收=到期收益率代理，黄金=通胀假设，现金=无风险利率，前视输入不可用的资产类别回退为纯历史均值。CME 数据可被格式化并直接注入 LLM 提示词，确保 AI 生成的投资策略基于真实市场条件。同一套预期收益亦可直接驱动组合优化器（`expected_return_source="cme"`），使 IPS 叙事与优化输入保持同一口径。
+- 🔄 **重抽样有效前沿 (Michaud 方法)**  
+  针对传统 MVO 的"垃圾进，垃圾出"参数敏感性问题，从多元正态分布 $\mu_i \sim \mathcal{N}(\hat{\mu}, \Sigma/T)$ 中模拟 $N$ 组预期收益率，对每次模拟分别计算有效前沿，再在统一的收益率轴上插值对齐后逐点取平均。相比传统单次抽样的 MVO，能产生更加多元化和稳定的投资组合权重。
+- 📉 **Mean-CVaR 尾部风险优化**  
+  以尾部损失为直接优化目标，基于 Rockafellar-Uryasev 线性规划公式（scipy HiGHS 求解器）在历史日收益经验场景上求解——全程确定性，无蒙特卡洛抽样。置信水平可配置（90% / 95% / 99%），并将 CVaR 最优组合映射回均值-方差空间，与传统有效前沿同图对比。
+- ⚖️ **LDI 盈余优化（Sharpe-Tint）**  
+  面向个人家庭的负债驱动投资：负债以固定空头进入优化，最大化单位盈余波动的盈余收益（$E(R_S) = w^\top\mu - k\,\mu_L$，$\mathrm{Var}(R_S) = w^\top\Sigma w - 2k\,w^\top c + k^2\sigma_L^2$），配置自动倾向对冲负债的债券资产。负债为现金流流，三条通道——手动负债比率/久期、客户画像目标（名义口径）、**退休收入流**（今日购买力年收入按个人通胀 preset 逐年放大，老年客户自动获得 CPI-E 风格上调）——现值**按中债国债收益率曲线逐期限折现**（tushare → akshare 级联，统一无风险利率兜底），负债波动率与资产-负债协方差**优先由同一曲线历史直接估计**（$r_L \approx -D_L\,\Delta y(D_L)$，曲线历史不可用时回退久期缩放代理，响应披露所用路径），对冲代理为久期缩放的债券 ETF（AGG / TLT / TIP / 511010 上证 5 年期国债 ETF），无需手设相关性。
+- 🌐 **风险平价（等风险贡献 ERC）**  
+  按风险预算而非收益预测做配置：Spinu 凸规划（$\min_w\; \tfrac{1}{2} w^\top \Sigma w - \sum_i \ln w_i$）使每个资产对组合方差的风险贡献严格相等（各 $1/N$）——log-barrier 保证仅多头，且不受困扰 MVO 的预期收益估计误差影响。结果与经典 MVO 有效前沿同图对照，并披露各资产风险贡献以供核验。
+- 📐 **资产类别层级的权重约束**  
+  支持在群组层级（如股票类、债券类、另类资产类）注入最小/最大权重约束，而不仅限于单资产约束，支持群组层级的战略资产配置（SAA）指引。
+- 🎲 **生命周期蒙特卡洛模拟**  
+  基于离散时间**几何布朗运动 (GBM)** 随机过程，并引入 **Jensen 不等式对数正态修正 (波动率拖累修正)** 进行 10,000 条财富路径模拟，真实还原“退休前积累”与“退休后提取”的双阶段演化。预期收益与波动率可一键采用 **CME 前视建议**（均衡参考组合：$\mu_p = w^\top\mu_{\text{CME}}$，$\sigma_p$ 由混合波动率与 CME 相关矩阵合成；选择客户后按其风险等级从风险约束上限推导参考权重），与优化器/IPS 同一口径。选择客户还会按画像预填年龄、储蓄与收支。提款按人群专属（CPI-E 风格）支取期通胀率调整，并可选用 **Guyton-Klinger 动态护栏**——当前提款率越出初始提款率的护栏带时削减、领先时回补——同时报告固定提款策略在同随机序列下的存活率基线。
+- 🛡️ **精细化尾部风险度量**  
+  提供只惩罚下行波动的 **Sortino Ratio (索提诺比率)**，并基于历史模拟法提供高精度的日度 **VaR (在险价值)** 与 **CVaR (条件在险价值/预期亏损)** 评估，特别适用于非对称、肥尾分布资产。
+- ⏪ **历史回测与压力测试**  
+  将任意 IPS 战略配置（SAA）以月初再平衡方式放入历史行情回放，对照 60/40 股债基准输出年化收益、波动率、夏普、含峰值/谷底日期的最大回撤与分年度收益，并内置 2008 金融危机、2020 新冠、2022 加息冲击三个危机情景的固定窗口复盘。新增 **Brinson-Fachler 业绩归因**：沿回测自身的再平衡日历逐月分解、Carino 对数链接累计，把累计超额收益精确拆成配置/选择/交互三效应并按资产组披露（恒等式逐月精确成立）。
+- 👥 **多客户画像对比分析系统**  
+  支持多客户画像的横向对比与全景洞察，自动计算风险偏好、储蓄率、行为偏差等维度的差异，并生成结构化的对比 JSON 报告与分析洞察。
+- 🕸️ **LangGraph 多智能体闭环 IPS 工作流（生成-审查-修订）**  
+  基于 `LangGraph` 与 `PydanticAI` 构建了多智能体自动化审批链。系统首先由 **CME 引擎**计算资本市场预期数据，再由 **IPS 生成 Agent** 编排初稿（包含多币种对冲策略的 **CurrencyPolicy** 和含 TER 计算的 **FeeSchedule**），随后经由三个独立专家 Agent 从**适配性**（客户需求匹配）、**合规性**（法律条文准入与权重极值）和**一致性**（前后章节数学逻辑闭环）三个维度进行多轮审查与流式自我纠偏。定量 **SAA 验证**节点在终审前通过 $\sigma_p = \sqrt{w^T \Sigma w}$ 计算组合波动率并与风险容忍区间交叉校验，最终留存结构化的审计追踪（Audit Trail）。
+- ⧉ **Black-Litterman 观点集成优化引擎**  
+  支持基于反向 CAPM 原理，从等权或自定义基准权重推导市场隐含均衡收益率（Prior，当前未接入真实市值数据），并允许用户注入个性化的绝对观点或相对观点（含自定义置信度矩阵）。**先验可切换为 CME 前视预期收益**（`expected_return_source="cme"`，ω 混合口径；未覆盖资产的先验回退为均衡收益并披露），让观点从前视锚点而非纯市场均衡出发。通过贝叶斯推断将 Baseline 与投资者观点无缝融合，有效解决传统均值-方差优化（MVO）对历史数据估计误差高敏感、容易产生极端资产配比的痛点。
+- 🤖 **AI 顾问 Agent**  
+  基于先进大语言模型 (`DeepSeek V4 Pro`) 深度分析客户多维指标，识别其可能存在的行为金融偏差——包括**损失厌恶**、**过度自信**、**能力-意愿错配**、**杠杆风险**和**安全网不足**——生成专业、合规的流式理财建议书。生成过程实时展示模型思维链，并支持在「设置」页接入任何 OpenAI 兼容端点（DeepSeek、通义、OpenAI、本地 vLLM/Ollama 等）。
+- 📄 **多格式高级文档导出**  
+  支持将 AI 顾问建议书无缝转换为带 CJK 字体支持、信纸样式的 PDF 文档，以及独立的精美 HTML、Markdown 与原生 JSON 格式，便于跨平台分发和打印。
+- 🛰️ **多源行情数据主干**  
+  路由式行情数据层：映射的 A 股指数按 **Tushare Pro → akshare → yfinance** 顺序取首个成功源，美股/全球资产保持 yfinance 主干；内置**新鲜度守卫**识别静默陈旧的源快照，坏价格帧在进缓存前即被拒绝。
+- 📊 **「墨金私行」设计系统**  
+  自研深色编辑风设计系统——曜石灰 × 香槟金、Fraunces 衬线展示字体、双层 bezel 面板、细线图标体系，基于 **Next.js + Tailwind v4** 的完整组件库。工作台覆盖完整顾问工作流：总览驾驶舱 → 市场 → 客户枢纽 → AI 顾问 → IPS → 交付物中心 → 组合监控（SAA 漂移与复衡）。LLM token 与任务进度经 SSE 实时推送，Plotly 图表服务端渲染、前端再套主题。
+- 🌐 **中英文双语界面与 AI 产出**  
+  侧边栏一键切换界面语言（cookie 持久化，新访客默认英文）。UI 文案集中于类型安全字典（`web/src/lib/i18n/`），后端一切用户可见文案随 `X-Locale` 请求头切换——API 错误信息、SSE 进度标签、组合监控备注，以及 AI 生成的交付物（顾问报告、IPS 文档、复衡建议）均按所选语言产出。
+
+---
+
+## 系统架构
+
+下图展示了系统的前端交互、量化计算引擎、持久化存储以及 AI Agent 层的通信与数据流向：
+
+```mermaid
+graph TB
+    subgraph UI_Layer ["Interactive Client Layer (Next.js + FastAPI)"]
+        UI[Next.js Frontend<br/>App Router · SSE Streaming]
+        API[FastAPI Shell<br/>REST / SSE transport over src/]
+        P1[Market Dashboard]
+        P2[Portfolio Optimizer]
+        P3[Retirement Planner]
+        P4[Client Profiling]
+        P5[AI Advisor]
+        P6[IPS Generator]
+    end
+
+    subgraph Quant_Engine ["Quantitative Finance Engine"]
+        MVO[MVO Optimizer<br/>SciPy SLSQP Constraint Solver]
+        MC[Monte Carlo Simulator<br/>GBM Path Generator]
+        RM[Risk Metrics Evaluator<br/>VaR / CVaR / Sortino / Drawdown]
+        CME[CME Engine<br/>Capital Market Expectations]
+    end
+
+    subgraph Multi_Agent_IPS ["LangGraph Multi-Agent IPS Pipeline"]
+        CME_Node[Generate CME Node<br/>Market Data → LLM Prompt]
+        Gen[Generator Agent<br/>PydanticAI Draft]
+        Rev_S[Suitability Reviewer]
+        Rev_C[Compliance Reviewer]
+        Rev_Co[Consistency Reviewer]
+        SAA[SAA Validator<br/>σ_p = √wᵀΣw]
+        Reviser[Reviser Agent<br/>Precision Fix]
+        
+        CME_Node --> Gen --> Rev_S --> Rev_C --> Rev_Co --> SAA
+        SAA -- "Issues Found" --> Reviser --> Gen
+        SAA -- "All Passed / Max Loops" --> Final[Finalize & Audit]
+    end
+
+    subgraph Data_Layer ["Data Pipeline & Persistence"]
+        YF[yfinance API<br/>Real-time Quotes & FX Rates]
+        JSON_DB[(Client Profiles<br/>SQLite + legacy JSON import)]
+        IPS_DB[(IPS & Audit Trail<br/>JSON Store)]
+    end
+
+    %% UI Routing
+    UI --> API
+    API --> P1 & P2 & P3 & P4 & P5 & P6
+
+    %% Market Data Flow
+    P1 --> YF
+    YF --> RM
+    YF --> CME
+    RM --> P1
+    CME --> CME_Node
+
+    %% Optimizer Flow
+    P2 --> MVO
+    MVO --> RM
+    MVO --> P2
+
+    %% Monte Carlo Flow
+    P3 --> MC
+    MC --> P3
+
+    %% Profiling Flow
+    P4 --> JSON_DB
+    JSON_DB --> Gen
+    
+    %% Storage Flow
+    Final --> IPS_DB
+    P5 --> IPS_DB
+    P6 --> IPS_DB
+    
+    style UI fill:#4f46e5,stroke:#312e81,color:#fff
+    style MVO fill:#0284c7,stroke:#075985,color:#fff
+    style MC fill:#0284c7,stroke:#075985,color:#fff
+    style RM fill:#0ea5e9,stroke:#0369a1,color:#fff
+    style CME fill:#0ea5e9,stroke:#0369a1,color:#fff
+    style Multi_Agent_IPS fill:#5b21b6,stroke:#4c1d95,color:#fff
+    style Gen fill:#7c3aed,stroke:#5b21b6,color:#fff
+    style Reviser fill:#7c3aed,stroke:#5b21b6,color:#fff
+    style CME_Node fill:#7c3aed,stroke:#5b21b6,color:#fff
+    style SAA fill:#7c3aed,stroke:#5b21b6,color:#fff
+    style YF fill:#059669,stroke:#064e3b,color:#fff
+    style JSON_DB fill:#10b981,stroke:#065f46,color:#fff
+    style IPS_DB fill:#10b981,stroke:#065f46,color:#fff
+```
+
+---
+
+## 量化数学模型
+
+### 1. 均值-方差优化 (MVO)
+已知多资产协方差矩阵与预期收益率，系统使用 `SLSQP` 算法求解以下受约束的非线性优化问题：
+
+*   **目标函数（最小化组合方差）**：
+    $$\min_{w} \sigma_p^2 = w^T \Sigma w$$
+*   **约束条件**：
+    $$\sum_{i=1}^N w_i = 1 \quad (\text{全额投资约束})$$
+    $$w_i \in [0, 1] \quad (\text{仅做多约束})$$
+    $$w^T \mu = R_{\text{target}} \quad (\text{目标收益率约束})$$
+    $$\min_{c} \le \sum_{i \in \mathcal{C}_c} w_i \le \max_{c} \quad (\text{资产类别群组约束})$$
+
+其中 $w \in \mathbb{R}^N$ 为投资资产权重向量，$\Sigma \in \mathbb{R}^{N \times N}$ 为年化资产协方差矩阵，$\mu \in \mathbb{R}^N$ 为年化资产预期收益率向量，$\mathcal{C}_c$ 为属于资产类别群组 $c$ 的资产索引集合。
+
+*注：在资产配置优化（MVO）中，我们采用传统的**算术收益率**，因为资产组合的预期收益具有横截面可加性（即 $R_p = w^T \mu$）。*
+
+### 2. 协方差收缩与数值正则化
+为了降低估计误差和噪声，多资产协方差矩阵 $\Sigma$ 可以使用收缩估计量进行估计，或在条件数过大时进行正则化：
+
+*   **Ledoit-Wolf 与 OAS 收缩**：将样本协方差矩阵 $S$ 与高度结构化的目标矩阵 $F$（如常相关模型）进行线性组合：
+    $$\Sigma_{\text{shrunk}} = (1 - \rho) S + \rho F$$
+    其中 $\rho \in (0, 1)$ 是通过 Ledoit-Wolf 或 OAS 算法解析计算出的最优收缩强度。
+*   **条件数检测与对角加载**：如果条件数 $\text{cond}(\Sigma) > 10^{10}$（表示矩阵接近奇异且极其病态），则通过对角加载进行正则化：
+    $$\Sigma_{\text{reg}} = \Sigma + \epsilon I$$
+    其中 $\epsilon = 10^{-6}$，$I$ 为单位矩阵。
+*   **特征值裁剪**：将小特征值或负特征值裁剪为正值门限，以确保矩阵的半正定性：
+    $$\Sigma_{\text{reg}} = V \max(\Lambda, \epsilon) V^T$$
+    其中 $\Lambda$ 是特征值对角矩阵，$V$ 是对应的特征向量矩阵。
+
+### 3. 资本配置线 (CAL) 与切点组合 (Tangency Portfolio)
+切点组合代表了在无风险利率下最大化夏普比率 (Sharpe Ratio) 的最优投资组合组合：
+
+$$\max_{w} \text{Sharpe} = \frac{w^T \mu - R_f}{\sqrt{w^T \Sigma w}}$$
+
+其中 $R_f$ 为年化无风险利率，通过三级级联机制获取：FRED API（3个月期国债 DGS3MO）→ yfinance（`^IRX` 13周国库券）→ 静态回退值 $4.5\%$。
+
+### 4. 几何布朗运动 (GBM) 与波动率拖累修正 (Volatility Drag)
+为对长期财富变化做合理模拟，系统采用离散时间步长的几何布朗运动，引入了 Jensen 不等式对数正态修正（即波动率拖累修正），以防止多期累计产生的系统性高估：
+
+$$S_{t+\Delta t} = S_t \exp \left( \left(\mu - \frac{1}{2}\sigma^2\right)\Delta t + \sigma \sqrt{\Delta t} Z_t \right)$$
+
+- **积累阶段（Accumulation Phase）**：
+  $$V_{t+1} = V_t \exp \left( \left(\mu_{\text{acc}} - \frac{1}{2}\sigma_{\text{acc}}^2\right) + \sigma_{\text{acc}} Z_t \right) + \text{Annual Savings}$$
+- **分配阶段（Distribution/Retirement Phase）**：
+  $$V_{t+1} = V_t \exp \left( \left(\mu_{\text{dist}} - \frac{1}{2}\sigma_{\text{dist}}^2\right) + \sigma_{\text{dist}} Z_t \right) - \text{Nominal Withdrawal}_t$$
+  其中，名义提取额名义值会随通胀逐年进行动态修正：
+  $$\text{Nominal Withdrawal}_t = \text{Desired Real Income} \times (1 + \gamma)^{T_{\text{accum}} + t}$$
+  其中 $\gamma$ 代表年化通货膨胀率假设，$T_{\text{accum}}$ 为工作积累期年数，以确保模型精确维护退休后的实际购买力支出需求，遵循业界对长寿风险与通胀侵蚀的标准定量度量。
+
+*注：在进行长周期、多期的资产路径模拟中，由于单期收益率的复利效应和波动率拖累（Volatility Drag），我们必须采用对数收益率（几何均值收益率），它具有时间可加性。引入的 $-\frac{1}{2}\sigma^2$ 项为 Jensen 不等式修正，能够消除对多期累计财富的系统性高估。*
+
+### 5. 尾部风险与下行偏差统计
+- **下行偏差 ($\sigma_{\text{downside}}$)**：仅对低于零或无风险收益率的波动进行惩罚。
+  $$\sigma_{\text{downside}} = \sqrt{\frac{252}{T} \sum_{t=1}^T \left(\min(R_{p,t}, 0)\right)^2}$$
+- **Sortino 比率**：
+  $$\text{Sortino Ratio} = \frac{R_p - R_f}{\sigma_{\text{downside}}}$$
+- **在险价值 (VaR)** 和 **条件在险价值 (CVaR)**：基于历史模拟法在 $\alpha = 95\%$ 置信水平下进行非对称及肥尾分布计算。
+
+---
+
+## 目录结构
+
+```
+AI-WealthPilot/
+├── src/
+│   ├── config.py                 # 核心配置（13类资产配置）、超参数与系统设置
+│   ├── utils.py                  # 文件名清洗工具函数
+│   ├── portfolio/                # 【量化计算引擎】
+│   │   ├── optimizer.py          # MVO 求解器、切点优化、LDI 盈余求解器、狄利克雷随机散点生成
+│   │   ├── simulator.py          # GBM 模拟器、退休两阶段生命周期生成器
+│   │   ├── risk_metrics.py       # 风险指标计算（Sharpe, Sortino, VaR, CVaR）
+│   │   ├── views.py              # Black-Litterman 观点编码（P/Q/Omega 矩阵，Idzorek 置信度法）
+│   │   ├── cme_engine.py         # 资本市场预期 (CME) 引擎与无风险利率级联
+│   │   ├── forward_returns.py    # 前视 building-blocks 预期收益（与历史均值 ω 混合）
+│   │   ├── cme_models.py         # CME Pydantic 数据模型（CMEReport, SAAValidationResult）
+│   │   ├── cme_cache.py          # CME 预期数据缓存管理与本地持久化工具
+│   │   ├── backtest.py           # 月初再平衡回测引擎与危机情景压力测试
+│   │   ├── attribution.py        # Brinson-Fachler 业绩归因与 Carino 对数链接
+│   │   ├── liabilities.py        # LDI 负债现金流建模（Sharpe-Tint 盈余优化）
+│   │   ├── inflation.py          # 个人（人群 / 生活方式）通胀预设
+│   │   ├── monitoring.py         # SAA 漂移监控与复衡信号
+│   │   ├── risk_constraints.py   # 风险等级 → 资产组权重上限映射
+│   │   └── optimize_service.py   # /portfolio/optimize 的方法执行器（MVO/BL/CVaR/盈余/ERC 分派）
+│   ├── data/                     # 【数据拉取模块】
+│   │   ├── market_data.py        # 多源路由行情拉取、多币种汇率转换与相关性矩阵计算
+│   │   ├── tushare_provider.py   # Tushare Pro A 股指数主干（付费，可选）
+│   │   ├── akshare_provider.py   # akshare A 股降级源（免费，可选）
+│   │   ├── yield_curve.py        # 中债国债收益率曲线级联（tushare → akshare）
+│   │   └── implied_volatility.py # VIX/MOVE 隐含波动率拉取与混合代理映射器
+│   ├── visualization/            # 【图表渲染组件】
+│   │   └── charts.py             # Plotly 交互式专业图表
+│   ├── agents/                   # 【AI 决策与智能体层】
+│   │   ├── profiler.py           # 客户档案解析与行为金融偏差检测 Agent
+│   │   ├── advisor.py            # DeepSeek V4 Pro 建议书生成 Agent（流式）
+│   │   ├── portfolio_recommender.py # 客户画像-资产类别风险匹配 Agent
+│   │   ├── rebalance_advisor.py  # LLM 复衡建议生成 Agent（由监控结果驱动）
+│   │   ├── llm_config.py         # LLM 端点解析（DB 设置优先于环境变量）
+│   │   ├── demo_mode.py          # DEMO_MODE 演示模式夹具回放
+│   │   ├── demo_fixtures/        # 录制的虚构样例（顾问 / IPS / 复衡建议）
+│   │   ├── report_storage.py     # 多格式（HTML/Markdown/JSON）建议书序列化存储与导出
+│   │   ├── ips_models.py         # IPS 核心 Pydantic 强类型数据模型（18个模型，含 CurrencyPolicy、FeeSchedule）
+│   │   ├── ips_agents.py         # 基于 PydanticAI 的生成/多审查员/修订 Agent 定义
+│   │   ├── ips_workflow.py       # 基于 LangGraph 的多智能体闭环工作流状态机
+│   │   └── ips_storage.py        # 投资政策声明书及审计历史的本地存储与 MD 导出器
+├── api/                          # 【FastAPI 薄壳 — 仅作 src/ 的传输层】
+│   ├── main.py                   # 应用入口：CORS、路由挂载、/api/health、生命周期（建表 + 首启自动导入）
+│   ├── routers/                  # market / cme / portfolio / retirement / profiles / advisor / ips / monitoring / settings
+│   ├── schemas.py                # 集中式 Pydantic 请求/响应模型
+│   ├── i18n.py                   # 中英双语用户文案消息表与 locale 解析
+│   ├── cache.py                  # 进程内 TTL 缓存（昂贵的只读计算）
+│   ├── db.py                     # SQLModel + SQLite 持久化（data/wealthpilot.db）
+│   ├── tasks.py                  # 通用进程内后台任务注册表 + SSE 事件流
+│   ├── profile_convert.py        # ClientProfile 载荷 ↔ dataclass 转换助手
+│   ├── migrate_profiles.py       # 旧版 JSON 画像导入工具（首启自动播种）
+│   └── Dockerfile                # API 镜像（构建上下文 = 仓库根，运行时 requirements.txt）
+├── web/                          # 【Next.js 前端】
+│   ├── src/app/                  # App Router 页面（总览、市场、优化器、退休规划、画像、顾问、IPS、交付物、监控、设置）
+│   ├── src/components/           # 工作区组件、Plotly 封装、Markdown 渲染器
+│   ├── src/lib/                  # 类型化 API 客户端、SSE 助手、同源代理
+│   └── Dockerfile                # Web 镜像（standalone 输出）
+├── docker-compose.yml            # 一条命令起全栈：web (3000) + api (8000，带健康检查)
+├── tests/                        # 【自动化测试套件】
+│   ├── conftest.py               # Pytest 全局共享 Mock 夹具与配置
+│   ├── test_portfolio.py         # MVO/BL 核心量化引擎单元测试
+│   ├── test_profiler.py          # 客户风险评估双轨制逻辑测试 (31个用例)
+│   ├── test_black_litterman.py   # Black-Litterman 计算矩阵测试
+│   ├── test_advanced_portfolio.py# 重抽样有效前沿与矩阵正则化测试
+│   ├── test_advisor.py           # DeepSeek 顾问 Agent 集成测试
+│   ├── test_market_data.py       # 异步行情接口、多币种汇率转换及缓存加载测试
+│   ├── test_cme_cache.py         # CME 缓存逻辑与过期机制测试
+│   ├── test_cme_engine.py        # CME 计算、IV 混合、静态回退与无风险利率级联测试
+│   ├── test_forward_returns.py   # 前视 building-blocks 收益混合测试
+│   ├── test_implied_volatility.py # 隐含波动率拉取、代理映射与降级处理测试
+│   ├── test_backtest.py          # 回测引擎与危机情景复盘测试
+│   ├── test_attribution.py       # Brinson-Fachler 归因与 Carino 链接测试
+│   ├── test_surplus.py           # LDI 盈余优化与负债流测试
+│   ├── test_yield_curve.py       # 中债收益率曲线级联测试
+│   ├── test_inflation.py         # 个人通胀预设测试
+│   ├── test_tushare_provider.py  # Tushare Pro 数据层测试
+│   ├── test_akshare_provider.py  # akshare 数据层测试
+│   ├── test_rebalance_advisor.py # 复衡建议生成测试
+│   ├── test_locale_generation.py # LLM 提示词与文档按 locale 生成测试
+│   ├── test_ips_models.py        # IPS Pydantic 模型的严格约束边界测试
+│   ├── test_ips_storage.py       # IPS 文档导出与 JSON/Markdown 本地存储验证测试
+│   ├── test_ips_workflow.py      # LangGraph 状态机生成-审查-修订循环测试
+│   ├── test_portfolio_recommender.py # 资产配置推荐建议一致性测试
+│   ├── test_comparison_export.py # 画像对比数据导出与格式化测试
+│   ├── test_phase3_features.py   # 阶段3功能端到端集成测试
+│   ├── test_optimize_service.py  # 优化方法执行器服务层测试（STARR 零 CVaR 守卫）
+│   ├── test_charts.py            # Plotly 图表构建的结构化测试（配色、trace 数量、CAL 数值）
+│   └── test_api_*.py             # FastAPI 端点测试套件（组合、回测、盈余、风险平价、监控、任务、i18n、设置、演示模式等）
+├── examples/                     # 【示例与演示脚本】
+│   ├── demo_quick.py             # 快速入门演示（MVO + BL + 蒙特卡洛）
+│   ├── demo_comprehensive.py     # 完整可视化演示（在浏览器中打开交互式 Plotly 图表）
+│   ├── demo_advanced_optimization.py # 高级优化特性演示（矩阵正则化与重抽样 MVO）
+│   └── demo_ips_generator.py     # LangGraph 驱动的 AI 编排 IPS 多轮迭代生成终端演示
+└── data/
+    ├── cache/                    # 市场行情拉取与 FRED API 数据本地缓存目录
+    ├── profiles/                 # 客户画像 JSON 数据库（Streamlit 时代遗留，可一键导入 SQLite）
+    ├── reports/                  # 生成的理财建议书数据库
+    ├── ips/                      # 生成的标准化 IPS 建议书及审计追踪文件
+    └── sample/                   # 离线 benchmark 行情缓存
+```
+
+---
+
+## 快速开始
+
+### 运行环境
+
+- **Docker Desktop**（推荐），或使用 **Python 3.12** 与 **Node.js 22+** 从源码运行（Windows 用户推荐 WSL2——CI 与 e2e 均为 Linux 语义；开发环境经 `web/.nvmrc` 锁定 Node 24）
+- Git
+
+### 方式 A —— Docker（推荐）
+
+1. **克隆代码仓库**
+   ```bash
+   git clone https://github.com/Michelia-L/AI-WealthPilot.git
+   cd AI-WealthPilot
+   ```
+
+2. **配置环境变量**
+   ```bash
+   cp .env.example .env
+   # 用文本编辑器打开 .env，在其中配置您的 DEEPSEEK_API_KEY 以启用 AI 顾问。
+   # 您可在 DeepSeek 开放平台获取：https://platform.deepseek.com
+   # 可选：配置 TUSHARE_TOKEN，让沪深300 等映射指数走 Tushare Pro 付费主干
+   # （未配置时自动降级 akshare / yfinance）。
+   # 没有 DeepSeek key？可设 DEMO_MODE=1 回放录制的虚构样例
+   # （顾问建议书 / IPS 生成 / 复衡建议），所有页面照常完整可演示。
+   # 演示模式完全离线：行情数据由确定性合成序列提供（src/data/demo_market.py），
+   # 不发起任何 yfinance 调用。
+   ```
+
+   也可以在启动后通过侧边栏「设置」页直接配置任何 OpenAI 兼容端点
+   （DeepSeek、通义、OpenAI、本地 vLLM/Ollama 等），保存即生效、优先级
+   高于环境变量；Key 仅以明文保存在本机 SQLite（data/wealthpilot.db），
+   不会上传他处。
+
+3. **一键启动全栈**
+   ```bash
+   docker compose up --build
+   ```
+   → 前端：`http://localhost:3000` · API 文档：`http://localhost:8000/docs`
+
+### 方式 B —— 从源码运行
+
+1. **克隆仓库并配置 `.env`**（同上）。
+
+2. **启动 API（基于 src/ 的 FastAPI 薄壳）**
+   ```bash
+   # Windows 平台
+   python -m venv .venv
+   .venv\Scripts\activate
+
+   # macOS / Linux 平台
+   python3 -m venv .venv
+   source .venv/bin/activate
+
+   pip install -r requirements-dev.txt   # 运行时依赖 + pytest
+   uvicorn api.main:app --reload --port 8000
+   ```
+
+3. **启动 Web 前端（Next.js）**
+   ```bash
+   cd web
+   npm install
+   npm run dev   # http://localhost:3000
+   ```
+
+> [!NOTE]
+> Streamlit → Next.js + FastAPI 的迁移已**完成**（Phase 6）：Streamlit 界面已正式退役。完整迁移历程见 [`docs/migration-nextjs.md`](docs/migration-nextjs.md)。
+
+---
+
+## 运行测试
+
+使用 `pytest` 运行涵盖量化引擎、画像评分及 Agent 流式交互的单元测试：
+
+```bash
+python -m pytest -v
+```
+
+前端单元/组件测试与全栈 e2e（Playwright 自动拉起演示模式 API 与生产版前端，独立端口与临时数据库，无需网络或 API Key）：
+
+```bash
+cd web
+npm test              # Vitest 单元/组件测试
+npm run test:e2e      # Playwright 全栈 e2e
+```
+
+> [!NOTE]
+> e2e 以裸 `python` 命令拉起 API（见 `web/playwright.config.ts`），需保证 `python` 在 `PATH` 上——macOS/Linux/WSL 下先激活仓库 venv（`source .venv/bin/activate`）再运行。
+
+---
+
+## 运行演示脚本
+
+我们在 `examples/` 目录下提供了几个独立的演示脚本，用于离线运行量化引擎并展示核心功能：
+
+```bash
+# 运行快速入门演示（包含 MVO、Black-Litterman、蒙特卡洛模拟）
+python examples/demo_quick.py
+
+# 运行高级优化特性演示（包含协方差收缩、重抽样 MVO）
+python examples/demo_advanced_optimization.py
+
+# 运行完整可视化演示（会在浏览器中自动打开交互式 Plotly 图表）
+python examples/demo_comprehensive.py
+
+# 运行多智能体 IPS 生成器演示（包含 PydanticAI + LangGraph 的生成-审查-修订工作流）
+python examples/demo_ips_generator.py
+```
+
+---
+
+## 免责声明
+
+> [!WARNING]
+> **合规声明与专业免责条款**：
+> 
+> 1. **AI WealthPilot** 项目仅作为作者**展示金融编程能力、量化金融理论落地和 AI Agent 工程设计的个人学习作品集**。
+> 2. 系统输出的所有资产比重、优化曲线、财富存活率及 AI 顾问方案均为**基于历史数据及特定量化模型假设下的理论模拟结果，在任何情况下均不构成实质性投资建议或理财规划书**。
+> 3. 金融市场波动巨大，量化模型存在结构性漂移和尾部黑天鹅风险。作者及项目不为任何因据此投资决策产生的资金损失承担法律责任。
