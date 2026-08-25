@@ -3,7 +3,7 @@
 
   # AI WealthPilot
 
-  ### AI Private Wealth Management Workstation · Institutional Quant Engine & Multi-Agent Intelligence
+  ### AI Private Wealth Management Workstation · Quant Engine & Multi-Agent Intelligence
 
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
@@ -22,7 +22,7 @@
 
 <p align="center">
   <b>AI WealthPilot</b> is an open-source, local-first workstation engineered for modern Private Wealth Management (PWM).<br/>
-  It fuses <b>six institutional quantitative portfolio optimization paradigms</b>, a <b>forward-looking Capital Market Expectations (CME) engine</b>, a <b>LangGraph-orchestrated multi-agent IPS generation pipeline</b>, and a <b>DeepSeek streaming reasoning advisor</b>, wrapped in a bespoke "Ink & Gold" private banking user experience. It provides wealth advisors with an end-to-end workflow: <i>Client 360° Profiling → CME Formulation → Portfolio Optimization → IPS Audit & Generation → Fleet Monitoring & Rebalancing → Retirement Planning</i>.
+  It fuses <b>six quantitative portfolio optimization paradigms</b>, a <b>forward-looking Capital Market Expectations (CME) engine</b>, a <b>LangGraph-orchestrated multi-agent IPS generation pipeline</b>, and a <b>DeepSeek streaming reasoning advisor</b>, wrapped in a bespoke "Ink & Gold" private banking user experience. It provides wealth advisors with an end-to-end workflow: <i>Client 360° Profiling → CME Formulation → Portfolio Optimization → IPS Audit & Generation → Fleet Monitoring & Rebalancing → Retirement Planning</i>.
 </p>
 
 ⭐ If you like this project, star it on GitHub — it helps a lot!
@@ -64,7 +64,7 @@
 
 ## ✨ Key Features
 
-### 1. 🧮 Institutional Quantitative Portfolio Optimization (`src/portfolio/`)
+### 1. 🧮 Quantitative Portfolio Optimization (`src/portfolio/`)
 * **Markowitz Mean-Variance Optimization (MVO)**: Powered by SciPy SLSQP solver; supports Max Sharpe, Min Volatility, Target Return optimization, complete Efficient Frontier generation, and asset-class-level min/max group constraints.
 * **Michaud Resampled Efficient Frontier**: Uses Monte Carlo resampling over return distributions to mitigate parameter uncertainty, smoothing portfolio transitions and boosting out-of-sample robustness.
 * **Black-Litterman Bayesian Asset Allocation**: Anchors to market equilibrium returns (or CME forward priors), integrating absolute/relative investor views with He-Litterman confidence calibration ($\Omega$).
