@@ -2,18 +2,18 @@
 # the API Docker image installs). Dev extras (pytest) live in
 # requirements-dev.txt.
 #
-# Versions are pinned to the set the test suite (969 tests) was verified
-# against; bump deliberately after re-running the suite. pip-audit in CI
-# guards the pinned set against newly disclosed CVEs.
+# Versions are pinned to the set the test suite was verified against; bump
+# deliberately after re-running the suite. pip-audit in CI guards the pinned
+# set against newly disclosed CVEs.
 
 # Core
-numpy==2.2.6
+numpy==2.5.2
 pandas==3.0.5
-scipy==1.17.1
-scikit-learn==1.8.0
+scipy==1.18.1
+scikit-learn==1.9.0
 
 # Data Sources
-yfinance==1.4.0
+yfinance==1.6.0
 
 # Visualization (figures are generated server-side, streamed as JSON)
 plotly==6.9.0
@@ -22,20 +22,20 @@ plotly==6.9.0
 openai==2.41.0
 
 # Agent Orchestration — IPS Generator (LangGraph + PydanticAI)
-langgraph==1.2.4
-langgraph-checkpoint==4.1.1
+langgraph==1.2.11
+langgraph-checkpoint==4.2.0
 pydantic-ai==1.107.1
-pydantic==2.12.5
+pydantic==2.13.4
 
 # Utilities
-python-dotenv==1.2.2
-requests==2.33.0  # 2.33.0 fixes PYSEC-2026-2275 (pip-audit finding)
+python-dotenv==1.2.3
+requests==2.34.2  # >= 2.33.0 fixes PYSEC-2026-2275 (pip-audit finding)
 markdown==3.10.3
-nh3==0.3.5  # HTML sanitizer for LLM-generated report content (XSS prevention)
-fpdf2==2.8.7
+nh3==0.3.7  # HTML sanitizer for LLM-generated report content (XSS prevention)
+fpdf2==2.8.8
 
 # API Layer
 fastapi==0.141.1
-uvicorn[standard]==0.52.1
+uvicorn[standard]==0.52.4
 sqlmodel==0.0.39  # SQLite persistence (client profiles, future user tables)
 tushare==1.4.29
