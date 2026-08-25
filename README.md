@@ -22,7 +22,7 @@
 
 <p align="center">
   <b>AI WealthPilot</b> is an open-source, local-first workstation engineered for modern Private Wealth Management (PWM).<br/>
-  It fuses <b>six quantitative portfolio optimization paradigms</b>, a <b>forward-looking Capital Market Expectations (CME) engine</b>, a <b>LangGraph-orchestrated multi-agent IPS generation pipeline</b>, and a <b>DeepSeek streaming reasoning advisor</b>, wrapped in a bespoke "Ink & Gold" private banking user experience. It provides wealth advisors with an end-to-end workflow: <i>Client 360° Profiling → CME Formulation → Portfolio Optimization → IPS Audit & Generation → Fleet Monitoring & Rebalancing → Retirement Planning</i>.
+  It fuses <b>six quantitative portfolio optimization paradigms</b>, a <b>forward-looking Capital Market Expectations (CME) engine</b>, a <b>LangGraph-orchestrated multi-agent IPS generation pipeline</b>, and a <b>DeepSeek streaming reasoning advisor</b>, wrapped in an "Ink & Gold" private banking user experience. It provides wealth advisors with an end-to-end workflow: <i>Client 360° Profiling → CME Formulation → Portfolio Optimization → IPS Audit & Generation → Fleet Monitoring & Rebalancing → Retirement Planning</i>.
 </p>
 
 ⭐ If you like this project, star it on GitHub — it helps a lot!
