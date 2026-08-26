@@ -28,7 +28,7 @@
 
 ⭐ If you like this project, star it on GitHub — it helps a lot!
 
-[Key Features](#-key-features) • [Architecture](#-system-architecture) • [Multi-Agent Workflow](#-multi-agent-ips-pipeline) • [Financial Models](#-quantitative--financial-engineering-models) • [Quick Start](#-quick-start) • [API Reference](#-api-endpoints-reference) • [Quality Assurance](#-quality-assurance--testing)
+[Key Features](#-key-features) • [Architecture](#-system-architecture) • [Multi-Agent Workflow](#-multi-agent-ips-pipeline) • [Financial Models](#-quantitative--financial-engineering-models) • [Quick Start](#-quick-start) • [API Reference](#-api-endpoints-reference) • [Quality Assurance](#-quality-assurance--testing) • [📚 Internals Docs](https://michelia-l.github.io/AI-WealthPilot/)
 
 </div>
 
