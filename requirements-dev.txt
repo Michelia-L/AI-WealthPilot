@@ -12,3 +12,7 @@ pip-audit==2.10.1
 
 # Lint & format gates (config in pyproject.toml)
 ruff==0.16.4
+
+# Documentation site (mkdocs.yml, deployed to GitHub Pages by docs.yml)
+mkdocs-material==9.7.7
+jieba==0.42.1  # build-time CJK segmentation for the search plugin (verified working)

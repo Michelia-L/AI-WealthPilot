@@ -1,0 +1,60 @@
+# AI WealthPilot Internals 文档站
+# 本地预览: mkdocs serve ｜ 构建: mkdocs build --strict ｜ 部署: .github/workflows/docs.yml
+site_name: AI WealthPilot Internals
+site_description: AI WealthPilot 项目 Internals 指南——逐模块讲解各模块/方法的目的、实现思路与设计决策
+site_url: https://michelia-l.github.io/AI-WealthPilot/
+repo_url: https://github.com/Michelia-L/AI-WealthPilot
+edit_uri: edit/main/docs/
+# 代理/维护约定不是站点内容，排除出构建
+exclude_docs: AGENTS.md
+
+theme:
+  name: material
+  language: zh
+  palette:
+    scheme: slate
+    primary: amber
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.action.edit
+    - content.code.copy
+
+plugins:
+  - search  # jieba（requirements-dev.txt）提供构建期中文分词；验证搜索时注意：自动化输入中文不产生 keyup，需补按键（如 End）才触发查询
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - sane_lists
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
+nav:
+  - 首页: index.md
+  - Internals 指南:
+      - internals/index.md
+      - 01 · 一次请求的完整旅程: internals/01-request-journey.md
+  - 工程台账:
+      - 已知问题与需求台账: known-issues.md
+      - Next.js 迁移记录: migration-nextjs.md
+  - IPS 参考:
+      - IPS 模板结构: ips_reference/ips_template_structure.md
+      - IPS 示例（moderate 画像）: ips_reference/ips_example_moderate.md

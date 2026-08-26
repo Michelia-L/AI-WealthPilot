@@ -14,6 +14,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-gold?style=flat-square)](LICENSE)
 [![Build](https://github.com/Michelia-L/AI-WealthPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/Michelia-L/AI-WealthPilot/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/Docs-Internals_Guide-B08D3E?style=flat-square)](https://michelia-l.github.io/AI-WealthPilot/)
 [![i18n](https://img.shields.io/badge/i18n-EN%20%7C%20CN-blue?style=flat-square)]()
 
 <p align="center">
