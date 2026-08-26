@@ -52,6 +52,7 @@ nav:
   - Internals 指南:
       - internals/index.md
       - 01 · 一次请求的完整旅程: internals/01-request-journey.md
+      - 02 · 量化引擎: internals/02-quant-engine.md
   - 工程台账:
       - 已知问题与需求台账: known-issues.md
       - Next.js 迁移记录: migration-nextjs.md
