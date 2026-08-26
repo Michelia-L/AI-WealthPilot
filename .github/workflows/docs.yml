@@ -30,9 +30,10 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements-dev.txt
-      # Install only the docs toolchain (pins single-sourced from requirements-dev.txt)
+      # Install only the docs toolchain (pins single-sourced from requirements-dev.txt;
+      # cut strips any trailing inline comments)
       - name: Install docs dependencies
-        run: pip install $(grep -E '^(mkdocs-material|jieba)==' requirements-dev.txt)
+        run: pip install $(grep -E '^(mkdocs-material|jieba)==' requirements-dev.txt | cut -d' ' -f1)
       - run: mkdocs build --strict
       - uses: actions/upload-pages-artifact@v3
         with:
