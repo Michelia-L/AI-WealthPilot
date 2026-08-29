@@ -19,7 +19,7 @@ yfinance==1.6.0
 plotly==6.9.0
 
 # AI / LLM (DeepSeek V4 Pro — OpenAI-compatible API)
-openai==2.41.0
+openai==3.3.1
 
 # Agent Orchestration — IPS Generator (LangGraph + PydanticAI)
 langgraph==1.2.11
