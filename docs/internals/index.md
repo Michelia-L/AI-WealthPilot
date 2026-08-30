@@ -10,7 +10,7 @@
 | 02 | [量化引擎](02-quant-engine.md) | `optimizer.py` 六种优化方法逐一讲解（MVO / Resampled / BL / Mean-CVaR / LDI / ERC）、`optimize_service.py`、`views.py`、`risk_constraints.py`、`risk_metrics.py` | ✅ |
 | 03 | [数据管道与 CME](03-data-pipeline-cme.md) | `market_data.py` 多源路由与 FX、CN provider 级联、`yield_curve.py`、`implied_volatility.py`、`demo_market.py`、`forward_returns.py`、CME 引擎三件套、`config.py` 常量导读 | ✅ |
 | 04 | [AI 智能体层](04-ai-agents.md) | 画像评分、组合推荐、顾问报告、IPS LangGraph 流水线（9 节点 + 三向审查 + token 预算闸）、报告/IPS 存储与导出、demo 回放层 | ✅ |
-| 05 | API 传输壳与任务机制 | 43 个端点地图、82 个 Pydantic 模型、SQLite 三表、SSE 任务写穿透与断线回放、TTL 缓存、双语消息表 | 未开始 |
+| 05 | [API 传输壳与任务机制](05-api-shell.md) | 43 个端点地图、82 个 Pydantic 模型、SQLite 三表、SSE 任务写穿透与断线回放、TTL 缓存、双语消息表 | ✅ |
 | 06 | Web 前端 | 12 个页面、RSC 与同源代理的分界、自研 i18n 的类型约束设计、plot-chart 主题层、优化器工作区状态机、设计令牌 | 未开始 |
 | 07 | 质量与可复现性工程 | 测试套件组织与隔离模式、CI 三job 与 87% 覆盖率门、Dependabot、e2e 双进程编排、版本钉与容器 | 未开始 |
 
