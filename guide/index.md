@@ -11,8 +11,8 @@ AI WealthPilot 是一个私人财富管理 AI 顾问工作站：量化组合引�
 ## 内容地图
 
 - **[Internals 指南](internals/index.md)**——核心内容，按子系统分七章逐模块讲解，每章附自检问题。持续写作中。
-- **[工程台账](known-issues.md)**——缺陷与需求的真实记录（KI/FR 编号），含已解决条目的根因与修复方式。
-- **[IPS 参考](ips_reference/ips_template_structure.md)**——IPS 文档模板结构与示例，供 LLM 生成与读者参考。
+- **[工程台账](https://github.com/Michelia-L/AI-WealthPilot/blob/main/docs/known-issues.md)**——缺陷与需求的真实记录（KI/FR 编号），含已解决条目的根因与修复方式。仓库内文档，不在本站。
+- **[IPS 参考](https://github.com/Michelia-L/AI-WealthPilot/tree/main/docs/ips_reference)**——IPS 文档模板结构与示例，供 LLM 生成与读者参考。仓库内文档，不在本站。
 
 ## 阅读约定
 

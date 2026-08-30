@@ -17,7 +17,7 @@
 - **`web/` 是 Next.js 前端**：只读数据走服务端组件 → `web/src/lib/api/`（按域分模块 + `api.ts` barrel 重导出；经 `API_ORIGIN` 直连 FastAPI）；浏览器发起的变更/流式请求必须经 `web/src/app/api/` 的同源代理路由（`web/src/lib/proxy.ts`），不跨域、不暴露内网地址。e2e（`web/e2e/`，Playwright）跑真实全栈：DEMO_MODE=1 的 uvicorn（LLM 端点回放夹具、行情层吃 `src/data/demo_market.py` 合成数据、自动种子虚构客户）+ `next start`，端口 8300/3300 与临时 SQLite（`AIWP_DB_URL`）隔离，零网络依赖。
 - **i18n（phase 22）**：locale 由 cookie `wp_locale`（`en`/`zh`，新访客默认 en）决定，侧栏切换器经 `POST /api/locale` 写 cookie 后 `router.refresh()`。UI 文案集中在 `web/src/lib/i18n/dictionaries/{en,zh}/`（namespace 分文件 + index 聚合；zh 声明为 `Dictionary` 类型，**缺 key 编译即失败**——新增文案必须双语同步）。服务端组件用 `getDict()`/`dictionaries`（另一语言用 `altLocale` 保留双语品牌副标签），客户端组件用 `useT()`。传输层：`proxy.ts` 四个函数自动注入 `X-Locale`；`web/src/lib/api/` 因在客户端模块图不能碰 `next/headers`，需要本地化文案的 RSC 数据函数走「调用方显式传 locale」模式（参照 `getMonitoringFleetStatus(locale)`）。
 - **持久化**：客户画像与后台任务记录（SSE 事件写穿透，重启后和解 + 可回放；运行中任务断线重连先回放持久化日志、再按 `seq` 去重续播，见 `api/tasks.py`）在 SQLite（`api/db.py`），同库还有 `app_settings` 键值表（FR-002 的 LLM 端点配置 base_url/api_key/model）；报告 / IPS / CME 缓存是 `data/` 下的 JSON 文件存储（`src/agents/*_storage.py`）。
-- **文档站**：`docs/` 即 MkDocs 源（配置在根 `mkdocs.yml`；依赖 pin 在 `requirements-dev.txt`），push main 经 `.github/workflows/docs.yml` 部署到 GitHub Pages。写作纪律、结构说明与已知陷阱见 `docs/AGENTS.md`。
+- **文档站**：`guide/` 即 MkDocs 源（配置在根 `mkdocs.yml`，`docs_dir: guide`；依赖 pin 在 `requirements-dev.txt`），push main 经 `.github/workflows/docs.yml` 部署到 GitHub Pages。`docs/` 保留工程记录（`known-issues.md`、`migration-nextjs.md`、`ips_reference/`、`images/`），不进站点。写作纪律、结构说明与已知陷阱见 `guide/AGENTS.md`。
 
 ## 常用命令
 

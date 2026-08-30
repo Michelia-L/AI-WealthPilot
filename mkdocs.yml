@@ -1,10 +1,12 @@
 # AI WealthPilot Internals 文档站
 # 本地预览: mkdocs serve ｜ 构建: mkdocs build --strict ｜ 部署: .github/workflows/docs.yml
+# 站点源在 guide/（docs/ 保留工程记录：known-issues、迁移记录、ips_reference）
+docs_dir: guide
 site_name: AI WealthPilot Internals
 site_description: AI WealthPilot 项目 Internals 指南——逐模块讲解各模块/方法的目的、实现思路与设计决策
 site_url: https://michelia-l.github.io/AI-WealthPilot/
 repo_url: https://github.com/Michelia-L/AI-WealthPilot
-edit_uri: edit/main/docs/
+edit_uri: edit/main/guide/
 # 代理/维护约定不是站点内容，排除出构建
 exclude_docs: AGENTS.md
 
@@ -58,9 +60,3 @@ nav:
       - 05 · API 传输壳与任务机制: internals/05-api-shell.md
       - 06 · Web 前端: internals/06-web-frontend.md
       - 07 · 质量与可复现性工程: internals/07-quality-engineering.md
-  - 工程台账:
-      - 已知问题与需求台账: known-issues.md
-      - Next.js 迁移记录: migration-nextjs.md
-  - IPS 参考:
-      - IPS 模板结构: ips_reference/ips_template_structure.md
-      - IPS 示例（moderate 画像）: ips_reference/ips_example_moderate.md

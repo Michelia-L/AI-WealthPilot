@@ -127,7 +127,7 @@
 AI WealthPilot follows a decoupled, layered architectural blueprint:
 
 <div align="center">
-  <img src="docs/diagrams/architecture.svg" alt="Layered System Architecture" width="900" />
+  <img src="guide/diagrams/architecture.svg" alt="Layered System Architecture" width="900" />
 </div>
 
 ### Architectural Guardrails
@@ -142,7 +142,7 @@ AI WealthPilot follows a decoupled, layered architectural blueprint:
 The Investment Policy Statement (IPS) workflow is orchestrated using LangGraph state machines and PydanticAI structured agents:
 
 <div align="center">
-  <img src="docs/diagrams/ips-pipeline.svg" alt="LangGraph Multi-Agent IPS Pipeline" width="900" />
+  <img src="guide/diagrams/ips-pipeline.svg" alt="LangGraph Multi-Agent IPS Pipeline" width="900" />
 </div>
 
 ### Audit Dimensions & Quantitative Gates

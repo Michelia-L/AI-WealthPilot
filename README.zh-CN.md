@@ -127,7 +127,7 @@
 AI WealthPilot 采用分层解耦的现代化全栈架构设计：
 
 <div align="center">
-  <img src="docs/diagrams/architecture-zh.svg" alt="分层系统架构" width="900" />
+  <img src="guide/diagrams/architecture-zh.svg" alt="分层系统架构" width="900" />
 </div>
 
 ### 架构分工守则
@@ -142,7 +142,7 @@ AI WealthPilot 采用分层解耦的现代化全栈架构设计：
 投资政策声明（IPS）的生成采用 LangGraph 状态图与 PydanticAI 构建的多智能体流水线，通过量化硬门禁与多角度审查确保合规与数理严谨：
 
 <div align="center">
-  <img src="docs/diagrams/ips-pipeline-zh.svg" alt="LangGraph 多智能体 IPS 流水线" width="900" />
+  <img src="guide/diagrams/ips-pipeline-zh.svg" alt="LangGraph 多智能体 IPS 流水线" width="900" />
 </div>
 
 ### 审查与门禁要点

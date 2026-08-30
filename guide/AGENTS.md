@@ -1,6 +1,6 @@
-# docs/ — 文档站与写作纪律
+# guide/ — Internals 文档站与写作纪律
 
-`docs/` 是 MkDocs 站点源（不是普通文档堆）。配置在仓库根 `mkdocs.yml`（Material 主题，本文件经 `exclude_docs` 排除出站点构建）。
+`guide/` 是 MkDocs 站点源（配置在仓库根 `mkdocs.yml`，`docs_dir: guide`；本文件经 `exclude_docs` 排除出站点构建）。与 `docs/` 的分工：`docs/` 放工程记录（`known-issues.md`、`migration-nextjs.md`、`ips_reference/`、`images/`），`guide/` 只放文档站内容。
 
 ## 命令
 
@@ -13,9 +13,9 @@ push main 经 `.github/workflows/docs.yml` 自动部署到 GitHub Pages。依赖
 
 ## 结构
 
-- `index.md`：站点首页；`internals/`：Internals 指南（核心内容，七章路线图见 `internals/index.md`）；`known-issues.md`：缺陷/需求台账；`ips_reference/`：IPS 模板与样例（**被 `api/Dockerfile` COPY 进镜像**，移动会破坏构建）；`images/`、`diagrams/`：被 README 引用。
-- **既有文件只增不改**，移动/重命名先查引用方（README、Dockerfile、AGENTS.md）。
+- `index.md`：站点首页；`internals/`：Internals 指南（核心内容，七章路线图见 `internals/index.md`）；`diagrams/`：SVG 架构图（**双消费方**：本站章节 + README，移动需同步 README）；`javascripts/`：MathJax 接线脚本。
 - 新增页面必须同步 `mkdocs.yml` 的 `nav`（否则 strict 构建失败）。
+- `docs/` 侧的资产有外部引用方，动之前先查：`ips_reference/` 被 `api/Dockerfile` COPY 进镜像；`images/` 被 README 引用。
 
 ## Internals 写作纪律
 
