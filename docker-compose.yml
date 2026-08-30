@@ -42,7 +42,7 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     healthcheck:
-      # node:22-alpine ships busybox wget; "/" renders (degraded) even when
+      # node:24-alpine ships busybox wget; "/" renders (degraded) even when
       # the API is down, so a 200 here means the web server itself is up.
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
       interval: 30s
