@@ -79,6 +79,9 @@ node_modules/
 out/
 next-env.d.ts
 *.tsbuildinfo
+
+# Playwright MCP session artifacts (snapshots/console logs land in CWD)
+.playwright-mcp/
 test-results/
 playwright-report/
 blob-report/
