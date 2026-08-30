@@ -14,6 +14,9 @@ window.MathJax = {
 };
 
 document$.subscribe(() => {
+  // CDN 加载失败/滞后时 window.MathJax 仍是上面的配置对象，无 startup——跳过即可，
+  // 首次加载成功时 MathJax 会自行完成排版（未启用 instant navigation，无需重排）。
+  if (!window.MathJax.startup) return;
   MathJax.startup.output.clearCache();
   MathJax.typesetClear();
   MathJax.texReset();
