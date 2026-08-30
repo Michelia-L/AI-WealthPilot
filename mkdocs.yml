@@ -54,6 +54,7 @@ nav:
       - 01 · 一次请求的完整旅程: internals/01-request-journey.md
       - 02 · 量化引擎: internals/02-quant-engine.md
       - 03 · 数据管道与 CME: internals/03-data-pipeline-cme.md
+      - 04 · AI 智能体层: internals/04-ai-agents.md
   - 工程台账:
       - 已知问题与需求台账: known-issues.md
       - Next.js 迁移记录: migration-nextjs.md
