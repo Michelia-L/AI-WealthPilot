@@ -159,34 +159,51 @@ AI WealthPilot is built on mathematically rigorous financial foundations:
 
 ### 1. Markowitz Mean-Variance Optimization (MVO)
 Solves the convex quadratic optimization problem:
-$$\min_{w} \quad \frac{1}{2} w^T \Sigma w - \lambda w^T \mu \quad \text{s.t.} \quad \sum_{i=1}^n w_i = 1, \quad w_i \ge 0$$
-For maximum Sharpe ratio:
-$$\max_{w} \quad \frac{w^T \mu - R_f}{\sqrt{w^T \Sigma w}}$$
-Asset-class group constraints are supported at the group level: $\min_{c} \le \sum_{i \in \mathcal{C}_c} w_i \le \max_{c}$.
 
-*Note: in the MVO stage we use standard **arithmetic returns**, since portfolio expected returns are cross-sectionally additive ($R_p = w^T \mu$).*
+$$\min_{w} \quad \frac{1}{2} w^T \Sigma w - \lambda w^T \mu \quad \text{s.t.} \quad \sum_{i=1}^n w_i = 1, \quad w_i \ge 0$$
+
+For maximum Sharpe ratio:
+
+$$\max_{w} \quad \frac{w^T \mu - R_f}{\sqrt{w^T \Sigma w}}$$
+
+Asset-class group constraints are supported at the group level:
+
+$$\min_{c} \le \sum_{i \in \mathcal{C}_c} w_i \le \max_{c}$$
+
+*Note: in the MVO stage we use standard **arithmetic returns**, since portfolio expected returns are cross-sectionally additive* ($R_p = w^T \mu$).
 
 ### 2. Black-Litterman Bayesian Model
 Market implied equilibrium excess return vector:
+
 $$\Pi = \delta \Sigma w_{\text{mkt}}$$
+
 Bayesian posterior expected return distribution $\mu_{BL}$:
+
 $$\mu_{BL} = \left[ (\tau \Sigma)^{-1} + P^T \Omega^{-1} P \right]^{-1} \left[ (\tau \Sigma)^{-1} \Pi + P^T \Omega^{-1} Q \right]$$
+
 View uncertainty matrix calibration (He & Litterman formulation):
+
 $$\Omega = \text{diag}\left( P (\tau \Sigma) P^T \right) \cdot \frac{1 - c}{c}$$
 
 ### 3. Rockafellar-Uryasev Mean-CVaR LP Formulation
 At confidence level $\alpha$ (e.g. 95%), Conditional Value-at-Risk minimization is formulated as a linear program over $S$ discrete return scenarios:
+
 $$\min_{w, \gamma, z} \quad \gamma + \frac{1}{S(1-\alpha)} \sum_{s=1}^S z_s$$
+
 $$\text{s.t.} \quad z_s \ge -w^T r_s - \gamma, \quad z_s \ge 0 \quad (\forall s \in \{1,\dots,S\}), \quad w^T \mathbf{1} = 1, \quad w \ge 0$$
 
 ### 4. Sharpe-Tint Liability-Driven Surplus Optimization (LDI)
 For future liability cash stream $L$, portfolio surplus is $S = A - L$. Surplus variance is:
+
 $$\sigma_{\text{surplus}}^2 = w^T \Sigma_A w - 2 w^T \Sigma_{AL} + \sigma_L^2$$
+
 where liability returns are duration-scaled: $r_{L,t} \approx -D_L \cdot \Delta y_t(D_L)$. The optimization maximizes surplus Sharpe:
+
 $$\max_{w} \quad \frac{w^T \mu_A - \mu_L}{\sigma_{\text{surplus}}(w)}$$
 
 ### 5. Spinu Equal Risk Contribution (Risk Parity ERC)
 Marginal risk contribution of asset $i$ is $RC_i = w_i \frac{(\Sigma w)_i}{\sqrt{w^T \Sigma w}}$. Solved via the unconstrained convex dual problem:
+
 $$\min_{x} \quad \frac{1}{2} x^T \Sigma x - \sum_{i=1}^n \ln(x_i) \quad \implies \quad w_i = \frac{x_i}{\sum_{j} x_j}$$
 
 ### 6. Covariance Shrinkage & Regularization
@@ -199,15 +216,22 @@ To address estimation error and noise, the covariance matrix $\Sigma$ can be est
 
 ### 7. Geometric Brownian Motion (GBM) & Volatility Drag
 Long-horizon wealth paths are simulated with discrete-time GBM and a Jensen's-inequality correction:
-$$S_{t+\Delta t} = S_t \exp \left( \left(\mu - \frac{1}{2}\sigma^2\right)\Delta t + \sigma \sqrt{\Delta t} Z_t \right)$$
-- **Accumulation Phase**:
-  $$V_{t+1} = V_t \exp \left( \left(\mu_{\text{acc}} - \frac{1}{2}\sigma_{\text{acc}}^2\right) + \sigma_{\text{acc}} Z_t \right) + \text{Annual Savings}$$
-- **Distribution (Retirement) Phase**:
-  $$V_{t+1} = V_t \exp \left( \left(\mu_{\text{dist}} - \frac{1}{2}\sigma_{\text{dist}}^2\right) + \sigma_{\text{dist}} Z_t \right) - \text{Nominal Withdrawal}_t$$
-  where the nominal withdrawal preserves purchasing power via inflation escalation:
-  $$\text{Nominal Withdrawal}_t = \text{Desired Real Income} \times (1 + \gamma)^{T_{\text{accum}} + t}$$
 
-*Note: for multi-period simulations, log-normal modeling is required because returns are time-additive; the $-\frac{1}{2}\sigma^2$ drift adjustment prevents systematic overestimation of long-term compounded wealth.*
+$$S_{t+\Delta t} = S_t \exp \left( \left(\mu - \frac{1}{2}\sigma^2\right)\Delta t + \sigma \sqrt{\Delta t} Z_t \right)$$
+
+- **Accumulation Phase**:
+
+  $$V_{t+1} = V_t \exp \left( \left(\mu_{\text{acc}} - \frac{1}{2}\sigma_{\text{acc}}^2\right) + \sigma_{\text{acc}} Z_t \right) + \text{Annual Savings}$$
+
+- **Distribution (Retirement) Phase**:
+
+  $$V_{t+1} = V_t \exp \left( \left(\mu_{\text{dist}} - \frac{1}{2}\sigma_{\text{dist}}^2\right) + \sigma_{\text{dist}} Z_t \right) - \text{Nominal Withdrawal}_t$$
+
+  where the nominal withdrawal preserves purchasing power via inflation escalation:
+
+  $$\text{Desired Real Income} \times (1 + \gamma)^{T_{\text{accum}} + t} = \text{Nominal Withdrawal}_t$$
+
+*Note: for multi-period simulations, log-normal modeling is required because returns are time-additive;* the $-\frac{1}{2}\sigma^2$ drift adjustment prevents systematic overestimation of long-term compounded wealth.
 
 ### 8. Downside Risk & Tail Risk Metrics
 - **Downside Deviation**: penalizes only returns falling below zero or the risk-free rate:
@@ -217,10 +241,15 @@ $$S_{t+\Delta t} = S_t \exp \left( \left(\mu - \frac{1}{2}\sigma^2\right)\Delta 
 
 ### 9. Brinson-Fachler Multi-Period Attribution with Carino Linking
 Active excess return per period decomposed into Allocation ($A_g$), Selection ($S_g$), and Interaction ($I_g$):
+
 $$A_g = (w_{p,g} - w_{b,g}) \cdot (R_{b,g} - R_b)$$
+
 $$S_g = w_{b,g} \cdot (R_{p,g} - R_{b,g}), \quad I_g = (w_{p,g} - w_{b,g}) \cdot (R_{p,g} - R_{b,g})$$
+
 Multi-period linking via Carino logarithmic scale factors:
+
 $$k_m = \frac{\ln(1+R_{p,m}) - \ln(1+R_{b,m})}{R_{p,m} - R_{b,m}}, \quad K = \frac{R_p - R_b}{\ln(1+R_p) - \ln(1+R_b)}$$
+
 $$E_{\text{total}} = K \sum_{m} \left( k_m \cdot E_m \right)$$
 
 ---

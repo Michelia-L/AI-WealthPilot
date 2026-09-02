@@ -159,34 +159,51 @@ AI WealthPilot 严格遵循学术与业界成熟金融工程规范，内置核�
 
 ### 1. Markowitz 均值-方差优化 (MVO)
 求解凸二次规划问题：
-$$\min_{w} \quad \frac{1}{2} w^T \Sigma w - \lambda w^T \mu \quad \text{s.t.} \quad \sum_{i=1}^n w_i = 1, \quad w_i \ge 0$$
-在最大夏普比率模式下，优化目标为：
-$$\max_{w} \quad \frac{w^T \mu - R_f}{\sqrt{w^T \Sigma w}}$$
-支持资产大类级别的组约束：$\min_{c} \le \sum_{i \in \mathcal{C}_c} w_i \le \max_{c}$。
 
-*注：MVO 阶段使用标准**算术收益率**，因为组合预期收益在截面上可加（$R_p = w^T \mu$）。*
+$$\min_{w} \quad \frac{1}{2} w^T \Sigma w - \lambda w^T \mu \quad \text{s.t.} \quad \sum_{i=1}^n w_i = 1, \quad w_i \ge 0$$
+
+在最大夏普比率模式下，优化目标为：
+
+$$\max_{w} \quad \frac{w^T \mu - R_f}{\sqrt{w^T \Sigma w}}$$
+
+支持资产大类级别的组约束：
+
+$$\min_{c} \le \sum_{i \in \mathcal{C}_c} w_i \le \max_{c}$$
+
+*注：MVO 阶段使用标准**算术收益率**，因为组合预期收益在截面上可加*（ $R_p = w^T \mu$ ）。
 
 ### 2. Black-Litterman 贝叶斯后验模型
 市场隐含均衡收益向量：
+
 $$\Pi = \delta \Sigma w_{\text{mkt}}$$
+
 融合主观观点矩阵 $P$ 与观点收益向量 $Q$ 后的贝叶斯后验收益期望 $\mu_{BL}$：
+
 $$\mu_{BL} = \left[ (\tau \Sigma)^{-1} + P^T \Omega^{-1} P \right]^{-1} \left[ (\tau \Sigma)^{-1} \Pi + P^T \Omega^{-1} Q \right]$$
+
 其中观点不确定性协方差矩阵采用 He & Litterman 比例标定法：
+
 $$\Omega = \text{diag}\left( P (\tau \Sigma) P^T \right) \cdot \frac{1 - c}{c}$$
 
 ### 3. Rockafellar-Uryasev Mean-CVaR 线性规划
 在置信水平 $\alpha$（如 95%）下，将条件风险价值最小化转化为离散场景 $S$ 的大规模线性规划（LP）：
+
 $$\min_{w, \gamma, z} \quad \gamma + \frac{1}{S(1-\alpha)} \sum_{s=1}^S z_s$$
+
 $$\text{s.t.} \quad z_s \ge -w^T r_s - \gamma, \quad z_s \ge 0 \quad (\forall s \in \{1,\dots,S\}), \quad w^T \mathbf{1} = 1, \quad w \ge 0$$
 
 ### 4. Sharpe-Tint 负债驱动盈余优化 (LDI)
 针对未来负债现金流 $L$，定义资产 $A$ 的盈余 $S = A - L$。盈余方差表示为：
+
 $$\sigma_{\text{surplus}}^2 = w^T \Sigma_A w - 2 w^T \Sigma_{AL} + \sigma_L^2$$
-其中负债收益波动率由久期敏感性模型拟合：$r_{L,t} \approx -D_L \cdot \Delta y_t(D_L)$。优化目标为最大化盈余夏普比率：
+
+其中负债收益波动率由久期敏感性模型拟合： $r_{L,t} \approx -D_L \cdot \Delta y_t(D_L)$。优化目标为最大化盈余夏普比率：
+
 $$\max_{w} \quad \frac{w^T \mu_A - \mu_L}{\sigma_{\text{surplus}}(w)}$$
 
 ### 5. Spinu 等风险贡献 (Risk Parity ERC)
 资产 $i$ 对组合总波动率的边际风险贡献为 $RC_i = w_i \frac{(\Sigma w)_i}{\sqrt{w^T \Sigma w}}$。通过求解凸对偶目标函数：
+
 $$\min_{x} \quad \frac{1}{2} x^T \Sigma x - \sum_{i=1}^n \ln(x_i) \quad \implies \quad w_i = \frac{x_i}{\sum_{j} x_j}$$
 
 ### 6. 协方差收缩与正则化
@@ -194,33 +211,45 @@ $$\min_{x} \quad \frac{1}{2} x^T \Sigma x - \sum_{i=1}^n \ln(x_i) \quad \implies
 * **Ledoit-Wolf 与 OAS 收缩**：将样本协方差 $S$ 与结构化目标矩阵 $F$（常相关模型）组合：
   $$\Sigma_{\text{shrunk}} = (1 - \rho) S + \rho F$$
   其中 $\rho \in (0, 1)$ 为解析求解的最优收缩强度。
-* **对角加载**：当 $\text{cond}(\Sigma) > 10^{10}$ 时矩阵接近奇异，按 $\Sigma_{\text{reg}} = \Sigma + \epsilon I$ 正则化（$\epsilon = 10^{-6}$）。
-* **特征值截断**：截断过小或为负的特征值以保持正定性：$\Sigma_{\text{reg}} = V \max(\Lambda, \epsilon) V^T$。
+* **对角加载**：当 $\text{cond}(\Sigma) > 10^{10}$ 时矩阵接近奇异，按 $\Sigma_{\text{reg}} = \Sigma + \epsilon I$ 正则化（ $\epsilon = 10^{-6}$ ）。
+* **特征值截断**：截断过小或为负的特征值以保持正定性： $\Sigma_{\text{reg}} = V \max(\Lambda, \epsilon) V^T$。
 
 ### 7. 几何布朗运动 (GBM) 与波动率拖累
 长周期财富路径采用离散时间 GBM 模拟，并施加 Jensen 不等式修正：
-$$S_{t+\Delta t} = S_t \exp \left( \left(\mu - \frac{1}{2}\sigma^2\right)\Delta t + \sigma \sqrt{\Delta t} Z_t \right)$$
-- **积累期 (Accumulation)**：
-  $$V_{t+1} = V_t \exp \left( \left(\mu_{\text{acc}} - \frac{1}{2}\sigma_{\text{acc}}^2\right) + \sigma_{\text{acc}} Z_t \right) + \text{年度储蓄}$$
-- **提取期 (Distribution / 退休)**：
-  $$V_{t+1} = V_t \exp \left( \left(\mu_{\text{dist}} - \frac{1}{2}\sigma_{\text{dist}}^2\right) + \sigma_{\text{dist}} Z_t \right) - \text{名义提取额}_t$$
-  其中名义提取额按通胀递增以保持购买力：
-  $$\text{名义提取额}_t = \text{期望实际收入} \times (1 + \gamma)^{T_{\text{accum}} + t}$$
 
-*注：多期仿真必须采用对数正态建模，因为收益率在时间上可加；$-\frac{1}{2}\sigma^2$ 漂移修正可避免对长期复利财富的系统性高估。*
+$$S_{t+\Delta t} = S_t \exp \left( \left(\mu - \frac{1}{2}\sigma^2\right)\Delta t + \sigma \sqrt{\Delta t} Z_t \right)$$
+
+- **积累期 (Accumulation)**：
+
+  $$V_{t+1} = V_t \exp \left( \left(\mu_{\text{acc}} - \frac{1}{2}\sigma_{\text{acc}}^2\right) + \sigma_{\text{acc}} Z_t \right) + \text{年度储蓄}$$
+
+- **提取期 (Distribution / 退休)**：
+
+  $$V_{t+1} = V_t \exp \left( \left(\mu_{\text{dist}} - \frac{1}{2}\sigma_{\text{dist}}^2\right) + \sigma_{\text{dist}} Z_t \right) - \text{名义提取额}_t$$
+
+  其中名义提取额按通胀递增以保持购买力：
+
+  $$\text{期望实际收入} \times (1 + \gamma)^{T_{\text{accum}} + t} = \text{名义提取额}_t$$
+
+*注：多期仿真必须采用对数正态建模，因为收益率在时间上可加；* $-\frac{1}{2}\sigma^2$ 漂移修正可避免对长期复利财富的系统性高估。
 
 ### 8. 下行风险与尾部风险度量
 - **下行偏差 (Downside Deviation)**：仅惩罚跌破零或无风险利率的收益：
   $$\sigma_{\text{downside}} = \sqrt{\frac{252}{T} \sum_{t=1}^T \left(\min(R_{p,t}, 0)\right)^2}$$
-- **Sortino 比率**：$\text{Sortino} = \dfrac{R_p - R_f}{\sigma_{\text{downside}}}$
+- **Sortino 比率**： $\text{Sortino} = \dfrac{R_p - R_f}{\sigma_{\text{downside}}}$
 - **VaR 与 CVaR（预期损失）**：在 $\alpha = 95\%$ 置信水平下经历史模拟计算，刻画非正态分布的偏度与峰度。
 
 ### 9. Brinson-Fachler 绩效归因与 Carino 级联
 单期超额收益分解为配置效应 $A_g$、选券效应 $S_g$ 与交互效应 $I_g$：
+
 $$A_g = (w_{p,g} - w_{b,g}) \cdot (R_{b,g} - R_b)$$
+
 $$S_g = w_{b,g} \cdot (R_{p,g} - R_{b,g}), \quad I_g = (w_{p,g} - w_{b,g}) \cdot (R_{p,g} - R_{b,g})$$
+
 多期几何级联采用 Carino 修正因子：
+
 $$k_m = \frac{\ln(1+R_{p,m}) - \ln(1+R_{b,m})}{R_{p,m} - R_{b,m}}, \quad K = \frac{R_p - R_b}{\ln(1+R_p) - \ln(1+R_b)}$$
+
 $$E_{\text{total}} = K \sum_{m} \left( k_m \cdot E_m \right)$$
 
 ---
