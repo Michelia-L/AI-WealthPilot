@@ -8,7 +8,7 @@ import Icon from "@/components/ui/icon";
 import Reveal from "@/components/ui/reveal";
 
 // ---------------------------------------------------------------------------
-// 涨跌 pill（细线趋势图标，绿涨红跌沿用产品既有约定）
+// 涨跌 pill（细线趋势图标；颜色走 rise/fall 语义令牌，随 locale 红绿翻转）
 // ---------------------------------------------------------------------------
 
 function TrendPill({ quote }: { quote: Quote }) {
@@ -25,8 +25,8 @@ function TrendPill({ quote }: { quote: Quote }) {
   const cls = flat
     ? "border-white/10 bg-white/[0.04] text-mist-400"
     : up
-      ? "border-jade-500/30 bg-jade-500/10 text-jade-400"
-      : "border-cinnabar-500/30 bg-cinnabar-500/10 text-cinnabar-400";
+      ? "border-rise/30 bg-rise/10 text-rise"
+      : "border-fall/30 bg-fall/10 text-fall";
   return (
     <span
       className={cx(
@@ -69,7 +69,7 @@ function Sparkline({ values }: { values: number[] }) {
       preserveAspectRatio="none"
       className={cx(
         "h-9 w-full opacity-80 transition-opacity duration-300 group-hover:opacity-100",
-        up ? "text-jade-400" : "text-cinnabar-400"
+        up ? "text-rise" : "text-fall"
       )}
       aria-hidden
     >
@@ -187,7 +187,7 @@ function QuoteCard({
                 <div
                   className={cx(
                     "tnum font-mono text-xs",
-                    up30 ? "text-jade-400" : "text-cinnabar-400"
+                    up30 ? "text-rise" : "text-fall"
                   )}
                 >
                   {pct30 > 0 ? "+" : ""}
@@ -223,8 +223,8 @@ async function BreadthStrip({ quotes }: { quotes: Quote[] }) {
     : null;
 
   const items: Array<{ tone: string; label: string }> = [
-    { tone: "text-jade-400", label: t.market.breadthUp(up) },
-    { tone: "text-cinnabar-400", label: t.market.breadthDown(down) },
+    { tone: "text-rise", label: t.market.breadthUp(up) },
+    { tone: "text-fall", label: t.market.breadthDown(down) },
     { tone: "text-mist-500", label: t.market.breadthFlat(flat) },
   ];
 
@@ -242,7 +242,7 @@ async function BreadthStrip({ quotes }: { quotes: Quote[] }) {
         <span className="text-mist-400">
           {t.market.breadthBest}{" "}
           <span className="text-mist-200">{best.name}</span>{" "}
-          <span className="tnum font-mono text-jade-400">
+          <span className="tnum font-mono text-rise">
             +{best.change_pct!.toFixed(2)}%
           </span>
         </span>
@@ -251,7 +251,7 @@ async function BreadthStrip({ quotes }: { quotes: Quote[] }) {
         <span className="text-mist-400">
           {t.market.breadthWorst}{" "}
           <span className="text-mist-200">{worst.name}</span>{" "}
-          <span className="tnum font-mono text-cinnabar-400">
+          <span className="tnum font-mono text-fall">
             {worst.change_pct!.toFixed(2)}%
           </span>
         </span>

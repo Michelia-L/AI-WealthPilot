@@ -145,9 +145,9 @@ export default function OptimizerResults({
                     className={cx(
                       "text-right font-mono",
                       w < -0.0005
-                        ? "text-cinnabar-400"
+                        ? "text-fall"
                         : w > 0.0005
-                          ? "text-jade-400"
+                          ? "text-rise"
                           : "text-mist-600"
                     )}
                   >

@@ -385,9 +385,9 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
                         h.period_return === null
                           ? "text-mist-500"
                           : h.period_return > 0
-                            ? "text-jade-400"
+                            ? "text-rise"
                             : h.period_return < 0
-                              ? "text-cinnabar-400"
+                              ? "text-fall"
                               : "text-mist-400"
                       )}
                     >

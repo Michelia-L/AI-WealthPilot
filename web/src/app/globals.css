@@ -34,11 +34,15 @@
 
   /* ── 语义色 ───────────────────────────────────────────────── */
   --color-jade-300: #7fe0bd;
-  --color-jade-400: #4fd0a0; /* 涨 / 成功 */
+  --color-jade-400: #4fd0a0; /* 成功 / 平静 */
   --color-jade-500: #2bb584;
   --color-cinnabar-300: #ffa190;
-  --color-cinnabar-400: #f27b66; /* 跌 / 风险 */
+  --color-cinnabar-400: #f27b66; /* 风险 / 告警 */
   --color-cinnabar-500: #e05c45;
+
+  /* 涨跌语义色：取值见底部 :root / :root[lang="zh-CN"]，随 locale 翻转 */
+  --color-rise: var(--wp-rise);
+  --color-fall: var(--wp-fall);
   --color-steel-300: #a9c8e2;
   --color-steel-400: #7fa8cc; /* 信息 */
   --color-steel-500: #5d87ad;
@@ -118,6 +122,15 @@
 :root {
   --background: var(--color-ink-950);
   --foreground: var(--color-mist-100);
+  /* 涨跌语义色（en 国际惯例：绿涨红跌） */
+  --wp-rise: #4fd0a0; /* jade-400 */
+  --wp-fall: #f27b66; /* cinnabar-400 */
+}
+
+/* 中文行情习惯：红涨绿跌（lang 由 RootLayout 按 locale cookie 输出） */
+:root[lang="zh-CN"] {
+  --wp-rise: #f27b66; /* cinnabar-400 */
+  --wp-fall: #4fd0a0; /* jade-400 */
 }
 
 html {

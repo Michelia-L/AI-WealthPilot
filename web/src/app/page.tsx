@@ -27,7 +27,7 @@ import Reveal from "@/components/ui/reveal";
 function PulseItem({ quote }: { quote: Quote }) {
   const pct = quote.change_pct;
   const tone =
-    pct === null ? "text-mist-500" : pct > 0 ? "text-jade-400" : pct < 0 ? "text-cinnabar-400" : "text-mist-400";
+    pct === null ? "text-mist-500" : pct > 0 ? "text-rise" : pct < 0 ? "text-fall" : "text-mist-400";
   return (
     <span className="flex shrink-0 items-center gap-2.5 px-6">
       <span className="text-xs text-mist-400">{quote.name}</span>

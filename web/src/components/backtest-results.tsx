@@ -21,7 +21,7 @@ function signedPct(value: number): string {
 }
 
 function retClass(value: number): string {
-  return value > 0 ? "text-jade-400" : value < 0 ? "text-cinnabar-400" : "text-mist-400";
+  return value > 0 ? "text-rise" : value < 0 ? "text-fall" : "text-mist-400";
 }
 
 /**

@@ -43,6 +43,7 @@ docker compose up --build
 ## 前端设计系统（「墨金私行」）
 
 - 令牌集中在 `web/src/app/globals.css`（Tailwind v4 `@theme`）：ink/gold/mist/jade/cinnabar/steel、`font-display`、`tnum`、`ease-luxe`。禁止散落 `slate/amber/emerald/rose` 等旧色值字面量。
+- 涨跌着色统一走语义令牌 `text-rise` / `text-fall`（含 `bg-rise/10`、`border-fall/30` 等派生）：取值随 `<html lang>` 翻转，en 绿涨红跌、zh 红涨绿跌。表达涨跌时禁止直接写 jade/cinnabar；jade/cinnabar 只用于成功/风险等状态语义。
 - 组件库在 `web/src/components/ui/`（Button、Panel、Chip、Table、Icon…），新页面优先复用；图标用 `ui/icon.tsx` 的细线图标，禁止 emoji。
 - 图表经 `web/src/components/plot-chart.tsx` 渲染（主题层已注入），Python 端输出 Plotly JSON。
 - **Next.js 16 与训练语料有破坏性差异**：动路由/字体/数据 API 前先查 `web/node_modules/next/dist/docs/`（见 `web/AGENTS.md`）。async request APIs（`params`/`searchParams` 是 Promise）。
