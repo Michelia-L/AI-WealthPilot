@@ -17,6 +17,8 @@ export const profiles = {
   errorImportFailed: "Import failed",
   importSummary: (found: number, imported: number, skipped: number) =>
     `Import complete: found ${found} JSON files, added ${imported}, skipped ${skipped}.`,
+  uploadJson: "Upload JSON",
+  uploadInvalid: (files: string) => `Files failed validation: ${files}`,
   // Form
   editFormTitle: (name: string) => `Edit Profile · ${name || "…"}`,
   sectionBasicInfo: "Basic Information",

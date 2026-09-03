@@ -30,6 +30,7 @@ interface ListMockProps {
   notice: string | null;
   error: string | null;
   onImport: () => void;
+  onUpload: (files: File[]) => void;
   onEdit: (id: number) => void;
   onDelete: (p: ProfileSummary) => void;
   onCreate: () => void;
@@ -46,6 +47,18 @@ vi.mock("./profile-list", () => ({
       ))}
       <button onClick={p.onCompare}>compare</button>
       <button onClick={p.onImport}>import</button>
+      <button
+        onClick={() =>
+          p.onUpload([
+            {
+              name: "client.json",
+              text: async () => JSON.stringify({ name: "Uploaded", age: 40 }),
+            } as unknown as File,
+          ])
+        }
+      >
+        upload
+      </button>
       <span data-testid="selected-count">{p.selected.length}</span>
       {p.notice && <span data-testid="notice">{p.notice}</span>}
       {p.error && <span data-testid="list-error">{p.error}</span>}
@@ -278,6 +291,32 @@ describe("ProfilesManager list actions", () => {
     await waitFor(() => expect(refreshMock).toHaveBeenCalled());
     expect(fetchMock.mock.calls[0][0]).toBe("/api/profiles/import");
     expect(screen.getByTestId("notice")).toHaveTextContent(/3/);
+  });
+
+  it("uploads picked files as raw text and surfaces invalid entries", async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse({
+          files_found: 1,
+          imported: 1,
+          skipped: 0,
+          invalid: ["bad.json[1]"],
+        })
+      )
+    );
+    renderManager();
+
+    fireEvent.click(screen.getByRole("button", { name: "upload" }));
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled());
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/profiles/import/upload");
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body.files).toEqual([
+      { filename: "client.json", content: '{"name":"Uploaded","age":40}' },
+    ]);
+    expect(screen.getByTestId("notice")).toHaveTextContent(/1/);
+    expect(screen.getByTestId("list-error")).toHaveTextContent("bad.json[1]");
   });
 
   it("joins 422 detail arrays into one error message", async () => {

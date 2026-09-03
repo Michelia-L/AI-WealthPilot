@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRef } from "react";
 import type { ProfileSummary } from "@/lib/api";
 import { fmtLocal } from "@/lib/format";
 import { useLocale, useT } from "@/components/locale-context";
@@ -19,7 +20,7 @@ import {
 import { MAX_COMPARE, RiskBadge } from "./shared";
 
 /**
- * 画像列表 —— 工具栏（导入 / 对比所选）、选择勾选与 CRUD 操作列。
+ * 画像列表 —— 工具栏（目录导入 / 上传 JSON / 对比所选）、选择勾选与 CRUD 操作列。
  * 新建入口在页头 SectionHeader，删除确认由 ProfilesManager 的 ConfirmDialog 承担。
  */
 export default function ProfileList({
@@ -32,6 +33,7 @@ export default function ProfileList({
   notice,
   error,
   onImport,
+  onUpload,
   onEdit,
   onDelete,
   onCreate,
@@ -45,12 +47,14 @@ export default function ProfileList({
   notice: string | null;
   error: string | null;
   onImport: () => void;
+  onUpload: (files: File[]) => void;
   onEdit: (id: number) => void;
   onDelete: (p: ProfileSummary) => void;
   onCreate: () => void;
 }) {
   const t = useT();
   const { locale } = useLocale();
+  const fileInput = useRef<HTMLInputElement>(null);
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -61,6 +65,25 @@ export default function ProfileList({
           disabled={busy}
         >
           {t.profiles.importFromJson}
+        </Button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".json,application/json"
+          multiple
+          hidden
+          onChange={(e) => {
+            onUpload(Array.from(e.target.files ?? []));
+            e.target.value = ""; // allow picking the same file again
+          }}
+        />
+        <Button
+          variant="secondary"
+          icon="upload"
+          onClick={() => fileInput.current?.click()}
+          disabled={busy}
+        >
+          {t.profiles.uploadJson}
         </Button>
         <Button
           variant="secondary"

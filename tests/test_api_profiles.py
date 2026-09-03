@@ -345,9 +345,9 @@ def test_compare_rejects_duplicate_names(client):
     assert "重名" in resp.json()["detail"]
 
 
-def _write_legacy_profile(profiles_dir, name, created_at, **extra):
+def _legacy_dict(name, created_at, **extra):
+    """Build the legacy asdict(ClientProfile) shape from the API payload."""
     data = sample_payload(name=name)
-    # Convert the API payload back to the legacy asdict(ClientProfile) shape.
     scores = data.pop("risk_scores")
     data["risk_profile"] = {
         "ability_score": scores["ability_score"],
@@ -358,6 +358,11 @@ def _write_legacy_profile(profiles_dir, name, created_at, **extra):
     data["created_at"] = created_at
     data["updated_at"] = created_at
     data.update(extra)
+    return data
+
+
+def _write_legacy_profile(profiles_dir, name, created_at, **extra):
+    data = _legacy_dict(name, created_at, **extra)
     path = profiles_dir / f"{name.lower().replace(' ', '_')}_20260608_120000.json"
     path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     return path
@@ -370,10 +375,20 @@ def test_import_legacy_json_idempotent(client, isolate_storage_dirs):
 
     first = client.post("/api/profiles/import")
     assert first.status_code == 200
-    assert first.json() == {"files_found": 2, "imported": 2, "skipped": 0}
+    assert first.json() == {
+        "files_found": 2,
+        "imported": 2,
+        "skipped": 0,
+        "invalid": [],
+    }
 
     second = client.post("/api/profiles/import")
-    assert second.json() == {"files_found": 2, "imported": 0, "skipped": 2}
+    assert second.json() == {
+        "files_found": 2,
+        "imported": 0,
+        "skipped": 2,
+        "invalid": [],
+    }
 
     profiles = client.get("/api/profiles").json()["profiles"]
     assert {p["name"] for p in profiles} == {"Legacy One", "Legacy Two"}
@@ -410,3 +425,121 @@ def test_maybe_auto_import_only_seeds_empty_db(
     maybe_auto_import()
     with Session(engine) as session:
         assert len(session.exec(select(ProfileRecord.name)).all()) == 1
+
+
+# ---------------------------------------------------------------------------
+# Browser JSON upload (POST /profiles/import/upload)
+# ---------------------------------------------------------------------------
+
+
+def _upload(client, files):
+    return client.post("/api/profiles/import/upload", json={"files": files})
+
+
+def test_upload_single_profile(client):
+    profile = _legacy_dict("Upload One", "2026-06-01T10:00:00")
+    resp = _upload(client, [{"filename": "one.json", "content": json.dumps(profile)}])
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "files_found": 1,
+        "imported": 1,
+        "skipped": 0,
+        "invalid": [],
+    }
+
+    profiles = client.get("/api/profiles").json()["profiles"]
+    assert [p["name"] for p in profiles] == ["Upload One"]
+    detail = client.get(f"/api/profiles/{profiles[0]['id']}").json()
+    assert detail["created_at"] == "2026-06-01T10:00:00"
+
+
+def test_upload_array_file_and_idempotency(client):
+    profiles = [
+        _legacy_dict("Arr One", "2026-06-01T10:00:00"),
+        _legacy_dict("Arr Two", "2026-06-02T10:00:00"),
+    ]
+    content = json.dumps(profiles)
+    first = _upload(client, [{"filename": "arr.json", "content": content}])
+    assert first.json() == {
+        "files_found": 1,
+        "imported": 2,
+        "skipped": 0,
+        "invalid": [],
+    }
+
+    again = _upload(client, [{"filename": "arr.json", "content": content}])
+    assert again.json() == {
+        "files_found": 1,
+        "imported": 0,
+        "skipped": 2,
+        "invalid": [],
+    }
+
+
+def test_upload_without_created_at_dedupes_on_name(client):
+    """LLM output typically omits created_at — re-uploading must not duplicate."""
+    profile = _legacy_dict("No Timestamp", "")
+    content = json.dumps(profile)
+    assert (
+        _upload(client, [{"filename": "n.json", "content": content}]).json()["imported"]
+        == 1
+    )
+    second = _upload(client, [{"filename": "n.json", "content": content}]).json()
+    assert second == {"files_found": 1, "imported": 0, "skipped": 1, "invalid": []}
+
+
+def test_upload_recomputes_scores_from_answers(client):
+    """risk_profile numbers in the file are untrusted; questionnaire answers win."""
+    profile = _legacy_dict(
+        "Score Check",
+        "2026-06-01T10:00:00",
+        risk_profile={
+            "ability_score": 5.0,
+            "willingness_score": 5.0,
+            "tolerance_level": "Aggressive / 进取型",
+            "description": "",
+        },
+        ability_answers={"income_stability": "very_unstable"},  # score 1
+        willingness_answers={"loss_reaction": "sell_all"},  # score 1
+    )
+    resp = _upload(client, [{"filename": "s.json", "content": json.dumps(profile)}])
+    assert resp.json()["imported"] == 1
+
+    listed = client.get("/api/profiles").json()["profiles"][0]
+    detail = client.get(f"/api/profiles/{listed['id']}").json()
+    assert detail["profile"]["risk_profile"]["ability_score"] == pytest.approx(1.0)
+    assert (
+        detail["profile"]["risk_profile"]["tolerance_level"] == "Conservative / 保守型"
+    )
+
+
+def test_upload_reports_invalid_entries(client):
+    bad_age = _legacy_dict("Too Young", "2026-06-01T10:00:00", age=10)
+    bad_enum = _legacy_dict(
+        "Bad Enum", "2026-06-02T10:00:00", marital_status="complicated"
+    )
+    good = _legacy_dict("Good One", "2026-06-03T10:00:00")
+    resp = _upload(
+        client,
+        [
+            {"filename": "broken.json", "content": "{not json"},
+            {
+                "filename": "mix.json",
+                "content": json.dumps([bad_age, "oops", bad_enum, good]),
+            },
+        ],
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "files_found": 2,
+        "imported": 1,
+        "skipped": 0,
+        "invalid": ["broken.json", "mix.json[0]", "mix.json[1]", "mix.json[2]"],
+    }
+
+    names = [p["name"] for p in client.get("/api/profiles").json()["profiles"]]
+    assert names == ["Good One"]
+
+
+def test_upload_requires_files(client):
+    assert _upload(client, []).status_code == 422

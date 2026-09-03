@@ -265,6 +265,46 @@ export default function ProfilesManager({
     }
   }
 
+  /** Browser-picked JSON files: raw text goes up, the API parses/validates. */
+  async function importUpload(files: File[]) {
+    if (files.length === 0) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const contents = await Promise.all(files.map((f) => f.text()));
+      const res = await fetch("/api/profiles/import/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          files: files.map((f, i) => ({ filename: f.name, content: contents[i] })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(
+          typeof data.detail === "string"
+            ? data.detail
+            : t.profiles.errorImportFailed
+        );
+      setNotice(
+        t.profiles.importSummary(
+          data.files_found,
+          data.imported,
+          data.skipped
+        )
+      );
+      if (Array.isArray(data.invalid) && data.invalid.length > 0) {
+        setError(t.profiles.uploadInvalid(data.invalid.join(", ")));
+      }
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const setGoal = <K extends keyof InvestmentGoalInput>(
     idx: number,
     key: K,
@@ -318,6 +358,7 @@ export default function ProfilesManager({
             notice={notice}
             error={error}
             onImport={importLegacy}
+            onUpload={importUpload}
             onEdit={startEdit}
             onDelete={(p) => setPendingDelete({ id: p.id, name: p.name })}
             onCreate={startCreate}

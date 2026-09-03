@@ -15,7 +15,7 @@ from sqlmodel import Session, select
 
 from api.db import ProfileRecord, get_session
 from api.i18n import get_request_locale, msg
-from api.migrate_profiles import import_json_profiles
+from api.migrate_profiles import import_json_profiles, import_uploaded_profiles
 from api.profile_convert import build_derived, payload_to_data, profile_from_data
 from api.schemas import (
     BiasItem,
@@ -26,6 +26,7 @@ from api.schemas import (
     ProfileListResponse,
     ProfilePayload,
     ProfileSummary,
+    ProfileUploadRequest,
     QuestionnaireOption,
     QuestionnaireQuestion,
     QuestionnaireResponse,
@@ -249,3 +250,13 @@ def import_legacy_json(
 ) -> ProfileImportResponse:
     """Import data/profiles/*.json (Streamlit era) into SQLite. Idempotent."""
     return ProfileImportResponse(**import_json_profiles(session))
+
+
+@router.post("/import/upload", response_model=ProfileImportResponse)
+def import_uploaded_json(
+    req: ProfileUploadRequest,
+    session: Session = Depends(get_session),
+) -> ProfileImportResponse:
+    """Import browser-uploaded profile JSON. Each file holds one profile or an
+    array; validation failures are reported in ``invalid``, not raised."""
+    return ProfileImportResponse(**import_uploaded_profiles(session, req.files))

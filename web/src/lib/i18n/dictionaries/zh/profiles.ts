@@ -17,6 +17,8 @@ export const profiles = {
   errorImportFailed: "导入失败",
   importSummary: (found: number, imported: number, skipped: number) =>
     `导入完成：发现 ${found} 个 JSON 文件，新增 ${imported} 条，跳过 ${skipped} 条。`,
+  uploadJson: "上传 JSON",
+  uploadInvalid: (files: string) => `以下文件未通过校验：${files}`,
   // Form
   editFormTitle: (name: string) => `编辑画像 · ${name || "…"}`,
   sectionBasicInfo: "基本信息",

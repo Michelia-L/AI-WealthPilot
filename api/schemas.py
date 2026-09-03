@@ -611,10 +611,24 @@ class ProfileDetailResponse(BaseModel):
     derived: ProfileDerived
 
 
+class ProfileUploadFile(BaseModel):
+    """One uploaded JSON file: raw text, parsed and validated server-side."""
+
+    filename: str = Field(max_length=255)
+    content: str = Field(max_length=1_000_000)
+
+
+class ProfileUploadRequest(BaseModel):
+    files: list[ProfileUploadFile] = Field(min_length=1, max_length=50)
+
+
 class ProfileImportResponse(BaseModel):
     files_found: int
     imported: int
     skipped: int
+    # Files (or entries) that failed parsing/validation. Array entries are
+    # reported as "filename[i]". Empty for the legacy directory import.
+    invalid: list[str] = Field(default_factory=list)
 
 
 class QuestionnaireOption(BaseModel):

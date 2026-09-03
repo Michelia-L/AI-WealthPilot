@@ -84,6 +84,7 @@ export interface ProfileImportResponse {
   files_found: number;
   imported: number;
   skipped: number;
+  invalid: string[]; // filenames (or "file[i]" for array entries) that failed validation
 }
 
 /** Convert the stored detail shape back into the editable form payload. */
