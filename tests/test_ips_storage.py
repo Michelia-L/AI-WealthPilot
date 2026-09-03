@@ -11,6 +11,7 @@ Covers:
 from pathlib import Path
 
 import pytest
+from fpdf.enums import TextMode
 
 from src.agents.ips_storage import (
     _IPSPDF,
@@ -138,6 +139,22 @@ class TestCJKFontDiscovery:
         result = _find_cjk_font()
         if result is not None:
             assert Path(result).exists()
+
+    def test_find_cjk_font_prefers_first_existing_candidate(self, monkeypatch):
+        """Candidate order wins: WenQuanYi paths beat later platform fonts."""
+        monkeypatch.setattr(Path, "exists", lambda p: str(p).endswith("wqy-zenhei.ttc"))
+        assert _find_cjk_font() == "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"
+
+    def test_find_cjk_font_returns_none_when_nothing_exists(self, monkeypatch):
+        monkeypatch.setattr(Path, "exists", lambda p: False)
+        assert _find_cjk_font() is None
+
+    def test_builder_warns_when_falling_back_to_helvetica(self, caplog):
+        """Helvetica fallback replaces CJK with '?' — must not be silent."""
+        with caplog.at_level("WARNING", logger="src.agents.ips_storage"):
+            builder = _IPSPDF(font_path=None, locale="zh")
+        assert builder._font_family == "Helvetica"
+        assert any("No CJK font" in r.message for r in caplog.records)
 
 
 # ============================================================
@@ -307,3 +324,64 @@ class TestPDFLatin1Fallback:
         builder = _IPSPDF(font_path=None, locale="en")
         pdf_bytes = builder.build(sample_ips_dict, None)
         assert pdf_bytes[:5] == b"%PDF-"
+
+
+# ============================================================
+# Test: PDF rendering details (bold markdown, rule placement)
+# ============================================================
+
+
+class TestPDFRenderingDetails:
+    """Regression tests for **bold** rendering and separator overlap."""
+
+    def test_body_text_renders_bold_segments_with_stroke(self):
+        builder = _IPSPDF(font_path=None, locale="zh")
+        builder.pdf.add_page()
+        writes = []
+        builder.pdf.write = lambda h, text: writes.append((text, builder.pdf.text_mode))
+        builder._body_text("before **BOLD PART** after")
+        assert [t for t, _ in writes] == ["before ", "BOLD PART", " after"]
+        modes = {t.strip(): m for t, m in writes}
+        assert modes["BOLD PART"] == TextMode.FILL_STROKE
+        assert modes["before"] == TextMode.FILL
+        assert modes["after"] == TextMode.FILL
+
+    def test_body_text_without_markdown_uses_multi_cell(self):
+        builder = _IPSPDF(font_path=None, locale="zh")
+        builder.pdf.add_page()
+        calls = []
+        builder.pdf.multi_cell = lambda w, h, text: calls.append(text)
+        builder._body_text("plain paragraph")
+        assert calls == ["plain paragraph"]
+
+    def test_faux_bold_stroke_state_is_reset(self):
+        """fpdf2 never emits "0 Tr" on its own; we must (stroke would leak)."""
+        builder = _IPSPDF(font_path=None, locale="zh")
+        builder.pdf.add_page()
+        emitted = []
+        orig_out = builder.pdf._out
+        builder.pdf._out = lambda s: (emitted.append(str(s)), orig_out(s))[1]
+        builder._body_text("plain **BOLD** tail")
+        joined = "\n".join(emitted)
+        assert "2 Tr" in joined  # stroke on for the bold segment
+        assert "0 Tr" in joined  # and explicitly reset afterwards
+
+    def test_section_title_rule_sits_below_text_row(self):
+        """fpdf2 cell() defaults to new_y=TOP; the rule must wait for the row."""
+        builder = _IPSPDF(font_path=None, locale="zh")
+        builder.pdf.add_page()
+        rule_ys = []
+        builder.pdf.line = lambda x1, y1, x2, y2: rule_ys.append(y1)
+        top = builder.pdf.get_y()
+        builder._section_title("Section")
+        # ln(4) + the full 8mm text row must precede the rule.
+        assert rule_ys and rule_ys[0] >= top + 4 + 8
+
+    def test_header_rule_sits_below_header_text(self):
+        builder = _IPSPDF(font_path=None, locale="zh")
+        builder.pdf.add_page()
+        rule_ys = []
+        builder.pdf.line = lambda x1, y1, x2, y2: rule_ys.append(y1)
+        top = builder.pdf.get_y()
+        builder._add_header("Client")
+        assert rule_ys and rule_ys[0] >= top + 5  # 5mm header row

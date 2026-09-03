@@ -14,12 +14,21 @@ Key Features:
 """
 
 import json
+import logging
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from fpdf.enums import TextMode, XPos, YPos
+
 from src.config import DATA_DIR
 from src.utils import sanitize_filename
+
+logger = logging.getLogger(__name__)
+
+# Matches **bold** segments in narrative text (LLM-generated markdown).
+_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
 
 # Storage Directory
 
@@ -601,20 +610,29 @@ def _find_cjk_font() -> Optional[str]:
     """
     Find a suitable CJK font file for PDF rendering.
 
-    Searches common system paths for Chinese-capable fonts.
-    Returns the path to the font file, or None if not found.
+    fpdf2 2.8.x embeds TrueType outlines correctly but garbles CFF-based
+    OpenType (e.g. Debian's fonts-noto-cjk under opentype/noto — see
+    api/Dockerfile), so candidates are TrueType-outline fonts only, ordered
+    by availability. Returns None when nothing usable is found; the PDF
+    builder then degrades to Helvetica and CJK text renders as '?'.
     """
     candidates = [
+        # Linux — WenQuanYi (TrueType outlines). The first path is where the
+        # Docker image symlinks wqy-microhei into (see api/Dockerfile).
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
         # Windows
         r"C:\Windows\Fonts\msyh.ttc",  # Microsoft YaHei
         r"C:\Windows\Fonts\simhei.ttf",  # SimHei
         r"C:\Windows\Fonts\simsun.ttc",  # SimSun
+        # WSL interop — the dev environment is WSL2, where Windows fonts are
+        # visible under /mnt/c (verified fpdf2-safe: TrueType outlines).
+        "/mnt/c/Windows/Fonts/msyh.ttc",
+        "/mnt/c/Windows/Fonts/simhei.ttf",
         # macOS
         "/System/Library/Fonts/PingFang.ttc",
         "/Library/Fonts/Arial Unicode.ttf",
-        # Linux
-        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     ]
     for path in candidates:
         if Path(path).exists():
@@ -792,6 +810,28 @@ class _IPSPDF:
             self.pdf.add_font("CJK", "", font_path)
             self.pdf.add_font("CJK", "B", font_path)
             self._font_family = "CJK"
+        else:
+            logger.warning(
+                "No CJK font available for IPS PDF export; CJK text will render "
+                "as '?'. Install fonts-wqy-microhei (or make a Windows/macOS "
+                "font visible at a probed path) to fix this."
+            )
+
+    def _set_faux_bold(self, on: bool) -> None:
+        """Toggle bold emphasis. The registered CJK fonts are single-weight,
+        so bold is emulated with a thin stroke (fill+stroke text mode)."""
+        if on:
+            self.pdf.set_font(style="B")
+            self.pdf.text_mode = TextMode.FILL_STROKE
+            self.pdf.set_line_width(0.25)
+        else:
+            self.pdf.set_font(style="")
+            self.pdf.text_mode = TextMode.FILL
+            self.pdf.set_line_width(0.2)  # fpdf2 default
+            # fpdf2 quirk: Tr operators are only emitted for non-FILL modes,
+            # so returning to FILL never writes "0 Tr" and the stroke leaks
+            # into all later text on the page. Reset it manually.
+            self.pdf._out("0 Tr")
 
     def _t(self, text: str) -> str:
         """Sanitize text for the active font (graceful latin-1 degradation)."""
@@ -813,11 +853,13 @@ class _IPSPDF:
             5,
             self._t(f"AI WealthPilot — {client_name} {self._labels['header_suffix']}"),
             align="C",
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
         )
-        self.pdf.ln(3)
+        self.pdf.ln(1)
         self.pdf.set_draw_color(200, 200, 200)
         self.pdf.line(20, self.pdf.get_y(), 190, self.pdf.get_y())
-        self.pdf.ln(5)
+        self.pdf.ln(4)
         self.pdf.set_text_color(0, 0, 0)
 
     def _add_footer(self) -> None:
@@ -838,27 +880,47 @@ class _IPSPDF:
         self.pdf.set_font(self._font_family, "B", 14)
         self.pdf.set_text_color(26, 54, 93)  # Dark blue
         self.pdf.ln(4)
-        self.pdf.cell(0, 8, self._t(title))
-        self.pdf.ln(2)
+        self._set_faux_bold(True)
+        # new_y=NEXT puts the cursor below the 8mm row so the rule drawn
+        # afterwards can't strike through the title text (fpdf2's default
+        # new_y=TOP leaves the cursor at the row top).
+        self.pdf.cell(0, 8, self._t(title), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self._set_faux_bold(False)
+        self.pdf.ln(1)
         self.pdf.set_draw_color(44, 82, 130)
         self.pdf.line(20, self.pdf.get_y(), 190, self.pdf.get_y())
-        self.pdf.ln(6)
+        self.pdf.ln(5)
         self.pdf.set_text_color(0, 0, 0)
 
     def _subsection_title(self, title: str) -> None:
         """Render a subsection title (h3 equivalent)."""
         self.pdf.set_font(self._font_family, "B", 11)
         self.pdf.set_text_color(44, 82, 130)
-        self.pdf.cell(0, 7, self._t(title))
-        self.pdf.ln(6)
+        self._set_faux_bold(True)
+        self.pdf.cell(0, 7, self._t(title), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self._set_faux_bold(False)
+        self.pdf.ln(4)
         self.pdf.set_text_color(0, 0, 0)
 
     def _body_text(self, text: str) -> None:
-        """Render body text with word wrapping."""
+        """Render body text with word wrapping and **bold** markdown emphasis."""
         if not text:
             return
         self.pdf.set_font(self._font_family, "", 10)
-        self.pdf.multi_cell(0, 5, self._t(text))
+        parts = _BOLD_RE.split(self._t(text))
+        if len(parts) == 1:
+            self.pdf.multi_cell(0, 5, parts[0])
+        else:
+            for i, part in enumerate(parts):
+                if not part:
+                    continue
+                if i % 2 == 1:  # captured group = **bold** content
+                    self._set_faux_bold(True)
+                    self.pdf.write(5, part)
+                    self._set_faux_bold(False)
+                else:
+                    self.pdf.write(5, part)
+            self.pdf.ln(5)  # write() stops after the last char, not on a new line
         self.pdf.ln(3)
 
     def _key_value(self, key: str, value: str) -> None:
@@ -927,7 +989,9 @@ class _IPSPDF:
         self.pdf.set_font(self._font_family, "B", 22)
         self.pdf.set_text_color(26, 54, 93)
         self.pdf.ln(10)
+        self._set_faux_bold(True)
         self.pdf.cell(0, 12, self._t(L["doc_title"]), align="C")
+        self._set_faux_bold(False)
         self.pdf.ln(15)
         self.pdf.set_text_color(0, 0, 0)
 
