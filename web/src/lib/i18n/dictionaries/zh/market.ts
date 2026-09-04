@@ -54,4 +54,8 @@ export const market = {
   thMaxDrawdown: "最大回撤",
   thDailyVar: "日 VaR (95%)",
   thVolRegime: "波动状态",
+  /** 风险统计表列头排序（点击循环：升序 → 降序 → 默认顺序）。 */
+  sortAsc: "按此列升序",
+  sortDesc: "按此列降序",
+  sortReset: "恢复默认顺序",
 };

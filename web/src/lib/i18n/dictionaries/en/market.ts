@@ -57,4 +57,8 @@ export const market = {
   thMaxDrawdown: "Max Drawdown",
   thDailyVar: "Daily VaR (95%)",
   thVolRegime: "Volatility Regime",
+  /** Risk-stats table header sorting (click to cycle: asc → desc → default order). */
+  sortAsc: "Sort ascending by this column",
+  sortDesc: "Sort descending by this column",
+  sortReset: "Reset to default order",
 };

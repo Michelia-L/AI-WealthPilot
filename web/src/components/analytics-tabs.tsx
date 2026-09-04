@@ -1,16 +1,29 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { AnalyticsResponse, PlotlyFigure } from "@/lib/api";
+import type { AnalyticsResponse, PlotlyFigure, RiskStat } from "@/lib/api";
 import { fmtPct } from "@/lib/format";
+import { cx } from "@/lib/cx";
 import { useT } from "@/components/locale-context";
 import PlotChart from "@/components/plot-chart";
 import Panel from "./ui/panel";
 import Tabs from "./ui/tabs";
 import Toggle from "./ui/toggle";
+import Icon from "./ui/icon";
 import { Table, THead, TH, TR, TD } from "./ui/table";
 
 type TabKey = "price" | "correlation" | "stats";
+
+/** Sortable columns of the risk-stats table (RiskStat keys; "name" sorts by label). */
+type SortKey =
+  | "name"
+  | "ann_return"
+  | "ann_volatility"
+  | "sharpe"
+  | "max_drawdown"
+  | "var_95";
+
+type SortState = { key: SortKey; dir: 1 | -1 } | null;
 
 /** Decode plotly.py's base64 typed-array encoding ({bdata, dtype}). */
 function decodeBdata(bdata: string, dtype: string): ArrayLike<number> {
@@ -88,6 +101,56 @@ function normalizeFigure(figure: PlotlyFigure): PlotlyFigure {
 }
 
 /**
+ * Sortable stats-table header cell: click cycles ascending → descending →
+ * default (API) order. The chevron points up for ascending, down for
+ * descending, and fades in on hover for inactive columns.
+ */
+function SortableTH({
+  label,
+  sortKey,
+  sort,
+  onSort,
+  numeric = true,
+  t,
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: SortState;
+  onSort: (key: SortKey) => void;
+  numeric?: boolean;
+  t: { sortAsc: string; sortDesc: string; sortReset: string };
+}) {
+  const active = sort?.key === sortKey;
+  const action = !active ? t.sortAsc : sort.dir === 1 ? t.sortDesc : t.sortReset;
+  return (
+    <TH className={numeric ? "text-right" : undefined}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        aria-label={`${label}: ${action}`}
+        title={action}
+        className={cx(
+          "group inline-flex cursor-pointer items-center gap-1",
+          numeric && "flex-row-reverse"
+        )}
+      >
+        {label}
+        <Icon
+          name="chevronDown"
+          size={11}
+          className={cx(
+            "transition-all duration-200",
+            active
+              ? cx("text-gold-400", sort.dir === 1 && "rotate-180")
+              : "opacity-0 group-hover:opacity-40"
+          )}
+        />
+      </button>
+    </TH>
+  );
+}
+
+/**
  * Analytics tabs: price trajectory (with a client-side base-100 normalize
  * toggle — no refetch), correlation heatmap, and the risk stats table.
  */
@@ -99,6 +162,7 @@ export default function AnalyticsTabs({
   const t = useT();
   const [tab, setTab] = useState<TabKey>("price");
   const [normalize, setNormalize] = useState(true);
+  const [sort, setSort] = useState<SortState>(null);
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: "price", label: t.market.tabPrice },
@@ -111,6 +175,27 @@ export default function AnalyticsTabs({
       normalize ? normalizeFigure(analytics.price_chart) : analytics.price_chart,
     [normalize, analytics.price_chart]
   );
+
+  /** Tri-state cycle: none → asc → desc → none (default = API order). */
+  const toggleSort = (key: SortKey) =>
+    setSort((prev) => {
+      if (!prev || prev.key !== key) return { key, dir: 1 };
+      if (prev.dir === 1) return { key, dir: -1 };
+      return null;
+    });
+
+  const sortedStats = useMemo<RiskStat[]>(() => {
+    if (!sort) return analytics.stats;
+    const rows = [...analytics.stats];
+    rows.sort((a, b) => {
+      const cmp =
+        sort.key === "name"
+          ? a.name.localeCompare(b.name)
+          : a[sort.key] - b[sort.key];
+      return cmp * sort.dir;
+    });
+    return rows;
+  }, [analytics.stats, sort]);
 
   return (
     <section>
@@ -178,16 +263,53 @@ export default function AnalyticsTabs({
           <Table className="min-w-[820px]">
             <THead>
               <tr>
-                <TH>{t.market.thAsset}</TH>
-                <TH className="text-right">{t.market.thAnnReturn}</TH>
-                <TH className="text-right">{t.market.thAnnVol}</TH>
-                <TH className="text-right">{t.market.thSharpe}</TH>
-                <TH className="text-right">{t.market.thMaxDrawdown}</TH>
-                <TH className="text-right">{t.market.thDailyVar}</TH>
+                <SortableTH
+                  label={t.market.thAsset}
+                  sortKey="name"
+                  sort={sort}
+                  onSort={toggleSort}
+                  numeric={false}
+                  t={t.market}
+                />
+                <SortableTH
+                  label={t.market.thAnnReturn}
+                  sortKey="ann_return"
+                  sort={sort}
+                  onSort={toggleSort}
+                  t={t.market}
+                />
+                <SortableTH
+                  label={t.market.thAnnVol}
+                  sortKey="ann_volatility"
+                  sort={sort}
+                  onSort={toggleSort}
+                  t={t.market}
+                />
+                <SortableTH
+                  label={t.market.thSharpe}
+                  sortKey="sharpe"
+                  sort={sort}
+                  onSort={toggleSort}
+                  t={t.market}
+                />
+                <SortableTH
+                  label={t.market.thMaxDrawdown}
+                  sortKey="max_drawdown"
+                  sort={sort}
+                  onSort={toggleSort}
+                  t={t.market}
+                />
+                <SortableTH
+                  label={t.market.thDailyVar}
+                  sortKey="var_95"
+                  sort={sort}
+                  onSort={toggleSort}
+                  t={t.market}
+                />
               </tr>
             </THead>
             <tbody>
-              {analytics.stats.map((s) => (
+              {sortedStats.map((s) => (
                 <TR key={s.ticker}>
                   <TD>
                     <div className="font-medium text-mist-100">{s.name}</div>
