@@ -34,7 +34,12 @@ import numpy as np
 import pandas as pd
 
 from src.agents import ips_storage
-from src.config import ASSET_CLASS_ALIASES, IPS_ASSET_CLASS_TICKERS
+from src.config import (
+    ASSET_CLASS_ALIASES,
+    ASSET_CLASS_CURRENCY,
+    BASE_CURRENCY,
+    IPS_ASSET_CLASS_TICKERS,
+)
 from src.data.market_data import fetch_price_history
 from src.portfolio.cme_engine import compute_cme
 from src.portfolio.cme_models import AssetClassCME
@@ -140,6 +145,18 @@ _NOTE_STRINGS: dict[str, dict[str, str]] = {
         "zh": "行情数据不足，无法判定漂移状态。",
         "en": "Insufficient market data to determine the drift status.",
     },
+    "fx_unmapped_excluded": {
+        "zh": "以下资产未纳入币种敞口拆分（无法映射到已知资产类别）：{names}。",
+        "en": "The following assets are excluded from the currency breakdown (unmappable to a known asset class): {names}.",
+    },
+    "fx_advisory_low": {
+        "zh": "非本币（非 {base}）敞口合计 {pct:.1%}，汇率波动对组合影响有限。",
+        "en": "Non-base-currency (non-{base}) exposure totals {pct:.1%}; FX moves have limited impact on the portfolio.",
+    },
+    "fx_advisory_elevated": {
+        "zh": "非本币（非 {base}）敞口合计 {pct:.1%}，汇率波动对组合影响显著；可考虑远期/期货被动对冲、carry 交易或底层资产替换来管理货币错配。",
+        "en": "Non-base-currency (non-{base}) exposure totals {pct:.1%}; FX moves materially affect the portfolio. Consider passive forward/futures hedging, carry strategies, or underlying-asset substitution to manage the currency mismatch.",
+    },
 }
 
 
@@ -239,6 +256,15 @@ def compute_monitoring(document_id: str, locale: str = "zh") -> dict:
 
     rebalance = _compute_rebalance(holdings)
 
+    # Per-currency exposure / net currency mismatch (base currency from the
+    # IPS currency policy when present, else the global default).
+    base_currency = (ips.get("currency_policy") or {}).get(
+        "base_currency"
+    ) or BASE_CURRENCY
+    currency_exposure = _compute_currency_exposure(
+        holdings, base_currency, notes, locale
+    )
+
     return {
         "document_id": document_id,
         "client_name": meta.get("client_name") or ips.get("client_name", "Unknown"),
@@ -249,6 +275,7 @@ def compute_monitoring(document_id: str, locale: str = "zh") -> dict:
         "drifted_portfolio": drifted_portfolio,
         "holdings": [_serialize_holding(h) for h in holdings],
         "rebalance": rebalance,
+        "currency_exposure": currency_exposure,
         "notes": notes,
     }
 
@@ -888,6 +915,101 @@ def _compute_rebalance(holdings: list[dict]) -> dict:
             }
         )
     return {"needed": bool(trades), "trades": trades}
+
+
+# ---------------------------------------------------------------------------
+# Currency exposure / net currency mismatch
+# ---------------------------------------------------------------------------
+
+#: Non-base-currency weight above which the FX advisory escalates.
+FX_EXPOSURE_ELEVATED_THRESHOLD = 0.10
+
+
+def _compute_currency_exposure(
+    holdings: list[dict], base_currency: str, notes: list[str], locale: str
+) -> dict:
+    """Aggregate SAA holdings into a per-currency exposure breakdown.
+
+    Currency assignment follows the documented ASSET_CLASS_CURRENCY
+    assumption (economic exposure currency, not the proxy ticker's quote
+    currency). Unmapped holdings are excluded and surface as a note.
+
+    IPS goals are base-currency-denominated, so foreign-currency liabilities
+    are zero and the net currency mismatch equals total foreign exposure —
+    the quantity an FX hedging decision would size against.
+    """
+    unmapped = [h["name"] for h in holdings if h["key"] not in ASSET_CLASS_CURRENCY]
+    if unmapped:
+        notes.append(
+            _t(
+                "fx_unmapped_excluded",
+                locale,
+                names=_list_sep(locale).join(unmapped),
+            )
+        )
+
+    by_currency: dict[str, dict] = {}
+    for h in holdings:
+        currency = ASSET_CLASS_CURRENCY.get(h["key"])
+        if currency is None:
+            continue
+        bucket = by_currency.setdefault(
+            currency,
+            {
+                "currency": currency,
+                "target_weight": 0.0,
+                "drifted_weight": 0.0,
+                "drift_known": True,
+            },
+        )
+        bucket["target_weight"] += h["target_weight"]
+        if h["drifted_weight"] is None:
+            bucket["drift_known"] = False
+        else:
+            bucket["drifted_weight"] += h["drifted_weight"]
+
+    # Base currency first, then foreign buckets by target weight descending.
+    ordered = sorted(
+        by_currency.values(),
+        key=lambda b: (b["currency"] != base_currency, -b["target_weight"]),
+    )
+    breakdown = [
+        {
+            "currency": b["currency"],
+            "target_weight": float(b["target_weight"]),
+            "drifted_weight": float(b["drifted_weight"]) if b["drift_known"] else None,
+        }
+        for b in ordered
+    ]
+
+    foreign_target = sum(
+        b["target_weight"] for b in breakdown if b["currency"] != base_currency
+    )
+    foreign_buckets = [b for b in breakdown if b["currency"] != base_currency]
+    foreign_drifted = (
+        None
+        if any(b["drifted_weight"] is None for b in foreign_buckets)
+        else float(sum(b["drifted_weight"] for b in foreign_buckets))
+    )
+    net_mismatch = (
+        foreign_drifted if foreign_drifted is not None else float(foreign_target)
+    )
+
+    advisory_key = (
+        "fx_advisory_elevated"
+        if net_mismatch > FX_EXPOSURE_ELEVATED_THRESHOLD
+        else "fx_advisory_low"
+    )
+    advisory = _t(advisory_key, locale, base=base_currency, pct=net_mismatch)
+
+    return {
+        "base_currency": base_currency,
+        "breakdown": breakdown,
+        "foreign_target": float(foreign_target),
+        "foreign_drifted": foreign_drifted,
+        "net_mismatch": float(net_mismatch),
+        "advisory": advisory,
+    }
 
 
 # Serialization

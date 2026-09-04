@@ -472,6 +472,165 @@ def _counting_fetch(df, counter):
     return fetch
 
 
+# ---------------------------------------------------------------------------
+# Currency exposure / net currency mismatch
+# ---------------------------------------------------------------------------
+
+
+def _write_ips_doc_with_currency_policy(
+    ips_dir, doc_id, saa, base_currency, saved_at=SAVED_AT
+):
+    """Write a minimal IPS record carrying a currency_policy block."""
+    record = {
+        "ips": {
+            "client_name": "测试客户",
+            "version": "1.0",
+            "investment_guidelines": {"strategic_allocation": saa},
+            "currency_policy": {
+                "base_currency": base_currency,
+                "foreign_exposure_pct": 0.4,
+                "hedging_approach": "Unhedged",
+                "currency_narrative": "test",
+            },
+        },
+        "audit_trail": {"final_status": "approved", "total_rounds": 0},
+        "metadata": {"client_name": "测试客户", "saved_at": saved_at, "notes": ""},
+    }
+    (ips_dir / f"{doc_id}.json").write_text(
+        json.dumps(record, ensure_ascii=False), encoding="utf-8"
+    )
+    return doc_id
+
+
+def test_currency_exposure_breakdown(client, ips_dir, stub_cme, monkeypatch):
+    """Domestic + international SAA splits into CNY / USD buckets."""
+    monkeypatch.setattr("src.portfolio.monitoring.datetime", _FrozenDatetime)
+    monkeypatch.setattr(
+        "src.portfolio.monitoring.fetch_price_history",
+        _stub_fetch(
+            _prices(
+                {
+                    "000300.SS": [100.0, 100.0, 100.0],  # flat
+                    "EFA": [100.0, 105.0, 110.0],  # +10%
+                }
+            )
+        ),
+    )
+    doc_id = _write_ips_doc(
+        ips_dir,
+        "ips_fx_20260601_093000",
+        [
+            _saa_entry("国内权益（A股/沪深300）", 0.6, 0.5, 0.7),
+            _saa_entry("国际权益（发达市场）", 0.4, 0.3, 0.5),
+        ],
+    )
+
+    resp = client.get(f"/api/monitoring/{doc_id}")
+    assert resp.status_code == 200
+    fx = resp.json()["currency_exposure"]
+
+    assert fx["base_currency"] == "CNY"
+    assert [b["currency"] for b in fx["breakdown"]] == ["CNY", "USD"]
+    cny, usd = fx["breakdown"]
+    assert cny["target_weight"] == pytest.approx(0.6)
+    assert usd["target_weight"] == pytest.approx(0.4)
+    # Drift: gross = .6*1.0 + .4*1.1 = 1.04
+    assert cny["drifted_weight"] == pytest.approx(0.6 / 1.04)
+    assert usd["drifted_weight"] == pytest.approx(0.44 / 1.04)
+    assert fx["foreign_target"] == pytest.approx(0.4)
+    assert fx["foreign_drifted"] == pytest.approx(0.44 / 1.04)
+    assert fx["net_mismatch"] == pytest.approx(0.44 / 1.04)
+    # 42% foreign > 10% threshold -> elevated advisory
+    assert "对冲" in fx["advisory"]
+
+
+def test_currency_exposure_base_currency_from_ips(
+    client, ips_dir, stub_cme, monkeypatch
+):
+    """The IPS currency_policy base_currency drives the breakdown ordering."""
+    monkeypatch.setattr("src.portfolio.monitoring.datetime", _FrozenDatetime)
+    monkeypatch.setattr(
+        "src.portfolio.monitoring.fetch_price_history",
+        _stub_fetch(
+            _prices({"EWH": [100.0, 100.0, 100.0], "AGG": [100.0, 100.0, 100.0]})
+        ),
+    )
+    doc_id = _write_ips_doc_with_currency_policy(
+        ips_dir,
+        "ips_fx_hkd_20260601_093000",
+        [
+            _saa_entry("港股", 0.4, 0.3, 0.5),
+            _saa_entry("固定收益", 0.6, 0.5, 0.7),
+        ],
+        base_currency="HKD",
+    )
+
+    resp = client.get(f"/api/monitoring/{doc_id}")
+    assert resp.status_code == 200
+    fx = resp.json()["currency_exposure"]
+
+    assert fx["base_currency"] == "HKD"
+    # Base currency bucket comes first
+    assert [b["currency"] for b in fx["breakdown"]] == ["HKD", "CNY"]
+    assert fx["foreign_target"] == pytest.approx(0.6)
+
+
+def test_currency_exposure_unmapped_excluded(client, ips_dir, stub_cme, monkeypatch):
+    """Unmapped SAA entries are excluded from the breakdown, with a note."""
+    monkeypatch.setattr("src.portfolio.monitoring.datetime", _FrozenDatetime)
+    monkeypatch.setattr(
+        "src.portfolio.monitoring.fetch_price_history",
+        _stub_fetch(_prices({"000300.SS": [100.0, 100.0, 100.0]})),
+    )
+    doc_id = _write_ips_doc(
+        ips_dir,
+        "ips_fx_unmapped_20260601_093000",
+        [
+            _saa_entry("国内权益（A股/沪深300）", 0.6, 0.5, 0.7),
+            _saa_entry("私募股权", 0.4, 0.3, 0.5),  # no alias match
+        ],
+    )
+
+    resp = client.get(f"/api/monitoring/{doc_id}")
+    assert resp.status_code == 200
+    body = resp.json()
+    fx = body["currency_exposure"]
+
+    assert [b["currency"] for b in fx["breakdown"]] == ["CNY"]
+    assert fx["breakdown"][0]["target_weight"] == pytest.approx(0.6)
+    assert fx["foreign_target"] == pytest.approx(0.0)
+    assert any("币种敞口" in n and "私募股权" in n for n in body["notes"])
+
+
+def test_currency_exposure_unknown_drift_degrades(
+    client, ips_dir, stub_cme, monkeypatch
+):
+    """Missing price data -> foreign drifted null; mismatch falls back to target."""
+    monkeypatch.setattr("src.portfolio.monitoring.datetime", _FrozenDatetime)
+    monkeypatch.setattr(
+        "src.portfolio.monitoring.fetch_price_history",
+        _stub_fetch(_prices({"000300.SS": [100.0, 100.0, 100.0]})),  # no EFA
+    )
+    doc_id = _write_ips_doc(
+        ips_dir,
+        "ips_fx_nodrift_20260601_093000",
+        [
+            _saa_entry("国内权益（A股/沪深300）", 0.6, 0.5, 0.7),
+            _saa_entry("国际权益（发达市场）", 0.4, 0.3, 0.5),
+        ],
+    )
+
+    resp = client.get(f"/api/monitoring/{doc_id}")
+    assert resp.status_code == 200
+    fx = resp.json()["currency_exposure"]
+
+    usd = fx["breakdown"][1]
+    assert usd["currency"] == "USD"
+    assert usd["drifted_weight"] is None
+    assert fx["foreign_drifted"] is None
+    assert fx["net_mismatch"] == pytest.approx(0.4)
+
+
 @pytest.fixture(autouse=True)
 def _reset_fleet_status_cache():
     """The module-level fleet TTLCache must not leak results across tests."""

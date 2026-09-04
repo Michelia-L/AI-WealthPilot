@@ -828,6 +828,41 @@ class MonitoringRebalance(BaseModel):
     trades: list[MonitoringTrade] = Field(default_factory=list)
 
 
+class CurrencyExposureItem(BaseModel):
+    """One currency's share of the SAA (target vs drifted weights)."""
+
+    currency: str
+    target_weight: float
+    drifted_weight: Optional[float] = Field(
+        default=None,
+        description="Null when any holding in this bucket has unknown drift",
+    )
+
+
+class CurrencyExposure(BaseModel):
+    """Per-currency exposure breakdown and net currency mismatch."""
+
+    base_currency: str
+    breakdown: list[CurrencyExposureItem] = Field(
+        description="Base currency first, then foreign buckets by target weight"
+    )
+    foreign_target: float = Field(description="Total non-base-currency target weight")
+    foreign_drifted: Optional[float] = Field(
+        default=None,
+        description="Total non-base-currency drifted weight; null when unknown",
+    )
+    net_mismatch: float = Field(
+        description=(
+            "Foreign-currency exposure net of foreign-currency liabilities; IPS "
+            "goals are base-currency-denominated, so this equals total foreign "
+            "exposure (drifted when known, else target)"
+        )
+    )
+    advisory: str = Field(
+        description="Localized FX-risk advisory keyed on the mismatch size"
+    )
+
+
 class MonitoringResponse(BaseModel):
     document_id: str
     client_name: str
@@ -840,6 +875,7 @@ class MonitoringResponse(BaseModel):
     drifted_portfolio: MonitoringPortfolioMetrics
     holdings: list[MonitoringHolding]
     rebalance: MonitoringRebalance
+    currency_exposure: CurrencyExposure
     notes: list[str] = Field(default_factory=list)
 
 

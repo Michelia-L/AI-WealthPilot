@@ -35,6 +35,13 @@ export const monitoring = {
     "All holdings are within their allocation bands — no rebalancing needed.",
   actionBuy: "Buy",
   actionSell: "Sell",
+  currencyTitle: "Currency Exposure & Net Mismatch",
+  currencyLegend: "Gold bar = current (drifted) · Tick = target",
+  currencyTarget: "Target",
+  currencyCurrent: "Current",
+  currencyNetMismatch: (base: string) => `Net currency mismatch (non-${base} total)`,
+  currencyBarTitle: (target: string, current: string) =>
+    `Target ${target} · Current ${current}`,
   colAsset: "Asset Class",
   colExpectedReturn: "Expected Return",
   colVolatility: "Volatility",

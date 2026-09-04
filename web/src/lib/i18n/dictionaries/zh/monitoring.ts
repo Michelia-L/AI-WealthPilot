@@ -29,6 +29,13 @@ export const monitoring = {
   rebalanceNone: "所有持仓均在配置区间内，无需复衡。",
   actionBuy: "买入",
   actionSell: "卖出",
+  currencyTitle: "货币敞口与净错配",
+  currencyLegend: "金色条=当前（漂移后）· 竖线=目标",
+  currencyTarget: "目标",
+  currencyCurrent: "当前",
+  currencyNetMismatch: (base: string) => `净货币错配（非 ${base} 合计）`,
+  currencyBarTitle: (target: string, current: string) =>
+    `目标 ${target} · 当前 ${current}`,
   colAsset: "资产类别",
   colExpectedReturn: "预期收益",
   colVolatility: "波动率",

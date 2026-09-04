@@ -299,6 +299,92 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
             </div>
           </Panel>
 
+          {/* 货币敞口与净错配 */}
+          <Panel>
+            <div className="mb-5 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-sm font-medium text-mist-200">
+                <Icon name="globe" size={15} className="text-gold-400" />
+                {t.monitoring.currencyTitle}
+              </h3>
+              <span className="text-[11px] text-mist-600">
+                {t.monitoring.currencyLegend}
+              </span>
+            </div>
+            {(() => {
+              const fx = data.currency_exposure;
+              const fxScale =
+                Math.max(...fx.breakdown.map((b) => b.target_weight), 0.2) * 1.15;
+              const fxPct = (v: number) => `${Math.min(100, (v / fxScale) * 100)}%`;
+              return (
+                <>
+                  <div className="space-y-4">
+                    {fx.breakdown.map((b) => (
+                      <div
+                        key={b.currency}
+                        className="grid grid-cols-[64px_1fr_170px] items-center gap-4 sm:grid-cols-[80px_1fr_210px]"
+                      >
+                        <span
+                          className={cx(
+                            "font-mono text-sm",
+                            b.currency === fx.base_currency
+                              ? "text-mist-100"
+                              : "text-gold-300"
+                          )}
+                        >
+                          {b.currency}
+                        </span>
+                        <div
+                          className="relative h-2.5 w-full rounded-full bg-ink-700/50"
+                          title={t.monitoring.currencyBarTitle(
+                            fmtPct(b.target_weight, 1),
+                            b.drifted_weight === null
+                              ? "—"
+                              : fmtPct(b.drifted_weight, 1)
+                          )}
+                        >
+                          {b.drifted_weight !== null && (
+                            <div
+                              className="absolute top-0 h-full rounded-full bg-gold-500/75 transition-all duration-700 ease-luxe"
+                              style={{ width: fxPct(b.drifted_weight) }}
+                            />
+                          )}
+                          <div
+                            className="absolute -top-1 h-[18px] w-px bg-mist-100/80"
+                            style={{ left: fxPct(b.target_weight) }}
+                          />
+                        </div>
+                        <div className="tnum text-right font-mono text-[11px] text-mist-500">
+                          {t.monitoring.currencyTarget}{" "}
+                          <span className="text-mist-300">
+                            {fmtPct(b.target_weight, 1)}
+                          </span>
+                          {" · "}
+                          {t.monitoring.currencyCurrent}{" "}
+                          <span className="text-mist-200">
+                            {b.drifted_weight === null
+                              ? "—"
+                              : fmtPct(b.drifted_weight, 1)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-5 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-t border-white/[0.06] pt-4">
+                    <span className="text-xs text-mist-500">
+                      {t.monitoring.currencyNetMismatch(fx.base_currency)}
+                    </span>
+                    <span className="tnum font-mono text-lg text-gold-300">
+                      {fmtPct(fx.net_mismatch, 1)}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-mist-400">
+                    {fx.advisory}
+                  </p>
+                </>
+              );
+            })()}
+          </Panel>
+
           {/* 复衡建议 */}
           <Panel>
             <h3 className="mb-4 flex items-center gap-2 text-sm font-medium text-mist-200">

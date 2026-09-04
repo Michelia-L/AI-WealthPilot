@@ -312,6 +312,21 @@ IPS_ASSET_CLASS_TICKERS = {
     },
 }
 
+# Economic exposure currency per IPS asset class. Declared assumptions about
+# the currency the client's exposure is economically denominated in — NOT the
+# quote currency of the monitoring proxy ticker (e.g. fixed_income uses AGG,
+# a USD-quoted proxy, while a CNY-base client's bond exposure is CNY). Used by
+# monitoring's per-currency exposure breakdown / net currency mismatch.
+ASSET_CLASS_CURRENCY = {
+    "domestic_equity": "CNY",
+    "international_equity_dm": "USD",
+    "international_equity_hk": "HKD",
+    "fixed_income": "CNY",
+    "alternative_gold": "USD",
+    "alternative_reit": "USD",
+    "cash": "CNY",
+}
+
 # Asset-class alias table (P25): bilingual keyword lists per
 # IPS_ASSET_CLASS_TICKERS category key, in priority order (first hit wins).
 # Single source for monitoring's SAA->proxy mapping and the IPS workflow's

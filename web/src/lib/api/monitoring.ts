@@ -42,6 +42,23 @@ export interface RebalanceTrade {
   weight_pp: number;
 }
 
+/** One currency's share of the SAA (target vs drifted weights). */
+export interface CurrencyExposureItem {
+  currency: string;
+  target_weight: number;
+  drifted_weight: number | null;
+}
+
+/** Per-currency exposure breakdown and net currency mismatch. */
+export interface CurrencyExposure {
+  base_currency: string;
+  breakdown: CurrencyExposureItem[];
+  foreign_target: number;
+  foreign_drifted: number | null;
+  net_mismatch: number;
+  advisory: string;
+}
+
 export interface MonitoringResponse {
   document_id: string;
   client_name: string;
@@ -52,6 +69,7 @@ export interface MonitoringResponse {
   drifted_portfolio: PortfolioMetrics;
   holdings: MonitoringHolding[];
   rebalance: { needed: boolean; trades: RebalanceTrade[] };
+  currency_exposure: CurrencyExposure;
   notes: string[];
 }
 
