@@ -13,7 +13,7 @@ scipy==1.18.1
 scikit-learn==1.9.0
 
 # Data Sources
-yfinance==1.6.0
+yfinance==1.7.0
 
 # Visualization (figures are generated server-side, streamed as JSON)
 plotly==6.9.0
