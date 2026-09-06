@@ -8,8 +8,10 @@ export const overview = {
     `${name} 偏离 ${driftPp.toFixed(1)}pp`,
   monitoringBreachTitle: (n: number) => `${n} 个组合偏离政策区间`,
   monitoringBreachHint: (asOf: string) => `建议评估复衡 · 行情截至 ${asOf}`,
-  monitoringOk: (n: number) => `组合监控正常 · ${n} 个组合均在政策区间内`,
-  monitoringUnknown: (n: number) => `（${n} 个暂无法检测）`,
+  monitoringOk: (ok: number, unknown: number) =>
+    `组合监控 · ${ok} 个组合在政策区间内${
+      unknown > 0 ? ` · ${unknown} 个暂无法检测` : ""
+    }`,
   monitoringAsOf: (asOf: string) => `行情截至 ${asOf}`,
   monitoringUnavailable: "组合监控数据暂不可用",
   clientsTitle: "客户速览",

@@ -113,12 +113,7 @@ async function MonitoringBanner({ fleet }: { fleet: MonitoringFleetResponse }) {
       <div className="flex items-center gap-3 rounded-2xl border border-jade-500/20 bg-jade-500/[0.04] px-5 py-2.5">
         <Icon name="shield" size={14} className="shrink-0 text-jade-400" />
         <p className="text-xs text-mist-400">
-          {t.overview.monitoringOk(summary.ok)}
-          {summary.unknown > 0 && (
-            <span className="text-mist-600">
-              {t.overview.monitoringUnknown(summary.unknown)}
-            </span>
-          )}
+          {t.overview.monitoringOk(summary.ok, summary.unknown)}
         </p>
         <span className="tnum ml-auto shrink-0 font-mono text-[11px] text-mist-600">
           {t.overview.monitoringAsOf(priceAsOf)}
