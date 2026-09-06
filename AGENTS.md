@@ -57,6 +57,7 @@ docker compose up --build
 ## Git 规范
 
 - Conventional Commits，英文：`feat:` / `fix:` / `docs:` / `test:` / `chore:`，主题行小写，阶段功能标注 `(phase N)`。
+- **禁止直接 push `main`**：一切改动走 feature 分支 + PR，CI 全绿后方可合并。本地门禁全绿是提交前提，不是合并条件——合并以 GitHub CI 结果为准。这同样适用于文档、配置与 AGENTS.md 自身的修改。
 - 提交前确认：`python -m pytest -q`、`ruff check && ruff format --check`、`cd web && npm test`、`cd web && npm run typecheck && npm run lint && npm run build` 全绿。
 - CI（`.github/workflows/ci.yml`）在 push/PR 时跑全套门禁：python job（ruff lint/format → pytest 带 `--cov-fail-under=87` 覆盖率门禁 → pip-audit CVE 扫描）+ web job（lint/typecheck/vitest/build）+ e2e job（Playwright 全栈）；推送前本地先过一遍。Dependabot 周更 pip/npm/github-actions 依赖（`.github/dependabot.yml`），bump PR 同样过这些门禁。
 
