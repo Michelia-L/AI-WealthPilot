@@ -457,7 +457,21 @@ def _generate_rationale(
             if goal_required_return < _UNATTAINABLE_RATE
             else "≥1000%"
         )
-        if goal_status == "on_track":
+        if goal_required_return <= 0:
+            # Fundable without any growth — a "0.0% required return" line
+            # would read like a calculation error, so say it plainly.
+            en_text = (
+                f"Your primary goal **{goal_name}** is already covered by your "
+                f"current assets and planned savings — no additional "
+                f"investment return is required."
+            )
+            rationale_parts.append(
+                en_text
+                if en_only
+                else f"{en_text} / 您的主要目标「{goal_name}」已可由现有资产"
+                f"与计划储蓄覆盖，无需额外投资收益。"
+            )
+        elif goal_status == "on_track":
             en_text = (
                 f"Your primary goal **{goal_name}** requires an estimated "
                 f"**{req_text}** annual return (after counting your ongoing "
@@ -524,6 +538,17 @@ def _generate_rationale(
                 ]
             )
             for detail in goal_details:
+                if detail["required_return"] <= 0:
+                    # Goal already funded without growth — see the primary-goal
+                    # branch above for why "0.0% p.a." must not be printed.
+                    covered_en = "already covered by current assets and planned savings"
+                    rationale_parts.append(
+                        f"- **{detail['name']}**: {covered_en}"
+                        if en_only
+                        else f"- **{detail['name']}**: {covered_en} / "
+                        f"现有资产与计划储蓄已覆盖，无需额外收益"
+                    )
+                    continue
                 en_label, zh_label = _STATUS_LABELS[detail["status"]]
                 detail_req = (
                     f"{detail['required_return']:.1%}"

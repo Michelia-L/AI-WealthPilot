@@ -192,8 +192,9 @@ export interface RecommendationResponse {
   rationale: string;
 }
 
-export const getRecommendation = (profileId: number) =>
+export const getRecommendation = (profileId: number, locale?: string) =>
   getJson<RecommendationResponse>(
-    `/api/portfolio/recommendation?profile_id=${profileId}`
+    `/api/portfolio/recommendation?profile_id=${profileId}`,
+    locale
   );
 
