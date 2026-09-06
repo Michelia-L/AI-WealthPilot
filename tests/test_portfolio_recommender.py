@@ -437,6 +437,21 @@ class TestPortfolioRecommendation:
         assert rec.goal_required_return == pytest.approx(retirement["required_return"])
         assert "All goals" in rec.rationale
 
+    def test_rationale_scores_round_half_up_matching_frontend(
+        self, moderate_profile, sample_returns
+    ):
+        """Scores display with round-half-away-from-zero, matching the
+        frontend's toFixed(1): a stored 3.25 renders as "3.3" in the
+        rationale just like on the risk-profile card (issue #35 — Python's
+        f-string alone prints "3.2" via round-half-even)."""
+        profile = copy.deepcopy(moderate_profile)
+        profile.risk_profile.ability_score = 4.4
+        profile.risk_profile.willingness_score = 3.25
+        rec = recommend_portfolio(profile, sample_returns)
+
+        assert "Ability: 4.4/5" in rec.rationale
+        assert "Willingness: 3.3/5" in rec.rationale
+
 
 # ============================================================
 # Test Contribution-Aware Required Return (TVM solver)

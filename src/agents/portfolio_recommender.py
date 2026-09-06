@@ -17,6 +17,7 @@ from src.agents.profiler import (
     RISK_SCORE_BREAKPOINTS,
     ClientProfile,
     classify_risk_score,
+    format_risk_score,
 )
 from src.config import RISK_FREE_RATE, RISK_VOLATILITY_BANDS
 from src.portfolio.optimizer import PortfolioOptimizer
@@ -397,8 +398,9 @@ def _generate_rationale(
     rp = profile.risk_profile
 
     rationale_parts = [
-        f"Based on your risk profile assessment (Ability: {rp.ability_score:.1f}/5, "
-        f"Willingness: {rp.willingness_score:.1f}/5), "
+        f"Based on your risk profile assessment "
+        f"(Ability: {format_risk_score(rp.ability_score)}/5, "
+        f"Willingness: {format_risk_score(rp.willingness_score)}/5), "
         f"you are classified as **{risk_level}** investor.",
         "",
         f"Your target portfolio volatility is approximately "
