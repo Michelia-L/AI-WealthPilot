@@ -1,43 +1,52 @@
 # guide/ — Internals 文档站与写作纪律
 
-`guide/` 是 MkDocs 站点源（配置在仓库根 `mkdocs.yml`，`docs_dir: guide`；本文件经 `exclude_docs` 排除出站点构建）。与 `docs/` 的分工：`docs/` 放工程记录（`known-issues.md`、`migration-nextjs.md`、`ips_reference/`、`images/`），`guide/` 只放文档站内容。
+`guide/` 是 MkDocs 站点源，配置在仓库根 `mkdocs.yml`，并通过 `docs_dir: guide` 指向本目录。本文件经 `exclude_docs` 排除，不进入站点正文。
+
+`docs/` 与 `guide/` 用途不同：`guide/` 只放面向读者的 Internals 站点内容；`docs/` 保留工程记录、IPS reference、迁移材料和 README 使用的图片资产。
 
 ## 命令
 
 ```bash
-mkdocs serve            # 本地预览（仓库根，激活 .venv）
-mkdocs build --strict   # 提交前必跑；未收录进 nav 的页面、坏链接都会报错
+mkdocs serve            # 本地预览（仓库根）
+mkdocs build --strict   # guide 或 MkDocs 配置改动的主要门禁
 ```
 
-push main 经 `.github/workflows/docs.yml` 自动部署到 GitHub Pages。依赖 pin 在 `requirements-dev.txt`（mkdocs-material + jieba，jieba 负责构建期中文分词，勿删）。
+push 到 `main` 后，相关路径变更会由 `.github/workflows/docs.yml` 构建并部署 GitHub Pages。文档工具依赖以 `requirements-dev.txt` 为准。
 
 ## 结构
 
-- `index.md`：站点首页；`internals/`：Internals 指南（核心内容，七章路线图见 `internals/index.md`）；`diagrams/`：SVG 架构图（**双消费方**：本站章节 + README，移动需同步 README）；`javascripts/`：MathJax 接线脚本。
-- 新增页面必须同步 `mkdocs.yml` 的 `nav`（否则 strict 构建失败）。
-- `docs/` 侧的资产有外部引用方，动之前先查：`ips_reference/` 被 `api/Dockerfile` COPY 进镜像；`images/` 被 README 引用。
+- `index.md`：站点首页。
+- `internals/`：Internals 指南；章节与顺序以 `mkdocs.yml` 的 `nav` 和 `internals/index.md` 为准。
+- `diagrams/`：SVG 架构图。部分图同时被站点和 README 使用，移动或重命名前先搜索引用。
+- `javascripts/`：MathJax 等站点脚本。
+- 新增站点页面时同步更新 `mkdocs.yml` 的 `nav`，并用 `mkdocs build --strict` 检查未收录页面、坏链接和构建错误。
+- 修改 `docs/` 资产前先搜索代码和 README 引用；例如 `docs/ips_reference/` 会被 API 镜像使用，`docs/images/` 被 README 使用。
 
 ## Internals 写作纪律
 
-- 每个数字、每条断言以代码为准；发现文档与代码漂移时**以代码为准并修文档**。
-- 引代码用「路径 + 符号名」（如 `api/tasks.py` 的 `stream_task_events`），**不引行号**——行号会腐化。
-- 中文优先；英文版暂缓。文案遵守根 AGENTS.md 的务实规则（无包装性修饰词）。
-- 每章统一结构：目的与边界 → 核心概念 → 逐模块讲解 → 设计决策与取舍 → 已知近似与边界 → 自检问题（5-8 个）→ 代码入口清单。
-- 写完一章更新 `internals/index.md` 路线图状态。
+- **事实以代码为准。** 数字、默认值、流程顺序、fallback、缓存行为、API 路径和模型边界都必须能从当前代码、测试或配置验证。发现漂移时修文档，不为了保留旧文案扭曲实现描述。
+- 引代码优先使用“路径 + 符号名”，例如 `api/tasks.py` 的 `stream_task_events`。不要依赖容易腐化的行号。
+- 中文优先；英文版如未明确要求，不为保持形式同步而复制一份可能继续漂移的内容。
+- 文案遵守根 `AGENTS.md` 的务实规则，不写无法验证的性能、合规或质量包装。
+- 章节应帮助读者理解“为什么这样设计”和“边界在哪里”，不要只把函数名改写成 prose。
+- 新增或重构章节后，同步检查 `internals/index.md` 的路线图、链接与状态是否仍准确。
 
-## 语言风格（写作时遵守，省去后置润色）
+建议的章节骨架是：目的与边界 → 核心概念 → 逐模块讲解 → 设计决策与取舍 → 已知近似与边界 → 自检问题 → 代码入口。它是默认组织方式，不要求为了形式保留空洞章节。
 
-约束站点正文，不约束本文件与 `docs/` 工程记录。验收跑 `check_prose.py`（human-writing skill 自带，`~/.agents/skills/human-writing/scripts/`），failures 须清零。
+## 语言风格
 
-- 正文禁破折号（—、——、–）：改逗号、句号或拆句。代码块、行内代码、链接内不受限。
-- 冒号只用于引出直接原话；解释性、标签式写法改成完整句子（不写「**TTL**：300 秒」，写「**TTL** 为 300 秒」）。表格单元格同此规则。
-- 标题内部分隔用「 · 」（如 `## 核心概念 · 三层架构`），不用冒号和破折号。
-- 禁翻案腔（不是 A 而是 B、看似实则、与其说不如说），判断从正面下。
-- 禁三连以上同构排比；禁名词化（进行了/实现了…的提升）；禁路标词（说白了、值得注意的是、需要指出的是）；禁宣传腔（精准、杜绝、确保、无缝、赋能、闭环；引代码原文除外）。
-- 「」每章最多三四处；句长交错；不预告结构，结尾不升华。
-- 数字保持阿拉伯原样，不约数化（与「以代码为准」同一条纪律的两面）。
+这些约束用于站点正文，目标是让技术文档直接、自然、可核验；不要求机械统一所有标点。
+
+- 优先使用完整、直接的陈述句，避免“不是 A 而是 B”“看似实则”“值得注意的是”“需要指出的是”等模板化转折和路标词。
+- 避免三连以上同构排比、名词化套话和宣传腔，例如“精准、杜绝、确保、无缝、赋能、闭环”等；代码中的正式术语或原文引用除外。
+- 标题需要分隔时优先使用 ` · `，与现有章节风格保持一致。
+- 表格、术语定义和公式说明可以使用冒号或破折号，只要表达更清楚；不要为了满足标点规则把句子改得别扭。
+- 数字和参数保持与代码一致，不随意约数化或把精确边界改成模糊描述。
+- 引号、强调和 admonition 适量使用，避免连续堆叠造成“生成式文案”观感。
+
+如果本机恰好安装了额外 prose checker，可以把它作为辅助检查；**仓库外的个人脚本不是项目级硬门禁**。可复现的强制检查应放进仓库并接入 CI，否则不得要求其他 Agent 或贡献者依赖某个 `~/.agents/...` 路径。
 
 ## 已知陷阱
 
-- **站内搜索自动化验证**：搜索按 `keyup` 触发，Playwright 等工具输入中文走 `insertText` 不产生 keyup——需补按 End 等键才执行查询。勿把该测试假象当成功能缺陷（2026-08 实测浪费过一小时）。
-- `search_index.json` 由浏览器按 URL 缓存，改配置重测搜索时先确认索引是新的（磁盘文件为准）。
+- **站内搜索自动化验证**：MkDocs 搜索前端可能依赖键盘事件；某些自动化工具直接注入中文文本时不会产生等价的 `keyup`。验证搜索时确认事件确实触发，再判断是否为产品缺陷。
+- `search_index.json` 可能被浏览器缓存。修改搜索配置后重测时，先确认浏览器加载的是新的索引，而不是只看页面表现。
