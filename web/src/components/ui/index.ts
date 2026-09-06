@@ -1,6 +1,6 @@
 export { default as Icon } from "./icon";
 export type { IconName } from "./icon";
-export { default as Button, ButtonLink } from "./button";
+export { default as Button, ButtonLink, ButtonAnchor } from "./button";
 export { default as Panel } from "./panel";
 export { Chip, Badge } from "./chip";
 export type { BadgeTone } from "./chip";

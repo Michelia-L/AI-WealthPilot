@@ -13,7 +13,7 @@ from typing import Generator
 from openai import OpenAI
 
 from src.agents.llm_config import get_llm_config
-from src.agents.profiler import ClientProfile, format_ratio
+from src.agents.profiler import ClientProfile, format_ratio, format_risk_score
 from src.config import (
     DEEPSEEK_MAX_TOKENS,
     DEEPSEEK_TEMPERATURE,
@@ -257,9 +257,9 @@ def _build_user_prompt(profile: ClientProfile, locale: str = "zh") -> str:
         if abs(rp.ability_score - rp.willingness_score) >= 1.0:
             conflict_note = (
                 f"\n  ⚠️ CONFLICT DETECTED / 冲突检测: "
-                f"Ability ({rp.ability_score:.1f}) vs "
-                f"Willingness ({rp.willingness_score:.1f}) differ by "
-                f"{abs(rp.ability_score - rp.willingness_score):.1f} points. "
+                f"Ability ({format_risk_score(rp.ability_score)}) vs "
+                f"Willingness ({format_risk_score(rp.willingness_score)}) differ by "
+                f"{format_risk_score(abs(rp.ability_score - rp.willingness_score))} points. "
                 f"Prudential principle: use the LOWER score."
             )
 
@@ -293,9 +293,9 @@ CLIENT PROFILE / 客户画像
   Multi-stage / 多阶段: {"Yes / 是" if profile.is_multi_stage else "No / 否"}
 
 【Risk Tolerance Assessment / 风险承受能力评估】
-  Ability Score / 承受能力评分: {rp.ability_score:.1f} / 5.0
-  Willingness Score / 承担意愿评分: {rp.willingness_score:.1f} / 5.0
-  Final Score / 最终评分: {rp.final_score:.1f} / 5.0 (= min(Ability, Willingness))
+  Ability Score / 承受能力评分: {format_risk_score(rp.ability_score)} / 5.0
+  Willingness Score / 承担意愿评分: {format_risk_score(rp.willingness_score)} / 5.0
+  Final Score / 最终评分: {format_risk_score(rp.final_score)} / 5.0 (= min(Ability, Willingness))
   Risk Level / 风险等级: {rp.tolerance_level}{conflict_note}
 
 【Tax Status / 税务状况】
@@ -351,9 +351,9 @@ def _build_user_prompt_en(profile: ClientProfile) -> str:
         if abs(rp.ability_score - rp.willingness_score) >= 1.0:
             conflict_note = (
                 f"\n  ⚠️ CONFLICT DETECTED: "
-                f"Ability ({rp.ability_score:.1f}) vs "
-                f"Willingness ({rp.willingness_score:.1f}) differ by "
-                f"{abs(rp.ability_score - rp.willingness_score):.1f} points. "
+                f"Ability ({format_risk_score(rp.ability_score)}) vs "
+                f"Willingness ({format_risk_score(rp.willingness_score)}) differ by "
+                f"{format_risk_score(abs(rp.ability_score - rp.willingness_score))} points. "
                 f"Prudential principle: use the LOWER score."
             )
 
@@ -386,9 +386,9 @@ CLIENT PROFILE
   Multi-stage: {"Yes" if profile.is_multi_stage else "No"}
 
 [Risk Tolerance Assessment]
-  Ability Score: {rp.ability_score:.1f} / 5.0
-  Willingness Score: {rp.willingness_score:.1f} / 5.0
-  Final Score: {rp.final_score:.1f} / 5.0 (= min(Ability, Willingness))
+  Ability Score: {format_risk_score(rp.ability_score)} / 5.0
+  Willingness Score: {format_risk_score(rp.willingness_score)} / 5.0
+  Final Score: {format_risk_score(rp.final_score)} / 5.0 (= min(Ability, Willingness))
   Risk Level: {rp.tolerance_level}{conflict_note}
 
 [Tax Status]

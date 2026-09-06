@@ -74,7 +74,9 @@ export async function CmeSection() {
             {report.asset_classes.map((a) => (
               <TR key={a.ticker}>
                 <TD>
-                  <div className="font-medium text-mist-100">{a.name}</div>
+                  <div className="font-medium text-mist-100">
+                    {t.market.cmeAssetClassName(a.key, a.name)}
+                  </div>
                   <div className="font-mono text-xs text-mist-500">
                     {a.ticker}
                   </div>

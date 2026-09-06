@@ -10,9 +10,10 @@ export const overview = {
     `${n} portfolio${n === 1 ? "" : "s"} outside policy bands`,
   monitoringBreachHint: (asOf: string) =>
     `Rebalancing review recommended · Quotes as of ${asOf}`,
-  monitoringOk: (n: number) =>
-    `Portfolio monitoring healthy · all ${n} portfolio${n === 1 ? "" : "s"} within policy bands`,
-  monitoringUnknown: (n: number) => `(${n} temporarily undetectable)`,
+  monitoringOk: (ok: number, unknown: number) =>
+    `Portfolio monitoring · ${ok} within policy bands${
+      unknown > 0 ? ` · ${unknown} temporarily undetectable` : ""
+    }`,
   monitoringAsOf: (asOf: string) => `Quotes as of ${asOf}`,
   monitoringUnavailable: "Portfolio monitoring data is temporarily unavailable",
   clientsTitle: "Clients at a Glance",

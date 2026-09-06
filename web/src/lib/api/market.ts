@@ -64,6 +64,9 @@ export interface AnalyticsResponse {
 }
 
 export interface AssetClassCME {
+  /** Stable locale-neutral identifier (IPS asset-class key); null when the
+   * ticker resolves to no known class — fall back to `name` then. */
+  key: string | null;
   name: string;
   ticker: string;
   expected_return: number;

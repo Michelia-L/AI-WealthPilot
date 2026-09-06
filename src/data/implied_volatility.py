@@ -16,15 +16,16 @@ Design:
 """
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
-from src.config import TRADING_DAYS_PER_YEAR
+from src import config
 
 logger = logging.getLogger(__name__)
 
 
 # Data Structures
+
 
 @dataclass
 class IVProxyConfig:
@@ -38,6 +39,7 @@ class IVProxyConfig:
             so scale=0.01 to get 0.20.
         description: Human-readable description of the IV source.
     """
+
     iv_ticker: str
     scale: float = 0.01
     description: str = ""
@@ -55,6 +57,7 @@ class ImpliedVolData:
         implied_volatility: Annualized IV as a decimal (e.g. 0.20 for 20%).
         fetch_date: ISO date string of when the data was fetched.
     """
+
     ticker: str
     iv_index_ticker: str
     iv_index_name: str
@@ -70,55 +73,43 @@ IV_PROXY_MAP: dict[str, Optional[IVProxyConfig]] = {
     "SPY": IVProxyConfig(
         iv_ticker="^VIX",
         scale=0.01,
-        description="CBOE VIX (S&P 500 30-day implied volatility)"
+        description="CBOE VIX (S&P 500 30-day implied volatility)",
     ),
     "EFA": IVProxyConfig(
         iv_ticker="^VIX",
         scale=0.01,
-        description="Intl Developed Markets proxied by VIX"
+        description="Intl Developed Markets proxied by VIX",
     ),
     "EEM": IVProxyConfig(
-        iv_ticker="^VIX",
-        scale=0.01,
-        description="Emerging Markets proxied by VIX"
+        iv_ticker="^VIX", scale=0.01, description="Emerging Markets proxied by VIX"
     ),
     "ASHR": IVProxyConfig(
-        iv_ticker="^VIX",
-        scale=0.01,
-        description="China A-Shares (ASHR) proxied by VIX"
+        iv_ticker="^VIX", scale=0.01, description="China A-Shares (ASHR) proxied by VIX"
     ),
     "EWH": IVProxyConfig(
-        iv_ticker="^VIX",
-        scale=0.01,
-        description="Hong Kong equity proxied by VIX"
+        iv_ticker="^VIX", scale=0.01, description="Hong Kong equity proxied by VIX"
     ),
-
     "AGG": IVProxyConfig(
         iv_ticker="^MOVE",
         scale=0.01,
-        description="ICE BofAML MOVE (US Treasury implied volatility)"
+        description="ICE BofAML MOVE (US Treasury implied volatility)",
     ),
     "TLT": IVProxyConfig(
         iv_ticker="^MOVE",
         scale=0.01,
-        description="Long-Term US Treasuries proxied by MOVE"
+        description="Long-Term US Treasuries proxied by MOVE",
     ),
     "HYG": IVProxyConfig(
-        iv_ticker="^MOVE",
-        scale=0.01,
-        description="High Yield Bonds proxied by MOVE"
+        iv_ticker="^MOVE", scale=0.01, description="High Yield Bonds proxied by MOVE"
     ),
     "EMB": IVProxyConfig(
         iv_ticker="^MOVE",
         scale=0.01,
-        description="Emerging Market Bonds proxied by MOVE"
+        description="Emerging Market Bonds proxied by MOVE",
     ),
     "TIP": IVProxyConfig(
-        iv_ticker="^MOVE",
-        scale=0.01,
-        description="TIPS proxied by MOVE"
+        iv_ticker="^MOVE", scale=0.01, description="TIPS proxied by MOVE"
     ),
-
     # "000300.SS": None,   # CSI 300: no yfinance-accessible IV index
     # "GLD":      None,    # Gold: OVX exists but unreliable on yfinance
     # "VNQ":      None,    # REITs: no standard IV index
@@ -136,6 +127,7 @@ IV_INDEX_NAMES: dict[str, str] = {
 
 # Core Fetching Logic
 
+
 def _fetch_single_iv_index(iv_ticker: str) -> Optional[float]:
     """
     Fetch the latest closing price for a single IV index ticker.
@@ -151,6 +143,11 @@ def _fetch_single_iv_index(iv_ticker: str) -> Optional[float]:
     """
     try:
         import yfinance as yf
+
+        # DEMO_MODE: no network — degrade to historical-vol blending (KI-002).
+        if config.DEMO_MODE:
+            logger.info("DEMO_MODE: skipping IV index fetch for %s", iv_ticker)
+            return None
 
         tkr = yf.Ticker(iv_ticker)
         # fast_info provides the latest price without downloading history
@@ -220,7 +217,8 @@ def fetch_implied_volatility(
         if raw_value is None:
             logger.info(
                 "IV index %s unavailable for asset %s, falling back to historical vol",
-                iv_ticker, asset_ticker,
+                iv_ticker,
+                asset_ticker,
             )
             result[asset_ticker] = None
             continue
@@ -239,7 +237,10 @@ def fetch_implied_volatility(
 
         logger.debug(
             "Fetched IV for %s via %s: %.4f (raw=%.2f)",
-            asset_ticker, iv_ticker, iv_decimal, raw_value,
+            asset_ticker,
+            iv_ticker,
+            iv_decimal,
+            raw_value,
         )
 
     return result

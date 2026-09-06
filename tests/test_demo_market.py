@@ -7,6 +7,9 @@ by default; the demo_on fixture flips it the same way test_api_demo_mode
 does.
 """
 
+from datetime import date
+
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -53,8 +56,29 @@ class TestDemoPriceHistory:
         df = demo_market.demo_price_history(tickers, period="1y")
         assert df.columns.tolist() == tickers
         assert len(df) == 260
-        assert df.index[-1] == demo_market.REFERENCE_END
+        # Rolling anchor: the grid ends on the latest business day (today,
+        # or the most recent weekday when today falls on a weekend).
+        expected_end = pd.bdate_range(end=pd.Timestamp(date.today()), periods=2)[-1]
+        assert df.index[-1] == expected_end
         assert (df > 0).all().all()
+
+    def test_pinned_end_anchor(self):
+        """An explicit ``end`` pins the grid (the test/e2e escape hatch)."""
+        end = pd.Timestamp("2026-08-21")
+        t1 = demo_market.demo_price_history(["GC=F", "^GSPC"], period="6mo", end=end)
+        t2 = demo_market.demo_price_history(["GC=F", "^GSPC"], period="6mo", end=end)
+        assert t1.index[-1] == end
+        pd.testing.assert_frame_equal(t1, t2)
+
+    def test_values_follow_the_seed_not_the_anchor(self):
+        """Rolling the anchor re-dates the same seeded path, unchanged."""
+        a = demo_market.demo_price_history(
+            ["GC=F"], period="1mo", end=pd.Timestamp("2026-08-21")
+        )
+        b = demo_market.demo_price_history(
+            ["GC=F"], period="1mo", end=pd.Timestamp("2026-09-04")
+        )
+        assert (a["GC=F"].to_numpy() == b["GC=F"].to_numpy()).all()
 
     def test_unknown_period_falls_back_to_1y(self):
         df = demo_market.demo_price_history(["GC=F"], period="13mo")
@@ -73,6 +97,42 @@ class TestDemoPriceHistory:
         assert rec["category"] == ASSET_UNIVERSE["GC=F"]["category"]
         assert rec["price"] > 0
         assert rec["previous_close"] > 0
+
+
+class TestDemoCalibration:
+    """Pinned tickers keep real-world magnitudes and asset-class risk levels."""
+
+    def test_usd_cny_quote_has_real_magnitude(self):
+        rec = demo_market.demo_quote_record("CNY=X")
+        assert 6.0 < rec["price"] < 8.5  # USD/CNY ~7.1, not the ~70 of old
+
+    def test_dollar_index_quote_has_real_magnitude(self):
+        rec = demo_market.demo_quote_record("DX-Y.NYB")
+        assert 80.0 < rec["price"] < 120.0
+
+    def test_cash_equivalent_is_low_vol_low_drawdown(self):
+        df = demo_market.demo_price_history(["BIL"], period="5y")
+        series = df["BIL"]
+        rets = series.pct_change().dropna()
+        ann_vol = float(rets.std() * np.sqrt(252))
+        max_dd = float((series / series.cummax() - 1.0).min())
+        assert ann_vol < 0.02  # money-market-like, not the old 18% default
+        assert max_dd > -0.03
+        assert 80.0 < float(series.iloc[-1]) < 110.0
+
+    def test_bond_proxy_is_low_vol(self):
+        df = demo_market.demo_price_history(["AGG"], period="5y")
+        rets = df["AGG"].pct_change().dropna()
+        ann_vol = float(rets.std() * np.sqrt(252))
+        assert 0.02 < ann_vol < 0.10
+
+    def test_risk_levels_ascend_cash_bond_equity(self):
+        df = demo_market.demo_price_history(["BIL", "AGG", "SPY"], period="5y")
+        vols = {
+            t: float(df[t].pct_change().dropna().std() * np.sqrt(252))
+            for t in ["BIL", "AGG", "SPY"]
+        }
+        assert vols["BIL"] < vols["AGG"] < vols["SPY"]
 
 
 class TestDemoHooksOffline:

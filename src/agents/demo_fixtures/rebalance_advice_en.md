@@ -1,6 +1,6 @@
 # Portfolio Rebalancing Recommendation (demonstration sample; all content is fictional)
 
-**Client**: Ms. Evelyn Lin　**Monitoring date**: 2026-07-20　**Basis**: IPS strategic asset allocation (SAA) policy ranges
+**Client**: Evelyn Lin　**Monitoring date**: 2026-07-20　**Basis**: IPS strategic asset allocation (SAA) policy ranges
 
 ## 1. Drift Diagnosis
 

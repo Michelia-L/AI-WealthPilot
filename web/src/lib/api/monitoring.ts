@@ -42,6 +42,13 @@ export interface RebalanceTrade {
   weight_pp: number;
 }
 
+/**
+ * Rebalancing conclusion rollup. "insufficient_data" separates "no breach
+ * detected" from "drift unmeasurable" — the page must not claim all
+ * holdings are within bands when they could not be measured.
+ */
+export type RebalanceStatus = "needed" | "within_bands" | "insufficient_data";
+
 /** One currency's share of the SAA (target vs drifted weights). */
 export interface CurrencyExposureItem {
   currency: string;
@@ -68,7 +75,11 @@ export interface MonitoringResponse {
   portfolio: PortfolioMetrics;
   drifted_portfolio: PortfolioMetrics;
   holdings: MonitoringHolding[];
-  rebalance: { needed: boolean; trades: RebalanceTrade[] };
+  rebalance: {
+    needed: boolean;
+    status: RebalanceStatus;
+    trades: RebalanceTrade[];
+  };
   currency_exposure: CurrencyExposure;
   notes: string[];
 }

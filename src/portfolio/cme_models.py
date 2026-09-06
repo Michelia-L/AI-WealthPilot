@@ -23,7 +23,15 @@ class AssetClassCME(BaseModel):
     """
 
     name: str = Field(
-        description="Asset class display name, e.g. '国内权益（A股/沪深300）'"
+        description="Asset class display name, e.g. '国内权益（A股/沪深300）'. "
+        "Legacy display string from IPS_ASSET_CLASS_TICKERS; UIs should "
+        "prefer the locale-neutral `key` and map it to a localized label."
+    )
+    key: Optional[str] = Field(
+        default=None,
+        description="Stable, locale-neutral asset-class identifier — the "
+        "IPS_ASSET_CLASS_TICKERS dict key, e.g. 'domestic_equity'. None only "
+        "for entries whose ticker no known mapping resolves.",
     )
     ticker: str = Field(description="Proxy ticker used for data, e.g. '000300.SS'")
     expected_return: float = Field(

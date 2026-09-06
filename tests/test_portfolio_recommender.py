@@ -437,6 +437,86 @@ class TestPortfolioRecommendation:
         assert rec.goal_required_return == pytest.approx(retirement["required_return"])
         assert "All goals" in rec.rationale
 
+    def test_rationale_scores_round_half_up_matching_frontend(
+        self, moderate_profile, sample_returns
+    ):
+        """Scores display with round-half-away-from-zero, matching the
+        frontend's toFixed(1): a stored 3.25 renders as "3.3" in the
+        rationale just like on the risk-profile card (issue #35 — Python's
+        f-string alone prints "3.2" via round-half-even)."""
+        profile = copy.deepcopy(moderate_profile)
+        profile.risk_profile.ability_score = 4.4
+        profile.risk_profile.willingness_score = 3.25
+        rec = recommend_portfolio(profile, sample_returns)
+
+        assert "Ability: 4.4/5" in rec.rationale
+        assert "Willingness: 3.3/5" in rec.rationale
+
+    def test_goal_funded_by_assets_shows_covered_not_zero(
+        self, moderate_profile, sample_returns
+    ):
+        """A goal already covered by current assets + planned savings must
+        not be described as 'requires 0.0% annual return' — that reads like a
+        calculation error (issue #38)."""
+        profile = copy.deepcopy(moderate_profile)
+        profile.goals = [
+            InvestmentGoal(
+                name="Retirement Reserve",
+                target_amount=profile.financial.investable_assets * 0.9,
+                years=10,
+                priority="high",
+            )
+        ]
+        rec = recommend_portfolio(profile, sample_returns)
+
+        assert rec.goal_required_return == 0.0
+        assert "0.0%" not in rec.rationale
+        # zh locale keeps the bilingual wording: en text + " / " + zh text.
+        assert "already covered by your" in rec.rationale
+        assert "无需额外投资收益" in rec.rationale
+
+    def test_goal_funded_by_assets_covered_en_only(
+        self, moderate_profile, sample_returns
+    ):
+        """locale='en' renders the covered message English-only."""
+        profile = copy.deepcopy(moderate_profile)
+        profile.goals = [
+            InvestmentGoal(
+                name="Retirement Reserve",
+                target_amount=100_000,
+                years=10,
+                priority="high",
+            )
+        ]
+        rec = recommend_portfolio(profile, sample_returns, locale="en")
+
+        assert "already covered by your" in rec.rationale
+        assert "0.0%" not in rec.rationale
+
+    def test_multi_goal_covered_goal_line(self, moderate_profile, sample_returns):
+        """In the per-goal breakdown a covered goal must not print
+        'requires ~0.0% p.a.' either (issue #38)."""
+        profile = copy.deepcopy(moderate_profile)
+        profile.goals = [
+            InvestmentGoal(
+                name="Retirement",
+                target_amount=2_000_000,
+                years=25,
+                priority="high",
+            ),
+            InvestmentGoal(
+                name="Small Gift",
+                target_amount=50_000,
+                years=5,
+                priority="low",
+            ),
+        ]
+        rec = recommend_portfolio(profile, sample_returns)
+
+        assert "0.0%" not in rec.rationale
+        assert "already covered by current assets and planned savings" in rec.rationale
+        assert "现有资产与计划储蓄已覆盖" in rec.rationale
+
 
 # ============================================================
 # Test Contribution-Aware Required Return (TVM solver)

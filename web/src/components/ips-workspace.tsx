@@ -11,7 +11,7 @@ import { fmtLocal } from "@/lib/format";
 import Markdown from "@/components/markdown";
 import { useClient } from "@/components/client-context";
 import { useLocale, useT } from "@/components/locale-context";
-import Button from "@/components/ui/button";
+import Button, { ButtonAnchor } from "@/components/ui/button";
 import { Badge } from "@/components/ui/chip";
 import EmptyState from "@/components/ui/empty";
 import { Field, Select } from "@/components/ui/field";
@@ -261,11 +261,14 @@ export default function IpsWorkspace({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <a href={`/api/ips/${encodeURIComponent(viewing.documentId)}/pdf`}>
-                <Button variant="secondary" size="sm" trailingIcon="download">
-                  {t.ips.downloadPdf}
-                </Button>
-              </a>
+              <ButtonAnchor
+                href={`/api/ips/${encodeURIComponent(viewing.documentId)}/pdf`}
+                variant="secondary"
+                size="sm"
+                trailingIcon="download"
+              >
+                {t.ips.downloadPdf}
+              </ButtonAnchor>
               <Button variant="ghost" size="sm" icon="x" onClick={() => setViewing(null)}>
                 {t.common.close}
               </Button>
@@ -334,11 +337,14 @@ export default function IpsWorkspace({
                         >
                           {t.common.view}
                         </Button>
-                        <a href={`/api/ips/${encodeURIComponent(d.document_id)}/pdf`}>
-                          <Button variant="secondary" size="sm" trailingIcon="download">
-                            PDF
-                          </Button>
-                        </a>
+                        <ButtonAnchor
+                          href={`/api/ips/${encodeURIComponent(d.document_id)}/pdf`}
+                          variant="secondary"
+                          size="sm"
+                          trailingIcon="download"
+                        >
+                          {t.ips.downloadPdf}
+                        </ButtonAnchor>
                       </div>
                     </TD>
                   </TR>

@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.data.implied_volatility import ImpliedVolData
 from src.portfolio.cme_engine import (
+    _attach_asset_keys,
     _classify_vol_regime,
     _fetch_risk_free_rate_with_source,
     _load_fallback_cme,
@@ -245,6 +246,87 @@ class TestFallbackCME:
             assert len(row) == n
             # Diagonal should be 1.0
             assert row[name] == 1.0
+
+
+# ============================================================
+# Test asset-class keys (issue #37 — locale-neutral UI mapping)
+# ============================================================
+
+
+class TestAssetClassKeys:
+    """Stable, locale-neutral asset-class keys on the CME report.
+
+    The engine attaches the IPS_ASSET_CLASS_TICKERS dict key so UIs map it
+    to a localized label instead of rendering the legacy mixed-language
+    `name`; reports from old caches / the static fallback (which predate the
+    field) are backfilled via the ticker reverse-map, keeping the cached
+    JSON free of display-language assumptions.
+    """
+
+    @patch("src.portfolio.cme_engine.fetch_implied_volatility")
+    @patch("src.portfolio.cme_engine.fetch_price_history")
+    @patch("src.portfolio.cme_engine._fetch_risk_free_rate_with_source")
+    @patch("src.portfolio.cme_engine.compute_correlation_matrix")
+    def test_fresh_report_carries_keys(
+        self,
+        mock_corr,
+        mock_rf,
+        mock_prices,
+        mock_iv,
+        mock_price_data,
+    ):
+        """A fresh computation attaches the asset_tickers dict key."""
+        mock_prices.return_value = mock_price_data
+        mock_rf.return_value = (0.043, "mock")
+        mock_iv.return_value = {"000300.SS": None, "AGG": None}
+        mock_corr.return_value = mock_price_data.pct_change().dropna().corr()
+
+        test_tickers = {
+            "domestic_equity": {"ticker": "000300.SS", "name": "国内权益"},
+            "fixed_income": {"ticker": "AGG", "name": "固定收益"},
+        }
+        report, cache_status = compute_cme(
+            asset_tickers=test_tickers,
+            force_refresh=True,
+        )
+
+        assert cache_status == "fresh"
+        assert [ac.key for ac in report.asset_classes] == [
+            "domestic_equity",
+            "fixed_income",
+        ]
+
+    def test_attach_asset_keys_backfills_by_ticker(self, sample_cme_report):
+        """Keyless entries (old cache rows) resolve via the ticker map."""
+        from src.config import IPS_ASSET_CLASS_TICKERS
+
+        assert all(ac.key is None for ac in sample_cme_report.asset_classes)
+        report = _attach_asset_keys(sample_cme_report, IPS_ASSET_CLASS_TICKERS)
+        assert [ac.key for ac in report.asset_classes] == [
+            "domestic_equity",
+            "fixed_income",
+        ]
+
+    def test_attach_asset_keys_unknown_ticker_stays_none(self, sample_cme_report):
+        """A ticker the mapping cannot resolve keeps key=None (UI falls back
+        to the legacy name) without breaking known tickers."""
+        from src.config import IPS_ASSET_CLASS_TICKERS
+
+        sample_cme_report.asset_classes[0].ticker = "UNKNOWN"
+        report = _attach_asset_keys(sample_cme_report, IPS_ASSET_CLASS_TICKERS)
+        assert report.asset_classes[0].key is None
+        assert report.asset_classes[1].key == "fixed_income"
+
+    @patch("src.portfolio.cme_engine.fetch_price_history")
+    def test_fallback_report_carries_keys(self, mock_prices):
+        """The static-fallback / stale-cache degradation paths carry keys."""
+        mock_prices.return_value = pd.DataFrame()
+
+        report, cache_status = compute_cme(force_refresh=True)
+
+        assert cache_status in ("stale", "fallback")
+        assert report.asset_classes
+        assert all(ac.key is not None for ac in report.asset_classes)
 
 
 # ============================================================

@@ -10,12 +10,25 @@ import json
 import logging
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 from src.config import DATA_DIR
 from src.utils import sanitize_filename
 
 logger = logging.getLogger(__name__)
+
+
+def format_risk_score(score: float) -> str:
+    """Format a 1-5 risk score for display with one decimal place.
+
+    Rounds half away from zero on the score's exact binary value, matching
+    JavaScript's ``Number.prototype.toFixed(1)`` — backend-generated text and
+    the frontend's ``toFixed`` rendering then show the same digit for the
+    same stored score (e.g. 3.25 -> "3.3" in both, where Python's
+    ``f"{3.25:.1f}"`` would give "3.2" via round-half-even).
+    """
+    return str(Decimal(score).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP))
 
 
 def format_ratio(value: float) -> str:

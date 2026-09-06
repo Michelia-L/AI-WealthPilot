@@ -167,6 +167,15 @@ class TestFetchSingleIVIndex:
         result = _fetch_single_iv_index("^VIX")
         assert result is None
 
+    @patch("yfinance.Ticker")
+    def test_demo_mode_skips_network(self, mock_ticker_cls, monkeypatch):
+        """DEMO_MODE must not touch the network: IV fetch degrades to None."""
+        monkeypatch.setattr("src.data.implied_volatility.config.DEMO_MODE", True)
+
+        result = _fetch_single_iv_index("^MOVE")
+        assert result is None
+        mock_ticker_cls.assert_not_called()
+
 
 # ============================================================
 # Test fetch_implied_volatility — Main Function

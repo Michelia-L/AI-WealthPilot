@@ -33,6 +33,8 @@ export const monitoring = {
   rebalanceTitle: "Rebalancing",
   rebalanceNone:
     "All holdings are within their allocation bands — no rebalancing needed.",
+  rebalanceUnknown:
+    "Insufficient market data — drift cannot be computed for some holdings, so the rebalancing status cannot be determined.",
   actionBuy: "Buy",
   actionSell: "Sell",
   currencyTitle: "Currency Exposure & Net Mismatch",

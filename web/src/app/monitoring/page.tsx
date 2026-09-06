@@ -253,7 +253,7 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
                     >
                       <div className="min-w-0">
                         <div className="truncate text-sm text-mist-100" title={h.name}>
-                          {h.name}
+                          {t.market.cmeAssetClassName(h.key, h.name)}
                         </div>
                         <div className="font-mono text-[11px] text-mist-600">
                           {h.ticker ?? "—"}
@@ -391,7 +391,12 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
               <Icon name="refresh" size={15} className="text-gold-400" />
               {t.monitoring.rebalanceTitle}
             </h3>
-            {!data.rebalance.needed ? (
+            {data.rebalance.status === "insufficient_data" ? (
+              <div className="flex items-center gap-2.5 text-sm text-mist-400">
+                <Icon name="info" size={16} />
+                {t.monitoring.rebalanceUnknown}
+              </div>
+            ) : !data.rebalance.needed ? (
               <div className="flex items-center gap-2.5 text-sm text-jade-300">
                 <Icon name="check" size={16} />
                 {t.monitoring.rebalanceNone}
@@ -403,7 +408,9 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
                     key={trade.name}
                     className="flex items-center justify-between gap-3 py-2.5"
                   >
-                    <span className="text-sm text-mist-100">{trade.name}</span>
+                    <span className="text-sm text-mist-100">
+                      {t.market.cmeAssetClassName(trade.key, trade.name)}
+                    </span>
                     <span className="flex items-center gap-3">
                       <Badge tone={trade.action === "buy" ? "jade" : "cinnabar"}>
                         {trade.action === "buy"
@@ -442,7 +449,9 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
                 {data.holdings.map((h) => (
                   <TR key={h.name}>
                     <TD>
-                      <div className="font-medium text-mist-100">{h.name}</div>
+                      <div className="font-medium text-mist-100">
+                        {t.market.cmeAssetClassName(h.key, h.name)}
+                      </div>
                       <div className="font-mono text-xs text-mist-500">
                         {h.ticker ?? "—"}
                       </div>

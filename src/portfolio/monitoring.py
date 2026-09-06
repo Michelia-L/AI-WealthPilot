@@ -145,6 +145,10 @@ _NOTE_STRINGS: dict[str, dict[str, str]] = {
         "zh": "行情数据不足，无法判定漂移状态。",
         "en": "Insufficient market data to determine the drift status.",
     },
+    "rebalance_insufficient_data": {
+        "zh": "部分资产因行情数据不足无法计算漂移，是否需要复衡暂时无法判断。",
+        "en": "Drift cannot be computed for some assets (insufficient market data); whether rebalancing is needed cannot be determined.",
+    },
     "fx_unmapped_excluded": {
         "zh": "以下资产未纳入币种敞口拆分（无法映射到已知资产类别）：{names}。",
         "en": "The following assets are excluded from the currency breakdown (unmappable to a known asset class): {names}.",
@@ -254,7 +258,7 @@ def compute_monitoring(document_id: str, locale: str = "zh") -> dict:
             locale,
         )
 
-    rebalance = _compute_rebalance(holdings)
+    rebalance = _compute_rebalance(holdings, notes, locale)
 
     # Per-currency exposure / net currency mismatch (base currency from the
     # IPS currency policy when present, else the global default).
@@ -894,12 +898,23 @@ def _fleet_item(
 # Rebalancing
 
 
-def _compute_rebalance(holdings: list[dict]) -> dict:
+def _compute_rebalance(
+    holdings: list[dict], notes: list[str], locale: str = "zh"
+) -> dict:
     """
     Derive rebalancing trades for out-of-band asset classes.
 
     weight_pp = target - drifted: positive means buy back up to target,
     negative means sell down to target.
+
+    ``status`` separates three conclusions so the frontend never reports
+    'all within bands' for a portfolio it could not measure:
+        - "needed":             out-of-band holdings exist, trades derived
+        - "within_bands":       every holding measured, all inside bands
+        - "insufficient_data":  no breaches detected, but at least one
+                                holding's drift is unknown (band_status
+                                'unknown') — 'no trades' must not read as
+                                'no action required'
     """
     trades = []
     for h in holdings:
@@ -914,7 +929,14 @@ def _compute_rebalance(holdings: list[dict]) -> dict:
                 "weight_pp": float(weight_pp),
             }
         )
-    return {"needed": bool(trades), "trades": trades}
+    if trades:
+        status = "needed"
+    elif any(h["band_status"] == "unknown" for h in holdings):
+        status = "insufficient_data"
+        notes.append(_t("rebalance_insufficient_data", locale))
+    else:
+        status = "within_bands"
+    return {"needed": bool(trades), "status": status, "trades": trades}
 
 
 # ---------------------------------------------------------------------------

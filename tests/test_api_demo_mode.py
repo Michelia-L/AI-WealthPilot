@@ -10,6 +10,7 @@ and the boot-time demo client seeding.
 
 import json
 import re
+from datetime import date
 
 import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
@@ -19,6 +20,7 @@ from api.main import _demo_profile_data, _seed_demo_profile
 from api.profile_convert import profile_from_data
 from src.agents import demo_mode, ips_storage
 from src.agents.demo_mode import DEMO_CLIENT_NAME, DEMO_CLIENT_NAME_EN, FIXTURES_DIR
+from src.agents.profiler import InvestmentGoal
 from src.portfolio.monitoring import resolve_saa_weights
 from tests.test_api_advisor import _parse_sse
 from tests.test_api_profiles import sample_payload
@@ -634,3 +636,390 @@ def test_seed_demo_profile_noop_outside_demo_mode(tmp_path):
     with _tmp_session(tmp_path) as session:
         assert _seed_demo_profile(session) is False
         assert session.exec(select(ProfileRecord)).all() == []
+
+
+# ---------------------------------------------------------------------------
+# Fixture personalization (#39): profile values replace persona literals
+# ---------------------------------------------------------------------------
+
+# A profile deliberately different from the fixture persona on every field
+# the replay personalizes (GitHub issue #39's scenario, extended with
+# liabilities / emergency fund so every substitution pair is exercised).
+ISSUE_FINANCIAL = {
+    "annual_income": 900000,
+    "annual_expenses": 450000,
+    "investable_assets": 3600000,
+    "total_liabilities": 500000,
+    "emergency_fund_months": 8.0,
+}
+ISSUE_GOALS = [
+    {"name": "教育金", "target_amount": 900000, "years": 12, "priority": "high"},
+    {"name": "退休", "target_amount": 3500000, "years": 23, "priority": "high"},
+]
+ISSUE_RISK_SCORES = {"ability_score": 4.0, "willingness_score": 3.3}
+
+# Persona literals that must not survive replay against the issue profile.
+# "90 万" / "CNY 900,000" are excluded on purpose: they are the persona's
+# mortgage but also the issue profile's income, so absence is unprovable —
+# the tests assert the mortgage *contexts* instead.
+ZH_STALE = [
+    "林晓兰",
+    "女士",
+    "38 岁",
+    "80 万",
+    "42 万",
+    "38 万",
+    "260 万",
+    "170 万",
+    "120 万",
+    "400 万",
+    "47.5%",
+    "34.6%",
+    "9.15%",
+    "2.97%",
+    "4.4%",
+    "6 个月",
+    "10 年",
+    "22 年",
+    "20 年",
+    "48 岁",
+    "已婚",
+    "一子",
+    "相差 0.4 分",
+    "3.4",
+]
+EN_STALE = [
+    "Evelyn",
+    "Ms.",
+    "800,000",
+    "420,000",
+    "380,000",
+    "2.6 million",
+    "1.7 million",
+    "1.2 million",
+    "4.0 million",
+    "47.5%",
+    "34.6%",
+    "9.15%",
+    "2.97%",
+    "4.4%",
+    "six month",
+    "10-year",
+    "22-year",
+    "10 years",
+    "22 years",
+    "20 years",
+    "Ages 38",
+    "to age 60",
+    "0.4-point",
+    "3.4",
+    "married",
+    "one child",
+]
+
+
+def _issue_profile_data() -> dict:
+    """asdict(ClientProfile) shape for the issue #39 scenario."""
+    ability, willingness = 4.0, 3.3
+    return {
+        "name": "Andrew Zhang",
+        "age": 42,
+        "marital_status": "single",
+        "dependents": 0,
+        "financial": dict(ISSUE_FINANCIAL),
+        "goals": [dict(g) for g in ISSUE_GOALS],
+        "time_horizon_years": 23,
+        "is_multi_stage": True,
+        "liquidity_needs": 0.0,
+        "tax_status": "taxable",
+        "esg_preference": False,
+        "sector_restrictions": [],
+        "notes": "",
+        "risk_profile": {
+            "ability_score": ability,
+            "willingness_score": willingness,
+            "tolerance_level": "Moderate / 平衡型",
+            "description": "",
+        },
+        "ability_answers": {},
+        "willingness_answers": {},
+        "created_at": "2026-09-05T09:00:00",
+        "updated_at": "2026-09-05T09:00:00",
+    }
+
+
+def _create_issue_profile(client) -> int:
+    resp = client.post(
+        "/api/profiles",
+        json=sample_payload(
+            name="Andrew Zhang",
+            age=42,
+            marital_status="single",
+            dependents=0,
+            financial=dict(ISSUE_FINANCIAL),
+            goals=[dict(g) for g in ISSUE_GOALS],
+            risk_scores=dict(ISSUE_RISK_SCORES),
+        ),
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+def test_advisor_stream_demo_personalizes_fixture_to_profile(client, demo_on):
+    """#39 zh: the replay swaps the persona's figures for the profile's."""
+    profile_id = _create_issue_profile(client)
+
+    resp = client.post("/api/advisor/report/stream", json={"profile_id": profile_id})
+    assert resp.status_code == 200
+    events = _parse_sse(resp.text)
+    text = "".join(e["text"] for e in events if e["type"] == "token")
+    reasoning = "".join(e["text"] for e in events if e["type"] == "reasoning")
+
+    for stale in ZH_STALE:
+        assert stale not in text, f"stale persona literal in report: {stale}"
+        assert stale not in reasoning, f"stale persona literal in reasoning: {stale}"
+    assert "2026-07-20" not in text
+    today = date.today().isoformat()
+    assert today in text  # report date is the generation day
+
+    for want in [
+        "Andrew Zhang",
+        "42 岁",
+        "未婚，无子女",
+        "收入合计 90 万元",
+        "年支出 45 万元",
+        "50.0%",
+        "360 万元",
+        "贷款余额 50 万元",
+        "310 万元",
+        "13.9%",
+        "8 个月",
+        "教育金（优先级：高）",
+        "目标金额 90 万元，期限 12 年",
+        "目标金额 350 万元，期限 23 年（至 65 岁）",
+        "(90/50)^(1/12)",
+        "(350/210)^(1/23)",
+        "5.02%",
+        "2.25%",
+        "2.8%",
+        "2.6 个百分点",
+        "意愿 3.3",
+        "最终评分 3.3",
+        "相差 0.7 分",
+    ]:
+        assert want in text, f"missing personalized value: {want}"
+
+
+def test_advisor_stream_demo_personalizes_en_fixture(bare_client, demo_on):
+    """#39 en: same personalization against the English fixture set."""
+    profile_id = _create_issue_profile(bare_client)
+
+    resp = bare_client.post(
+        "/api/advisor/report/stream", json={"profile_id": profile_id}
+    )
+    assert resp.status_code == 200
+    events = _parse_sse(resp.text)
+    text = "".join(e["text"] for e in events if e["type"] == "token")
+    reasoning = "".join(e["text"] for e in events if e["type"] == "reasoning")
+
+    for stale in EN_STALE:
+        assert stale not in text, f"stale persona literal in report: {stale}"
+        assert stale not in reasoning, f"stale persona literal in reasoning: {stale}"
+    assert "2026-07-20" not in text
+    assert date.today().isoformat() in text
+    # CJK goal names stay as the fixture's English labels (no CJK leak).
+    assert not _CJK_RE.search(text)
+
+    for want in [
+        "Andrew Zhang",
+        ", 42,",
+        "is single with no children",
+        "income is CNY 900,000",
+        "CNY 450,000",
+        "50.0%",
+        "CNY 3.6 million",
+        "mortgage balance is CNY 500,000",
+        "CNY 3.1 million",
+        "13.9%",
+        "eight months",
+        "CNY 900,000 over a 12-year horizon",
+        "CNY 3.5 million over a 23-year horizon (to age 65)",
+        "(90/50)^(1/12)",
+        "(350/210)^(1/23)",
+        "5.02%",
+        "2.25%",
+        "2.8%",
+        "2.6 percentage points",
+        "willingness of 3.3",
+        "final score of 3.3",
+        "0.7-point gap",
+    ]:
+        assert want in text, f"missing personalized value: {want}"
+
+
+def test_ips_generate_demo_personalizes_document(client, demo_on, ips_dir, monkeypatch):
+    """#39: the persisted IPS document carries the profile's figures."""
+    monkeypatch.setattr("src.agents.demo_mode.NODE_DELAY_RANGE", (0.0, 0.0))
+    profile_id = _create_issue_profile(client)
+
+    created = client.post("/api/ips/generate", json={"profile_id": profile_id})
+    assert created.status_code == 202
+    task_id = created.json()["task_id"]
+    events = _parse_sse(client.get(f"/api/ips/tasks/{task_id}/events").text)
+    done = events[-1]
+    assert done["type"] == "done" and done["success"] is True
+
+    record = ips_storage.load_ips(ips_dir / f"{done['document_id']}.json")
+    ips = record["ips"]
+    assert ips["preparation_date"] == date.today().isoformat()
+
+    goals = ips["return_objective"]["goal_level_requirements"]
+    assert goals[0]["goal_name"] == "教育金"
+    assert goals[0]["target_amount"] == 900000.0
+    assert goals[0]["time_horizon_years"] == 12
+    assert goals[0]["required_return"] == pytest.approx(0.0502, abs=1e-4)
+    assert goals[1]["goal_name"] == "退休"
+    assert goals[1]["target_amount"] == 3500000.0
+    assert goals[1]["time_horizon_years"] == 23
+    assert goals[1]["required_return"] == pytest.approx(0.0225, abs=1e-4)
+    assert ips["time_horizon"]["overall_horizon_years"] == 23
+    assert [s["years"] for s in ips["time_horizon"]["stages"]] == [12, 11]
+    assert ips["liquidity"]["emergency_reserve_months"] == 8
+
+    summary = ips["executive_summary"]
+    assert "Andrew Zhang" in summary
+    assert "42 岁" in summary
+    assert "教育金（12 年 90 万元）" in summary
+    assert "退休（23 年 350 万元）" in summary
+
+    blob = json.dumps(record, ensure_ascii=False)
+    for stale in ZH_STALE + [
+        "2026-07-20",
+        "约 21 万",
+        "55 岁",
+        "1.85%",
+        '"required_nominal_return": 0.044',
+        '"required_real_return": 0.0185',
+        "1200000.0",
+        "4000000.0",
+    ]:
+        assert stale not in blob, f"stale persona literal in IPS document: {stale}"
+
+
+# ---------------------------------------------------------------------------
+# Personalization unit tests (no API)
+# ---------------------------------------------------------------------------
+
+
+def test_personalize_without_profile_swaps_only_date_and_name():
+    text = "编制日期 2026-07-20，客户林晓兰 38 岁，收入 80 万"
+    out = demo_mode._personalize_fixture_text(text, "王小明", "zh", None)
+    assert "2026-07-20" not in out
+    assert date.today().isoformat() in out
+    assert "王小明" in out and "林晓兰" not in out
+    # Without a profile the persona's figures stay as recorded.
+    assert "38 岁" in out and "80 万" in out
+
+
+def test_personalize_skips_risk_pairs_when_unassessed():
+    data = _issue_profile_data()
+    data["risk_profile"] = {
+        "ability_score": 0.0,
+        "willingness_score": 0.0,
+        "tolerance_level": "",
+        "description": "",
+    }
+    profile = profile_from_data(data)
+    text = demo_mode._load_fixture_text(
+        "advisor_report.md", profile.name, "zh", profile
+    )
+    # Unassessed questionnaire: the persona's scores/level stay as recorded…
+    assert "3.4 / 5.0" in text and "平衡型" in text
+    # …while the rest of the personalization still applies.
+    assert "42 岁" in text and "360 万元" in text
+
+
+def test_personalize_risk_level_change():
+    """A growth-grade profile rewrites the level labels in both locales."""
+    data = _issue_profile_data()
+    data["risk_profile"] = {
+        "ability_score": 4.4,
+        "willingness_score": 4.6,
+        "tolerance_level": "Moderately Aggressive / 成长型",
+        "description": "",
+    }
+    profile = profile_from_data(data)
+    zh = demo_mode._load_fixture_text("advisor_report.md", profile.name, "zh", profile)
+    en = demo_mode._load_fixture_text("advisor_report.md", profile.name, "en", profile)
+    assert "成长型（Moderately Aggressive）" in zh
+    assert "平衡型" not in zh
+    assert "意愿 4.6" in zh and "最终评分 4.4" in zh
+    assert "**Moderately Aggressive**" in en
+    assert "willingness of 4.6" in en and "final score of 4.4" in en
+
+    record = json.loads(
+        (FIXTURES_DIR / "ips_document_en.json").read_text(encoding="utf-8")
+    )
+    out = json.loads(
+        demo_mode._personalize_fixture_text(
+            json.dumps(record, ensure_ascii=False), profile.name, "en", profile
+        )
+    )
+    assert out["ips"]["risk_tolerance"]["overall_risk_level"] == "moderately_aggressive"
+
+
+def test_personalize_single_goal_leaves_other_slot_untouched():
+    """A lone retirement goal maps to the retirement slot; the fixture's
+    education goal cannot be fabricated, so its figures stay as recorded."""
+    data = _issue_profile_data()
+    data["goals"] = [dict(ISSUE_GOALS[1])]
+    profile = profile_from_data(data)
+    text = demo_mode._load_fixture_text(
+        "advisor_report.md", profile.name, "zh", profile
+    )
+    assert "350 万" in text and "23 年" in text
+    assert "120 万" in text and "10 年" in text  # education slot: fixture stays
+
+
+def test_match_fixture_goals_keyword_and_positional():
+    edu, ret = demo_mode._match_fixture_goals(
+        profile_from_data(_issue_profile_data()).goals
+    )
+    assert edu.name == "教育金" and ret.name == "退休"
+
+    # No keywords, exactly two goals: the shorter horizon takes education.
+    goals = [
+        InvestmentGoal(name="Goal A", target_amount=1, years=5),
+        InvestmentGoal(name="Goal B", target_amount=1, years=25),
+    ]
+    edu, ret = demo_mode._match_fixture_goals(goals)
+    assert edu.name == "Goal A" and ret.name == "Goal B"
+
+    # A single goal only fills the slot it keyword-matches.
+    edu, ret = demo_mode._match_fixture_goals([InvestmentGoal(name="购房", years=5)])
+    assert edu is None and ret is None
+
+
+def test_demo_rebalance_stream_personalizes_date_and_reasoning():
+    profile = profile_from_data(_issue_profile_data())
+    monitoring = {"client_name": "Andrew Zhang", "document_id": "ips_x"}
+    events, report = _collect_events(
+        demo_mode.demo_rebalance_stream(monitoring, profile)
+    )
+    text = "".join(e["text"] for e in events if e["type"] == "token")
+    reasoning = "".join(e["text"] for e in events if e["type"] == "reasoning")
+    assert date.today().isoformat() in text
+    assert "2026-07-20" not in text
+    assert "Andrew Zhang" in text
+    # The shared reasoning preamble is personalized too.
+    assert "90 万" in reasoning and "80 万" not in reasoning
+
+
+def test_demo_persona_profile_round_trips_fixture_values():
+    """The seeded demo client matches the persona: figures survive verbatim,
+    only the report date moves to the generation day."""
+    profile = profile_from_data(_demo_profile_data())
+    text, report = _collect(demo_mode.demo_advice_stream(profile))
+    assert "80 万元" in text and "9.15%" in text and "38 岁" in text
+    assert "2026-07-20" not in text
+    assert date.today().isoformat() in text

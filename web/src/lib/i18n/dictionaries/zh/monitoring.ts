@@ -27,6 +27,8 @@ export const monitoring = {
   bandUnknown: "无数据",
   rebalanceTitle: "复衡建议",
   rebalanceNone: "所有持仓均在配置区间内，无需复衡。",
+  rebalanceUnknown:
+    "行情数据不足，部分持仓漂移无法计算，是否需要复衡暂时无法判断。",
   actionBuy: "买入",
   actionSell: "卖出",
   currencyTitle: "货币敞口与净错配",

@@ -91,10 +91,10 @@ interface PageProps {
 
 /** 推荐配置区块 —— 基于风险分数的目标波动率组合（服务端流式渲染）。 */
 async function RecommendationSection({ profileId }: { profileId: number }) {
-  const [locale, rec] = await Promise.all([
-    getLocale(),
-    getRecommendation(profileId),
-  ]);
+  // Locale first: the backend renders the rationale in the request language
+  // (RSC data functions receive the locale explicitly — see monitoring).
+  const locale = await getLocale();
+  const rec = await getRecommendation(profileId, locale);
   const t = dictionaries[locale];
   if (!rec) return null;
 

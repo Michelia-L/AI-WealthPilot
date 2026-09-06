@@ -1,4 +1,16 @@
 /** market namespace — populated by the localization pass (phase 22). */
+
+/** CME 引擎稳定资产类别键（IPS_ASSET_CLASS_TICKERS）的本地化标签。 */
+const CME_ASSET_CLASS_NAMES: Record<string, string> = {
+  domestic_equity: "国内权益（A股/沪深300）",
+  international_equity_dm: "国际权益（发达市场）",
+  international_equity_hk: "港股",
+  fixed_income: "固定收益",
+  alternative_gold: "另类-黄金",
+  alternative_reit: "另类-REITs",
+  cash: "现金等价物",
+};
+
 export const market = {
   title: "市场仪表盘",
   description: "实时行情、跨资产相关性与资本市场预期（CME）。",
@@ -22,6 +34,10 @@ export const market = {
   vixFear: "恐慌", // 25–35
   vixExtremeFear: "极度恐慌", // ≥ 35
   cmeTitle: "资本市场预期",
+  /** CME 资产类别标签：按后端稳定 key 映射（API 的 name 是遗留中英混杂
+   * 字符串，有 key 时勿直接渲染）。 */
+  cmeAssetClassName: (key: string | null, fallback: string) =>
+    (key && CME_ASSET_CLASS_NAMES[key]) || fallback,
   cmeMeta: (
     asOf: string,
     riskFreeRate: string,

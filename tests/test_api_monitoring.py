@@ -239,8 +239,12 @@ def test_monitoring_full_chain(client, ips_dir, stub_cme, monkeypatch):
     assert drifted["volatility"] == pytest.approx(0.1438, abs=1e-3)
     assert drifted["sharpe"] is not None
 
-    # Nothing out of band -> no trades
-    assert body["rebalance"] == {"needed": False, "trades": []}
+    # Nothing out of band -> no trades, and every holding was measured
+    assert body["rebalance"] == {
+        "needed": False,
+        "status": "within_bands",
+        "trades": [],
+    }
 
 
 def test_monitoring_document_not_found(client):
@@ -338,12 +342,69 @@ def test_missing_price_data_degrades(client, ips_dir, stub_cme, monkeypatch):
         "sharpe": None,
     }
 
-    # Target-weight portfolio and rebalance still work
+    # Target-weight portfolio and rebalance still work; a detected breach
+    # wins over the unmeasurable holding in the status rollup
     assert body["portfolio"]["expected_return"] is not None
     trades = body["rebalance"]["trades"]
     assert body["rebalance"]["needed"] is True
+    assert body["rebalance"]["status"] == "needed"
     assert len(trades) == 1 and trades[0]["key"] == "domestic_equity"
     assert trades[0]["action"] == "sell"
+
+
+def test_rebalance_insufficient_data_when_drift_uncomputable(
+    client, ips_dir, stub_cme, monkeypatch
+):
+    """IPS saved after the price window ends: no misleading 'all within
+    bands' conclusion — the rebalance block reports insufficient data."""
+    monkeypatch.setattr(
+        "src.portfolio.monitoring.fetch_price_history",
+        _stub_fetch(
+            _prices(
+                {
+                    "000300.SS": [100.0, 110.0, 120.0],  # 2026-06-01 .. 06-03
+                    "AGG": [100.0, 100.0, 100.0],
+                }
+            )
+        ),
+    )
+    doc_id = _write_ips_doc(
+        ips_dir,
+        "ips_nodata_20260801_093000",
+        [
+            _saa_entry("国内权益（A股/沪深300）", 0.6, 0.5, 0.7),
+            _saa_entry("固定收益", 0.4, 0.3, 0.5),
+        ],
+        saved_at="2026-08-01T09:30:00",  # after the stub price window ends
+    )
+
+    body = client.get(f"/api/monitoring/{doc_id}").json()
+    assert all(h["band_status"] == "unknown" for h in body["holdings"])
+    rebalance = body["rebalance"]
+    assert rebalance["needed"] is False
+    assert rebalance["status"] == "insufficient_data"
+    assert rebalance["trades"] == []
+    assert any("无法判断" in n for n in body["notes"])
+
+
+def test_rebalance_insufficient_data_en_locale(
+    bare_client, ips_dir, stub_cme, monkeypatch
+):
+    """The insufficient-data conclusion is localized via the locale pipe."""
+    monkeypatch.setattr(
+        "src.portfolio.monitoring.fetch_price_history",
+        _stub_fetch(_prices({"000300.SS": [100.0, 110.0, 120.0]})),
+    )
+    doc_id = _write_ips_doc(
+        ips_dir,
+        "ips_nodata_en_20260801_093000",
+        [_saa_entry("国内权益（A股/沪深300）", 1.0, 0.5, 1.0)],
+        saved_at="2026-08-01T09:30:00",
+    )
+
+    body = bare_client.get(f"/api/monitoring/{doc_id}").json()
+    assert body["rebalance"]["status"] == "insufficient_data"
+    assert any("cannot be determined" in n for n in body["notes"])
 
 
 def test_overweight_saa_is_rescaled(client, ips_dir, stub_cme, monkeypatch):

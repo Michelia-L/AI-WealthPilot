@@ -23,6 +23,7 @@ from src.agents.profiler import (
     assess_risk,
     compute_ability_score,
     compute_willingness_score,
+    format_risk_score,
     list_profiles,
     load_profile,
     save_profile,
@@ -181,6 +182,28 @@ class TestRiskProfile:
         """Risk classification should map scores to correct levels."""
         rp = RiskProfile(ability_score=score, willingness_score=score)
         assert rp.classify() == expected
+
+
+class TestFormatRiskScore:
+    """format_risk_score: display rounding shared with the frontend (#35)."""
+
+    @pytest.mark.parametrize(
+        "score,expected",
+        [
+            (3.25, "3.3"),  # half away from zero — JS toFixed(1) agrees
+            (2.25, "2.3"),
+            (3.0, "3.0"),
+            (4.4, "4.4"),
+            (0.0, "0.0"),
+            (5.0, "5.0"),
+            (3.24, "3.2"),
+            (3.26, "3.3"),
+            # 3.15 is stored as 3.14999… in binary; JS toFixed(1) -> "3.1".
+            (3.15, "3.1"),
+        ],
+    )
+    def test_matches_js_tofixed(self, score, expected):
+        assert format_risk_score(score) == expected
 
 
 # ============================================================

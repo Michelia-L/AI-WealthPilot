@@ -4,20 +4,20 @@ When DEMO_MODE is on, the market data layer serves these synthetic series
 instead of hitting yfinance/akshare, so the whole app (market dashboard,
 optimizer, monitoring, backtest) runs fully offline. Each ticker's series
 is a GBM seeded from the ticker's stable hash on a business-day grid ending
-at a fixed reference date — output never drifts between runs, which keeps
-e2e snapshots and demo screens reproducible.
+at the current date: the rolling anchor keeps freshly saved IPS documents
+inside the monitoring drift window, while same-day output stays
+reproducible for e2e snapshots and demo screens (same seed, same date,
+same series). Pass an explicit ``end`` to pin the anchor in tests.
 """
 
 import hashlib
+from datetime import date
 from typing import Optional
 
 import numpy as np
 import pandas as pd
 
 from src.config import ASSET_UNIVERSE
-
-# Fixed grid anchor: every series ends here regardless of the wall clock.
-REFERENCE_END = pd.Timestamp("2026-08-21")
 
 # Period string -> number of trading days, mirroring the dashboard's options.
 _PERIOD_DAYS = {
@@ -50,9 +50,50 @@ _CATEGORY_PARAMS: dict[str, tuple[float, float, float]] = {
 }
 _DEFAULT_PARAMS = (0.05, 0.18, 100.0)
 
+# Per-ticker overrides win over the category params and skip the random start
+# multiplier: these anchors pin series to their real-world price magnitude
+# (USD/CNY ~7.1, not the ~70 the category default drifts to) and to their
+# asset-class risk profile (cash near-zero vol/drawdown, bonds low vol,
+# equities/commodities/crypto at ascending risk levels). Covers the ETF
+# proxies used by the optimizer / CME / monitoring paths, which are not in
+# ASSET_UNIVERSE and would otherwise fall back to the 18%-vol default.
+_TICKER_PARAMS: dict[str, tuple[float, float, float]] = {
+    # FX rates (units, not index points).
+    "CNY=X": (0.00, 0.03, 7.1),  # USD/CNY
+    "DX-Y.NYB": (0.00, 0.06, 98.0),  # US Dollar Index
+    # Cash / money market: near-zero volatility, minimal drawdown.
+    "BIL": (0.025, 0.004, 91.5),
+    # Bonds: low volatility, carry-like drift.
+    "AGG": (0.02, 0.05, 100.0),
+    "TLT": (0.01, 0.14, 90.0),
+    "TIP": (0.02, 0.06, 112.0),
+    "HYG": (0.03, 0.07, 81.0),
+    "EMB": (0.03, 0.09, 91.0),
+    "511010.SS": (0.025, 0.015, 135.0),
+    # Equity / REIT ETF proxies.
+    "SPY": (0.08, 0.16, 640.0),
+    "EFA": (0.06, 0.14, 88.0),
+    "EEM": (0.05, 0.18, 52.0),
+    "ASHR": (0.03, 0.22, 30.0),
+    "EWH": (0.03, 0.20, 23.0),
+    "VNQ": (0.05, 0.19, 92.0),
+    # Commodity ETFs.
+    "GLD": (0.06, 0.15, 310.0),
+    "DBC": (0.02, 0.16, 25.0),
+}
+
 # Volatility indices are mean-reverting in reality; a plain GBM wanders to
 # silly levels, so clamp the synthetic path into a plausible band.
 _VOLATILITY_CLAMP = (9.0, 85.0)
+
+
+def _reference_end() -> pd.Timestamp:
+    """Rolling grid anchor: synthetic series end at the current date.
+
+    Read through this function so tests can monkeypatch it (or pass an
+    explicit ``end`` to the entry points) for reproducible runs.
+    """
+    return pd.Timestamp(date.today())
 
 
 def _ticker_seed(ticker: str) -> int:
@@ -61,15 +102,22 @@ def _ticker_seed(ticker: str) -> int:
     return int.from_bytes(digest[:8], "little")
 
 
-def _series(ticker: str, n_days: int) -> pd.Series:
-    """One ticker's synthetic close series on the fixed business-day grid."""
+def _series(
+    ticker: str, n_days: int, end: Optional[pd.Timestamp] = None
+) -> pd.Series:
+    """One ticker's synthetic close series on the rolling business-day grid."""
     category = ASSET_UNIVERSE.get(ticker, {}).get("category", "")
-    drift, vol, start = _CATEGORY_PARAMS.get(category, _DEFAULT_PARAMS)
-
     seed = _ticker_seed(ticker)
     rng = np.random.default_rng(seed)
-    # Per-ticker start multiplier in [0.6, 1.4) so same-category siblings differ.
-    start *= 0.6 + rng.random() * 0.8
+
+    pinned = _TICKER_PARAMS.get(ticker)
+    if pinned is not None:
+        drift, vol, start = pinned
+    else:
+        drift, vol, start = _CATEGORY_PARAMS.get(category, _DEFAULT_PARAMS)
+        # Per-ticker start multiplier in [0.6, 1.4) so same-category
+        # siblings differ; pinned tickers keep their anchor as-is.
+        start *= 0.6 + rng.random() * 0.8
 
     daily_mu = (drift - 0.5 * vol**2) / 252
     daily_sigma = vol / np.sqrt(252)
@@ -78,7 +126,8 @@ def _series(ticker: str, n_days: int) -> pd.Series:
     if category == "Volatility":
         prices = np.clip(prices, *_VOLATILITY_CLAMP)
 
-    index = pd.bdate_range(end=REFERENCE_END, periods=n_days)
+    anchor = end if end is not None else _reference_end()
+    index = pd.bdate_range(end=anchor, periods=n_days)
     return pd.Series(prices, index=index, name=ticker)
 
 
@@ -86,21 +135,25 @@ def demo_price_history(
     tickers: list[str],
     period: str = "5y",
     interval: str = "1d",
+    end: Optional[pd.Timestamp] = None,
 ) -> pd.DataFrame:
     """Synthetic adjusted-close frame with the real fetch_price_history shape.
 
     ``interval``/currency arguments of the real path are accepted by the
     caller but intentionally ignored: synthetic series are daily and have no
-    FX notion. Unknown ``period`` falls back to the 1y window.
+    FX notion. Unknown ``period`` falls back to the 1y window. ``end`` pins
+    the grid anchor; None rolls with the current date.
     """
     n_days = _PERIOD_DAYS.get(period, _PERIOD_DAYS["1y"])
-    frame = pd.concat([_series(t, n_days) for t in tickers], axis=1)
+    frame = pd.concat([_series(t, n_days, end=end) for t in tickers], axis=1)
     return frame.reindex(columns=tickers)
 
 
-def demo_quote_record(ticker: str) -> Optional[dict]:
+def demo_quote_record(
+    ticker: str, end: Optional[pd.Timestamp] = None
+) -> Optional[dict]:
     """Synthetic quote record with the real _fetch_quote_record shape."""
-    closes = _series(ticker, _PERIOD_DAYS["1mo"])
+    closes = _series(ticker, _PERIOD_DAYS["1mo"], end=end)
     info = ASSET_UNIVERSE.get(ticker, {})
     return {
         "ticker": ticker,
