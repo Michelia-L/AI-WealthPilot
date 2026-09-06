@@ -83,13 +83,22 @@ class TestIVProxyMap:
             assert cfg.scale == 0.01
 
     def test_move_proxy_assets(self):
-        """Fixed income assets should use MOVE."""
+        """Fixed income assets should use MOVE with a duration override."""
         move_assets = ["AGG", "TLT", "HYG", "EMB", "TIP"]
         for asset in move_assets:
             cfg = IV_PROXY_MAP.get(asset)
             assert cfg is not None, f"{asset} should have MOVE proxy"
             assert cfg.iv_ticker == "^MOVE"
-            assert cfg.scale == 0.01
+            # MOVE is quoted in bp of yield vol: conversion goes through
+            # duration (raw × 1e-4 × duration), not the VIX scale (#52).
+            assert cfg.duration is not None and cfg.duration > 0
+
+    def test_move_proxy_durations_order(self):
+        """Longer-duration bond proxies should map MOVE to higher IV."""
+        tlt = IV_PROXY_MAP["TLT"].duration
+        agg = IV_PROXY_MAP["AGG"].duration
+        hyg = IV_PROXY_MAP["HYG"].duration
+        assert tlt > agg > hyg
 
     def test_no_proxy_default(self):
         """Assets not in the map should return None by default."""
@@ -201,11 +210,11 @@ class TestFetchImpliedVolatility:
         assert results["EFA"] is not None
         assert results["EFA"].implied_volatility == pytest.approx(0.20)
 
-        # AGG should have MOVE data (but mock returns same value)
-        # Actually, since mock_fetch returns 20.0 for any ticker,
-        # AGG would also get 20.0 * 0.01 = 0.20 as its IV
-        # This tests that the proxy mapping is correctly followed
+        # AGG uses the MOVE proxy: the mock returns 20.0 for any ticker,
+        # so AGG gets 20.0 × 1e-4 × 6.0 = 0.012 via duration conversion (#52)
         assert results["AGG"] is not None
+        assert results["AGG"].implied_volatility == pytest.approx(0.012)
+        assert results["AGG"].iv_index_ticker == "^MOVE"
 
     @patch("src.data.implied_volatility._fetch_single_iv_index")
     def test_assets_without_proxy_return_none(self, mock_fetch):
@@ -298,6 +307,23 @@ class TestFetchImpliedVolatility:
         # Raw value 25.0 × scale 0.01 = 0.25 (25% annualized)
 
     @patch("src.data.implied_volatility._fetch_single_iv_index")
+    def test_move_duration_conversion(self, mock_fetch):
+        """MOVE (bp of yield vol) converts via duration, not the VIX scale (#52)."""
+        mock_fetch.return_value = 85.0  # MOVE at 85bp
+
+        results = fetch_implied_volatility(["AGG", "TLT", "HYG", "EMB", "TIP"])
+
+        # iv = raw × 1e-4 × duration — same order of magnitude as each
+        # asset's historical price volatility, not 85%.
+        assert results["AGG"].implied_volatility == pytest.approx(0.051)  # 85×1e-4×6.0
+        assert results["TLT"].implied_volatility == pytest.approx(0.14025)  # ×16.5
+        assert results["HYG"].implied_volatility == pytest.approx(0.0323)  # ×3.8
+        assert results["EMB"].implied_volatility == pytest.approx(0.0595)  # ×7.0
+        assert results["TIP"].implied_volatility == pytest.approx(0.05525)  # ×6.5
+        for ticker in ("AGG", "TLT", "HYG", "EMB", "TIP"):
+            assert 0 < results[ticker].implied_volatility < 0.20
+
+    @patch("src.data.implied_volatility._fetch_single_iv_index")
     def test_iv_index_name_populated(self, mock_fetch):
         """ImpliedVolData should have the correct human-readable IV index name."""
         mock_fetch.return_value = 15.0
@@ -305,6 +331,6 @@ class TestFetchImpliedVolatility:
         results = fetch_implied_volatility(["SPY", "AGG"])
 
         assert results["SPY"].iv_index_name == "CBOE VIX"  # type: ignore[union-attr]
-        # AGG uses MOVE, but the mock returns 15.0 for everything
-        # MOVE at 15 → IV = 0.15, index name should be "ICE BofAML MOVE"
+        # AGG uses MOVE; the mock returns 15.0 for everything
+        # MOVE at 15 → IV = 15 × 1e-4 × 6.0 = 0.009, name "ICE BofAML MOVE"
         assert results["AGG"].iv_index_name == "ICE BofAML MOVE"  # type: ignore[union-attr]

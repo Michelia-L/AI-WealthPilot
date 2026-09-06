@@ -8,6 +8,17 @@ weighted blending framework.
     - VIX: CBOE Volatility Index, reflects S&P 500 30-day implied volatility.
     - MOVE: ICE BofAML MOVE Index, reflects US Treasury implied volatility.
 
+Quoting conventions differ and must not share one scale (issue #52):
+
+    - VIX is quoted in percentage points of price volatility
+      (20 = 20% annualized), so iv = raw × 0.01.
+    - MOVE is quoted in basis points of annualized *yield* volatility
+      (73 ≈ 73bp). Price volatility ≈ modified duration × yield
+      volatility, so iv = raw × 1e-4 × duration. Durations below are
+      approximate constants (they drift slowly with rate levels);
+      for HYG/EMB the conversion only covers the rate component of
+      volatility, credit-spread risk is a known underestimate.
+
 Design:
     - Fetches VIX and MOVE as tradable indices (^VIX, ^MOVE).
     - Provides an asset-class → IV proxy mapping table.
@@ -36,12 +47,16 @@ class IVProxyConfig:
         iv_ticker: yfinance ticker for the IV index (e.g. '^VIX').
         scale: Factor to convert raw quote to decimal annualized IV.
             VIX is quoted in percentage points (e.g. 20 = 20%),
-            so scale=0.01 to get 0.20.
+            so scale=0.01 to get 0.20. Ignored when duration is set.
+        duration: Approximate modified duration of the asset, used for
+            yield-volatility indices (MOVE, quoted in bp): price vol ≈
+            raw × 1e-4 × duration. None for price-vol indices (VIX).
         description: Human-readable description of the IV source.
     """
 
     iv_ticker: str
     scale: float = 0.01
+    duration: Optional[float] = None
     description: str = ""
 
 
@@ -91,24 +106,28 @@ IV_PROXY_MAP: dict[str, Optional[IVProxyConfig]] = {
     ),
     "AGG": IVProxyConfig(
         iv_ticker="^MOVE",
-        scale=0.01,
+        duration=6.0,  # agg bond index modified duration ≈ 6
         description="ICE BofAML MOVE (US Treasury implied volatility)",
     ),
     "TLT": IVProxyConfig(
         iv_ticker="^MOVE",
-        scale=0.01,
+        duration=16.5,  # 20+ year Treasuries
         description="Long-Term US Treasuries proxied by MOVE",
     ),
     "HYG": IVProxyConfig(
-        iv_ticker="^MOVE", scale=0.01, description="High Yield Bonds proxied by MOVE"
+        iv_ticker="^MOVE",
+        duration=3.8,  # rate component only; credit spread risk not covered
+        description="High Yield Bonds proxied by MOVE",
     ),
     "EMB": IVProxyConfig(
         iv_ticker="^MOVE",
-        scale=0.01,
+        duration=7.0,  # rate component only; credit spread risk not covered
         description="Emerging Market Bonds proxied by MOVE",
     ),
     "TIP": IVProxyConfig(
-        iv_ticker="^MOVE", scale=0.01, description="TIPS proxied by MOVE"
+        iv_ticker="^MOVE",
+        duration=6.5,
+        description="TIPS proxied by MOVE",
     ),
     # "000300.SS": None,   # CSI 300: no yfinance-accessible IV index
     # "GLD":      None,    # Gold: OVX exists but unreliable on yfinance
@@ -132,8 +151,9 @@ def _fetch_single_iv_index(iv_ticker: str) -> Optional[float]:
     """
     Fetch the latest closing price for a single IV index ticker.
 
-    The raw quote is returned directly (not scaled). Scaling is
-    applied later based on IVProxyConfig.scale.
+    The raw quote is returned directly (not scaled). Conversion is
+    applied later from IVProxyConfig (scale for price-vol indices,
+    duration for yield-vol indices).
 
     Args:
         iv_ticker: yfinance ticker for the IV index (e.g. '^VIX').
@@ -223,8 +243,13 @@ def fetch_implied_volatility(
             result[asset_ticker] = None
             continue
 
-        # Apply scaling to convert raw quote to decimal
-        iv_decimal = raw_value * proxy_cfg.scale
+        # Convert the raw quote to decimal annualized IV (issue #52):
+        # yield-vol indices (MOVE, bp) go through duration; price-vol
+        # indices (VIX, percentage points) go through scale.
+        if proxy_cfg.duration is not None:
+            iv_decimal = raw_value * 1e-4 * proxy_cfg.duration
+        else:
+            iv_decimal = raw_value * proxy_cfg.scale
         iv_name = IV_INDEX_NAMES.get(iv_ticker, iv_ticker)
 
         result[asset_ticker] = ImpliedVolData(
