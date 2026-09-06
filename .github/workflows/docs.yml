@@ -35,7 +35,7 @@ jobs:
       - name: Install docs dependencies
         run: pip install $(grep -E '^(mkdocs-material|jieba)==' requirements-dev.txt | cut -d' ' -f1)
       - run: mkdocs build --strict
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
