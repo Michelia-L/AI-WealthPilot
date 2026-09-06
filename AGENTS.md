@@ -1,70 +1,88 @@
 # AI WealthPilot — Agent Guide
 
-面向私人财富管理的 AI 顾问工作站：量化组合引擎（MVO / Resampled / Black-Litterman / Mean-CVaR / LDI 盈余优化 / 风险平价 ERC / GBM 蒙特卡洛；预期收益可切换历史样本 / CME 引擎口径 `expected_return_source`，BL 方法下该口径作为先验）+ LangGraph 多智能体 IPS 流水线 + DeepSeek 顾问智能体。
+AI WealthPilot 是面向私人财富管理研究与决策支持的开源工作站。核心由 Python 量化引擎、FastAPI 传输层、Next.js 前端，以及基于 LangGraph 的 AI/IPS 工作流组成。LLM 接入采用 OpenAI-compatible 配置；环境变量可使用 DeepSeek，运行时也可通过应用设置覆盖 endpoint / model / API key。
+
+本文件只放全仓长期有效的规则和导航。进入 `web/` 或 `guide/` 工作前，还必须阅读该目录下更具体的 `AGENTS.md`；更深层规则在冲突时优先。
 
 ## 工作原则
 
-- **第一性原理思考**：从真实需求、代码事实和验证结果出发；目标不清楚时先与用户讨论，不凭假设推进。
-- **先读后改**：修改代码前，阅读相关代码与最新约束，遵循目录树中最近的 AGENTS.md（子目录的更具体约定优先）。
-- **提交匿名**：提交信息不添加任何 co-author 署名；提交信息、PR 描述与任何解释性文本中不暴露 Agent 身份。
-- **文案务实**：README / docs / 提交信息 / 面向用户文案只写可验证的事实，禁用无法证实的包装性修饰词（如：机构级、工业级、企业级、极致、赋能、闭环解决方案；enterprise-grade、world-class、cutting-edge、seamless）。判断标准：删掉该形容词后事实不变，则该词就是包装，应当删去。性能、规模、合规相关的断言必须有代码或测试支撑。有技术含义的术语（如 robust estimation、闭环状态机）不在此列。
-- **指令维护**：影响几乎所有任务的硬规则，更新到根 AGENTS.md；只影响特定目录的规则，更新到最近的子目录 AGENTS.md；指令更新保持聚焦，并有代码事实支撑。
+- **先读后改**：先确认相关代码、测试、配置和最近的局部 `AGENTS.md`，再修改。
+- **以代码事实为准**：README、guide、注释或历史 issue 与当前实现冲突时，以可验证的代码和测试为准，并同步修正文档。
+- **第一性原理**：从用户目标、系统边界和验证结果出发，不因为旧实现或旧文档存在就默认它仍合理。
+- **最小必要改动**：解决当前问题，不顺手扩张范围；公共抽象只有在重复模式已经明确时再引入。
+- **提交匿名**：提交信息、PR 描述和解释性文本中不添加 co-author，也不暴露 Agent 身份。
+- **文案务实**：README / docs / 用户文案只写可验证事实。避免“机构级、企业级、工业级、极致、赋能、world-class、cutting-edge、seamless”等无法由代码或测试支撑的包装词。
+- **维护指令分层**：几乎影响所有任务的规则放这里；只影响某个子树的规则放最近的子目录 `AGENTS.md`。
 
-## 架构约定（最重要）
+## 产品与数据边界
 
-- **`src/` 是计算核心**：量化引擎（`src/portfolio/`）、数据管道（`src/data/`）、AI 智能体（`src/agents/`）、图表构建（`src/visualization/`）。业务逻辑只能在这里。
-- **`api/` 是薄传输壳**：FastAPI 路由只做参数校验、调用 `src/`、组装响应；禁止在路由里写业务逻辑。Pydantic 模型集中在 `api/schemas.py`。用户可见文案按请求头 `X-Locale`（en/zh，缺省 en）双语化：统一走 `api/i18n.py` 的 `msg(key, locale)`（zh=既有中文逐字），路由用 `get_request_locale(request)` 解析；路由里禁止内联中文。
-- **`web/` 是 Next.js 前端**：只读数据走服务端组件 → `web/src/lib/api/`（按域分模块 + `api.ts` barrel 重导出；经 `API_ORIGIN` 直连 FastAPI）；浏览器发起的变更/流式请求必须经 `web/src/app/api/` 的同源代理路由（`web/src/lib/proxy.ts`），不跨域、不暴露内网地址。e2e（`web/e2e/`，Playwright）跑真实全栈：DEMO_MODE=1 的 uvicorn（LLM 端点回放夹具、行情层吃 `src/data/demo_market.py` 合成数据、自动种子虚构客户）+ `next start`，端口 8300/3300 与临时 SQLite（`AIWP_DB_URL`）隔离，零网络依赖。
-- **i18n（phase 22）**：locale 由 cookie `wp_locale`（`en`/`zh`，新访客默认 en）决定，侧栏切换器经 `POST /api/locale` 写 cookie 后 `router.refresh()`。UI 文案集中在 `web/src/lib/i18n/dictionaries/{en,zh}/`（namespace 分文件 + index 聚合；zh 声明为 `Dictionary` 类型，**缺 key 编译即失败**——新增文案必须双语同步）。服务端组件用 `getDict()`/`dictionaries`（另一语言用 `altLocale` 保留双语品牌副标签），客户端组件用 `useT()`。传输层：`proxy.ts` 四个函数自动注入 `X-Locale`；`web/src/lib/api/` 因在客户端模块图不能碰 `next/headers`，需要本地化文案的 RSC 数据函数走「调用方显式传 locale」模式（参照 `getMonitoringFleetStatus(locale)`）。
-- **持久化**：客户画像与后台任务记录（SSE 事件写穿透，重启后和解 + 可回放；运行中任务断线重连先回放持久化日志、再按 `seq` 去重续播，见 `api/tasks.py`）在 SQLite（`api/db.py`），同库还有 `app_settings` 键值表（FR-002 的 LLM 端点配置 base_url/api_key/model）；报告 / IPS / CME 缓存是 `data/` 下的 JSON 文件存储（`src/agents/*_storage.py`）。
-- **文档站**：`guide/` 即 MkDocs 源（配置在根 `mkdocs.yml`，`docs_dir: guide`；依赖 pin 在 `requirements-dev.txt`），push main 经 `.github/workflows/docs.yml` 部署到 GitHub Pages。`docs/` 保留工程记录（`known-issues.md`、`migration-nextjs.md`、`ips_reference/`、`images/`），不进站点。写作纪律、结构说明与已知陷阱见 `guide/AGENTS.md`。
+- 本项目用于 research、education、technical evaluation 与 decision support。不要把输出描述为持牌投资建议、监管认证、保证收益或已执行交易。
+- 组合权重、IPS、再平衡金额和退休模拟均是模型输出或建议性结果；除非代码明确实现，否则不得暗示下单、托管、税务处理或经纪账户同步。
+- Demo fixture、synthetic market data、回放报告和样例客户不得用于宣称真实历史业绩、真实客户结果或实时 LLM 质量。
+- 用户画像、API key、token、连接串和其他敏感配置不得写入日志、测试夹具、提交内容、截图或用户可见错误信息。新增调试输出前先检查是否会暴露这些字段。
+- Live LLM 请求会向配置的模型服务发送完成任务所需的画像或报告上下文；新增 LLM 路径时保持最小数据传递原则，并复用统一配置入口。
+
+## 架构地图
+
+- **`src/`：领域与计算核心。**
+  - `src/portfolio/`：组合构建、风险、回测、退休与相关量化逻辑。
+  - `src/data/`：市场数据适配与派生数据。
+  - `src/agents/`：LLM 顾问、IPS 工作流、报告/IPS 存储与 demo fixture。
+  - `src/visualization/`：Plotly 图表构建。
+  - 金融模型、量化规则和可复用领域逻辑应放在 `src/`，不要复制到 API 或前端。
+- **`api/`：传输、持久化和任务编排。** FastAPI 路由负责验证、调用 `src/`、组装响应；`api/db.py`、`api/tasks.py` 等可以拥有持久化与后台任务生命周期逻辑，但不要在这里重新实现量化/领域规则。Pydantic API 模型集中在 `api/schemas.py`。
+- **`web/`：Next.js 应用。** Web 专属的数据访问、i18n、设计系统、测试与 Next.js 规则见 `web/AGENTS.md`。
+- **`guide/`：MkDocs Internals 站点。** 写作纪律与构建要求见 `guide/AGENTS.md`。
+- **`docs/`：工程记录与被代码/README 引用的资产。** 包括 known issues、迁移记录、IPS reference 和 screenshots；它不是 MkDocs `docs_dir`。
+
+## API 与本地化
+
+- 用户可见的 API 文案使用 `X-Locale`（`en` / `zh`，缺省 `en`）并统一走 `api/i18n.py`；路由里不要新增内联中文错误文案。
+- 新增 API endpoint 时，通常同时需要：路由、`api/schemas.py` 中的模型，以及正常/404/422 等相关测试。
+- `src/` 中会直接产出用户可见文本的计算函数，应显式接收 locale 或由上层传入，不要读取 Web cookie 或 Next.js 状态。
+
+## LLM 与 Demo 模式
+
+- 所有 LLM 消费方应复用 `src/agents/llm_config.py` 的统一配置解析，不要各自读取不同环境变量或硬编码 provider。
+- 未配置可用 API key 时，纯量化功能仍应可运行；需要 LLM 的 live endpoint 应清晰失败，而不是静默伪造结果。
+- `DEMO_MODE=1` 的核心演示路径使用确定性 fixture / synthetic market data，避免依赖外部 LLM，并尽量让 UI、优化器、监控和演示报告可复现。
+- **不要把 `DEMO_MODE` 当作全局 network-isolation 开关。** 某些辅助数据路径仍可能尝试 provider 请求；若任务要求“完全离线”，必须逐路径验证并在测试中显式阻断网络。
 
 ## 常用命令
 
+以仓库中的 `.python-version`、`web/.nvmrc`、`requirements*.txt` 和 `web/package-lock.json` 为版本事实来源，不在本文件重复容易漂移的具体版本号。
+
 ```bash
-# 后端（仓库根目录）
+# 后端开发（仓库根目录）
 python -m uvicorn api.main:app --reload --port 8000
 
-# 前端
-cd web && npm run dev          # :3000
-
-# 测试与质量门禁（改动后必跑）
-python -m pytest -q            # 全套 Python 测试
-ruff check && ruff format --check   # Python lint/格式门禁（配置在 pyproject.toml）
-cd web && npm test             # 前端 Vitest（lib 单测 + 组件测试）
-cd web && npm run typecheck    # tsc --noEmit 全量类型检查（含测试文件；next build 不覆盖测试文件）
-cd web && npm run lint && npm run build
-cd web && npm run test:e2e     # Playwright 全栈 e2e（需先 npm run build；自动拉起 DEMO_MODE 后端 :8300 + web :3300，独立临时 SQLite；后端以裸 `python` 拉起，PATH 上须有 python——WSL/Linux 下先 `source .venv/bin/activate`）
+# 前端开发
+cd web && npm run dev
 
 # 全栈 Docker
 docker compose up --build
 ```
 
-## 前端设计系统（「墨金私行」）
+## 验证策略
 
-- 令牌集中在 `web/src/app/globals.css`（Tailwind v4 `@theme`）：ink/gold/mist/jade/cinnabar/steel、`font-display`、`tnum`、`ease-luxe`。禁止散落 `slate/amber/emerald/rose` 等旧色值字面量。
-- 涨跌着色统一走语义令牌 `text-rise` / `text-fall`（含 `bg-rise/10`、`border-fall/30` 等派生）：取值随 `<html lang>` 翻转，en 绿涨红跌、zh 红涨绿跌。表达涨跌时禁止直接写 jade/cinnabar；jade/cinnabar 只用于成功/风险等状态语义。
-- 组件库在 `web/src/components/ui/`（Button、Panel、Chip、Table、Icon…），新页面优先复用；图标用 `ui/icon.tsx` 的细线图标，禁止 emoji。
-- 图表经 `web/src/components/plot-chart.tsx` 渲染（主题层已注入），Python 端输出 Plotly JSON。
-- **Next.js 16 与训练语料有破坏性差异**：动路由/字体/数据 API 前先查 `web/node_modules/next/dist/docs/`（见 `web/AGENTS.md`）。async request APIs（`params`/`searchParams` 是 Promise）。
+先跑与改动最相关的最小测试集，再按影响面补齐门禁。不要因为只改文档就机械执行整套全栈测试，也不要因为改动很小就跳过相关验证。
 
-## Python 约定
+- **Python / `src/` / `api/` 改动**：至少跑 `ruff check`、`ruff format --check` 和相关 pytest；准备 PR 前，对影响面较广的改动跑 `python -m pytest -q`。
+- **Web 改动**：按影响面跑 `cd web && npm test`、`npm run typecheck`、`npm run lint`、`npm run build`。
+- **跨层用户流程、same-origin proxy、SSE / background task、locale 切换、断线恢复等改动**：补跑 `cd web && npm run test:e2e`。Playwright 配置会拉起独立 demo backend 和 web server。
+- **`guide/` 内容或 MkDocs 配置改动**：跑 `mkdocs build --strict`；更多写作检查见 `guide/AGENTS.md`。
+- **仅 README / `docs/` / AGENTS 指令改动**：做链接、路径和事实核对；只有实际影响运行时或站点构建时才追加对应测试。
+- GitHub CI 是合并前最终门禁；本地验证用于尽早发现问题，不能替代 CI 结果。
 
-- 文档字符串/注释用英文；面向用户的错误文案（HTTPException detail、SSE 事件 message）中英双语，新增一律进 `api/i18n.py` 消息表走 `msg()`（src/ 计算函数产出的文案用 `locale: str = "zh"` 参数透传，参照 `src/portfolio/monitoring.py`）。
-- 测试模式：外部调用（yfinance、LLM、FRED）一律 monkeypatch；API 测试用 `tests/conftest.py` 的 `client` fixture（默认带 `X-Locale: zh`；`bare_client` 无头=英文路径）；SSE 解析复用 `tests/test_api_advisor.py` 的 `_parse_sse`。
-- 新增端点：路由 + `api/schemas.py` 模型 + 测试（404/422/正常链路）三件套。
+当前 CI 由 Python、Web 和 Playwright E2E jobs 组成，并包含 Ruff、pytest coverage gate、pip-audit、Vitest、TypeScript、ESLint、Next build 等检查。具体命令和版本以 `.github/workflows/ci.yml` 为准，不要在本文件复制短生命周期数字。
 
 ## Git 规范
 
-- Conventional Commits，英文：`feat:` / `fix:` / `docs:` / `test:` / `chore:`，主题行小写，阶段功能标注 `(phase N)`。
-- **禁止直接 push `main`**：一切改动走 feature 分支 + PR，CI 全绿后方可合并。本地门禁全绿是提交前提，不是合并条件——合并以 GitHub CI 结果为准。这同样适用于文档、配置与 AGENTS.md 自身的修改。
-- 提交前确认：`python -m pytest -q`、`ruff check && ruff format --check`、`cd web && npm test`、`cd web && npm run typecheck && npm run lint && npm run build` 全绿。
-- CI（`.github/workflows/ci.yml`）在 push/PR 时跑全套门禁：python job（ruff lint/format → pytest 带 `--cov-fail-under=87` 覆盖率门禁 → pip-audit CVE 扫描）+ web job（lint/typecheck/vitest/build）+ e2e job（Playwright 全栈）；推送前本地先过一遍。Dependabot 周更 pip/npm/github-actions 依赖（`.github/dependabot.yml`），bump PR 同样过这些门禁。
+- 使用 Conventional Commits，英文主题：`feat:` / `fix:` / `docs:` / `test:` / `chore:` 等；主题保持简洁、描述实际改动。
+- **禁止直接 push `main`**。所有改动走 feature branch + PR，CI 全绿后再合并；文档、配置与 AGENTS.md 自身也一样。
+- 不为满足形式而把无关改动塞进同一个 PR。若发现旁支问题，记录下来或另开 issue / PR。
 
-## 环境
+## 目录专属规则
 
-- 日常开发环境为 WSL2（Ubuntu 24.04，仓库克隆在 `~/projects/AI-WealthPilot`；Windows 桌面旧副本仅为迁移过渡期的备份，不要双侧并行修改——SQLite 数据会分叉）。WSL 资源上限经 `.wslconfig` 设 12GB/8 核；WSL 内 git 须设 `core.autocrlf=false`，行尾由 `.gitattributes` 统一 LF。
-- `.env` 配 `DEEPSEEK_API_KEY`（AI 顾问 / IPS 必需）、`FRED_API_KEY`（可选，无风险利率首选源）、`TUSHARE_TOKEN`（可选，A 股映射指数与中债收益率曲线的付费主干源，未配置时自动降级 akshare / yfinance）。
-- LLM 端点可在 /settings 页面改用任意 OpenAI 兼容服务：保存进 `app_settings` 表后按字段覆盖 env 默认（DB 非空值优先，见 `src/agents/llm_config.py` 的 `get_llm_config()`，所有 LLM 消费方统一走它）；清空 API Key 即删行回退 env。
-- 未配置 DeepSeek key 时量化功能照常可用，LLM 端点返回 503；除非 `.env` 设 `DEMO_MODE=1`（phase 20 演示模式），此时三个 LLM 端点无条件回放 `src/agents/demo_fixtures/` 的虚构样例（`src/agents/demo_mode.py`），零网络调用；回放按请求 locale 选夹具——en 用 `*_en` 英文夹具（占位名 Evelyn Lin），其余用中文夹具（占位名「林晓兰」），占位名在回放时替换为真实画像名；启动时若画像表为空还会种子一个虚构客户「林晓兰」。demo 下行情层同样脱网：`src/data/demo_market.py` 提供确定性合成价格序列（GBM、种子由 ticker 哈希派生，序列末端锚定当日并随日期滚动——同日同种子结果不变，测试可注入 `end` 固定锚点；重点 ticker 按 `_TICKER_PARAMS` 校准锚定价与波动率，汇率量级真实、现金类近零波动），`fetch_price_history` / `get_latest_quotes` / `fetch_risk_free_rate_detailed` 三处咽喉早退命中，市场页/优化器/监控/回测全部离线可用（KI-002）。
-- 开发会话挂接了 GitHub 与 Playwright 两个 MCP（配置在 `~/.kimi-code/mcp.json`，不入库）。GitHub MCP 用于 PR/issue 查阅与合并；盯 CI 跑完仍用后台 `gh run watch`。Playwright MCP 用于 UI 改动的交互式验证（导航/快照/截图），**它不自动拉起服务**——验证前先起 `DEMO_MODE=1` 的 uvicorn + `cd web && npm run dev`，或连已在运行的 dev server；e2e 回归套件仍走 `npm run test:e2e`。该 MCP 配的是 `--browser chromium`，若其升级后报 `chromium-xxxx not found`，按报错提示跑 `npx @playwright/mcp install-browser ...` 补装对应版本即可。
+- `web/**`：先读 `web/AGENTS.md`。其中包含 Next.js 自动生成规则和 AI WealthPilot 的前端约束。
+- `guide/**`：先读 `guide/AGENTS.md`。其中包含 MkDocs 结构、事实核对和 Internals 写作纪律。
