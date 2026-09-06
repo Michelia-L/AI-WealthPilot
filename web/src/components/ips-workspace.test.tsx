@@ -193,3 +193,34 @@ describe("IpsWorkspace guards", () => {
     expect(screen.getByRole("button", { name: "Generate IPS" })).toBeDisabled();
   });
 });
+
+describe("IpsWorkspace document library", () => {
+  it("renders the PDF download as a single named link (no nested button)", () => {
+    // a11y (#46): the download used to be <a> wrapping <button> — nested
+    // interactive elements are invalid HTML and confuse AT/keyboard users.
+    render(
+      <IpsWorkspace
+        profiles={PROFILES}
+        status={STATUS}
+        initialDocuments={[
+          {
+            document_id: "ips_jane_doe_20260101_000000",
+            client_name: "Jane Doe",
+            version: "1.0",
+            risk_level: "",
+            status: "approved",
+            revision_rounds: 0,
+            saved_at: "2026-01-01T00:00:00",
+          },
+        ]}
+      />
+    );
+
+    const link = screen.getByRole("link", { name: "Download PDF" });
+    expect(link).toHaveAttribute(
+      "href",
+      "/api/ips/ips_jane_doe_20260101_000000/pdf"
+    );
+    expect(link.querySelector("button")).toBeNull();
+  });
+});

@@ -54,6 +54,10 @@ export default function Button({
       {children}
       {trailingIcon && (
         <span
+          // Purely decorative icon chip — aria-hidden so it does not surface
+          // as an empty generic node in the accessibility tree (which also
+          // breaks name computation in some tooling).
+          aria-hidden="true"
           className={cx(
             "flex items-center justify-center rounded-full transition-transform duration-300 ease-luxe group-hover:-translate-y-px group-hover:translate-x-0.5",
             size === "sm" ? "h-5 w-5" : "h-6 w-6",
@@ -101,6 +105,7 @@ export function ButtonLink({
       {children}
       {trailingIcon && (
         <span
+          aria-hidden="true"
           className={cx(
             "flex items-center justify-center rounded-full transition-transform duration-300 ease-luxe group-hover:-translate-y-px group-hover:translate-x-0.5",
             size === "sm" ? "h-5 w-5" : "h-6 w-6",
@@ -111,5 +116,55 @@ export function ButtonLink({
         </span>
       )}
     </Link>
+  );
+}
+
+interface ButtonAnchorProps
+  extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
+  variant?: Variant;
+  size?: Size;
+  icon?: IconName;
+  trailingIcon?: IconName;
+}
+
+/**
+ * 原生锚版按钮 —— 与 Button 同视觉，用于文件下载等非导航链接。
+ * 不经 next/link（避免客户端路由拦截下载）；替代 <a> 内嵌 <button> 的
+ * 非法嵌套可交互元素写法。
+ */
+export function ButtonAnchor({
+  variant = "secondary",
+  size = "md",
+  icon,
+  trailingIcon,
+  className,
+  children,
+  ...rest
+}: ButtonAnchorProps) {
+  return (
+    <a
+      className={cx(
+        "group inline-flex items-center justify-center rounded-full font-medium transition-all duration-300 ease-luxe select-none active:scale-[0.97]",
+        VARIANTS[variant],
+        SIZES[size],
+        className
+      )}
+      {...rest}
+    >
+      {icon && <Icon name={icon} size={size === "sm" ? 13 : 15} />}
+      {children}
+      {trailingIcon && (
+        <span
+          aria-hidden="true"
+          className={cx(
+            "flex items-center justify-center rounded-full transition-transform duration-300 ease-luxe group-hover:-translate-y-px group-hover:translate-x-0.5",
+            size === "sm" ? "h-5 w-5" : "h-6 w-6",
+            variant === "primary" ? "bg-ink-950/15" : "bg-white/10"
+          )}
+        >
+          <Icon name={trailingIcon} size={12} />
+        </span>
+      )}
+    </a>
   );
 }
