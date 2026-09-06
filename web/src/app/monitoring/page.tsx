@@ -391,7 +391,12 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
               <Icon name="refresh" size={15} className="text-gold-400" />
               {t.monitoring.rebalanceTitle}
             </h3>
-            {!data.rebalance.needed ? (
+            {data.rebalance.status === "insufficient_data" ? (
+              <div className="flex items-center gap-2.5 text-sm text-mist-400">
+                <Icon name="info" size={16} />
+                {t.monitoring.rebalanceUnknown}
+              </div>
+            ) : !data.rebalance.needed ? (
               <div className="flex items-center gap-2.5 text-sm text-jade-300">
                 <Icon name="check" size={16} />
                 {t.monitoring.rebalanceNone}

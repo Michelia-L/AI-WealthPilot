@@ -825,6 +825,12 @@ class MonitoringTrade(BaseModel):
 
 class MonitoringRebalance(BaseModel):
     needed: bool
+    status: Literal["needed", "within_bands", "insufficient_data"] = Field(
+        description="'needed' = out-of-band trades derived; 'within_bands' = "
+        "every holding measured inside its band; 'insufficient_data' = no "
+        "breaches found but some holdings' drift could not be computed, so "
+        "the rebalancing question is undecidable"
+    )
     trades: list[MonitoringTrade] = Field(default_factory=list)
 
 
