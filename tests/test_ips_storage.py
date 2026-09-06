@@ -22,6 +22,28 @@ from src.agents.ips_storage import (
     export_ips_to_file,
 )
 
+
+def test_same_timestamp_documents_keep_distinct_ids_and_client_associations(
+    monkeypatch,
+):
+    from datetime import datetime
+
+    from src.agents import ips_storage
+
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls):
+            return cls(2026, 9, 6, 12, 34, 56)
+
+    monkeypatch.setattr(ips_storage, "datetime", FrozenDatetime)
+    first = ips_storage.save_ips({}, {}, "Same Name", profile_id=1)
+    second = ips_storage.save_ips({}, {}, "Same Name", profile_id=2)
+    assert first != second
+    assert ips_storage.load_ips(first)["metadata"]["profile_id"] == 1
+    assert ips_storage.load_ips(second)["metadata"]["profile_id"] == 2
+    assert {d["profile_id"] for d in ips_storage.list_ips_documents()} == {1, 2}
+
+
 # ============================================================
 # Fixtures
 # ============================================================

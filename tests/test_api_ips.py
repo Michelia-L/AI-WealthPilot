@@ -6,6 +6,8 @@ task lifecycle, SSE progress protocol, persistence and document library,
 not the LLM-driven workflow itself (covered by src tests).
 """
 
+import json
+
 import pytest
 
 from src.agents.ips_workflow import TokenBudgetExceeded
@@ -85,10 +87,12 @@ def test_generate_streams_progress_and_saves_document(client, fake_workflow):
     assert len(listing) == 1
     assert listing[0]["document_id"] == document_id
     assert listing[0]["client_name"] == "John Doe"
+    assert listing[0]["profile_id"] == profile_id
     assert listing[0]["status"] == "approved"
 
     detail = client.get(f"/api/ips/{document_id}")
     assert detail.status_code == 200
+    assert detail.json()["metadata"]["profile_id"] == profile_id
     assert "投资政策声明书" in detail.json()["markdown"]
 
 
@@ -127,6 +131,19 @@ def test_task_and_document_not_found(client):
     assert client.get("/api/ips/tasks/nonexistent/events").status_code == 404
     assert client.get("/api/ips/ips_nobody_20260101_000000").status_code == 404
     assert client.get("/api/ips/..%2F..%2Fsecret").status_code == 404
+
+
+def test_legacy_document_has_no_inferred_client_association(client):
+    from src.agents import ips_storage
+
+    _create_profile(client)  # a matching name must not imply ownership
+    ips_storage.IPS_DIR.mkdir(parents=True, exist_ok=True)
+    path = ips_storage.IPS_DIR / "ips_legacy_20260906_123456.json"
+    path.write_text(json.dumps({"ips": {"client_name": "John Doe"}, "metadata": {}}))
+    listing = client.get("/api/ips").json()["documents"]
+    assert listing[0]["profile_id"] is None
+    assert listing[0]["document_id"] == path.stem
+    assert client.get(f"/api/ips/{path.stem}").status_code == 200
 
 
 def test_pdf_export(client, fake_workflow):

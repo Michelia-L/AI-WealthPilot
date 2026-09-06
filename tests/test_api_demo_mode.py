@@ -218,6 +218,8 @@ def test_ips_generate_demo_replays_fixture(client, demo_on, ips_dir, monkeypatch
     listing = client.get("/api/ips").json()["documents"]
     assert [d["document_id"] for d in listing] == [document_id]
     assert listing[0]["client_name"] == "王小明"
+    assert listing[0]["profile_id"] == profile_id
+    assert record["metadata"]["profile_id"] == profile_id
 
 
 def test_ips_generate_demo_error_path(client, demo_on, monkeypatch):

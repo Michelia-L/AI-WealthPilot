@@ -50,6 +50,13 @@ export const common = {
     attrGroupOther: "其他",
   },
   monitoringSelector: {
+    clientFilter: "按客户筛选",
+    currentClient: (name: string) => `当前客户 · ${name}`,
+    allClients: "全部客户",
+    otherClients: "其他客户",
+    unlinked: "未关联客户的文档",
+    unlinkedHint: "未关联客户的旧文档可在「全部客户」中查看。",
+    noClientDocuments: "当前客户暂无已关联的 IPS 文档，可切换到「全部客户」查找旧文档。",
     label: "选择 IPS 文档（SAA 目标配置来源）",
     placeholder: "— 请选择一份 IPS 文档 —",
   },

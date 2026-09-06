@@ -689,6 +689,7 @@ async def run_demo_ips_task(
             ips_dict=ips_dict,
             audit_trail_dict=audit_trail,
             client_name=client_name,
+            profile_id=task.meta.get("profile_id"),
         )
         task.status = "completed"
         await task.publish(

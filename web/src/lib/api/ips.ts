@@ -6,6 +6,7 @@ import { getJson } from "./client";
 
 export interface IpsDocumentSummary {
   document_id: string;
+  profile_id?: number | null;
   client_name: string;
   version: string;
   risk_level: string;

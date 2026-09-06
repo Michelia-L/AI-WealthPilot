@@ -118,6 +118,7 @@ async def _run_ips_task(
             ips_dict=state["final_ips"],
             audit_trail_dict=state.get("audit_trail") or {},
             client_name=task.meta["client_name"],
+            profile_id=task.meta.get("profile_id"),
         )
         task.status = "completed"
         await task.publish(
@@ -210,6 +211,7 @@ def list_ips() -> IpsListResponse:
     documents = [
         IpsDocumentSummary(
             document_id=Path(d["filepath"]).stem,
+            profile_id=d["profile_id"],
             client_name=d["client_name"],
             version=d["version"],
             risk_level=d["risk_level"],

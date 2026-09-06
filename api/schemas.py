@@ -749,6 +749,7 @@ class IpsTaskCreatedResponse(BaseModel):
 
 class IpsDocumentSummary(BaseModel):
     document_id: str
+    profile_id: Optional[int] = None
     client_name: str
     version: str
     risk_level: str

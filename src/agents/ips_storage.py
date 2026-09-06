@@ -19,6 +19,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from uuid import uuid4
 
 from fpdf.enums import TextMode, XPos, YPos
 
@@ -49,6 +50,7 @@ def save_ips(
     audit_trail_dict: dict,
     client_name: str,
     notes: str = "",
+    profile_id: Optional[int] = None,
 ) -> Path:
     """
     Save an IPS document and its audit trail to JSON.
@@ -58,6 +60,7 @@ def save_ips(
         audit_trail_dict: AuditTrail serialized as dict.
         client_name: Client name for filename.
         notes: Optional notes.
+        profile_id: Stable client profile ID, absent for legacy/standalone documents.
 
     Returns:
         Path to the saved JSON file.
@@ -66,7 +69,7 @@ def save_ips(
 
     safe_name = sanitize_filename(client_name)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"ips_{safe_name}_{timestamp}.json"
+    filename = f"ips_{safe_name}_{timestamp}_{uuid4().hex}.json"
     filepath = IPS_DIR / filename
 
     record = {
@@ -74,6 +77,7 @@ def save_ips(
         "audit_trail": audit_trail_dict,
         "metadata": {
             "client_name": client_name,
+            "profile_id": profile_id,
             "saved_at": datetime.now().isoformat(),
             "notes": notes,
         },
@@ -122,6 +126,7 @@ def list_ips_documents(limit: int = 50) -> list[dict]:
             documents.append(
                 {
                     "filepath": str(filepath),
+                    "profile_id": meta.get("profile_id"),
                     "client_name": meta.get(
                         "client_name", ips.get("client_name", "Unknown")
                     ),
