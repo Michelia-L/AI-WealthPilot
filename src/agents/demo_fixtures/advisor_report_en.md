@@ -1,12 +1,12 @@
 # Investment Advisory Report
 
-**Client**: Ms. Evelyn Lin　**Date prepared**: 2026-07-20　**Prepared by**: AI WealthPilot Intelligent Advisor (demonstration sample; all content is fictional)
+**Client**: Evelyn Lin　**Date prepared**: 2026-07-20　**Prepared by**: AI WealthPilot Intelligent Advisor (demonstration sample; all content is fictional)
 
 ---
 
 ## 1. Client Summary
 
-Ms. Evelyn Lin, 38, is married with one child (age 6); the household is transitioning from the growth stage toward maturity. Combined annual household income is CNY 800,000 against annual spending of CNY 420,000, leaving net annual savings of CNY 380,000 — a 47.5% savings rate, well above the peer average, with very healthy cash flow. Investable assets total CNY 2.6 million; the outstanding mortgage balance is CNY 900,000, giving household net worth of CNY 1.7 million and a moderate, manageable debt-to-asset ratio of 34.6%. The emergency fund covers six months of household spending — an ample safety cushion. The primary investment horizon exceeds 20 years (multi-stage: 10 years for the child's education plus 22 years for retirement funding), a classic long-horizon, dual-goal household investor. The questionnaire assessment shows objective risk capacity of 3.4 / 5.0 and subjective risk willingness of 3.0 / 5.0; under the prudence principle the lower score governs, giving a final score of 3.0 and an overall classification of **Moderate**.
+Evelyn Lin, 38, is married with one child (age 6); the household is transitioning from the growth stage toward maturity. Combined annual household income is CNY 800,000 against annual spending of CNY 420,000, leaving net annual savings of CNY 380,000 — a 47.5% savings rate, well above the peer average, with very healthy cash flow. Investable assets total CNY 2.6 million; the outstanding mortgage balance is CNY 900,000, giving household net worth of CNY 1.7 million and a moderate, manageable debt-to-asset ratio of 34.6%. The emergency fund covers six months of household spending — an ample safety cushion. The primary investment horizon exceeds 20 years (multi-stage: 10 years for the child's education plus 22 years for retirement funding), a classic long-horizon, dual-goal household investor. The questionnaire assessment shows objective risk capacity of 3.4 / 5.0 and subjective risk willingness of 3.0 / 5.0; under the prudence principle the lower score governs, giving a final score of 3.0 and an overall classification of **Moderate**.
 
 ## 2. Investment Objectives
 
