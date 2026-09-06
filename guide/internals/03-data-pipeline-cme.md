@@ -90,8 +90,8 @@
 这是 KI-002 的交付物，让整个应用（市场页/优化器/监控/回测）零网络可跑。确定性设计的每一条都有理由。
 
 - **种子**。`_ticker_seed` 取 ticker 字符串的 SHA-256 前 8 字节，不能用内建 `hash()`，后者按进程加盐，跨次运行不稳定。
-- **锚定日**。`REFERENCE_END` 硬编码，所有序列结束于固定日期，与真实时钟无关，e2e 快照永不漂移。
-- **GBM 参数**。`_CATEGORY_PARAMS` 按 13 个类别给出（年化漂移, 年化波动, 起始价），同类别不同 ticker 的起始价乘一个 `[0.6, 1.4)` 区间内的确定性随机系数。
+- **锚定日**。序列末端锚定当日（`_reference_end()`），随真实日期滚动，同一日期内同种子结果不变。测试与 e2e 可给 `demo_price_history` / `demo_quote_record` 传 `end` 钉死锚点。滚动锚点让锚点之后保存的 IPS 始终落在监控漂移窗口内。
+- **GBM 参数**。`_CATEGORY_PARAMS` 按 13 个类别给出（年化漂移, 年化波动, 起始价），同类别不同 ticker 的起始价乘一个 `[0.6, 1.4)` 区间内的确定性随机系数。ETF 代理与汇率等重点 ticker 由 `_TICKER_PARAMS` 逐项钉住（漂移, 波动, 锚定价），不乘随机系数，量纲对齐真实报价（USD/CNY 约 7.1，现金类 BIL 近零波动）。
 - **Itô 修正**。`daily_mu = (drift − 0.5·vol²)/252`，这是对数空间的修正，让对数增长率的实现值等于名义漂移。
 - **波动率指数截断**在 `[9, 85]`。真实波动率会均值回归，纯 GBM 会漂到荒谬水平，注释承认这是权宜之计。
 - **刻意不模拟相关性**。各 ticker 用独立种子，写文档或演示时不应声称合成数据有真实的相关结构。
@@ -162,7 +162,7 @@ CME 是战略级长期预测，不必每次重算。`CMECacheManager` 用双文�
 - **为什么付费源优先、免费源兜底、静态值垫底？** 这是按数据质量与可用性排的序。Tushare 结构化但需 token；akshare 免费但属于抓取型，会静默陈旧，所以配了新鲜度校验；yfinance 全球覆盖但 CN 资产质量一般；静态兜底保证应用永远起得来。
 - **为什么 FX 只填汇率列不填价格列？** 汇率缺日是技术性问题（周末/假日无报价），填充无害。资产价格缺失是真实信息（停牌/日历错位），填充会伪造收益，后者如实留给下游决定（KI-003 的 complete-case 就是下游的一种回答）。
 - **为什么 CME 缓存用参数哈希而不是只看 TTL？** 参数变了（比如换了资产表或基准币），90 天 TTL 内的旧缓存就是错的，哈希让失效自动发生。
-- **为什么 demo 数据锚定固定日期？** e2e 快照与演示截图要求跨时间可复现，代价是 demo 的最近行情永远是那一天。
+- **为什么 demo 数据锚定当日？** 固定锚点会让锚点之后保存的 IPS 在监控页全部落入零观测窗口，演示功能随时间贬值。锚定当日后窗口随日期滚动，同日内的可复现性由种子保证，需要钉死时传 `end`。代价是同一日历日对应的价格会随锚点滚动改期。
 
 ## 已知近似与边界
 
@@ -193,7 +193,7 @@ CME 是战略级长期预测，不必每次重算。`CMECacheManager` 用双文�
 2. `src/data/market_data.py`，行情主层（路由/FX/降级链）
 3. `src/data/tushare_provider.py` + `akshare_provider.py`，CN 两级（对照读，同一契约）
 4. `src/data/yield_curve.py`、`src/data/implied_volatility.py`，利率与波动率两条专线
-5. `src/data/demo_market.py`，合成数据（最短的一章，111 行）
+5. `src/data/demo_market.py`，合成数据（最短的一章，164 行）
 6. `src/portfolio/forward_returns.py`，前视收益模型
 7. `src/portfolio/cme_engine.py`（`compute_cme` → `_compute_cme_fresh` → 两个 reference 函数）→ `cme_models.py` → `cme_cache.py`
 8. `src/utils.py`，一个函数，30 行

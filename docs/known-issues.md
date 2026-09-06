@@ -77,7 +77,7 @@
 按 A+B 组合落地：
 
 - **A · quotes 取数并发化**：`get_latest_quotes` 的单 ticker 抓取抽为 `_fetch_quote_record`，17 次 `fast_info` 改 `ThreadPoolExecutor(max_workers=8)` 并发（`executor.map` 保序、失败返回 None 跳过）。真实网络实测冷启动 14.2s → **2.9s**（市场页/总览冷加载同益）。
-- **B · DEMO_MODE 行情合成数据**：新模块 `src/data/demo_market.py`——按 ASSET_UNIVERSE 类别分档参数的 GBM，种子由 ticker 稳定哈希派生、网格锚定固定参考日（`REFERENCE_END`），跨进程/跨天零漂移；`market_data.py` 三个咽喉加 demo 早退分支（`fetch_price_history` / `get_latest_quotes` / `fetch_risk_free_rate_detailed` 直接静态兜底），demo 下整个应用（市场页、优化器、监控、回测）零网络且仍走真实渲染/计算链路。
+- **B · DEMO_MODE 行情合成数据**：新模块 `src/data/demo_market.py`——按 ASSET_UNIVERSE 类别分档参数的 GBM，种子由 ticker 稳定哈希派生、网格锚定固定参考日（`REFERENCE_END`），跨进程/跨天零漂移；`market_data.py` 三个咽喉加 demo 早退分支（`fetch_price_history` / `get_latest_quotes` / `fetch_risk_free_rate_detailed` 直接静态兜底），demo 下整个应用（市场页、优化器、监控、回测）零网络且仍走真实渲染/计算链路。（2026-09-05 更新：固定参考日导致锚点之后保存的 IPS 监控漂移全部零观测，锚点改为随当日滚动（`_reference_end()`，同日同种子结果不变，测试可注入 `end` 钉死）；同时新增 `_TICKER_PARAMS` 逐项钉住 ETF 代理与汇率的锚定价/波动率——修复 USD/CNY 量级失真（约 68 → 约 7.1）与 BIL 现金类 18% 波动/−42% 回撤的失真。）
 - **测试**：`tests/test_demo_market.py` 14 条（确定性/网格/离线 poison/关时回归/API 端到端）+ `test_market_data.py` 补并发保序与跳过用例。
 - **验收**：e2e 连跑 3 次全绿，总时长 37-45s（原抽签失败）；pytest 全套绿。
 
