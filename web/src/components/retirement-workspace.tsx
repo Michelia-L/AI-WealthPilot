@@ -66,69 +66,75 @@ export default function RetirementWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RetirementResponse | null>(null);
   const [suggestion, setSuggestion] = useState<CmeSuggestion | null>(null);
-  // null = manual parameters (no client channel)
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  // Manual mode is local to this client; a global client change resumes following it.
+  const [selection, setSelection] = useState({ clientId, manual: false });
+  if (selection.clientId !== clientId) {
+    setSelection({ clientId, manual: false });
+    setSuggestion(null);
+    setResult(null);
+    setError(null);
+  }
+  const selectedId = !selection.manual && profiles?.some((p) => p.id === clientId)
+    ? clientId
+    : null;
 
-  // CME 建议卡拉取（失败静默，不挡主流程）；带客户时按其风险等级推导参考组合
-  function loadSuggestion(profileId?: number) {
-    const qs = profileId != null ? `?profile_id=${profileId}` : "";
-    fetch(`/api/retirement/cme-suggestion${qs}`)
+  // Hydration and sidebar changes both reach this effect. Cleanup also prevents
+  // a slower previous client's response from overwriting the new client's form.
+  useEffect(() => {
+    const controller = new AbortController();
+    const { signal } = controller;
+    const qs = selectedId !== null ? `?profile_id=${selectedId}` : "";
+    fetch(`/api/retirement/cme-suggestion${qs}`, { signal })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (
-          data &&
-          typeof data.expected_return === "number" &&
-          typeof data.volatility === "number"
-        ) {
-          setSuggestion(data as CmeSuggestion);
-        } else {
-          setSuggestion(null);
-        }
+        if (signal.aborted) return;
+        setSuggestion(
+          data && typeof data.expected_return === "number" && typeof data.volatility === "number"
+            ? data as CmeSuggestion
+            : null
+        );
       })
-      .catch(() => setSuggestion(null));
-  }
+      .catch(() => {
+        if (!signal.aborted) setSuggestion(null);
+      });
 
-  // 挂载：全局客户若在画像列表中则自动选中（预填 + 等级建议），否则拉默认建议
-  useEffect(() => {
-    if (clientId !== null && profiles?.some((p) => p.id === clientId)) {
-      selectClient(clientId);
-    } else {
-      loadSuggestion();
+    if (selectedId !== null) {
+      fetch(`/api/profiles/${selectedId}`, { signal })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: ProfileDetailResponse | null) => {
+          if (!data || signal.aborted) return;
+          const fin = data.profile.financial;
+          setForm((prev) => ({
+            ...prev,
+            current_age: data.profile.age,
+            current_savings: fin.investable_assets,
+            annual_savings: Math.max(0, fin.annual_income - fin.annual_expenses),
+            desired_annual_income: fin.annual_expenses,
+          }));
+        })
+        .catch(() => {});
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅挂载时执行一次
-  }, []);
+    return () => controller.abort();
+  }, [selectedId]);
 
-  /** risk_level 为 "English / 中文" 双语数据串，按当前语言取对应一半。 */
+  /** risk_level is persisted bilingually; choose the current locale's label. */
   function riskLabel(riskLevel: string): string {
     return riskLevel.split(" / ")[locale === "zh" ? 1 : 0] ?? riskLevel;
   }
 
-  /** 选中客户：预填表单（年龄/储蓄/收入）+ 等级化建议 + 回写全局上下文。 */
   function selectClient(id: number) {
-    setSelectedId(id);
     const p = profiles?.find((pr) => pr.id === id);
-    if (p) select(p.id, p.name);
-    loadSuggestion(id);
-    fetch(`/api/profiles/${id}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: ProfileDetailResponse | null) => {
-        if (!data) return;
-        const fin = data.profile.financial;
-        setForm((prev) => ({
-          ...prev,
-          current_age: data.profile.age,
-          current_savings: fin.investable_assets,
-          annual_savings: Math.max(0, fin.annual_income - fin.annual_expenses),
-          // 期望退休收入 ≈ 当前年度支出（今日购买力口径）
-          desired_annual_income: fin.annual_expenses,
-        }));
-      })
-      .catch(() => {});
+    if (!p) return;
+    setSelection({ clientId: id, manual: false });
+    setSuggestion(null);
+    setResult(null);
+    select(p.id, p.name);
   }
 
   function selectManual() {
-    setSelectedId(null);
-    loadSuggestion();
+    setSelection({ clientId, manual: true });
+    setSuggestion(null);
+    setResult(null);
   }
 
   // Slider ranges: expected_return 0.02–0.15, volatility 0.05–0.30

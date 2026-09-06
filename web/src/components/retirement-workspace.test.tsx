@@ -1,7 +1,12 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { retirement } from "@/lib/i18n/dictionaries/en/retirement";
 import RetirementWorkspace from "./retirement-workspace";
+
+const clientState = vi.hoisted(() => ({
+  clientId: null as number | null,
+  select: vi.fn(),
+}));
 
 // The workspace reads copy through the locale context — serve the real
 // English dictionary; Plotly stays out of jsdom.
@@ -10,7 +15,7 @@ vi.mock("@/components/locale-context", () => ({
   useLocale: () => ({ locale: "en" }),
 }));
 vi.mock("@/components/client-context", () => ({
-  useClient: () => ({ clientId: null, clientName: null, select: vi.fn() }),
+  useClient: () => clientState,
 }));
 vi.mock("@/components/plot-chart", () => ({ default: () => null }));
 
@@ -60,12 +65,78 @@ function jsonResponse(data: unknown, status = 200): Response {
 }
 
 beforeEach(() => {
+  clientState.clientId = null;
+  clientState.select.mockReset();
+  clientState.select.mockImplementation((id: number) => { clientState.clientId = id; });
   fetchMock.mockReset();
   // Fresh Response per call: the workspace fetches the CME suggestion on
   // mount AND the simulation on run — a shared Response body drains once.
   fetchMock.mockImplementation(() =>
     Promise.resolve(jsonResponse(RETIREMENT_RESULT))
   );
+});
+
+const CLIENTS = [1, 2].map((id) => ({
+  id, name: `Client ${id}`, age: 30 + id, risk_level: "Moderate / 平衡型", updated_at: "",
+}));
+
+function profileResponse(age: number) {
+  return jsonResponse({ profile: { age, financial: {
+    investable_assets: age * 10000, annual_income: 100000, annual_expenses: 40000,
+  } } });
+}
+
+describe("RetirementWorkspace current client", () => {
+  it("follows hydrated and changed clients, while retaining an explicit manual choice", async () => {
+    fetchMock.mockImplementation((url: string) => Promise.resolve(
+      url.startsWith("/api/profiles/") ? profileResponse(url.endsWith("1") ? 41 : 52) : jsonResponse(null)
+    ));
+    const { rerender } = render(<RetirementWorkspace profiles={CLIENTS} />);
+    const picker = screen.getByRole("combobox", { name: "Client" });
+    expect(picker).toHaveValue("");
+
+    clientState.clientId = 1; // localStorage becomes available after hydration
+    rerender(<RetirementWorkspace profiles={CLIENTS} />);
+    expect(picker).toHaveValue("1");
+    await waitFor(() => expect(screen.getAllByRole("slider")[0]).toHaveValue("41"));
+    expect(screen.getByRole("spinbutton", { name: "Current Savings" })).toHaveValue(410000);
+    expect(fetchMock).toHaveBeenCalledWith("/api/retirement/cme-suggestion?profile_id=1", expect.anything());
+
+    fireEvent.change(picker, { target: { value: "" } });
+    rerender(<RetirementWorkspace profiles={[...CLIENTS]} />);
+    expect(picker).toHaveValue("");
+    expect(clientState.select).not.toHaveBeenCalled();
+
+    clientState.clientId = 2;
+    rerender(<RetirementWorkspace profiles={CLIENTS} />);
+    expect(picker).toHaveValue("2");
+    await waitFor(() => expect(screen.getAllByRole("slider")[0]).toHaveValue("52"));
+    clientState.clientId = null;
+    rerender(<RetirementWorkspace profiles={CLIENTS} />);
+    expect(picker).toHaveValue("");
+  });
+
+  it("does not apply a late previous client's profile after switching clients", async () => {
+    let resolveOld!: (response: Response) => void;
+    fetchMock.mockImplementation((url: string) => {
+      if (url === "/api/profiles/1") return new Promise<Response>((resolve) => { resolveOld = resolve; });
+      return Promise.resolve(url === "/api/profiles/2" ? profileResponse(52) : jsonResponse(null));
+    });
+    clientState.clientId = 1;
+    const { rerender } = render(<RetirementWorkspace profiles={CLIENTS} />);
+    clientState.clientId = 2;
+    rerender(<RetirementWorkspace profiles={CLIENTS} />);
+    await waitFor(() => expect(screen.getAllByRole("slider")[0]).toHaveValue("52"));
+    await act(async () => { resolveOld(profileResponse(41)); });
+    expect(screen.getAllByRole("slider")[0]).toHaveValue("52");
+  });
+
+  it("falls back to manual parameters when the stored client no longer exists", () => {
+    clientState.clientId = 999;
+    render(<RetirementWorkspace profiles={CLIENTS} />);
+    expect(screen.getByRole("combobox", { name: "Client" })).toHaveValue("");
+    expect(fetchMock.mock.calls.some(([url]) => url === "/api/profiles/999")).toBe(false);
+  });
 });
 
 describe("RetirementWorkspace LDI deep link", () => {

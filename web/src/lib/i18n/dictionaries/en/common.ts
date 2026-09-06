@@ -51,6 +51,13 @@ export const common = {
     attrGroupOther: "Other",
   },
   monitoringSelector: {
+    clientFilter: "Filter by client",
+    currentClient: (name: string) => `Current client · ${name}`,
+    allClients: "All clients",
+    otherClients: "Other clients",
+    unlinked: "Unlinked documents",
+    unlinkedHint: "Older documents without a client association are available under All clients.",
+    noClientDocuments: "No IPS documents are linked to this client. Select All clients to browse older documents.",
     label: "Select an IPS document (source of SAA targets)",
     placeholder: "— Select an IPS document —",
   },
