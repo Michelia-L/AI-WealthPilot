@@ -1,4 +1,17 @@
 /** market namespace — populated by the localization pass (phase 22). */
+
+/** Localized labels for the CME engine's stable asset-class keys
+ * (IPS_ASSET_CLASS_TICKERS). */
+const CME_ASSET_CLASS_NAMES: Record<string, string> = {
+  domestic_equity: "Domestic Equity (A-Shares / CSI 300)",
+  international_equity_dm: "International Equity (Developed Markets)",
+  international_equity_hk: "Hong Kong Equities",
+  fixed_income: "Fixed Income",
+  alternative_gold: "Alternatives — Gold",
+  alternative_reit: "Alternatives — REITs",
+  cash: "Cash Equivalents",
+};
+
 export const market = {
   title: "Market Dashboard",
   description:
@@ -23,6 +36,11 @@ export const market = {
   vixFear: "Fear", // 25–35
   vixExtremeFear: "Extreme Fear", // ≥ 35
   cmeTitle: "Capital Market Expectations",
+  /** CME asset-class labels keyed by the engine's stable asset-class key
+   * (the API's `name` is a legacy mixed-language string — never render it
+   * directly when a key is available). */
+  cmeAssetClassName: (key: string | null, fallback: string) =>
+    (key && CME_ASSET_CLASS_NAMES[key]) || fallback,
   cmeMeta: (
     asOf: string,
     riskFreeRate: string,

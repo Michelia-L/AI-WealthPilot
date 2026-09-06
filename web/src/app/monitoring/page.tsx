@@ -253,7 +253,7 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
                     >
                       <div className="min-w-0">
                         <div className="truncate text-sm text-mist-100" title={h.name}>
-                          {h.name}
+                          {t.market.cmeAssetClassName(h.key, h.name)}
                         </div>
                         <div className="font-mono text-[11px] text-mist-600">
                           {h.ticker ?? "—"}
@@ -408,7 +408,9 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
                     key={trade.name}
                     className="flex items-center justify-between gap-3 py-2.5"
                   >
-                    <span className="text-sm text-mist-100">{trade.name}</span>
+                    <span className="text-sm text-mist-100">
+                      {t.market.cmeAssetClassName(trade.key, trade.name)}
+                    </span>
                     <span className="flex items-center gap-3">
                       <Badge tone={trade.action === "buy" ? "jade" : "cinnabar"}>
                         {trade.action === "buy"
@@ -447,7 +449,9 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
                 {data.holdings.map((h) => (
                   <TR key={h.name}>
                     <TD>
-                      <div className="font-medium text-mist-100">{h.name}</div>
+                      <div className="font-medium text-mist-100">
+                        {t.market.cmeAssetClassName(h.key, h.name)}
+                      </div>
                       <div className="font-mono text-xs text-mist-500">
                         {h.ticker ?? "—"}
                       </div>

@@ -134,7 +134,7 @@ E(R) = \omega \cdot R_{forward} + (1-\omega)\cdot R_{hist}
 
 ### 数据契约（`cme_models.py`）
 
-`AssetClassCME` 有 13 个字段。注意 `expected_return` 已经是混合值，纯历史值另存于 `historical_return`。`volatility` 字段永远是**纯历史** σ，组合计算实际用的是 `blended_volatility`，字段名与用途的这个错位，读代码时容易踩。`CMEReport` 的相关矩阵**按资产中文显示名键控**（不是 ticker）。这份模型被 `api/schemas.py` 直接复用，CME 契约与引擎共享同一份定义，不可能漂移。
+`AssetClassCME` 有 17 个字段。注意 `expected_return` 已经是混合值，纯历史值另存于 `historical_return`。`volatility` 字段永远是**纯历史** σ，组合计算实际用的是 `blended_volatility`，字段名与用途的这个错位，读代码时容易踩。`key` 是 `IPS_ASSET_CLASS_TICKERS` 的稳定类别键（locale 中立），前端字典按它映射本地化显示名，`name` 是遗留的中英混杂显示串，UI 不应直接渲染；旧缓存与静态兜底文件没有该字段，`compute_cme` 返回前经 `_attach_asset_keys` 按 ticker 反查补齐，缓存 JSON 不写死语言。`CMEReport` 的相关矩阵**按资产中文显示名键控**（不是 ticker）。这份模型被 `api/schemas.py` 直接复用，CME 契约与引擎共享同一份定义，不可能漂移。
 
 ### 缓存（`cme_cache.py`）
 

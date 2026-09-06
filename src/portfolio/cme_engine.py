@@ -139,7 +139,10 @@ def compute_cme(
                 meta.get("computed_at", "?") if meta else "?",
                 params_hash,
             )
-            return CMEReport(**cached_data), "cached"
+            return (
+                _attach_asset_keys(CMEReport(**cached_data), asset_tickers),
+                "cached",
+            )
 
     # --- Fresh computation ---
     logger.info(
@@ -167,11 +170,29 @@ def compute_cme(
         stale_data = cache.load()
         if stale_data is not None:
             logger.warning("Fresh CME computation failed, using stale cache")
-            return CMEReport(**stale_data), "stale"
+            return (
+                _attach_asset_keys(CMEReport(**stale_data), asset_tickers),
+                "stale",
+            )
 
     # --- Static fallback ---
     logger.warning("All CME sources failed, using static fallback")
-    return _load_fallback_cme(), "fallback"
+    return _attach_asset_keys(_load_fallback_cme(), asset_tickers), "fallback"
+
+
+def _attach_asset_keys(report: CMEReport, asset_tickers: dict) -> CMEReport:
+    """Backfill the stable ``key`` on asset classes that lack one.
+
+    Reports loaded from an old cache file or the static fallback predate the
+    ``key`` field; the ticker → key reverse map (from the same asset_tickers
+    mapping the computation used) restores it. The key is locale-neutral, so
+    cached JSON never bakes in a display language — UIs map key → label.
+    """
+    by_ticker = {info["ticker"]: k for k, info in asset_tickers.items()}
+    for ac in report.asset_classes:
+        if ac.key is None:
+            ac.key = by_ticker.get(ac.ticker)
+    return report
 
 
 def _compute_cme_fresh(
@@ -250,7 +271,7 @@ def _compute_cme_fresh(
 
     # Step 4: Compute per-asset-class metrics (enhanced with IV blending)
     asset_cme_list = []
-    for info in asset_tickers.values():
+    for key, info in asset_tickers.items():
         ticker = info["ticker"]
         name = info["name"]
 
@@ -317,6 +338,7 @@ def _compute_cme_fresh(
         asset_cme_list.append(
             AssetClassCME(
                 name=name,
+                key=key,
                 ticker=ticker,
                 expected_return=round(expected_return, 6),
                 volatility=round(ann_vol, 6),
