@@ -1,485 +1,230 @@
 <div align="center">
-  <img src="docs/images/logo.png" alt="AI WealthPilot Logo" height="120" />
-
-  # AI WealthPilot
-
-  ### AI Private Wealth Management Workstation · Quant Engine & Multi-Agent Intelligence
-
-[![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Next.js](https://img.shields.io/badge/Next.js-16.3-black?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-19.2-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
-[![LangGraph](https://img.shields.io/badge/LangGraph-1.2-FF6F00?style=flat-square&logo=langchain&logoColor=white)](https://github.com/langchain-ai/langgraph)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
-[![License](https://img.shields.io/badge/License-MIT-gold?style=flat-square)](LICENSE)
-[![Build](https://github.com/Michelia-L/AI-WealthPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/Michelia-L/AI-WealthPilot/actions/workflows/ci.yml)
-[![Docs](https://img.shields.io/badge/Docs-Internals_Guide-B08D3E?style=flat-square)](https://michelia-l.github.io/AI-WealthPilot/)
-[![i18n](https://img.shields.io/badge/i18n-EN%20%7C%20CN-blue?style=flat-square)]()
-
-<p align="center">
-  <b>English</b> | <a href="README.zh-CN.md">简体中文</a>
-</p>
-
-<p align="center">
-  <b>AI WealthPilot</b> is an open-source, local-first workstation engineered for modern Private Wealth Management (PWM).<br/>
-  It fuses <b>six quantitative portfolio optimization paradigms</b>, a <b>forward-looking Capital Market Expectations (CME) engine</b>, a <b>LangGraph-orchestrated multi-agent IPS generation pipeline</b>, and a <b>DeepSeek streaming reasoning advisor</b>, wrapped in an "Ink & Gold" private banking user experience. It provides wealth advisors with an end-to-end workflow: <i>Client 360° Profiling → CME Formulation → Portfolio Optimization → IPS Audit & Generation → Fleet Monitoring & Rebalancing → Retirement Planning</i>.
-</p>
-
-⭐ If you like this project, star it on GitHub — it helps a lot!
-
-[Key Features](#-key-features) • [Architecture](#-system-architecture) • [Multi-Agent Workflow](#-multi-agent-ips-pipeline) • [Financial Models](#-quantitative--financial-engineering-models) • [Quick Start](#-quick-start) • [API Reference](#-api-endpoints-reference) • [Quality Assurance](#-quality-assurance--testing) • [📚 Internals Docs](https://michelia-l.github.io/AI-WealthPilot/)
-
+  <img src="docs/images/logo.png" alt="AI WealthPilot" height="100" />
 </div>
 
----
+# AI WealthPilot
 
-## 📸 Interface Showcase
+**An open-source private wealth management workstation for research and decision support.**
 
-<div align="center">
-  <table>
-    <tr>
-      <td width="50%">
-        <p align="center"><b>Executive Overview & Monitoring Hub</b></p>
-        <img src="docs/images/screenshots/overview.png" alt="Overview Hub" width="100%"/>
-      </td>
-      <td width="50%">
-        <p align="center"><b>Global Market Station & Analytics</b></p>
-        <img src="docs/images/screenshots/market.png" alt="Market Station" width="100%"/>
-      </td>
-    </tr>
-    <tr>
-      <td width="50%">
-        <p align="center"><b>Deliverables Hub & Report Center</b></p>
-        <img src="docs/images/screenshots/hub.png" alt="Deliverables Hub" width="100%"/>
-      </td>
-      <td width="50%">
-        <p align="center"><b>Fleet Monitoring & Policy Bands</b></p>
-        <img src="docs/images/screenshots/monitoring.png" alt="Fleet Monitoring" width="100%"/>
-      </td>
-    </tr>
-  </table>
-</div>
+AI WealthPilot brings client goals, portfolio calculations, AI-assisted investment policy statements (IPS), and ongoing allocation reviews into one application. Use it to explore how return assumptions and client constraints affect a portfolio, inspect how an investment policy was generated and reviewed, and compare retirement scenarios.
 
----
+The quantitative engine runs in Python; LangGraph coordinates IPS generation and review; a Next.js interface provides charts, reports, and English/Chinese language switching. Outputs are for research, education, and technical evaluation, not investment advice or trade execution.
 
-## ✨ Key Features
+[![CI](https://github.com/Michelia-L/AI-WealthPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/Michelia-L/AI-WealthPilot/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/Docs-Internals_Guide-B08D3E)](https://michelia-l.github.io/AI-WealthPilot/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-### 1. 🧮 Quantitative Portfolio Optimization (`src/portfolio/`)
-* **Markowitz Mean-Variance Optimization (MVO)**: Powered by SciPy SLSQP solver; supports Max Sharpe, Min Volatility, Target Return optimization, complete Efficient Frontier generation, and asset-class-level min/max group constraints.
-* **Michaud Resampled Efficient Frontier**: Uses Monte Carlo resampling over return distributions to mitigate parameter uncertainty, smoothing portfolio transitions and boosting out-of-sample robustness.
-* **Black-Litterman Bayesian Asset Allocation**: Anchors to market equilibrium returns (or CME forward priors), integrating absolute/relative investor views with He-Litterman confidence calibration ($\Omega$).
-* **Scenario-Based Mean-CVaR Optimization**: Formulates the Rockafellar-Uryasev conditional value-at-risk minimization as a linear program, solved via SciPy's HiGHS LP solver for fat-tailed risk management.
-* **Sharpe-Tint Liability-Driven Investing (LDI)**: Minimizes surplus variance or maximizes surplus Sharpe relative to future liability cash flows, present-valued per-tenor on the ChinaBond treasury yield curve with duration-matched hedging.
-* **Risk Parity (Equal Risk Contribution / ERC)**: Employs Spinu's convex formulation to compute equal risk contribution weights without heavy reliance on expected return forecasts.
-* **Robust Covariance Estimation**: Sample covariance, Ledoit-Wolf shrinkage, and Oracle Approximating Shrinkage (OAS), plus condition-number checks with automatic diagonal loading / eigenvalue clipping.
+**English** | [简体中文](README.zh-CN.md)
 
-### 2. 🔮 Forward-Looking Capital Market Expectations (CME) Engine (`src/portfolio/cme_engine.py`)
-* **Multi-Asset Proxy Universe**: Domestic Equities (CSI 300), Developed Markets Equities (EFA), Hong Kong Equities (EWH), Fixed Income (AGG), Gold (GLD), REITs (VNQ), and Cash Equivalents (BIL).
-* **Implied Volatility Blending**: Blends realized historical volatility with forward-looking option implied volatility (VIX / MOVE) via weighting factor $\tau$, with graceful degradation for asset classes lacking reliable IV proxies.
-* **Building-Blocks Forward Return Model**: Combines current cash/dividend yields with long-term nominal GDP/earnings growth assumptions, weighted with historical means via parameter $\omega$ (default 0.5).
-* **Base-Currency Risk-Free Rate Cascade**: CNY from akshare ChinaBond 1Y treasury yield; USD from FRED (DGS3MO) → yfinance (`^IRX`) → static fallback; all CME returns FX-translated to the CNY base.
-* **Three-Tier Degradation Caching**: Valid persistent disk cache (90-day TTL) → stale cache with background refresh → static fallback dataset.
-* **Multi-Provider Market Data Backbone**: Mapped CN tickers are routed through Tushare Pro → akshare → yfinance (first success wins), while US/global assets stay on yfinance; a staleness guard rejects silently outdated provider snapshots.
+[Quick start](#quick-start) · [Workflow](#wealth-management-workflow) · [Example](#walk-through-a-fictional-client-case) · [Model boundaries](#model-assumptions-and-limitations) · [Development](#local-development-and-testing)
 
-### 3. 🤖 LangGraph Multi-Agent IPS Generation Pipeline (`src/agents/`)
-* **StateGraph Multi-Agent Orchestration**: Connects **CME Injection** → **IPS Generator Agent** → **Three Parallel Reviewers** (Suitability, Compliance, Consistency) → **Quantitative SAA Gatekeeper (Validate SAA)** → **Reviser Agent** (up to 3 iterative feedback rounds) → **Final Approval / Human Escalation**.
-* **Quantitative SAA Feasibility Gate**: Hard mathematical check validating whether the generated SAA return and covariance volatility strictly fall within the client's risk budget band $[\sigma_{\min}, \sigma_{\max}]$, rejecting LLM hallucinations.
-* **Complete Audit Trail & Token Governance**: Tracks SHA-256 version hashes, revision diffs, reviewer scores, and enforces hard token budget limits (`LLM_TASK_TOKEN_BUDGET=250k`).
-* **Multi-Format Deliverables**: Exports structured JSON, formatted Markdown, and publication-grade CJK-aware PDFs with bilingual support.
+## Interface
 
-### 4. 💡 AI Private Wealth Advisor Workstation (`src/agents/advisor.py`)
-* **DeepSeek V4 Pro Powered**: Compatible with any standard OpenAI-compatible API endpoint (DeepSeek, Qwen, OpenAI, local vLLM/Ollama), configurable live via the in-app `/settings` page.
-* **Streaming Chain-of-Thought (FR-001)**: Real-time separation and collapsible rendering of `reasoning_content` thinking tokens and final markdown advice.
-* **PWM Standard 6-Section Advisory Report**: Client Overview → Investment Goals Analysis → Dual-Track Risk Tolerance Interpretation → Recommended Asset Allocation → Implementation & Tax Strategy → Regulatory Disclosures.
-* **Dual-Track Risk Assessment Framework**: Evaluates objective financial **Ability** and subjective psychological **Willingness** to take risk, defaulting to the conservative lower-of-the-two score to protect the client.
-* **Behavioral Bias Detection**: Identifies loss aversion, overconfidence, ability-willingness mismatch, leverage risk, and inadequate safety nets from client metrics.
-* **Prompt Injection Containment**: Strict XML delimitation to isolate untrusted user data from execution instructions.
+<table>
+  <tr>
+    <td width="50%"><b>Client and portfolio overview</b><br /><img src="docs/images/screenshots/overview.png" alt="Overview with client and portfolio summaries" /></td>
+    <td width="50%"><b>Market analytics</b><br /><img src="docs/images/screenshots/market.png" alt="Market prices and analytics" /></td>
+  </tr>
+  <tr>
+    <td width="50%"><b>Client profiles</b><br /><img src="docs/images/screenshots/hub.png" alt="Client profile list" /></td>
+    <td width="50%"><b>Portfolio monitoring</b><br /><img src="docs/images/screenshots/monitoring.png" alt="Portfolio weights compared with IPS policy bands" /></td>
+  </tr>
+</table>
 
-### 5. 📊 Portfolio Fleet Monitoring & Rebalance Advisor (`src/portfolio/monitoring.py`)
-* **Global Fleet Monitoring**: Real-time status matrix across all managed client portfolios, flagging asset weights that breach IPS policy tolerance bands.
-* **Intelligent Cash Plug & Proportional Rescaling**: Automatic handling of unallocated weights and missing market proxies.
-* **AI-Driven Rebalance Trade Advice**: Generates concrete rebalancing orders with Tax-Loss Harvesting awareness and clear human-readable rationales.
+## Quick start
 
-### 6. 🏖️ Retirement & Wealth Decumulation Planning (`src/portfolio/simulator.py`)
-* **Two-Phase Cash Flow Simulation**: Models accumulation (savings & contributions) and distribution (retirement withdrawals) under a life-cycle framework.
-* **Personalized Inflation Assumptions**: Standard CPI, Elderly Healthcare-Tilted (+0.75% CPI-E premium), and Luxury Lifestyle (+2.4% CLEWI premium).
-* **10,000-Path GBM Monte Carlo**: Quantifies terminal wealth percentiles (P5, P50, P95) and ruin probability / survival rates, with a Jensen's-inequality volatility drag adjustment.
-* **Guyton-Klinger Guardrails**: Optional dynamic spending rules that cut or raise withdrawals when the current withdrawal rate breaches a band around the initial rate, with the rigid-spending survival rate reported as a same-draws baseline.
+### Run the demo with Docker Compose
 
-### 7. 📈 Historical Backtesting & Brinson Attribution (`src/portfolio/backtest.py`)
-* **Rolling Monthly Rebalancing**: 1Y / 3Y / 5Y / 10Y backtest horizons with all-in management fee drag simulation (Net-of-Fee NAV, gross curve shown as a ghost trace).
-* **Historical Crisis Stress Testing**: COVID-19 Liquidity Crash (2020), Global Rate Shock (2022), and Global Financial Crisis (2008).
-* **Brinson-Fachler Attribution Decomposition**: Deconstructs active return into **Allocation Effect**, **Selection Effect**, and **Interaction Effect**, geometrically linked across time via Carino factors.
-* **Downside Risk Metrics**: Sortino ratio, daily VaR, and CVaR (Expected Shortfall) via historical simulation.
-* **Multi-Client Profile Comparison**: Side-by-side comparison of client portfolios and profiles with structured comparative reports.
-
-### 8. 💎 "Ink & Gold" Private Banking Design System (`web/`)
-* **Next.js 16 + React 19 + Tailwind CSS v4**: High-performance obsidian-black and champagne-gold design language tailored for wealth managers.
-* **Interactive Plotly.js Visualizations**: Interactive efficient frontiers, Monte Carlo confidence cones, correlation heatmaps, and underwater drawdown curves.
-* **Bilingual i18n**: Type-safe dictionary system (`wp_locale` cookie: English / Chinese) across UI components, API messages, and LLM-generated deliverables.
-* **100% Offline Demo Mode (DEMO_MODE=1)**: Deterministic synthetic GBM market prices and rich fixture replay with zero network dependencies.
-
----
-
-## 📐 System Architecture
-
-AI WealthPilot follows a decoupled, layered architectural blueprint:
-
-<div align="center">
-  <img src="guide/diagrams/architecture.svg" alt="Layered System Architecture" width="900" />
-</div>
-
-### Architectural Guardrails
-* **`src/` is the Computational Core**: All mathematical models, financial engineering algorithms, prompt graphs, and agent definitions reside here. No dependencies on web transport layers.
-* **`api/` is a Thin Transport Shell**: Pure request validation, routing, SSE event publishing, and schema mapping. Zero business or financial logic.
-* **`web/` is a Secure Same-Origin Client**: Server Components communicate directly with FastAPI; browser-side requests route through `/api/*` proxies to conceal internal infrastructure and headers.
-
----
-
-## 🤖 Multi-Agent IPS Pipeline
-
-The Investment Policy Statement (IPS) workflow is orchestrated using LangGraph state machines and PydanticAI structured agents:
-
-<div align="center">
-  <img src="guide/diagrams/ips-pipeline.svg" alt="LangGraph Multi-Agent IPS Pipeline" width="900" />
-</div>
-
-### Audit Dimensions & Quantitative Gates
-1. **Suitability Review**: Checks client goal feasibility, time horizon alignment, liquidity reserves, and risk capacity.
-2. **Compliance Review**: Verifies asset eligibility, maximum leverage caps, derivatives authorization, and foreign exchange allowances.
-3. **Consistency Review**: Confirms nominal returns logically align with real inflation assumptions and cash flow constraints.
-4. **Quantitative SAA Gate**: Computes portfolio expected return and covariance volatility from the CME matrix, ensuring it falls within the client's volatility target band $[ \sigma_{\min}, \sigma_{\max} ]$.
-
----
-
-## 🧮 Quantitative & Financial Engineering Models
-
-AI WealthPilot is built on mathematically rigorous financial foundations:
-
-### 1. Markowitz Mean-Variance Optimization (MVO)
-Solves the convex quadratic optimization problem:
-
-$$\min_{w} \quad \frac{1}{2} w^T \Sigma w - \lambda w^T \mu \quad \text{s.t.} \quad \sum_{i=1}^n w_i = 1, \quad w_i \ge 0$$
-
-For maximum Sharpe ratio:
-
-$$\max_{w} \quad \frac{w^T \mu - R_f}{\sqrt{w^T \Sigma w}}$$
-
-Asset-class group constraints are supported at the group level:
-
-$$\min_{c} \le \sum_{i \in \mathcal{C}_c} w_i \le \max_{c}$$
-
-*Note: in the MVO stage we use standard **arithmetic returns**, since portfolio expected returns are cross-sectionally additive* ($R_p = w^T \mu$).
-
-### 2. Black-Litterman Bayesian Model
-Market implied equilibrium excess return vector:
-
-$$\Pi = \delta \Sigma w_{\text{mkt}}$$
-
-Bayesian posterior expected return distribution $\mu_{BL}$:
-
-$$\mu_{BL} = \left[ (\tau \Sigma)^{-1} + P^T \Omega^{-1} P \right]^{-1} \left[ (\tau \Sigma)^{-1} \Pi + P^T \Omega^{-1} Q \right]$$
-
-View uncertainty matrix calibration (He & Litterman formulation):
-
-$$\Omega = \text{diag}\left( P (\tau \Sigma) P^T \right) \cdot \frac{1 - c}{c}$$
-
-### 3. Rockafellar-Uryasev Mean-CVaR LP Formulation
-At confidence level $\alpha$ (e.g. 95%), Conditional Value-at-Risk minimization is formulated as a linear program over $S$ discrete return scenarios:
-
-$$\min_{w, \gamma, z} \quad \gamma + \frac{1}{S(1-\alpha)} \sum_{s=1}^S z_s$$
-
-$$\text{s.t.} \quad z_s \ge -w^T r_s - \gamma, \quad z_s \ge 0 \quad (\forall s \in \{1,\dots,S\}), \quad w^T \mathbf{1} = 1, \quad w \ge 0$$
-
-### 4. Sharpe-Tint Liability-Driven Surplus Optimization (LDI)
-For future liability cash stream $L$, portfolio surplus is $S = A - L$. Surplus variance is:
-
-$$\sigma_{\text{surplus}}^2 = w^T \Sigma_A w - 2 w^T \Sigma_{AL} + \sigma_L^2$$
-
-where liability returns are duration-scaled: $r_{L,t} \approx -D_L \cdot \Delta y_t(D_L)$. The optimization maximizes surplus Sharpe:
-
-$$\max_{w} \quad \frac{w^T \mu_A - \mu_L}{\sigma_{\text{surplus}}(w)}$$
-
-### 5. Spinu Equal Risk Contribution (Risk Parity ERC)
-Marginal risk contribution of asset $i$ is $RC_i = w_i \frac{(\Sigma w)_i}{\sqrt{w^T \Sigma w}}$. Solved via the unconstrained convex dual problem:
-
-$$\min_{x} \quad \frac{1}{2} x^T \Sigma x - \sum_{i=1}^n \ln(x_i) \quad \implies \quad w_i = \frac{x_i}{\sum_{j} x_j}$$
-
-### 6. Covariance Shrinkage & Regularization
-To address estimation error and noise, the covariance matrix $\Sigma$ can be estimated via shrinkage or regularized when ill-conditioned:
-* **Ledoit-Wolf & OAS Shrinkage**: Combines the sample covariance $S$ with a structured target $F$ (constant correlation model):
-  $$\Sigma_{\text{shrunk}} = (1 - \rho) S + \rho F$$
-  where $\rho \in (0, 1)$ is the optimal shrinkage intensity computed analytically.
-* **Diagonal Loading**: if $\text{cond}(\Sigma) > 10^{10}$, the near-singular matrix is regularized as $\Sigma_{\text{reg}} = \Sigma + \epsilon I$ with $\epsilon = 10^{-6}$.
-* **Eigenvalue Clipping**: clips small or negative eigenvalues to preserve positive definiteness: $\Sigma_{\text{reg}} = V \max(\Lambda, \epsilon) V^T$.
-
-### 7. Geometric Brownian Motion (GBM) & Volatility Drag
-Long-horizon wealth paths are simulated with discrete-time GBM and a Jensen's-inequality correction:
-
-$$S_{t+\Delta t} = S_t \exp \left( \left(\mu - \frac{1}{2}\sigma^2\right)\Delta t + \sigma \sqrt{\Delta t} Z_t \right)$$
-
-- **Accumulation Phase**:
-
-  $$V_{t+1} = V_t \exp \left( \left(\mu_{\text{acc}} - \frac{1}{2}\sigma_{\text{acc}}^2\right) + \sigma_{\text{acc}} Z_t \right) + \text{Annual Savings}$$
-
-- **Distribution (Retirement) Phase**:
-
-  $$V_{t+1} = V_t \exp \left( \left(\mu_{\text{dist}} - \frac{1}{2}\sigma_{\text{dist}}^2\right) + \sigma_{\text{dist}} Z_t \right) - \text{Nominal Withdrawal}_t$$
-
-  where the nominal withdrawal preserves purchasing power via inflation escalation:
-
-  $$\text{Desired Real Income} \times (1 + \gamma)^{T_{\text{accum}} + t} = \text{Nominal Withdrawal}_t$$
-
-*Note: for multi-period simulations, log-normal modeling is required because returns are time-additive;* the $-\frac{1}{2}\sigma^2$ drift adjustment prevents systematic overestimation of long-term compounded wealth.
-
-### 8. Downside Risk & Tail Risk Metrics
-- **Downside Deviation**: penalizes only returns falling below zero or the risk-free rate:
-  $$\sigma_{\text{downside}} = \sqrt{\frac{252}{T} \sum_{t=1}^T \left(\min(R_{p,t}, 0)\right)^2}$$
-- **Sortino Ratio**: $\text{Sortino} = \dfrac{R_p - R_f}{\sigma_{\text{downside}}}$
-- **VaR & CVaR (Expected Shortfall)**: computed at the $\alpha = 95\%$ confidence level via historical simulation, capturing non-normal skewness and kurtosis.
-
-### 9. Brinson-Fachler Multi-Period Attribution with Carino Linking
-Active excess return per period decomposed into Allocation ($A_g$), Selection ($S_g$), and Interaction ($I_g$):
-
-$$A_g = (w_{p,g} - w_{b,g}) \cdot (R_{b,g} - R_b)$$
-
-$$S_g = w_{b,g} \cdot (R_{p,g} - R_{b,g}), \quad I_g = (w_{p,g} - w_{b,g}) \cdot (R_{p,g} - R_{b,g})$$
-
-Multi-period linking via Carino logarithmic scale factors:
-
-$$k_m = \frac{\ln(1+R_{p,m}) - \ln(1+R_{b,m})}{R_{p,m} - R_{b,m}}, \quad K = \frac{R_p - R_b}{\ln(1+R_p) - \ln(1+R_b)}$$
-
-$$E_{\text{total}} = K \sum_{m} \left( k_m \cdot E_m \right)$$
-
----
-
-## 📁 Repository Structure
-
-```text
-AI-WealthPilot/
-├── src/                          # Computational Core & Quant Engine
-│   ├── config.py                 # Core assets, hyperparameters & configs
-│   ├── agents/                   # Multi-Agent Systems & Prompts
-│   │   ├── advisor.py            # AI Advisor (DeepSeek Streaming Reasoning)
-│   │   ├── profiler.py           # Client 360° Profiling & Risk Matrix
-│   │   ├── portfolio_recommender.py # Personalized Asset Allocator Agent
-│   │   ├── rebalance_advisor.py  # Rebalance Trade Advisory Agent
-│   │   ├── llm_config.py         # LLM Endpoint Resolution (DB overrides env)
-│   │   ├── demo_mode.py          # DEMO_MODE Fixture Replay for LLM Endpoints
-│   │   ├── demo_fixtures/        # Golden Offline Fixtures for Demo Mode
-│   │   ├── report_storage.py     # Multi-Format Report Serializer & Storage
-│   │   ├── ips_models.py         # Structured Pydantic IPS Contracts
-│   │   ├── ips_agents.py         # PydanticAI Specialized Reviewer Agents
-│   │   ├── ips_workflow.py       # LangGraph IPS Pipeline & State Graph
-│   │   └── ips_storage.py        # IPS & Audit Trail Persistence
-│   ├── portfolio/                # Quantitative Portfolio Mathematics
-│   │   ├── optimizer.py          # MVO / Resampled / LDI Solvers / Dirichlet Simulator
-│   │   ├── optimize_service.py   # Method Runner Dispatch (MVO/BL/CVaR/LDI/ERC)
-│   │   ├── views.py              # Black-Litterman View Encoding (P/Q/Omega)
-│   │   ├── cme_engine.py         # Capital Market Expectations (CME) Engine
-│   │   ├── forward_returns.py    # Building-Blocks Forward Returns (ω-blended)
-│   │   ├── cme_models.py         # CME Pydantic Data Models
-│   │   ├── cme_cache.py          # CME Cache Management & Persistence
-│   │   ├── backtest.py           # Historical Backtesting & Crisis Scenarios
-│   │   ├── attribution.py        # Brinson-Fachler Attribution (Carino Linking)
-│   │   ├── liabilities.py        # LDI Liability Cash-Flow Modeling
-│   │   ├── inflation.py          # Personal Inflation Presets (CPI-E / CLEWI)
-│   │   ├── simulator.py          # GBM Monte Carlo Wealth Simulation
-│   │   ├── risk_metrics.py       # Sharpe / Sortino / VaR / CVaR Calculators
-│   │   ├── risk_constraints.py   # Risk-Level → Group Weight Caps Mapping
-│   │   └── monitoring.py         # Portfolio Fleet Drift & Tolerance Bands
-│   ├── data/                     # Market Data Pipelines
-│   │   ├── market_data.py        # Routed Multi-Provider Fetcher & FX Conversion
-│   │   ├── tushare_provider.py   # Tushare Pro China Backbone
-│   │   ├── akshare_provider.py   # AkShare ChinaBond Yield Curve
-│   │   ├── yield_curve.py        # ChinaBond Yield Curve Cascade
-│   │   ├── implied_volatility.py # VIX / MOVE Implied Volatility Fetcher
-│   │   └── demo_market.py        # Deterministic Offline GBM Synthetic Market
-│   └── visualization/            # Plotly JSON Figure Generators
-├── api/                          # FastAPI Transport Shell
-│   ├── main.py                   # App Entrypoint, CORS & Middleware
-│   ├── schemas.py                # Pydantic API Request/Response Schemas
-│   ├── tasks.py                  # SSE Task Runner & Event Replay Bus
-│   ├── db.py                     # SQLite / SQLModel Database
-│   ├── i18n.py                   # Bilingual Message Catalogs
-│   └── routers/                  # Modular API Route Controllers
-├── web/                          # Next.js 16 Web Application
-│   ├── src/app/                  # App Router Pages (Market, Optimizer, IPS...)
-│   ├── src/components/           # Ink & Gold UI System & Plotly Wrapper
-│   ├── src/lib/                  # Proxy Utilities (proxy.ts), i18n Dictionaries
-│   └── e2e/                      # Playwright Full-Stack End-to-End Suite
-├── examples/                     # Offline Demo & Showcase Scripts
-├── docs/                         # Architecture Specs, Reference Data & Screenshots
-├── docker-compose.yml            # Local-First Docker Composition
-└── pyproject.toml                # Python Metadata & Ruff Configuration
-```
-
----
-
-## 🚀 Quick Start
-
-### Method 1: Docker Compose (Recommended)
-
-Make sure you have Docker and Docker Compose installed:
+Requires Docker with the Compose plugin. Run these commands for a new checkout:
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/Michelia-L/AI-WealthPilot.git
 cd AI-WealthPilot
+test -f .env || cp .env.example .env
+```
 
-# 2. Setup environment file (optional; demo mode works out of the box)
-cp .env.example .env
+In `.env`, uncomment `DEMO_MODE=1`, then start the application:
 
-# 3. Build and launch services
+```bash
 docker compose up --build
 ```
-Once healthy, access:
-* **Web Workstation**: `http://localhost:3000`
-* **API Interactive Docs**: `http://localhost:8000/docs`
 
-### Method 2: Local Source Development
+Open the [workstation](http://localhost:3000) or [interactive API documentation](http://localhost:8000/docs). Compose binds both services to localhost and stores application data in the host's `data/` directory. For an existing checkout, edit your current `.env` instead of replacing it.
 
-#### Prerequisites
-* **Python**: `>= 3.12`
-* **Node.js**: `>= 22.0.0`
-* **Package Manager**: `npm` or `pnpm`
+Demo mode needs no LLM key. If the profiles table is empty, startup adds the fictional client **林晓兰**. The sidebar switches the interface between English and Chinese.
 
-#### 1. Backend Service Setup
+| Mode | Market inputs | AI outputs |
+| --- | --- | --- |
+| Demo (`DEMO_MODE=1`) | Synthetic price history and quotes; demo risk-free rates | Bilingual fixtures replayed for advisor reports, IPS, and rebalance advice, with selected profile fields substituted |
+| Live (`DEMO_MODE=0` or unset) | Provider data, with caching and fallbacks | Requests sent to the configured LLM endpoint |
+
+**Demo boundaries.** Reports and IPS review events are fixture replays, not fresh LLM evaluations. Synthetic prices are stable for the same ticker and date anchor; they change as the date rolls forward. Some auxiliary inputs, including CME forward-return yields, fund AUM, and LDI yield curves, can still attempt provider requests. Demo mode is not a network-isolation switch; image builds and dependency installation also require downloads.
+
+### Use live data and an LLM
+
+Disable demo mode and restart the backend (`docker compose up -d --force-recreate api` for Compose). In **Settings** (`/settings`), configure an OpenAI-compatible base URL, model, and API key. Saved nonempty fields override environment defaults. Alternatively, set `DEEPSEEK_API_KEY` in `.env` before starting the backend.
+
+Quantitative features can run without an LLM key; live AI endpoints return HTTP 503 when no key is configured. Replace the placeholder key in `.env` with a real key, or leave it empty when using only quantitative features. Optional `FRED_API_KEY` and `TUSHARE_TOKEN` enable additional data sources. See [.env.example](.env.example) for configuration entries and [data internals](guide/internals/03-data-pipeline-cme.md) for provider routing.
+
+Client records are stored locally by default. **Live AI requests send the profile and report context needed for that task to your configured model provider**, and the key is used to authenticate those requests. See [data and deployment boundaries](#data-and-deployment-boundaries).
+
+## Wealth management workflow
+
+Start with the client's goals and constraints, then choose the analysis needed for a decision. These are connected workspaces; they can also be used independently.
+
+| Workspace | Input | Processing | Output |
+| --- | --- | --- | --- |
+| Client profiles (`/profiles`) | Assets, income, liabilities, goals, questionnaire answers | Separate ability and willingness scores; the lower score determines overall risk tolerance | Profile, risk assessment, and goal context |
+| Market & CME (`/market`, `/api/cme/report`) | Proxy prices, yields, growth and inflation assumptions | Historical estimates blended with building-block return assumptions and available implied volatility | Capital Market Expectations (CME), correlations, and source/cache information |
+| Portfolio construction (`/optimizer`) | Asset universe, return source, method-specific views or constraints | Six optimization methods | Candidate weights, return/risk metrics, and method-specific comparisons |
+| Advisor & IPS (`/advisor`, `/ips`) | Profile; CME and reference documents for IPS | LLM advisory report, or IPS generation with review and quantitative checks | Reports, IPS documents, revision history, and exports |
+| Monitoring (`/monitoring`) | Saved IPS allocation and proxy prices since it was saved | Buy-and-hold weight drift, policy-band checks, historical backtest and attribution | Drift diagnostics, rebalance amounts, and optional AI commentary |
+| Retirement (`/retirement`) | Savings, contributions, spending, horizon, return and volatility assumptions | Accumulation/withdrawal Monte Carlo simulation; optional spending guardrails | Wealth percentiles, survival rate, and spending comparisons |
+
+### How an IPS is produced
+
+The live IPS graph follows this sequence. Its three reviewers run **sequentially** in the current implementation.
+
+```mermaid
+flowchart LR
+    C[CME] --> G[Generate IPS]
+    G --> S[Suitability review]
+    S --> P[Compliance review]
+    P --> K[Consistency review]
+    K --> V[Quantitative SAA checks]
+    V --> D{Review decision}
+    D -->|Revise| R[Revise IPS]
+    R -->|Review again| S
+    D -->|Pass or escalate| F[Finalize with status]
+    R -->|Revision limit| F
+```
+
+The graph allows up to three revision rounds by default and records review findings and revision metadata. Escalation is a status for human follow-up, not human approval. See [`build_ips_workflow`](src/agents/ips_workflow.py) for routing and stopping conditions.
+
+The LLM proposes the IPS strategic asset allocation (SAA); the graph checks it against available CME inputs. It does **not** automatically run the portfolio optimizer first. Optimizer comparisons are a separate analysis, and retirement simulation can be run before or after an IPS review.
+
+## Walk through a fictional client case
+
+The demo seed describes a 38-year-old client with CNY 2.6 million in investable assets, CNY 800,000 annual income, CNY 420,000 annual expenses, and CNY 900,000 in liabilities. Goals are CNY 1.2 million for education in 10 years and CNY 4 million for retirement in 22 years. These inputs come from [`_demo_profile_data`](api/main.py).
+
+1. Open **Profiles** and inspect the household balance sheet, goals, and ability/willingness scores. Open **Optimizer** to compare candidate allocations under the available methods and return assumptions.
+2. In **IPS**, select the seed client and generate a document. Demo mode replays progress events and archives a sample allocation of 25% domestic equity, 20% international equity, 35% fixed income, 10% gold, and 10% cash. This is a fixture allocation, not the optimizer's result.
+3. In **Monitoring**, select the saved IPS to inspect policy bands and its historical backtest. Drift needs price observations after the save date; a newly saved document may have insufficient history. Rebalance amounts are proposals, not submitted orders.
+4. In **Retirement**, select the profile to prefill inputs, review the assumptions, and compare fixed spending with guardrails. The quantitative simulation runs on the supplied assumptions; its results need not match the fixture narrative. Saved reports and IPS documents are available in **Deliverables** (`/deliverables`).
+
+This case demonstrates the interaction and document flow. It is not evidence of investment performance, calibrated financial forecasts, or live LLM quality. Sample content is in [`src/agents/demo_fixtures/`](src/agents/demo_fixtures/).
+
+## Quantitative methods
+
+| Method | What it computes |
+| --- | --- |
+| Mean-variance (MVO) | Maximum-Sharpe and minimum-volatility portfolios, efficient frontiers; asset-class group constraints for the selected MVO portfolio |
+| Resampled MVO | Repeated simulated estimation and optimization, with averaged weights/frontiers to explore parameter uncertainty |
+| Black-Litterman | Equilibrium or CME prior combined with absolute/relative views and confidence inputs |
+| Mean-CVaR | Scenario-based tail-loss optimization through the Rockafellar–Uryasev linear program |
+| Liability-driven investing (LDI) | Surplus-risk optimization using liability present value, duration, and asset-liability covariance estimates |
+| Risk parity (ERC) | Weights targeting equal contributions to portfolio risk |
+
+The optimizer defaults to historical sample expected returns. Selecting `expected_return_source="cme"` uses CME returns where mapped; uncovered assets retain sample means, or equilibrium returns in Black-Litterman. Covariance remains estimated from historical returns. The Python engine also exposes sample, Ledoit-Wolf, and OAS covariance estimators; these are not a web/API selector.
+
+Supporting tools include historical VaR/CVaR and Sortino metrics, monthly-rebalanced backtests with an optional annual fee drag, Brinson-Fachler attribution with Carino linking, and two-phase GBM retirement simulation with optional Guyton-Klinger spending guardrails.
+
+## Model assumptions and limitations
+
+| Component | Current boundary |
+| --- | --- |
+| CME expected returns | Building blocks use yields plus configured growth assumptions, blended with historical means. Missing inputs fall back; this is not a macroeconomic forecasting model. Check source, date, and cache status. |
+| Covariance & resampling | Estimates depend on the historical window and proxy universe. Ledoit-Wolf/OAS shrink toward a scaled identity matrix. Resampling uses a normal-return model and does not establish better out-of-sample performance. |
+| Black-Litterman | Equilibrium weights resolve from custom inputs, ETF AUM proxies, or equal weights. Confidence calibration is simplified; results depend on those choices. The implementation uses total-return priors and views. |
+| FX | Historical prices can be translated to the CNY base, including unhedged FX movements. The forward-return building blocks assume zero expected FX change; there is no separate forward FX process. |
+| CVaR & LDI | CVaR uses available historical daily scenarios, which cannot represent unseen shocks. LDI uses first-order duration exposure to yield changes, with a duration-scaled bond proxy fallback. |
+| Retirement | Annual GBM draws use fixed return/volatility parameters within each phase and an assumed inflation rate. Regime switching and stochastic volatility are not modeled. Survival rates are conditional simulation outputs. |
+| Backtesting & monitoring | Backtests apply supplied target weights to history, not a walk-forward retraining strategy. Monitoring infers drift from IPS weights and proxy returns, not broker positions or actual cash flows. There is no order execution or tax-lot accounting. |
+| LLM & IPS validation | Reviews can be wrong. Quantitative checks cover selected SAA properties, not every narrative claim. Volatility checks allow a 20% tolerance; low volatility produces a warning, high volatility a critical finding. Missing CME skips SAA validation. A passed review is not regulatory certification. |
+
+The [quant engine](guide/internals/02-quant-engine.md), [data/CME](guide/internals/03-data-pipeline-cme.md), and [AI workflow](guide/internals/04-ai-agents.md) chapters explain implementation choices and additional boundaries. The Internals guide is currently written in Chinese.
+
+## Architecture and repository
+
+```text
+Browser → Next.js web/
+            ├─ Server Components → FastAPI api/
+            └─ Browser mutations / streams → same-origin proxy → FastAPI api/
+                                                                  ↓
+                                               Python src/ computation
+                                                  ├─ portfolio models
+                                                  ├─ market data providers
+                                                  └─ LLM / IPS workflows
+```
+
+| Path | Responsibility |
+| --- | --- |
+| [`src/`](src/) | Portfolio computation, data adapters, AI workflows, Plotly chart construction |
+| [`api/`](api/) | FastAPI routes and schemas, localization, SQLite persistence, background tasks and SSE replay |
+| [`web/`](web/) | Next.js/React interface, same-origin proxy routes, bilingual dictionaries, UI and end-to-end tests |
+| [`guide/`](guide/) | MkDocs Internals site: architecture, methodology, implementation decisions |
+| [`docs/`](docs/) | Engineering records, IPS reference material, and screenshot assets |
+| [`examples/`](examples/) | Standalone quantitative and workflow examples |
+
+Profiles, task/event records, and LLM settings use SQLite; reports, IPS documents, and CME caches use JSON file storage under `data/`. The [request journey](guide/internals/01-request-journey.md) traces browser-to-engine calls. The running API's [OpenAPI UI](http://localhost:8000/docs) provides endpoint schemas; the [API chapter](guide/internals/05-api-shell.md) explains transport and task persistence.
+
+## Local development and testing
+
+Requires **Python 3.12+** and **Node.js 22+** with npm. The commands below use Bash on Linux, macOS, or WSL and start from the repository root.
+
 ```bash
-# Create and activate a Python virtual environment
 python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-pip install -r requirements.txt -r requirements-dev.txt
+source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+test -f .env || cp .env.example .env
+```
 
-# Configure environment variables
-cp .env.example .env
-# Edit .env to add your DEEPSEEK_API_KEY if desired
-# Optional: FRED_API_KEY (preferred risk-free rate source),
-#           TUSHARE_TOKEN (paid CN index / yield-curve backbone)
+For a demo, uncomment `DEMO_MODE=1` in `.env`; for live use, configure the credentials described above. Preserve an existing `.env`. Then start the backend:
 
-# Start the FastAPI backend
+```bash
 python -m uvicorn api.main:app --reload --port 8000
 ```
 
-#### 2. Frontend Application Setup
-```bash
-# Install frontend dependencies
-cd web
-npm install
+In a second terminal, from the repository root:
 
-# Start the Next.js development server
+```bash
+cd web
+npm ci
 npm run dev
 ```
-Open your browser at `http://localhost:3000`.
 
-> [!TIP]
-> After launch, you can configure any OpenAI-compatible endpoint (DeepSeek, Qwen, OpenAI, local vLLM/Ollama, …) from the in-app **Settings** page — it takes effect immediately and overrides the env defaults. Keys are stored in the local SQLite (`data/wealthpilot.db`) and never leave your machine.
+Open [localhost:3000](http://localhost:3000). CJK PDF exports require a supported Chinese font; on Ubuntu/Debian, install `fonts-wqy-microhei`. The Docker API image includes it.
 
-### 💡 100% Offline Demo Mode (DEMO_MODE=1)
-
-You can experience the complete application without configuring any API keys or network connections:
+Run the following checks from the repository root with the virtual environment active. Subshells keep each command's working directory independent:
 
 ```bash
-# Set in your .env file:
-DEMO_MODE=1
+python -m pytest -q
+ruff check
+ruff format --check
+(cd web && npm test)
+(cd web && npm run typecheck)
+(cd web && npm run lint)
+(cd web && npm run build)
+(cd web && npm run test:e2e)
 ```
 
-In Demo Mode:
-1. The market data layer switches to `src/data/demo_market.py`, generating **deterministic, realistic GBM asset price paths**.
-2. Portfolio optimization, correlation analysis, backtesting, and stress testing run completely offline.
-3. AI Advisory Reports, LangGraph IPS Workflows, and Rebalance Advice **replay high-fidelity bilingual golden expert fixtures**, and a fictional sample client is seeded on first boot.
+Playwright needs Chromium installed (`cd web && npx playwright install chromium`) and a completed web build. Its configuration starts a demo API on port 8300 and the production web server on 3300, using a temporary SQLite database. The backend command is `python`, so keep the virtual environment on `PATH`.
 
----
+[CI](.github/workflows/ci.yml) runs Python lint/format, pytest with an **87% coverage threshold** over `src` and `api`, dependency auditing, frontend lint/type checks/tests/build, and Playwright end-to-end tests. These checks validate software behavior; they do not measure investment performance or live LLM accuracy.
 
-## 🎬 Running Demos
+For documentation edits, run `mkdocs build --strict`. To try the Python engine without starting the web application, run `python examples/demo_quick.py`; it uses synthetic returns for MVO, Black-Litterman, and retirement simulation.
 
-Standalone scripts inside `examples/` run the quantitative engine offline and showcase core functionalities:
+## Data and deployment boundaries
 
-```bash
-# Quick demo (MVO, Black-Litterman, Monte Carlo)
-python examples/demo_quick.py
+- **Storage and credentials.** Profiles and settings are stored locally by default. LLM API keys are persisted in SQLite; do not treat the database as an encrypted secrets vault. Protect `.env`, `data/`, and their backups.
+- **External calls.** Live model requests include task-specific client/report context and use the configured key for authentication. Market data requests go to their respective providers. A local model endpoint changes the model destination; it does not disable market-provider traffic.
+- **Access control.** The API has no built-in authentication. The supplied Compose configuration binds ports to `127.0.0.1`; add authentication and access controls before exposing a deployment beyond your machine.
+- **Model inputs.** Some prompts delimit client text with XML tags and instructions. This is a mitigation, not a guarantee against prompt injection or incorrect output. Review generated documents before relying on them.
 
-# Advanced optimization demo (OAS, Resampled MVO)
-python examples/demo_advanced_optimization.py
+The software is intended for educational, research, and technical evaluation purposes. Its calculations and generated documents do not constitute investment, tax, or legal advice, and do not replace professional review. No return, suitability determination, or regulatory approval is guaranteed.
 
-# Comprehensive demo with interactive Plotly browser charts
-python examples/demo_comprehensive.py
+## Contributing and license
 
-# Multi-agent LangGraph workflow terminal demo (Generate-Review-Revise)
-python examples/demo_ips_generator.py
-```
+See [open issues](https://github.com/Michelia-L/AI-WealthPilot/issues) for current discussions and [known issues](docs/known-issues.md) for engineering records. Submit changes through a feature branch and pull request; keep both README languages aligned and follow [AGENTS.md](AGENTS.md) for repository checks.
 
----
-
-## 📖 API Endpoints Reference
-
-FastAPI provides comprehensive OpenAPI documentation available at `/docs`:
-
-| Domain | Route | Method | Description |
-| :--- | :--- | :--- | :--- |
-| **Market** | `/api/market/quotes` | `GET` | Real-time global quotes with sparkline history |
-| | `/api/market/analytics` | `GET` | Historical prices, metrics & correlation heatmap |
-| | `/api/market/yield-curve` | `GET` | Latest US & China Treasury yield curves |
-| **CME** | `/api/cme/report` | `GET` | Multi-asset forward return/volatility CME report |
-| **Profiles** | `/api/profiles` | `GET/POST` | Client 360° profile list & creation |
-| | `/api/profiles/{id}` | `GET/PUT/DELETE` | Profile management & balance sheet details |
-| | `/api/profiles/questionnaire`| `GET` | Bilingual risk ability & willingness questionnaire |
-| **Portfolio** | `/api/portfolio/optimize` | `POST` | Run MVO/BL/CVaR/LDI/ERC optimization & frontiers |
-| | `/api/portfolio/backtest` | `POST` | Monthly rebalanced backtest & Brinson attribution |
-| | `/api/portfolio/simulate` | `POST` | 10,000-path GBM Monte Carlo wealth simulation |
-| **IPS** | `/api/ips/generate` | `POST` | Start LangGraph multi-agent IPS workflow (202 Async) |
-| | `/api/ips/tasks/{id}/events` | `GET` | SSE stream for real-time node progress & audit replay |
-| | `/api/ips/{id}/export/{fmt}` | `GET` | Export IPS deliverables (Markdown, PDF, JSON) |
-| **Advisor** | `/api/advisor/report` | `POST` | Stream AI Advisor Report with thinking chain |
-| | `/api/advisor/rebalance` | `POST` | Generate intelligent rebalancing trade advice |
-| **Monitoring**| `/api/monitoring/fleet` | `GET` | Fleet-wide portfolio tolerance band breach alerts |
-| | `/api/monitoring/inspect/{id}`| `GET` | In-depth drift diagnostics & rebalance orders |
-| **Settings** | `/api/settings/llm` | `GET/PUT` | Configure custom OpenAI-compatible endpoint & model |
-
----
-
-## 🧪 Quality Assurance & Testing
-
-The codebase enforces strict quality gates in CI, including an **87%+ coverage floor**:
-
-```bash
-# 1. Run the Python backend test suite
-pytest -q
-
-# 2. Python linter & code formatting check
-ruff check && ruff format --check
-
-# 3. Frontend Vitest unit & component tests
-cd web && npm test
-
-# 4. Frontend full TypeScript type checking
-cd web && npm run typecheck
-
-# 5. Frontend ESLint & Next.js production build
-cd web && npm run lint && npm run build
-
-# 6. Playwright full-stack end-to-end testing
-cd web && npm run test:e2e
-```
-
-> [!NOTE]
-> The e2e suite launches the API with a bare `python` command (see `web/playwright.config.ts`), so `python` must resolve on `PATH` — on macOS/Linux/WSL, activate the repo venv first (`source .venv/bin/activate`). The suite boots a demo-mode API and a production web build on dedicated ports with an isolated temporary SQLite — no network or API key needed.
-
----
-
-## 🛡️ Security, Privacy & Financial Disclaimer
-
-1. **Financial Disclaimer**: The mathematical models, quantitative outputs, and AI-generated reports provided by this software are for educational, research, and technical evaluation purposes only. **They do not constitute regulated investment advice, financial planning, or fiduciary commitments**. Financial markets carry extreme risk, and quantitative models are subject to structural model drift and systemic tail events. Always consult a licensed wealth manager before making capital allocation decisions.
-2. **Local-First Privacy**: Client financial profiles and confidential portfolio records remain stored inside your local SQLite database by default. No client data is exposed to external cloud infrastructure.
-3. **Prompt Injection Containment**: All user inputs into AI workflows are sanitized and isolated inside strict XML semantic fences to prevent prompt override attempts.
-
----
-
-## 📄 License
-
-AI WealthPilot is licensed under the **[MIT License](LICENSE)**. Contributions, pull requests, and discussions are warmly welcomed!
-
-<div align="center">
-  <sub>Engineered with mathematical precision for modern private wealth management.</sub>
-</div>
+Released under the [MIT License](LICENSE).
