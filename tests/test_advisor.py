@@ -818,3 +818,45 @@ class TestClientConstruction:
         client = _get_client()
         assert float(client.timeout) == LLM_REQUEST_TIMEOUT
         assert client.max_retries == LLM_MAX_RETRIES
+
+
+@pytest.mark.parametrize("locale", ["en", "zh"])
+@pytest.mark.parametrize("streaming", [False, True])
+def test_advice_discloses_preferences_even_when_model_omits_them(
+    sample_profile, mock_openai_response, monkeypatch, locale, streaming
+):
+    sample_profile.esg_preference = True
+    sample_profile.sector_restrictions = ["Tobacco", "Defense"]
+    api = Mock()
+    monkeypatch.setattr("src.agents.advisor._get_client", lambda: api)
+    if streaming:
+        api.chat.completions.create.return_value = [
+            _make_stream_chunk(content=MOCK_REPORT_CONTENT),
+            _make_usage_chunk(),
+        ]
+        events, report = _drain(generate_advice_stream(sample_profile, locale))
+        assert (
+            "".join(e["text"] for e in events if e["type"] == "token") == report.content
+        )
+        assert report.total_tokens == 150  # Disclosure does not inflate LLM usage.
+    else:
+        api.chat.completions.create.return_value = mock_openai_response
+        report = generate_advice(sample_profile, locale)
+        assert report.total_tokens == 3000
+    assert report.success
+    assert report.content.startswith(MOCK_REPORT_CONTENT)
+    assert "Tobacco, Defense" in report.content
+    assert (
+        "screening has not been performed" if locale == "en" else "尚未执行筛选"
+    ) in report.content
+
+
+def test_disclosure_does_not_make_incomplete_advice_pass(sample_profile, monkeypatch):
+    sample_profile.esg_preference = True
+    api = Mock()
+    api.chat.completions.create.return_value = [_make_stream_chunk(content="Too short")]
+    monkeypatch.setattr("src.agents.advisor._get_client", lambda: api)
+    events, report = _drain(generate_advice_stream(sample_profile, "en"))
+    assert not report.success
+    assert report.content == "Too short"
+    assert len(events) == 1

@@ -12,6 +12,7 @@ from typing import Generator
 
 from openai import OpenAI
 
+from src.agents.investment_preferences import format_investment_preferences
 from src.agents.llm_config import get_llm_config
 from src.agents.profiler import ClientProfile, format_ratio, format_risk_score
 from src.config import (
@@ -93,6 +94,7 @@ Generate your advisory report in **bilingual format (English & Chinese / 中英�
    - 包含资产类别：股票、债券、另类投资、现金
 
 5. **💡 Implementation Strategy / 实施策略与注意事项**
+   - 明确回应客户的 ESG 偏好与每项行业排除要求。当前优化器未执行 ESG 或行业筛选，宽基 ETF 可能仍含相关行业。基金替代只能作为待核验方案，不得声称已排除、已替换或已验证合规。
    - Specific ETF/fund suggestions aligned with allocation
    - Rebalancing frequency recommendation
    - Tax-efficient strategies if applicable
@@ -181,6 +183,7 @@ Write the advisory report **entirely in English** with the following 6 sections.
    - Include asset classes: equities, bonds, alternatives, cash
 
 5. **Implementation Strategy**
+   - Address the client's ESG preference and every requested sector exclusion. The optimizer has not performed ESG or sector screening; broad-market ETFs may retain these exposures. Describe fund alternatives only as candidates requiring verification, never as completed exclusions, substitutions or verified compliance.
    - Specific ETF/fund suggestions aligned with the allocation
    - Rebalancing frequency recommendation
    - Tax-efficient strategies if applicable
@@ -541,6 +544,9 @@ def generate_advice(profile: ClientProfile, locale: str = "zh") -> AdvisorReport
         is_valid, err_msg = validate_report_content(report.content)
         if is_valid:
             report.success = True
+            disclosure = format_investment_preferences(profile, locale)
+            if disclosure:
+                report.content += "\n\n" + disclosure
         else:
             report.success = False
             report.error_message = err_msg
@@ -639,6 +645,11 @@ def generate_advice_stream(
         is_valid, err_msg = validate_report_content(report.content)
         if is_valid:
             report.success = True
+            disclosure = format_investment_preferences(profile, locale)
+            if disclosure:
+                suffix = "\n\n" + disclosure
+                report.content += suffix
+                yield {"type": "token", "text": suffix}
         else:
             report.success = False
             report.error_message = err_msg

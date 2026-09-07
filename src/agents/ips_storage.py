@@ -498,6 +498,9 @@ def _render_ips_markdown(
     if unique.get("concentrated_positions"):
         lines.append(f"- **{L['concentrated']}**: {unique['concentrated_positions']}")
     lines.append("")
+    if unique.get("screening_note"):
+        lines.append(unique["screening_note"])
+        lines.append("")
     lines.append(unique.get("unique_narrative", ""))
     lines.append("")
 
@@ -1115,6 +1118,8 @@ class _IPSPDF:
             self._key_value(L["kv_sector"], ", ".join(unique["sector_restrictions"]))
         if unique.get("concentrated_positions"):
             self._key_value(L["kv_concentrated"], unique["concentrated_positions"])
+        if unique.get("screening_note"):
+            self._body_text(unique["screening_note"])
         self._body_text(unique.get("unique_narrative", ""))
 
         # ── 10. Investment Guidelines ──

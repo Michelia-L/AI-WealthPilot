@@ -190,7 +190,12 @@ class UniqueCircumstance(BaseModel):
         default=None, description="ESG investment preferences if any"
     )
     sector_restrictions: list[str] = Field(
-        default_factory=list, description="Excluded sectors or industries"
+        default_factory=list,
+        description="Client-requested sector exclusions; not proof of completed screening",
+    )
+    screening_note: Optional[str] = Field(
+        default=None,
+        description="Recorded preferences and current screening limitations",
     )
     concentrated_positions: Optional[str] = Field(
         default=None, description="Concentrated position risks if any"

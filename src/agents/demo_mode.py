@@ -30,6 +30,10 @@ from typing import Generator, Optional
 from src import config
 from src.agents import ips_storage
 from src.agents.advisor import AdvisorReport
+from src.agents.investment_preferences import (
+    apply_ips_preferences,
+    format_investment_preferences,
+)
 from src.agents.profiler import (
     ClientProfile,
     FinancialSituation,
@@ -436,6 +440,17 @@ def _fixture_substitutions(profile: Optional[ClientProfile]) -> list[tuple[str, 
     if profile is None:
         return pairs
 
+    if profile.esg_preference or profile.sector_restrictions:
+        pairs += [
+            (
+                "客户无 ESG 偏好、无行业排除、无集中持仓。",
+                "客户的 ESG 与行业偏好见本节记录，尚未执行筛选。",
+            ),
+            (
+                "The client has no ESG preferences, no sector exclusions, and no concentrated positions.",
+                "The client's ESG and sector preferences are recorded in this section; screening has not been performed.",
+            ),
+        ]
     fin = profile.financial
     savings = fin.annual_income - fin.annual_expenses
     emergency_amount = fin.emergency_fund_months * fin.annual_expenses / 12
@@ -584,6 +599,9 @@ def demo_advice_stream(
         "advisor_reasoning.txt", profile.name, locale, profile
     )
     content = _load_fixture_text("advisor_report.md", profile.name, locale, profile)
+    disclosure = format_investment_preferences(profile, locale)
+    if disclosure:
+        content += "\n\n" + disclosure
     for chunk in _iter_chunks(reasoning):
         yield {"type": "reasoning", "text": chunk}
     for chunk in _iter_chunks(content):
@@ -682,7 +700,7 @@ async def run_demo_ips_task(
             )
         )
         audit_trail = record.get("audit_trail") or {}
-        ips_dict = record["ips"]
+        ips_dict = apply_ips_preferences(record["ips"], profile_data, locale)
         ips_dict["client_name"] = client_name
 
         filepath = ips_storage.save_ips(

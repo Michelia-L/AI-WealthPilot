@@ -488,14 +488,31 @@ def get_system_prompt(role: str, locale: str = "zh") -> str:
     """System prompt for an IPS workflow role in the report language.
 
     Fills the __VOL_BANDS__ / __EQUITY_CAPS__ placeholders (P25) from the
-    canonical config tables; roles without placeholders pass through
-    unchanged.
+    canonical config tables and adds the shared preference implementation
+    boundary to generation, revision and review instructions.
     """
     table = _SYSTEM_PROMPTS_EN if locale == "en" else _SYSTEM_PROMPTS_ZH
+    preference_rules = (
+        "\n\nESG and sector preferences: preserve the client’s stated ESG preference and "
+        "every requested sector exclusion in unique_circumstances. The asset-class "
+        "optimizer has not performed ESG or holdings screening. Broad-market ETFs "
+        "may retain excluded sectors. Describe exclusions and screened-fund "
+        "alternatives as requirements pending verification, never as implemented "
+        "or verified. Keep this boundary consistent across the narrative, allocation "
+        "rationales and prohibited-instruments list; flag unsupported implementation "
+        "claims during review. Do not invent ESG criteria from a boolean preference."
+        if locale == "en"
+        else "\n\nESG 与行业偏好：在 unique_circumstances 中保留客户的 ESG 偏好与每项行业排除要求。"
+        "资产类别优化器尚未执行 ESG 或持仓筛选，宽基 ETF 仍可能包含相关行业。"
+        "排除要求与筛选型基金替代方案均待核验，不得描述为已落实或已验证。"
+        "叙述、配置理由与禁投清单必须保持这一边界，审查时应指出无依据的落实声明。"
+        "不得从布尔偏好臆造具体 ESG 标准。"
+    )
     return (
         table[role]
         .replace("__VOL_BANDS__", _vol_band_text(locale))
         .replace("__EQUITY_CAPS__", _equity_caps_text(locale))
+        + preference_rules
     )
 
 

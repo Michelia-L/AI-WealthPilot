@@ -977,3 +977,37 @@ class TestTokenBudgetGate:
         with pytest.raises(TokenBudgetExceeded):
             self._run(revise_ips_node(self._over_budget_state()))
         factory.assert_not_called()
+
+
+@pytest.mark.parametrize("locale", ["en", "zh"])
+@pytest.mark.parametrize("node", ["generate", "revise"])
+def test_ips_preferences_survive_model_omissions(
+    minimal_ips_dict, monkeypatch, locale, node
+):
+    import asyncio
+
+    agent = Agent(
+        TestModel(custom_output_args=minimal_ips_dict), output_type=IPSDocument
+    )
+    factory = (
+        "create_ips_generator_agent"
+        if node == "generate"
+        else "create_ips_reviser_agent"
+    )
+    monkeypatch.setattr(f"src.agents.ips_workflow.{factory}", lambda locale: agent)
+    profile = {"esg_preference": True, "sector_restrictions": ["Tobacco", "Defense"]}
+    state = IPSWorkflowState(
+        client_profile_json=json.dumps(profile),
+        ips_draft=minimal_ips_dict,
+        locale=locale,
+    )
+    run = generate_ips_node if node == "generate" else revise_ips_node
+    result = asyncio.run(run(state))
+    assert result["status"] == ("generated" if node == "generate" else "revised")
+    unique = result["ips_draft"]["unique_circumstances"]
+    assert unique["sector_restrictions"] == profile["sector_restrictions"]
+    assert unique["esg_preferences"]
+    assert (
+        "screening has not been performed" if locale == "en" else "尚未执行筛选"
+    ) in unique["screening_note"]
+    IPSDocument.model_validate(result["ips_draft"])

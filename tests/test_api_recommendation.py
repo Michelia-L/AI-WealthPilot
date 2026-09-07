@@ -102,3 +102,26 @@ def test_recommendation_zh_locale_rationale_stays_bilingual(client, fake_market)
     resp = client.get(f"/api/portfolio/recommendation?profile_id={profile_id}")
     assert resp.status_code == 200
     assert "目标可行性" in resp.json()["rationale"]
+
+
+@pytest.mark.parametrize("locale", ["en", "zh"])
+def test_preferences_are_disclosed_without_changing_allocation(
+    client, fake_market, locale
+):
+    profile_id = _create_profile(client)
+    url = f"/api/portfolio/recommendation?profile_id={profile_id}"
+    before = client.get(url, headers={"X-Locale": locale}).json()
+    payload = sample_payload(
+        esg_preference=True, sector_restrictions=["Tobacco", "Defense"]
+    )
+    assert client.put(f"/api/profiles/{profile_id}", json=payload).status_code == 200
+    after = client.get(url, headers={"X-Locale": locale}).json()
+    assert after["allocation"] == before["allocation"]
+    assert after["expected_return"] == before["expected_return"]
+    assert "Tobacco, Defense" in after["rationale"]
+    assert (
+        "screening has not been performed" if locale == "en" else "尚未执行筛选"
+    ) in after["rationale"]
+    assert (
+        "ESG and sector preferences" if locale == "en" else "ESG 与行业排除偏好"
+    ) not in before["rationale"]

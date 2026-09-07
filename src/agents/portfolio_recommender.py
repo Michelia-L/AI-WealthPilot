@@ -13,6 +13,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from src.agents.investment_preferences import format_investment_preferences
 from src.agents.profiler import (
     RISK_SCORE_BREAKPOINTS,
     ClientProfile,
@@ -566,6 +567,9 @@ def _generate_rationale(
                         f"{en_label} / 需年化约 {detail_req},{zh_label}"
                     )
 
+    disclosure = format_investment_preferences(profile, locale)
+    if disclosure:
+        rationale_parts.extend(["", disclosure])
     return "\n".join(rationale_parts)
 
 

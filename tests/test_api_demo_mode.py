@@ -1025,3 +1025,43 @@ def test_demo_persona_profile_round_trips_fixture_values():
     assert "80 万元" in text and "9.15%" in text and "38 岁" in text
     assert "2026-07-20" not in text
     assert date.today().isoformat() in text
+
+
+@pytest.mark.parametrize("locale", ["en", "zh"])
+@pytest.mark.parametrize(
+    "esg,sectors", [(True, []), (False, ["Tobacco", "Defense"]), (True, ["Tobacco"])]
+)
+def test_demo_preferences_reach_advisor_and_saved_ips(
+    client, demo_on, ips_dir, monkeypatch, locale, esg, sectors
+):
+    monkeypatch.setattr(demo_mode, "NODE_DELAY_RANGE", (0, 0))
+    profile_id = _create_profile(
+        client, esg_preference=esg, sector_restrictions=sectors
+    )
+    headers = {"X-Locale": locale}
+    resp = client.post(
+        "/api/advisor/report/stream", json={"profile_id": profile_id}, headers=headers
+    )
+    events = _parse_sse(resp.text)
+    text = "".join(e["text"] for e in events if e["type"] == "token")
+    note = "screening has not been performed" if locale == "en" else "尚未执行筛选"
+    assert note in text
+    for sector in sectors:
+        assert sector in text
+    created = client.post(
+        "/api/ips/generate", json={"profile_id": profile_id}, headers=headers
+    )
+    task_id = created.json()["task_id"]
+    events = _parse_sse(client.get(f"/api/ips/tasks/{task_id}/events").text)
+    done = next(e for e in events if e["type"] == "done")
+    record = json.loads((ips_dir / f"{done['document_id']}.json").read_text())
+    unique = record["ips"]["unique_circumstances"]
+    assert unique["sector_restrictions"] == sectors
+    assert bool(unique["esg_preferences"]) == esg
+    assert note in unique["screening_note"]
+    assert "no ESG preferences" not in unique["unique_narrative"]
+    assert "无 ESG 偏好" not in unique["unique_narrative"]
+    markdown = ips_storage.export_ips_markdown(record["ips"], locale=locale)
+    assert note in markdown
+    for sector in sectors:
+        assert sector in markdown
