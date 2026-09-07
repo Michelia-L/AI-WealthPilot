@@ -154,6 +154,19 @@ def test_expanding_windows_and_quarterly_holding(daily, config):
     assert run.metrics["complete"]
 
 
+def test_custom_diagnostics_are_snapshots(daily, config):
+    class Stateful:
+        def __init__(self):
+            self.diagnostics = {"decisions": []}
+
+        def allocate(self, history, as_of, config):
+            self.diagnostics["decisions"].append(as_of)
+            return Allocation({"AGG": 1}, self.diagnostics)
+
+    run = evaluate(daily, replace(config, strategy=StrategySpec("custom")), Stateful())
+    assert [len(r["diagnostics"]["decisions"]) for r in run.rebalances] == [1, 2, 3]
+
+
 def test_equal_weight_exact_and_inverse_volatility(config):
     history = pd.DataFrame(
         {"SPY": [-0.01, 0.01, -0.01, 0.01], "AGG": [-0.02, 0.02, -0.02, 0.02]},

@@ -246,7 +246,7 @@ def evaluate(
                 allocation = allocator.allocate(
                     history.copy(deep=True), as_of, deepcopy(config)
                 )
-                record["diagnostics"] = allocation.diagnostics
+                record["diagnostics"] = deepcopy(allocation.diagnostics)
                 if not allocation.success:
                     raise AllocationError("optimizer_unsuccessful")
                 if not _weights_valid(allocation.weights, eligible):
