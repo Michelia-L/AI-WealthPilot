@@ -129,6 +129,8 @@ The optimizer defaults to historical sample expected returns. Selecting `expecte
 
 Supporting tools include historical VaR/CVaR and Sortino metrics, monthly-rebalanced backtests with an optional annual fee drag, Brinson-Fachler attribution with Carino linking, and two-phase GBM retirement simulation with optional Guyton-Klinger spending guardrails.
 
+For out-of-sample research, the separate [walk-forward evaluator](validation/portfolio/README.md) refits strategies using only data through each decision date and compares their next-period returns with equal-weight, static and inverse-volatility baselines. It accepts supplied daily returns and records weights, failures, metrics and configuration; it is not integrated into the UI.
+
 ## Model assumptions and limitations
 
 | Component | Current boundary |
