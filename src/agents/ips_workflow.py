@@ -17,6 +17,7 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, ConfigDict, Field
 
 from src import config
+from src.agents.investment_preferences import apply_ips_preferences
 from src.agents.ips_agents import (
     build_generation_prompt,
     build_review_prompt,
@@ -343,7 +344,11 @@ async def generate_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
 
         result = await agent.run(prompt)
         ips_doc: IPSDocument = result.output
-        state_updates["ips_draft"] = ips_doc.model_dump()
+        state_updates["ips_draft"] = apply_ips_preferences(
+            ips_doc.model_dump(),
+            json.loads(state.client_profile_json or "{}"),
+            state.locale,
+        )
         state_updates["llm_usage"] = [
             *state.llm_usage,
             _usage_entry("generate", result),
@@ -500,7 +505,11 @@ async def revise_ips_node(state: IPSWorkflowState) -> dict[str, Any]:
 
         result = await agent.run(prompt)
         revised_ips: IPSDocument = result.output
-        revised_dict = revised_ips.model_dump()
+        revised_dict = apply_ips_preferences(
+            revised_ips.model_dump(),
+            json.loads(state.client_profile_json or "{}"),
+            state.locale,
+        )
 
         version_before = (
             _ips_version_hash(state.ips_draft) if state.ips_draft else "none"

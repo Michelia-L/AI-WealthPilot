@@ -407,3 +407,31 @@ class TestPDFRenderingDetails:
         top = builder.pdf.get_y()
         builder._add_header("Client")
         assert rule_ys and rule_ys[0] >= top + 5  # 5mm header row
+
+
+@pytest.mark.parametrize("locale", ["en", "zh"])
+def test_preference_disclosure_reaches_markdown_and_pdf(
+    sample_ips_dict, tmp_path, monkeypatch, locale
+):
+    from src.agents.investment_preferences import apply_ips_preferences
+
+    ips = apply_ips_preferences(
+        sample_ips_dict,
+        {"esg_preference": True, "sector_restrictions": ["Tobacco", "Defense"]},
+        locale,
+    )
+    note = ips["unique_circumstances"]["screening_note"]
+    markdown = export_ips_markdown(ips, locale=locale)
+    assert note in markdown
+    assert "Tobacco, Defense" in markdown
+    rendered = []
+    original_body = _IPSPDF._body_text
+
+    def capture_body(self, text):
+        rendered.append(text)
+        return original_body(self, text)
+
+    monkeypatch.setattr(_IPSPDF, "_body_text", capture_body)
+    result = export_ips_pdf(ips, tmp_path / "preferences.pdf", locale=locale)
+    assert result.read_bytes().startswith(b"%PDF-")
+    assert note in rendered

@@ -235,3 +235,16 @@ AI 顾问/调仓建议等流式生成等待数十秒，期间只看着正文逐�
 - **复现测试**：`tests/test_advanced_portfolio.py::TestSeededReproducibility`（5 条）——同 seed 两次 resampled 最大夏普/重抽样前沿/随机组合逐位一致，不同 seed 对照不同，默认 None 回归。
 - **迁移卫生核查结论**（WSL 迁入验收）：全仓 CRLF 扫描仅 `data/sample/.gitkeep` 一处行尾污染（已还原）；`data/` 仅 `sample/.gitkeep` 被跟踪，`.gitignore`/`.gitattributes`（LF 规范化）覆盖正确；pip 双 requirements 全 pin + npm lockfile/`npm ci` 链路完整，均无需改动。
 - **顺带修复**：`web/Dockerfile` 的 `COPY --from=builder /app/public` 在仓库无 `web/public/` 目录时直接失败（潜在缺陷，CI 不跑 docker build 故从未暴露）——补 `web/public/.gitkeep` 兜底，两套镜像实测构建通过。另记录 KI-002（本地 e2e 受代理网速影响偶发 smoke 超时），已于同日修复（见该条目）。
+
+
+---
+
+## FR-003 · ESG 与行业排除的可见性与落实（[GitHub #45](https://github.com/Michelia-L/AI-WealthPilot/issues/45)）
+
+**状态**：第一阶段实现；实际筛选与基金替代待后续处理。
+
+原 issue 将偏好描述为“仅存档”，与已有代码不完全一致：顾问提示词已传入 ESG 与行业排除，IPS 已有对应结构字段和导出。缺口在推荐说明、生成输出的稳定保留，以及 Demo 的偏好适配。
+
+第一阶段在推荐配置说明、顾问报告和 IPS 中展示已记录的偏好，并明确当前优化器未应用 ESG 或行业排除、宽基 ETF 可能仍含相关行业。顾问报告在有效模型输出后补充确定性说明；IPS 在初稿和每次修订后从源画像恢复偏好与筛选说明，再沿既有流程审查或转交人工处理。Demo 同步适配偏好，IPS 的 JSON、Markdown 和 PDF 保留说明。已有报告与 IPS 不回填。
+
+后续阶段仍需确定基金与持仓数据来源、行业分类和排除规则，核验筛选型基金替代方案，并评估费用、跟踪差异与风险后再接入优化器。第一阶段不改变组合权重，也不表示排除约束已经生效。
