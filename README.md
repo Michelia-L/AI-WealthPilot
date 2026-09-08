@@ -131,6 +131,8 @@ Supporting tools include historical VaR/CVaR and Sortino metrics, monthly-rebala
 
 For out-of-sample research, the separate [walk-forward evaluator](validation/portfolio/README.md) refits strategies using only data through each decision date and compares their next-period returns with equal-weight, static and inverse-volatility baselines. It accepts supplied daily returns and records weights, failures, metrics and configuration; it is not integrated into the UI.
 
+[Robustness analysis](validation/portfolio/ROBUSTNESS.md) adds drift-aware turnover, configurable transaction-cost scenarios, weight stability and controlled expected-return, covariance and lookback comparisons. Results retain gross/net metrics and separate rankings with explicit assumptions.
+
 ## Model assumptions and limitations
 
 | Component | Current boundary |
