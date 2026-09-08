@@ -23,7 +23,7 @@ def weight_distance(left: dict[str, float], right: dict[str, float]) -> float:
             0.5
             * sum(
                 abs(left.get(a, 0) - right.get(a, 0))
-                for a in left.keys() | right.keys()
+                for a in sorted(left.keys() | right.keys())
             )
         ),
     )
