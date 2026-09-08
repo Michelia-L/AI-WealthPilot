@@ -52,7 +52,7 @@ jobs:
       - name: Run test suite
         # Gate at 87%: measured 92% on the pinned dependency set (2026-08),
         # minus 5pp headroom so routine changes don't trip the gate.
-        run: python -m pytest -q --cov=src --cov=api --cov-report=term-missing --cov-report=xml --cov-fail-under=87
+        run: python -m pytest -q --cov=src --cov=api --cov=validation --cov-report=term-missing --cov-report=xml --cov-fail-under=87
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v7
