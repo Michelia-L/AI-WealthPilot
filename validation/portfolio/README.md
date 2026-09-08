@@ -11,6 +11,10 @@ current CME estimates, LLM outputs, or a current risk-free rate. It does not
 establish that any optimizer is superior, and synthetic results are correctness
 examples rather than historical performance evidence.
 
+The [robustness and cost tools](ROBUSTNESS.md) post-process saved runs for
+drift-aware turnover, configurable transaction costs and weight stability, and
+reuse this evaluator for expected-return, covariance and window sensitivity.
+
 ## Runnable offline example
 
 Run from the repository root with the project's Python dependencies installed:
@@ -150,7 +154,8 @@ skips). It is `null` when no count is reported, such as an unhandled allocation
 exception or a custom allocator using the default. Custom allocators can set
 `Allocation.estimation_observations` to report an integer or per-asset counts.
 Validation format 1.1 replaces the ambiguous `training_observations` field with
-these separate counts.
+these separate counts. Format 1.2 also records `ending_weights` after a successful
+holding period with positive terminal wealth, enabling drift-aware turnover.
 
 Failures produce unknown returns, **not cash returns, previous weights, or a
 fallback optimizer**. Later local window returns remain available, but cumulative
@@ -175,8 +180,9 @@ failure, and weights survive successful allocation even if valuation fails.
 | `resampled_mvo` | `PortfolioOptimizer.resampled_maximize_sharpe`; optional positive `n_simulations` |
 
 All built-in production adapters use the selected covariance estimator (`sample`,
-`ledoit-wolf`, or `oas`), historical mean returns, and the configured constant
-annual risk-free rate. Baselines do not use a covariance estimator. v1 supports
+`ledoit-wolf`, or `oas`), historical mean returns (with optional explicit annual
+`StrategySpec.expected_return_shifts` for return-dependent sensitivity scenarios),
+and the configured constant annual risk-free rate. Baselines do not use a covariance estimator. v1 supports
 fully invested long-only portfolios; unsupported constraints and estimators are
 rejected. It does not load today's CME, views or market capitalizations into
 historical optimizations. Black-Litterman needs an adapter with historical view
@@ -233,9 +239,10 @@ unchanged.
 
 The engine prevents estimator access to future rows; it cannot repair a
 survivorship-biased universe, revised historical data, missing delisting returns,
-or other errors in the supplied snapshot. Weight history is retained for later
-turnover and cost analysis. Transaction costs, robustness grids, regimes, CME
-vintages, retirement validation and UI integration are outside this module.
+or other errors in the supplied snapshot. Turnover, first-order cost scenarios
+and one-factor sensitivity experiments are available in the separate
+[robustness tools](ROBUSTNESS.md). Regimes, CME vintages, retirement validation
+and UI integration are outside this module.
 
 Run the deterministic tests with:
 

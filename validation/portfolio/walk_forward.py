@@ -20,7 +20,7 @@ from .strategies import (
     allocation_error_reason,
 )
 
-VALIDATION_VERSION = "1.1"
+VALIDATION_VERSION = "1.2"
 
 
 @dataclass
@@ -89,6 +89,10 @@ class WalkForwardConfig:
             raise ValueError("risk_free_rate must be finite and greater than -1")
         if type(self.random_seed) is not int or self.random_seed < 0:
             raise ValueError("random_seed must be a nonnegative integer")
+        if self.strategy.expected_return_shifts.keys() - set(self.universe):
+            raise ValueError(
+                "Expected-return shift assets must belong to the configured universe"
+            )
 
 
 def _json_safe(value):
@@ -238,6 +242,7 @@ def evaluate(
             "expected_return_method": config.expected_return_method,
             "covariance_method": config.covariance_method,
             "weights": {},
+            "ending_weights": None,
             "diagnostics": {},
             "allocation_status": "not_attempted",
             "status": "skipped",
@@ -308,6 +313,12 @@ def evaluate(
                         oos.loc[dates] = daily
                         record["status"] = "ok"
                         record["realized_return"] = float(wealth.iloc[-1] - 1)
+                        if wealth.iloc[-1] > 0:
+                            record["ending_weights"] = (
+                                asset_growth.iloc[-1]
+                                * pd.Series(active)
+                                / wealth.iloc[-1]
+                            ).to_dict()
         as_of += pd.offsets.MonthEnd(config.rebalance_frequency)
 
     # An unknown period invalidates subsequent cumulative NAV; later local

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Protocol
 import numpy as np
 import pandas as pd
 
+from src.config import TRADING_DAYS_PER_YEAR
 from src.portfolio.optimizer import PortfolioOptimizer
 
 if TYPE_CHECKING:
@@ -72,12 +73,32 @@ METHODS = {
 }
 
 
+def supports_expected_return_shifts(strategy: "StrategySpec") -> bool:
+    return strategy.name in {"mvo", "resampled_mvo"} or (
+        strategy.name == "min_variance"
+        and strategy.parameters.get("target_return") is not None
+    )
+
+
 @dataclass
 class StrategySpec:
     name: str = "equal_weight"
     parameters: dict = field(default_factory=dict)
+    expected_return_shifts: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self):
+        if self.expected_return_shifts:
+            if not supports_expected_return_shifts(self):
+                raise ValueError(
+                    "Expected-return shifts require a supported return-dependent strategy"
+                )
+            if any(
+                not isinstance(asset, str) or not asset or not np.isfinite(shift)
+                for asset, shift in self.expected_return_shifts.items()
+            ):
+                raise ValueError(
+                    "Expected-return shifts require asset names and finite annual offsets"
+                )
         if self.name == "custom":
             return
         allowed = {
@@ -144,11 +165,17 @@ class StrategySpec:
                 "insufficient_joint_history", estimation_observations=len(history)
             )
 
+        expected_returns = None
+        if self.expected_return_shifts:
+            expected_returns = history.mean() * TRADING_DAYS_PER_YEAR + pd.Series(
+                self.expected_return_shifts, dtype=float
+            ).reindex(history.columns, fill_value=0.0)
         optimizer = PortfolioOptimizer(
             history,
             risk_free_rate=config.risk_free_rate,
             covariance_method=config.covariance_method,
             seed=config.random_seed,
+            expected_returns=expected_returns,
         )
         method, _ = METHODS[self.name]
         result = getattr(optimizer, method)(**self.parameters)
@@ -157,6 +184,7 @@ class StrategySpec:
             success=bool(result["success"]),
             estimation_observations=len(history),
             diagnostics={
+                "expected_returns": optimizer.mean_returns.to_dict(),
                 "condition_number": float(optimizer.condition_number),
                 "covariance_regularized": optimizer.is_regularized,
                 **{
