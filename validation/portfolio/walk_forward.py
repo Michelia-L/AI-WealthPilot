@@ -13,9 +13,14 @@ import pandas as pd
 from src.config import TRADING_DAYS_PER_YEAR
 
 from .metrics import compute_metrics
-from .strategies import AllocationError, PortfolioStrategy, StrategySpec
+from .strategies import (
+    AllocationError,
+    PortfolioStrategy,
+    StrategySpec,
+    allocation_error_reason,
+)
 
-VALIDATION_VERSION = "1.0"
+VALIDATION_VERSION = "1.1"
 
 
 @dataclass
@@ -159,10 +164,9 @@ def _history_at(data, as_of, lower, config):
         for asset in config.universe
         if asset not in eligible
     }
-    # All estimators get the same complete-case sample; no imputation, backfill,
-    # or pairwise covariance matrices that may not be positive semidefinite.
-    clean = window[eligible].where(valid[eligible]).dropna()
-    return clean, eligible, excluded
+    # Keep the whole window and mask invalid values. Fitting sample selection
+    # belongs to the strategy; baselines need not estimate joint covariance.
+    return window[eligible].where(valid[eligible]), eligible, excluded
 
 
 def _weights_valid(weights, eligible):
@@ -184,7 +188,8 @@ def evaluate(
 ) -> ValidationRun:
     """Refit at each month end and buy-and-hold through the next window.
 
-    Custom allocators receive a private copy of only eligible historical rows.
+    Custom allocators receive a private copy of the historical window restricted
+    to eligible assets. Missing/invalid observations are NaN, with dates retained.
     They must not fetch current auxiliary inputs or access future data through
     external state. Supply a data snapshot containing the full desired calendar;
     absent dates cannot be inferred from a returns-only input.
@@ -222,7 +227,8 @@ def evaluate(
             "training_window_start": lower + pd.Timedelta(days=1),
             "training_start": history.index.min() if len(history) else None,
             "training_end": history.index.max() if len(history) else None,
-            "training_observations": len(history),
+            "training_window_observations": len(history),
+            "estimation_observations": None,
             "holding_start": as_of + pd.Timedelta(days=1),
             "holding_end": holding_end,
             "holding_observations": len(dates),
@@ -239,14 +245,17 @@ def evaluate(
             "realized_return": None,
         }
         records.append(record)
-        if not eligible or len(history) < config.min_observations:
-            record["reason"] = "insufficient_joint_history"
+        if not eligible:
+            record["reason"] = "no_eligible_assets"
         else:
             try:
                 allocation = allocator.allocate(
                     history.copy(deep=True), as_of, deepcopy(config)
                 )
                 record["diagnostics"] = deepcopy(allocation.diagnostics)
+                record["estimation_observations"] = deepcopy(
+                    allocation.estimation_observations
+                )
                 if not allocation.success:
                     raise AllocationError("optimizer_unsuccessful")
                 if not _weights_valid(allocation.weights, eligible):
@@ -259,10 +268,17 @@ def evaluate(
                 # Do not serialize arbitrary exception messages: a custom
                 # strategy/provider could embed credentials or profile data.
                 record["reason"] = (
-                    str(exc)
+                    allocation_error_reason(exc)
                     if isinstance(exc, AllocationError)
                     else "allocation_exception"
                 )
+                if isinstance(exc, AllocationError):
+                    count = exc.estimation_observations
+                    if type(count) is int and count >= 0:
+                        record["estimation_observations"] = count
+                    if record["reason"] == "insufficient_joint_history":
+                        record["status"] = "skipped"
+                        record["allocation_status"] = "not_attempted"
                 record["diagnostics"]["exception_type"] = type(exc).__name__
 
             if record["allocation_status"] == "ok":
@@ -327,7 +343,7 @@ def evaluate(
         "data_end": data.index.max(),
         "annualization_days": TRADING_DAYS_PER_YEAR,
         "holding_policy": "buy_and_hold; rebalance to target at each decision",
-        "missing_data_policy": "complete_case_training; unknown holding window on missing active returns",
+        "missing_data_policy": "point_in_time_eligibility; strategy_specific_estimation; unknown holding window on missing active returns",
         "failure_policy": "unknown returns; cumulative NAV remains unknown after a gap",
         "versions": {
             name: version(name) for name in ("numpy", "pandas", "scipy", "scikit-learn")

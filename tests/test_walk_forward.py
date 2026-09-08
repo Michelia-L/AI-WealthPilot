@@ -124,7 +124,7 @@ def test_exact_rolling_windows_and_custom_allocator_isolation(daily, config):
     assert len(seen) == 3
     for record, (as_of, dates) in zip(run.rebalances, seen, strict=True):
         assert record["training_end"] <= as_of < record["holding_start"]
-        assert record["training_observations"] == len(dates)
+        assert record["training_window_observations"] == len(dates)
     assert run.returns.index.is_unique
     pd.testing.assert_series_equal(
         run.returns,
@@ -149,7 +149,7 @@ def test_expanding_windows_and_quarterly_holding(daily, config):
         pd.to_datetime(["2020-03-31", "2020-06-30", "2020-09-30"])
     )
     assert len({r["training_start"] for r in run.rebalances}) == 1
-    counts = [r["training_observations"] for r in run.rebalances]
+    counts = [r["training_window_observations"] for r in run.rebalances]
     assert counts[0] < counts[1] < counts[2]
     assert run.metrics["complete"]
 
@@ -197,15 +197,19 @@ def test_sparse_and_mixed_calendar_training(daily, config):
     daily.loc["2020-01-01":"2020-03-20", "GLD"] = np.nan
     # One missing training return gets removed from the common estimator sample.
     daily.loc["2020-03-25", "AGG"] = np.nan
-    run = evaluate(daily, replace(config, min_observations=2))
+    run = evaluate(
+        daily,
+        replace(config, min_observations=2, strategy=StrategySpec("min_variance")),
+    )
     first = run.rebalances[0]
     assert first["excluded_assets"] == {"GLD": "sparse_history"}
-    assert (
-        first["training_observations"] == len(daily.loc["2020-01-01":"2020-03-31"]) - 1
+    assert first["training_window_observations"] == len(
+        daily.loc["2020-01-01":"2020-03-31"]
     )
+    assert first["estimation_observations"] == first["training_window_observations"] - 1
 
 
-def test_insufficient_joint_history_skips_without_optimizer(daily, config, monkeypatch):
+def test_no_eligible_assets_skips_without_optimizer(daily, config, monkeypatch):
     def forbidden(*args, **kwargs):
         pytest.fail("Optimizer called with insufficient history")
 
@@ -215,7 +219,7 @@ def test_insufficient_joint_history_skips_without_optimizer(daily, config, monke
     )
     assert run.metrics["skipped_period_count"] == 3
     assert run.metrics["allocation_success_count"] == 0
-    assert all(r["reason"] == "insufficient_joint_history" for r in run.rebalances)
+    assert all(r["reason"] == "no_eligible_assets" for r in run.rebalances)
     assert run.returns.isna().all()
     assert run.metrics["total_return"] is None
 
@@ -338,9 +342,10 @@ def test_nonfinite_compounded_wealth_is_an_explicit_failure(daily, config):
     ],
 )
 def test_adapter_matches_production_optimizer(daily, config, name, method):
+    daily.loc["2020-03-25", "AGG"] = np.nan
     config = replace(config, strategy=StrategySpec(name))
     run = evaluate(daily, config)
-    history = daily.loc["2020-01-01":"2020-03-31"]
+    history = daily.loc["2020-01-01":"2020-03-31"].dropna()
     production = PortfolioOptimizer(
         history,
         risk_free_rate=config.risk_free_rate,
@@ -349,6 +354,155 @@ def test_adapter_matches_production_optimizer(daily, config, name, method):
     )
     expected = getattr(production, method)()
     assert run.rebalances[0]["weights"] == expected["weights"]
+    assert run.rebalances[0]["estimation_observations"] == len(history)
+
+
+@pytest.fixture
+def staggered_history():
+    training_dates = pd.bdate_range("2020-01-01", periods=260)
+    dates = training_dates.append(pd.DatetimeIndex(["2021-01-04"]))
+    rng = np.random.default_rng(60)
+    data = pd.DataFrame(
+        rng.normal(0.001, 0.01, (len(dates), 3)),
+        index=dates,
+        columns=["SPY", "AGG", "GLD"],
+    )
+    data.iloc[:10, 0] = np.nan
+    data.iloc[10:20, 1] = np.nan
+    data.iloc[20:40, 2] = np.nan
+    config = WalkForwardConfig(
+        start_date="2020-12-31",
+        end_date="2021-01-04",
+        universe=("SPY", "AGG", "GLD"),
+        training_window=12,
+        min_observations=240,
+        min_coverage=0.9,
+    )
+    return data, config
+
+
+@pytest.mark.parametrize("name", ["equal_weight", "static", "60_40"])
+def test_baselines_do_not_require_joint_estimation_sample(staggered_history, name):
+    data, config = staggered_history
+    params = {"weights": {"SPY": 0.6, "AGG": 0.4}} if name == "static" else {}
+    config = replace(config, strategy=StrategySpec(name, params))
+    run = evaluate(data, config)
+    first = run.rebalances[0]
+    assert first["eligible_assets"] == list(config.universe)
+    assert first["status"] == "ok"
+    assert first["training_window_observations"] == 260
+    assert first["estimation_observations"] == 0
+    assert run.metrics["complete"]
+    if name == "equal_weight":
+        assert first["weights"] == dict.fromkeys(config.universe, 1 / 3)
+    else:
+        assert first["weights"] == {"SPY": 0.6, "AGG": 0.4}
+        without_gld = evaluate(data, replace(config, universe=("SPY", "AGG")))
+        assert without_gld.rebalances[0]["weights"] == first["weights"]
+        pd.testing.assert_series_equal(without_gld.returns, run.returns)
+
+
+def test_inverse_volatility_uses_each_assets_valid_history(staggered_history):
+    data, config = staggered_history
+    history = data.loc[: config.start_date]
+    counts = history.count().to_dict()
+    assert counts == {"SPY": 250, "AGG": 250, "GLD": 240}
+    assert len(history.dropna()) == 220
+    expected = 1 / history.std(ddof=1)
+    expected /= expected.sum()
+    run = evaluate(data, replace(config, strategy=StrategySpec("inverse_volatility")))
+    first = run.rebalances[0]
+    assert first["weights"] == pytest.approx(expected.to_dict())
+    assert first["estimation_observations"] == counts
+    assert (
+        json.loads(run.to_json())["rebalances"][0]["estimation_observations"] == counts
+    )
+    assert run.metrics["complete"]
+
+
+@pytest.mark.parametrize(
+    "name", ["min_variance", "mvo", "erc", "mean_cvar", "resampled_mvo"]
+)
+def test_optimizers_still_require_joint_sample(staggered_history, name, monkeypatch):
+    data, config = staggered_history
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Optimizer must not be constructed with insufficient joint history")
+
+    monkeypatch.setattr(PortfolioOptimizer, "__init__", forbidden)
+    run = evaluate(data, replace(config, strategy=StrategySpec(name)))
+    first = run.rebalances[0]
+    assert first["eligible_assets"] == list(config.universe)
+    assert first["reason"] == "insufficient_joint_history"
+    assert first["status"] == "skipped"
+    assert first["allocation_status"] == "not_attempted"
+    assert first["training_window_observations"] == 260
+    assert first["estimation_observations"] == 220
+    assert run.metrics["allocation_failure_count"] == 0
+    assert run.metrics["skipped_period_count"] == 1
+    assert run.returns.isna().all()
+
+
+def test_custom_history_keeps_missing_values_and_as_of_boundary(staggered_history):
+    data, config = staggered_history
+    data.iloc[0, 0] = np.inf
+    data.iloc[10, 1] = -2
+    expected = data.loc[: config.start_date].where(
+        lambda frame: np.isfinite(frame) & (frame >= -1)
+    )
+
+    class Spy:
+        def allocate(self, history, as_of, config):
+            pd.testing.assert_frame_equal(history, expected)
+            assert history.index.max() <= as_of
+            assert len(history) == 260
+            assert history.isna().any().all()
+            history.iloc[:, :] = 123
+            return Allocation({"AGG": 1})
+
+    original = data.copy()
+    config = replace(config, strategy=StrategySpec("custom"))
+    first = evaluate(data, config, Spy())
+    pd.testing.assert_frame_equal(data, original)
+    data.loc[data.index > config.start_date] = np.nan
+    altered = evaluate(data, config, Spy())
+    assert first.rebalances[0]["weights"] == altered.rebalances[0]["weights"]
+    assert first.rebalances[0]["estimation_observations"] is None
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "private-error-marker",
+        "invalid_weights: private-error-marker",
+        "",
+        "invalid_weights",
+    ],
+)
+def test_allocation_errors_only_serialize_safe_reason_codes(daily, config, message):
+    class Custom:
+        def allocate(self, history, as_of, config):
+            raise AllocationError(message)
+
+    run = evaluate(daily, replace(config, strategy=StrategySpec("custom")), Custom())
+    expected = "invalid_weights" if message == "invalid_weights" else "allocation_error"
+    assert all(r["reason"] == expected for r in run.rebalances)
+    assert run.metrics["allocation_failure_count"] == 3
+    assert "private-error-marker" not in run.to_json()
+
+
+def test_allocation_error_str_override_is_not_serialized(daily, config):
+    class CustomError(AllocationError):
+        def __str__(self):
+            return "private-error-marker"
+
+    class Custom:
+        def allocate(self, history, as_of, config):
+            raise CustomError("invalid_weights")
+
+    run = evaluate(daily, replace(config, strategy=StrategySpec("custom")), Custom())
+    assert all(r["reason"] == "invalid_weights" for r in run.rebalances)
+    assert "private-error-marker" not in run.to_json()
 
 
 @pytest.mark.parametrize(

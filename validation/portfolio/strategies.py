@@ -17,18 +17,50 @@ class Allocation:
     weights: dict[str, float]
     diagnostics: dict = field(default_factory=dict)
     success: bool = True
+    estimation_observations: int | dict[str, int] | None = None
 
 
 class PortfolioStrategy(Protocol):
     def allocate(
         self, history: pd.DataFrame, as_of: pd.Timestamp, config: "WalkForwardConfig"
     ) -> Allocation:
-        """Use only supplied history; auxiliary data must also be vintage-safe."""
+        """Choose a fitting sample from eligible history, which may contain NaNs.
+
+        All supplied dates are <= as_of; auxiliary data must also be vintage-safe.
+        """
         ...
 
 
 class AllocationError(ValueError):
-    """A stable, non-sensitive reason for a strategy that cannot allocate."""
+    """Allocation failure; only allowlisted reason codes may enter run output."""
+
+    def __init__(self, reason: str, *, estimation_observations: int | None = None):
+        super().__init__(reason)
+        self.estimation_observations = estimation_observations
+
+
+SAFE_ALLOCATION_REASONS = frozenset(
+    {
+        "custom_allocator_required",
+        "invalid_training_boundary",
+        "benchmark_assets_unavailable",
+        "invalid_or_zero_volatility",
+        "insufficient_joint_history",
+        "optimizer_unsuccessful",
+        "invalid_weights",
+    }
+)
+
+
+def allocation_error_reason(exc: AllocationError) -> str:
+    # Do not call str(exc): custom exceptions can contain arbitrary messages or
+    # override __str__. Match an exact string argument against fixed codes only.
+    reason = exc.args[0] if len(exc.args) == 1 else None
+    return (
+        reason
+        if type(reason) is str and reason in SAFE_ALLOCATION_REASONS
+        else "allocation_error"
+    )
 
 
 METHODS = {
@@ -75,7 +107,9 @@ class StrategySpec:
             raise AllocationError("invalid_training_boundary")
         assets = history.columns
         if self.name == "equal_weight":
-            return Allocation(dict.fromkeys(assets, 1.0 / len(assets)))
+            return Allocation(
+                dict.fromkeys(assets, 1.0 / len(assets)), estimation_observations=0
+            )
         if self.name in {"static", "60_40"}:
             weights = (
                 {"SPY": 0.6, "AGG": 0.4}
@@ -84,16 +118,31 @@ class StrategySpec:
             )
             if any(asset not in assets and w != 0 for asset, w in weights.items()):
                 raise AllocationError("benchmark_assets_unavailable")
-            return Allocation({asset: w for asset, w in weights.items() if w != 0})
+            return Allocation(
+                {asset: w for asset, w in weights.items() if w != 0},
+                estimation_observations=0,
+            )
         if self.name == "inverse_volatility":
-            if not np.isfinite(history).all().all():
-                raise AllocationError("invalid_or_zero_volatility")
+            # Each asset uses its own valid history; unrelated missing dates
+            # must not alter its volatility estimate.
+            history = history.where(np.isfinite(history) & (history >= -1))
             vol = history.std(ddof=1)
             if not np.isfinite(vol).all() or (vol <= 1e-12).any():
                 raise AllocationError("invalid_or_zero_volatility")
             # Scaling by the smallest vol avoids overflowing the reciprocal.
             inverse = vol.min() / vol
-            return Allocation((inverse / inverse.sum()).to_dict())
+            return Allocation(
+                (inverse / inverse.sum()).to_dict(),
+                estimation_observations=history.count().to_dict(),
+            )
+
+        # Only production optimizer adapters need a joint complete-case sample.
+        # Never substitute pairwise covariance or impute missing observations.
+        history = history.where(np.isfinite(history) & (history >= -1)).dropna()
+        if len(history) < config.min_observations:
+            raise AllocationError(
+                "insufficient_joint_history", estimation_observations=len(history)
+            )
 
         optimizer = PortfolioOptimizer(
             history,
@@ -106,6 +155,7 @@ class StrategySpec:
         return Allocation(
             weights=result["weights"],
             success=bool(result["success"]),
+            estimation_observations=len(history),
             diagnostics={
                 "condition_number": float(optimizer.condition_number),
                 "covariance_regularized": optimizer.is_regularized,

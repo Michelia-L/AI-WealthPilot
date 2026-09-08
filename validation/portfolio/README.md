@@ -112,8 +112,9 @@ at each decision. It never depends on future asset availability.
 | Asset has fewer than `min_observations` valid returns | Exclude with `insufficient_history` |
 | Asset has valid returns on less than `min_coverage` of supplied training dates | Exclude with `sparse_history` |
 | Assets enter later | Admit only once their historical count and coverage pass |
-| Mixed calendars / missing training values | Remove incomplete rows across eligible assets before fitting all strategies; no filling or pairwise covariance |
-| Fewer than `min_observations` complete rows remain | Skip the decision with `insufficient_joint_history` |
+| No eligible assets | Skip the decision with `no_eligible_assets` |
+| Mixed calendars / missing training values | Retain training dates and mask invalid values as NaN; each strategy selects its fitting sample without filling |
+| Optimizer has fewer than `min_observations` joint complete rows | Skip with `insufficient_joint_history` before constructing the production optimizer; never substitute pairwise covariance |
 | Missing, infinite or below -100% return for an active holding | Mark the entire holding window unknown, preserving the chosen weights |
 | Missing return for an asset with zero target weight | Does not affect holding valuation |
 | No holding observations | Record `no_holding_observations` |
@@ -125,10 +126,31 @@ at each decision. It never depends on future asset availability.
 
 Defaults are `min_observations=252` and `min_coverage=0.9`. A training window is a
 maximum lookback, not a requirement that the asset existed throughout all 36
-months. A shorter history is admitted when both thresholds pass; actual start,
-end and complete observation count are recorded. Tighten these thresholds for
-experiments that require more history. Static allocations use the same training
-eligibility rules as other strategies.
+months. A shorter history is admitted when both thresholds pass. Tighten these
+thresholds for experiments that require more history. Static allocations check
+individual eligibility for their nonzero constituents; unrelated assets cannot
+prevent allocation through a joint-sample requirement.
+
+After point-in-time eligibility, fitting requirements depend on the strategy:
+
+| Strategy | Fitting sample |
+| --- | --- |
+| Equal Weight | No estimation; allocate over individually eligible assets |
+| Static / 60-40 | No estimation; require only the specified nonzero constituents to be individually eligible |
+| Inverse Volatility | Estimate each asset's sample standard deviation from its own valid historical observations |
+| Production optimizer adapters | Drop incomplete rows across participating eligible assets and require at least `min_observations` joint rows |
+| Custom allocator | Receive eligible asset columns with NaNs retained; choose and validate its own fitting sample |
+
+Per-decision `training_start`, `training_end` and `training_window_observations`
+describe the supplied historical window, including dates with missing values.
+`estimation_observations` is zero for successful allocation by a baseline that
+needs no estimation, a per-asset count dictionary for inverse volatility, and
+the joint row count for optimizer results (including insufficient-joint-history
+skips). It is `null` when no count is reported, such as an unhandled allocation
+exception or a custom allocator using the default. Custom allocators can set
+`Allocation.estimation_observations` to report an integer or per-asset counts.
+Validation format 1.1 replaces the ambiguous `training_observations` field with
+these separate counts.
 
 Failures produce unknown returns, **not cash returns, previous weights, or a
 fallback optimizer**. Later local window returns remain available, but cumulative
@@ -168,7 +190,8 @@ from validation.portfolio import Allocation
 
 class MyStrategy:
     def allocate(self, history, as_of, config):
-        # history is a private, complete-case copy with dates <= as_of.
+        # history is a private copy with dates <= as_of and eligible columns.
+        # Missing/invalid returns are NaN. Choose and validate a fitting sample.
         # Reuse a production model here; auxiliary inputs must be vintage-safe.
         return Allocation(weights={history.columns[0]: 1.0}, diagnostics={})
 
@@ -181,9 +204,11 @@ The engine limits supplied history; it cannot sandbox arbitrary Python code.
 Custom allocators must not close over future data, fetch current information, or
 use hindsight-selected inputs. Serialize their parameters in `StrategySpec` and
 record their code version. Diagnostics/configuration must contain research
-parameters only, never credentials or private client data. Arbitrary exception
-messages are not copied into output; custom diagnostics remain the adapter's
-responsibility.
+parameters only, never credentials or private client data. Only fixed codes
+from `SAFE_ALLOCATION_REASONS` may be serialized from an `AllocationError`.
+Unrecognized messages become `allocation_error`, and other exceptions become
+`allocation_exception`; exception string representations are never serialized.
+Custom diagnostics and reported sample counts remain the adapter's responsibility.
 
 ## Metrics and reproducibility
 
