@@ -135,6 +135,8 @@ For out-of-sample research, the separate [walk-forward evaluator](validation/por
 
 [Risk validation](validation/portfolio/RISK_VALIDATION.md) compares decision-time forecasts with future realized risk, groups results under explicit ex-post market regimes, and integrates historical and deterministic stress scenarios with sample counts and provenance.
 
+[CME vintage validation](validation/cme/README.md) archives dated forecasts separately from the live cache, calibrates returns/volatility/correlations at explicit horizons, and evaluates saved-component blend grids with source-quality and model-version cohorts.
+
 ## Model assumptions and limitations
 
 | Component | Current boundary |

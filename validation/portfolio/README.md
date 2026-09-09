@@ -244,8 +244,8 @@ survivorship-biased universe, revised historical data, missing delisting returns
 or other errors in the supplied snapshot. Turnover, first-order cost scenarios
 and one-factor sensitivity experiments are available in the separate
 [robustness tools](ROBUSTNESS.md) and [risk validation tools](RISK_VALIDATION.md).
-CME vintages, retirement validation
-and UI integration are outside this module.
+CME forecasts have a separate [vintage validation package](../cme/README.md).
+Retirement validation and UI integration are outside this module.
 
 Run the deterministic tests with:
 
