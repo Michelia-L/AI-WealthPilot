@@ -45,6 +45,7 @@ from src.data.market_data import (
     fetch_price_history,
     fetch_risk_free_rate_detailed,
 )
+from src.portfolio.cme_blending import blend_assumption
 from src.portfolio.cme_cache import CMECacheManager
 from src.portfolio.cme_models import AssetClassCME, CMEReport
 from src.portfolio.forward_returns import fetch_forward_returns
@@ -301,9 +302,8 @@ def _compute_cme_fresh(
         # --- forward-looking expected return blending ---
         ticker_fwd = forward_data.get(ticker)
         if ticker_fwd is not None:
-            expected_return = (
-                forward_blending_omega * ticker_fwd.forward_return
-                + (1 - forward_blending_omega) * ann_return
+            expected_return = blend_assumption(
+                ann_return, ticker_fwd.forward_return, forward_blending_omega
             )
             fwd_return = ticker_fwd.forward_return
             fwd_basis = ticker_fwd.basis
@@ -316,9 +316,7 @@ def _compute_cme_fresh(
         ticker_iv = iv_data.get(ticker)
         if ticker_iv is not None:
             implied_vol = ticker_iv.implied_volatility
-            blended_vol = (
-                iv_blending_tau * implied_vol + (1 - iv_blending_tau) * ann_vol
-            )
+            blended_vol = blend_assumption(ann_vol, implied_vol, iv_blending_tau)
             iv_source_label = f"{ticker_iv.iv_index_name} ({ticker_iv.iv_index_ticker})"
             regime = _classify_vol_regime(implied_vol, ann_vol)
             logger.debug(

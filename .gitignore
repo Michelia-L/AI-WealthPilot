@@ -85,3 +85,6 @@ next-env.d.ts
 test-results/
 playwright-report/
 blob-report/
+
+# Local CME forecast archives (keep separate from synthetic fixtures)
+validation/data/cme_vintages/
