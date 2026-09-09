@@ -12,6 +12,7 @@ import pandas as pd
 
 from src.config import TRADING_DAYS_PER_YEAR
 
+from .forecasts import reporting_snapshot
 from .metrics import compute_metrics
 from .strategies import (
     AllocationError,
@@ -20,7 +21,7 @@ from .strategies import (
     allocation_error_reason,
 )
 
-VALIDATION_VERSION = "1.2"
+VALIDATION_VERSION = "1.3"
 
 
 @dataclass
@@ -243,6 +244,10 @@ def evaluate(
             "covariance_method": config.covariance_method,
             "weights": {},
             "ending_weights": None,
+            "risk_forecast": {
+                "status": "unavailable",
+                "reason": "allocation_unavailable",
+            },
             "diagnostics": {},
             "allocation_status": "not_attempted",
             "status": "skipped",
@@ -287,6 +292,17 @@ def evaluate(
                 record["diagnostics"]["exception_type"] = type(exc).__name__
 
             if record["allocation_status"] == "ok":
+                try:
+                    record["risk_forecast"] = deepcopy(
+                        allocation.risk_forecast
+                        if allocation.risk_forecast is not None
+                        else reporting_snapshot(history, record["weights"], config)
+                    )
+                except Exception:
+                    record["risk_forecast"] = {
+                        "status": "unavailable",
+                        "reason": "risk_estimation_exception",
+                    }
                 active = {k: v for k, v in record["weights"].items() if v > 0}
                 holding = data.loc[dates, list(active)]
                 if not len(dates):

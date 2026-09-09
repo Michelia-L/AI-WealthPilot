@@ -9,6 +9,8 @@ import pandas as pd
 from src.config import TRADING_DAYS_PER_YEAR
 from src.portfolio.optimizer import PortfolioOptimizer
 
+from .forecasts import risk_snapshot
+
 if TYPE_CHECKING:
     from .walk_forward import WalkForwardConfig
 
@@ -19,6 +21,7 @@ class Allocation:
     diagnostics: dict = field(default_factory=dict)
     success: bool = True
     estimation_observations: int | dict[str, int] | None = None
+    risk_forecast: dict | None = None
 
 
 class PortfolioStrategy(Protocol):
@@ -179,7 +182,22 @@ class StrategySpec:
         )
         method, _ = METHODS[self.name]
         result = getattr(optimizer, method)(**self.parameters)
+        # Snapshot reporting must not turn a valid allocation into a failure.
+        try:
+            forecast = risk_snapshot(
+                history,
+                result["weights"],
+                optimizer,
+                covariance_role="reporting_only"
+                if self.name == "mean_cvar"
+                else "decision_model",
+                confidence=self.parameters.get("beta", 0.95),
+                downside_result=result if self.name == "mean_cvar" else None,
+            )
+        except Exception:
+            forecast = {"status": "unavailable", "reason": "risk_estimation_exception"}
         return Allocation(
+            risk_forecast=forecast,
             weights=result["weights"],
             success=bool(result["success"]),
             estimation_observations=len(history),
