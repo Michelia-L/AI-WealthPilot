@@ -14,6 +14,7 @@ from typing import Optional
 import numpy as np
 
 from src.config import MONTE_CARLO_SIMULATIONS, MONTE_CARLO_YEARS
+from src.portfolio.retirement_paths import distribution_from_growth, gbm_growth
 
 
 @dataclass
@@ -79,6 +80,8 @@ class MonteCarloSimulator:
         annual_contribution: float = 0,
         annual_withdrawal: float = 0,
         goal_amount: Optional[float] = None,
+        *,
+        growth_factors: np.ndarray | None = None,
     ) -> SimulationResult:
         """Run Monte Carlo simulation with annual GBM steps.
 
@@ -90,11 +93,21 @@ class MonteCarloSimulator:
             annual_contribution: Yearly addition.
             annual_withdrawal: Yearly withdrawal.
             goal_amount: Target value for success probability.
+            growth_factors: Optional supplied annual gross returns, shape
+                (n_simulations, n_years), for offline research replay.
 
         Returns:
             SimulationResult with all paths and statistics.
         """
         n_periods = self.n_years
+        if growth_factors is not None:
+            growth_factors = np.asarray(growth_factors, dtype=float)
+            if (
+                growth_factors.shape != (self.n_simulations, n_periods)
+                or not np.isfinite(growth_factors).all()
+                or (growth_factors < 0).any()
+            ):
+                raise ValueError("invalid supplied growth factors")
         paths = np.zeros((self.n_simulations, n_periods + 1))
         paths[:, 0] = initial_value
 
@@ -102,8 +115,11 @@ class MonteCarloSimulator:
         drift = self.expected_return - 0.5 * self.volatility**2
 
         for t in range(1, n_periods + 1):
-            z = self.rng.standard_normal(self.n_simulations)
-            growth = np.exp(drift + self.volatility * z)
+            if growth_factors is None:
+                z = self.rng.standard_normal(self.n_simulations)
+                growth = np.exp(drift + self.volatility * z)
+            else:
+                growth = growth_factors[:, t - 1]
             paths[:, t] = (
                 paths[:, t - 1] * growth + annual_contribution - annual_withdrawal
             )
@@ -154,63 +170,30 @@ class MonteCarloSimulator:
                                                (prosperity rule)
 
         All operations are vectorized across paths; depleted paths keep a
-        zero balance (their WR reads as +inf, so no rule fires).
+        zero balance.
 
         References:
             - Guyton & Klinger (2006). Decision Rules for Portfolio
               Withdrawal. Journal of Financial Planning.
         """
-        # 30% reduced return/vol for the conservative retirement shift.
-        conservative_return = self.expected_return * 0.7
-        conservative_vol = self.volatility * 0.7
-        drift = conservative_return - 0.5 * conservative_vol**2
-
-        dist_paths = np.zeros((self.n_simulations, dist_years + 1))
-        dist_paths[:, 0] = terminal_values
-        rng = np.random.default_rng(seed)
-
-        if withdrawal_strategy == "guardrails":
-            # First-year withdrawal matches the fixed schedule at t=1.
-            w0 = (
-                desired_annual_income
-                * (1.0 + inflation_rate) ** accum_years
-                * (1.0 + distribution_inflation_rate)
-            )
-            with np.errstate(divide="ignore", invalid="ignore"):
-                wr0 = np.where(terminal_values > 0, w0 / terminal_values, np.inf)
-            withdrawals = np.full(self.n_simulations, w0)
-
-        for t in range(1, dist_years + 1):
-            z = rng.standard_normal(self.n_simulations)
-            growth = np.exp(drift + conservative_vol * z)
-
-            if withdrawal_strategy == "guardrails":
-                prev = dist_paths[:, t - 1]
-                tentative = withdrawals * (1.0 + distribution_inflation_rate)
-                with np.errstate(divide="ignore", invalid="ignore"):
-                    current_wr = np.where(prev > 0, tentative / prev, np.inf)
-                cut = current_wr > wr0 * (1.0 + guardrail_band)
-                boost = current_wr < wr0 * (1.0 - guardrail_band)
-                tentative = np.where(
-                    cut, tentative * (1.0 - guardrail_adjust), tentative
-                )
-                tentative = np.where(
-                    boost, tentative * (1.0 + guardrail_adjust), tentative
-                )
-                withdrawals = tentative
-                dist_paths[:, t] = np.maximum(prev * growth - tentative, 0)
-            else:
-                # Inflate withdrawal to nominal terms: the target income (in
-                # today's money) is eroded by the accumulation-phase rate
-                # until retirement, then by the distribution-phase rate.
-                inflation_factor = (1.0 + inflation_rate) ** accum_years * (
-                    1.0 + distribution_inflation_rate
-                ) ** t
-                nominal_withdrawal = desired_annual_income * inflation_factor
-                dist_paths[:, t] = dist_paths[:, t - 1] * growth - nominal_withdrawal
-                dist_paths[:, t] = np.maximum(dist_paths[:, t], 0)
-
-        return dist_paths
+        growth = gbm_growth(
+            self.expected_return * 0.7,
+            self.volatility * 0.7,
+            self.n_simulations,
+            dist_years,
+            seed,
+        )
+        return distribution_from_growth(
+            terminal_values,
+            growth,
+            desired_annual_income,
+            accum_years,
+            inflation_rate,
+            distribution_inflation_rate,
+            withdrawal_strategy,
+            guardrail_band,
+            guardrail_adjust,
+        ).paths
 
     def retirement_planning(
         self,
