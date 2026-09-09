@@ -14,6 +14,8 @@ examples rather than historical performance evidence.
 The [robustness and cost tools](ROBUSTNESS.md) post-process saved runs for
 drift-aware turnover, configurable transaction costs and weight stability, and
 reuse this evaluator for expected-return, covariance and window sensitivity.
+The [risk validation tools](RISK_VALIDATION.md) add decision-time risk snapshots,
+forecast calibration, ex-post market regimes and historical/synthetic stress.
 
 ## Runnable offline example
 
@@ -241,7 +243,8 @@ The engine prevents estimator access to future rows; it cannot repair a
 survivorship-biased universe, revised historical data, missing delisting returns,
 or other errors in the supplied snapshot. Turnover, first-order cost scenarios
 and one-factor sensitivity experiments are available in the separate
-[robustness tools](ROBUSTNESS.md). Regimes, CME vintages, retirement validation
+[robustness tools](ROBUSTNESS.md) and [risk validation tools](RISK_VALIDATION.md).
+CME vintages, retirement validation
 and UI integration are outside this module.
 
 Run the deterministic tests with:

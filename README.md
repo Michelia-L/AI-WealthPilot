@@ -133,6 +133,8 @@ For out-of-sample research, the separate [walk-forward evaluator](validation/por
 
 [Robustness analysis](validation/portfolio/ROBUSTNESS.md) adds drift-aware turnover, configurable transaction-cost scenarios, weight stability and controlled expected-return, covariance and lookback comparisons. Results retain gross/net metrics and separate rankings with explicit assumptions.
 
+[Risk validation](validation/portfolio/RISK_VALIDATION.md) compares decision-time forecasts with future realized risk, groups results under explicit ex-post market regimes, and integrates historical and deterministic stress scenarios with sample counts and provenance.
+
 ## Model assumptions and limitations
 
 | Component | Current boundary |
