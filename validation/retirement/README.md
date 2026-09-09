@@ -300,6 +300,10 @@ spending divides each year's cash by cumulative accumulation/distribution
 inflation. Shortfall is the positive difference from the original real target;
 increases do not cancel shortfalls in other years. Requested-policy reductions
 from target are also reported separately from shortages caused by exhaustion.
+Policy reductions count only years with positive wealth before that year's
+return and withdrawal, including the year of depletion if it starts funded.
+Later unfunded years contribute to spending shortfall but not policy reductions,
+even though legacy requested guardrail spending continues to adjust.
 Cut amounts measure the reduction at each trigger relative to that year's
 pre-adjustment tentative amount; cumulative cut amounts do not double-count the
 entire future effect as a new trigger. Cuts/increases are counted only while the

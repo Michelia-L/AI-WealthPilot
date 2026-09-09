@@ -72,7 +72,10 @@ def summarize(
     requested_real = trace.requested / trace.inflation_factors
     target = scenario.desired_annual_income
     shortfall = np.maximum(target - real, 0)
-    policy_reduction = np.maximum(target - requested_real, 0)
+    alive_before_year = trace.paths[:, :-1] > 0
+    policy_reduction = np.where(
+        alive_before_year, np.maximum(target - requested_real, 0), 0
+    )
     # Floor must hold in EVERY distribution year, not just on average.
     floor_met = (real >= target * scenario.spending_floor_fraction).all(axis=1)
     cut_real = trace.cut_amounts / trace.inflation_factors

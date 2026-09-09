@@ -325,6 +325,43 @@ def test_guardrail_spending_and_counts(scenario):
     assert depleted.metrics["mean_lifetime_nominal_withdrawals"] == 1
 
 
+@pytest.mark.parametrize(
+    "savings,growth,policy_reduction,delivered,cuts",
+    [
+        (1, [1, 1, 1, 1], 0, 1, 0),
+        (100, [0.2, 0, 1, 1], 1, 10, 1),
+    ],
+)
+def test_policy_reduction_excludes_post_depletion_years(
+    scenario, savings, growth, policy_reduction, delivered, cuts
+):
+    s = scenario.changed(
+        current_age=65,
+        life_expectancy=69,
+        n_simulations=1,
+        current_savings=savings,
+        desired_annual_income=10,
+        inflation_rate=0,
+        withdrawal_strategy="guardrails",
+    )
+    r = evaluate_paths(s, np.empty((1, 0)), np.array([growth]))
+    # Legacy requested spending continues to fall after depletion, but those
+    # unfunded years cannot create a policy reduction. Retain a real cut made
+    # while wealth is positive, including the year it is exhausted.
+    assert r.annual_metrics.mean_requested_nominal_spending.iloc[-1] < 10
+    assert r.path_metrics.policy_real_reduction_from_target.iloc[0] == pytest.approx(
+        policy_reduction
+    )
+    assert r.metrics["mean_policy_real_reduction_from_target"] == pytest.approx(
+        policy_reduction
+    )
+    assert r.metrics["mean_lifetime_real_shortfall"] == 40 - delivered
+    assert r.metrics["mean_lifetime_nominal_withdrawals"] == delivered
+    assert r.metrics["mean_spending_cuts"] == cuts
+    assert r.metrics["survival_rate"] == 0
+    assert r.metrics["median_terminal_wealth"] == 0
+
+
 def test_se_and_repeated_seed_convergence(scenario):
     assert monte_carlo_se(0.868, 10000) == pytest.approx(np.sqrt(0.868 * 0.132 / 10000))
     assert monte_carlo_se(0, 10) == monte_carlo_se(1, 10) == 0
