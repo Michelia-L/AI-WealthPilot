@@ -90,11 +90,15 @@ def test_future_sentinel_and_availability_cannot_change_earlier_weights(
     params = {"n_simulations": 8} if name == "resampled_mvo" else {}
     config = replace(config, strategy=StrategySpec(name, params))
     original = evaluate(daily, config)
+    first = original.rebalances[0]
+    assert first["allocation_status"] == "ok"
+    # GLD may have exactly zero weight at an optimizer boundary. Remove data
+    # for the largest holding so this exercises missing active-asset returns.
+    missing_asset = max(first["weights"], key=first["weights"].get)
     sentinel = daily.copy()
     sentinel.loc[sentinel.index > "2020-03-31", "SPY"] = 10000
-    sentinel.loc[sentinel.index > "2020-03-31", "GLD"] = np.nan
+    sentinel.loc[sentinel.index > "2020-03-31", missing_asset] = np.nan
     altered = evaluate(sentinel, config)
-    first = original.rebalances[0]
     other = altered.rebalances[0]
     assert other["weights"] == first["weights"]
     assert other["eligible_assets"] == first["eligible_assets"]
