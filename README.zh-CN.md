@@ -137,6 +137,8 @@ IPS 中的战略资产配置（SAA）由 LLM 提出，再用可用 CME 输入检
 
 [CME vintage 验证](validation/cme/README.md)可独立归档带日期与来源的预测，按明确期限校准收益、波动率和相关性，并用已保存的分量比较混合参数，区分数据质量与模型版本。
 
+[退休模型验证](validation/retirement/README.md)使用离线输入比较现有 GBM 与 IID／区块 bootstrap，衡量收益顺序风险及支出取舍，并支持假设敏感性、压力情景和 Monte Carlo 收敛实验。
+
 ## 模型假设与限制
 
 | 模块 | 当前边界 |

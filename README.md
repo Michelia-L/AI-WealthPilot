@@ -137,6 +137,8 @@ For out-of-sample research, the separate [walk-forward evaluator](validation/por
 
 [CME vintage validation](validation/cme/README.md) archives dated forecasts separately from the live cache, calibrates returns/volatility/correlations at explicit horizons, and evaluates saved-component blend grids with source-quality and model-version cohorts.
 
+[Retirement validation](validation/retirement/README.md) compares the existing GBM engine with IID/block bootstrap, measures sequence risk and spending tradeoffs, and runs assumption, stress and Monte Carlo convergence experiments using supplied offline inputs.
+
 ## Model assumptions and limitations
 
 | Component | Current boundary |
