@@ -190,6 +190,8 @@ def _slim_monitoring(monitoring: dict) -> dict:
     return {
         "saved_at": monitoring.get("saved_at"),
         "as_of": monitoring.get("as_of"),
+        "valuation_source": monitoring.get("valuation_source", "buy_and_hold"),
+        "valuation_as_of": monitoring.get("valuation_as_of"),
         "cme_cache_status": monitoring.get("cme_cache_status"),
         "portfolio": monitoring.get("portfolio"),
         "drifted_portfolio": monitoring.get("drifted_portfolio"),

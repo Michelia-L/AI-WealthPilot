@@ -18,21 +18,32 @@ class TTLCache:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._entries: dict[str, tuple[float, T]] = {}
+        self._entries: dict[str, tuple[float, T, object]] = {}
 
-    def get_or_set(self, key: str, ttl_seconds: float, factory: Callable[[], T]) -> T:
-        """Return the cached value if fresh, otherwise compute and cache it."""
+    def get_or_set(
+        self,
+        key: str,
+        ttl_seconds: float,
+        factory: Callable[[], T],
+        *,
+        version: object = None,
+    ) -> T:
+        """Reuse a fresh version, replacing it in place when the version changes."""
         now = time.monotonic()
         with self._lock:
-            entry = self._entries.get(key)
-            if entry is not None and now - entry[0] < ttl_seconds:
-                return entry[1]
+            # Retired date/revision keys must not survive forever without reads.
+            for expired in [k for k, entry in self._entries.items() if now >= entry[0]]:
+                del self._entries[expired]
+            observed = self._entries.get(key)
+            if observed is not None and observed[2] == version:
+                return observed[1]
 
-        # Compute outside the lock so slow fetches don't block readers
         value = factory()
 
         with self._lock:
-            self._entries[key] = (now, value)
+            # A slow older calculation must not overwrite a newer completed one.
+            if self._entries.get(key) is observed:
+                self._entries[key] = (time.monotonic() + ttl_seconds, value, version)
         return value
 
     def invalidate(self, key: str) -> None:

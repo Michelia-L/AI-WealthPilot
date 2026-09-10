@@ -41,6 +41,7 @@ from src.config import (
     IPS_ASSET_CLASS_TICKERS,
 )
 from src.data.market_data import fetch_price_history
+from src.portfolio.actual_holdings import HOLDINGS_TIMEZONE, apply_actual_holdings
 from src.portfolio.cme_engine import compute_cme
 from src.portfolio.cme_models import AssetClassCME
 
@@ -61,6 +62,14 @@ _SAA_KEYWORDS: list[tuple[str, str]] = [
 # rather than in api/i18n.py because src/ must not import from the api/
 # transport shell.
 _NOTE_STRINGS: dict[str, dict[str, str]] = {
+    "actual_snapshot": {
+        "zh": "漂移使用 {as_of} 的人工持仓估值快照；未录入资产按零持仓处理。市值变化可能包含现金流，不代表投资收益。行情代理仅用于 CME 风险指标和币种敞口估算。",
+        "en": "Drift uses the manually valued holdings snapshot dated {as_of}; omitted assets have zero holdings. Value changes may include cash flows and are not investment returns. Proxies only inform CME risk metrics and currency exposure estimates.",
+    },
+    "ambiguous_assets": {
+        "zh": "IPS 中存在重复的资产类别名称，请先修正配置再录入持仓。",
+        "en": "The IPS has duplicate asset class names; correct the allocation before recording holdings.",
+    },
     "missing_saa_monitoring": {
         "zh": "IPS 文档缺少战略性资产配置（strategic_allocation），无法执行组合监控。",
         "en": "The IPS document has no strategic asset allocation (strategic_allocation); portfolio monitoring cannot run.",
@@ -179,13 +188,16 @@ def _list_sep(locale: str) -> str:
 # Public Entry Point
 
 
-def compute_monitoring(document_id: str, locale: str = "zh") -> dict:
+def compute_monitoring(
+    document_id: str, locale: str = "zh", snapshot: dict | None = None
+) -> dict:
     """
     Compute drift monitoring and rebalancing diagnostics for a stored IPS.
 
     Args:
         document_id: IPS document stem (filename without .json).
         locale: Language of the human-readable ``notes`` ("zh" / "en").
+        snapshot: Validated complete valuation, supplied by the persistence layer.
 
     Returns:
         Dict matching the api.schemas.MonitoringResponse contract.
@@ -209,6 +221,9 @@ def compute_monitoring(document_id: str, locale: str = "zh") -> dict:
     holdings = _build_holdings(saa, notes, locale)
     _normalize_weights(holdings, notes, locale)
 
+    if snapshot is not None:
+        _include_actual_assets(holdings, snapshot, notes, locale)
+
     # CME alignment (use the engine's own cache; never force a refresh here)
     report, cache_status = compute_cme()
     cme_by_ticker = {ac.ticker: ac for ac in report.asset_classes}
@@ -231,11 +246,15 @@ def compute_monitoring(document_id: str, locale: str = "zh") -> dict:
         locale,
     )
 
-    # Market-value drift since the IPS was saved
+    # Actual snapshot weights, or buy-and-hold drift since the IPS was saved
     saved_at = meta.get("saved_at", "") or ""
-    saved_date = _parse_saved_date(saved_at, notes, locale)
-    period_returns = _compute_period_returns(holdings, saved_date, notes, locale)
-    _apply_drift(holdings, period_returns, notes, locale)
+    if snapshot is None:
+        saved_date = _parse_saved_date(saved_at, notes, locale)
+        period_returns = _compute_period_returns(holdings, saved_date, notes, locale)
+        _apply_drift(holdings, period_returns, notes, locale)
+    else:
+        apply_actual_holdings(holdings, snapshot)
+        notes.append(_t("actual_snapshot", locale, as_of=snapshot["as_of"]))
     _apply_bands(holdings)
 
     if any(h["drifted_weight"] is None for h in holdings):
@@ -274,6 +293,10 @@ def compute_monitoring(document_id: str, locale: str = "zh") -> dict:
         "client_name": meta.get("client_name") or ips.get("client_name", "Unknown"),
         "saved_at": saved_at,
         "as_of": datetime.now().date().isoformat(),
+        "valuation_source": "actual_holdings" if snapshot else "buy_and_hold",
+        "valuation_as_of": snapshot["as_of"] if snapshot else None,
+        "snapshot_id": snapshot["id"] if snapshot else None,
+        "total_market_value": snapshot["total_market_value"] if snapshot else None,
         "cme_cache_status": cache_status,
         "portfolio": portfolio,
         "drifted_portfolio": drifted_portfolio,
@@ -282,6 +305,46 @@ def compute_monitoring(document_id: str, locale: str = "zh") -> dict:
         "currency_exposure": currency_exposure,
         "notes": notes,
     }
+
+
+def resolve_holdings_context(document_id: str, locale: str = "zh") -> dict:
+    """List entry options without fetching CME or prices, so recording works offline."""
+    filepath = _find_ips_file(document_id)
+    if filepath is None:
+        raise KeyError(document_id)
+    ips = ips_storage.load_ips(filepath).get("ips", {})
+    saa = ips.get("investment_guidelines", {}).get("strategic_allocation") or []
+    if not saa:
+        raise ValueError(_t("missing_saa_monitoring", locale))
+    holdings = _build_holdings(saa, [], locale)
+    _normalize_weights(holdings, [], locale)
+    assets = [{"asset_class": h["name"], "key": h["key"]} for h in holdings]
+    present = {a["key"] for a in assets}
+    for key, info in IPS_ASSET_CLASS_TICKERS.items():
+        if key not in present:
+            assets.append({"asset_class": info["name"], "key": key})
+    if len({a["asset_class"] for a in assets}) != len(assets):
+        raise ValueError(_t("ambiguous_assets", locale))
+    return {
+        "document_id": document_id,
+        "base_currency": (ips.get("currency_policy") or {}).get("base_currency")
+        or BASE_CURRENCY,
+        "assets": assets,
+        "valuation_timezone": HOLDINGS_TIMEZONE,
+    }
+
+
+def _include_actual_assets(
+    holdings: list[dict], snapshot: dict, notes: list[str], locale: str
+) -> None:
+    """Off-policy positions have zero targets/bands and must remain in the denominator."""
+    present = {h["name"] for h in holdings}
+    extra = [
+        {"asset_class": row["asset_class"]}
+        for row in snapshot["holdings"]
+        if row["asset_class"] not in present and row["market_value"] > 0
+    ]
+    holdings.extend(_build_holdings(extra, notes, locale))
 
 
 def resolve_saa_weights(document_id: str, locale: str = "zh") -> dict:
@@ -694,7 +757,9 @@ def _apply_bands(holdings: list[dict]) -> None:
 # Fleet-Wide Status Aggregation (P17 — overview alert lamp)
 
 
-def compute_fleet_status(locale: str = "zh") -> dict:
+def compute_fleet_status(
+    locale: str = "zh", snapshots: dict[str, dict] | None = None
+) -> dict:
     """
     Lightweight drift-band check across all stored IPS documents.
 
@@ -720,18 +785,24 @@ def compute_fleet_status(locale: str = "zh") -> dict:
     """
     today = datetime.now().date()
     entries = _parse_fleet_documents(locale)
+    for entry in entries:
+        entry["snapshot"] = (snapshots or {}).get(entry["document_id"])
 
     # One shared fetch for the union of tickers, sized for the oldest SAA.
     tickers = sorted(
         {
             h["ticker"]
             for e in entries
-            if e["holdings"]
+            if e["holdings"] and e["snapshot"] is None
             for h in e["holdings"]
             if h["ticker"]
         }
     )
-    saved_dates = [e["saved_date"] for e in entries if e["saved_date"] is not None]
+    saved_dates = [
+        e["saved_date"]
+        for e in entries
+        if e["saved_date"] is not None and e["snapshot"] is None
+    ]
 
     prices: Optional[pd.DataFrame] = None
     fetch_note: Optional[str] = None
@@ -846,7 +917,14 @@ def _fleet_item(
 
     holdings = entry["holdings"]
     saved_date = entry["saved_date"]
-    if prices is not None and saved_date is not None:
+    snapshot = entry.get("snapshot")
+    if snapshot is not None:
+        _include_actual_assets(holdings, snapshot, entry["notes"], locale)
+        apply_actual_holdings(holdings, snapshot)
+        item["valuation_source"] = "actual_holdings"
+        item["valuation_as_of"] = snapshot["as_of"]
+        item["note"] = _t("actual_snapshot", locale, as_of=snapshot["as_of"])
+    elif prices is not None and saved_date is not None:
         cutoff = pd.Timestamp(saved_date)
         period_returns: dict[str, Optional[float]] = {}
         for t in sorted({h["ticker"] for h in holdings if h["ticker"]}):
@@ -867,6 +945,7 @@ def _fleet_item(
                 )
             period_returns[t] = ret
         _apply_drift(holdings, period_returns, entry["notes"], locale)
+    if snapshot is not None or (prices is not None and saved_date is not None):
         _apply_bands(holdings)
 
         item["out_of_band"] = sum(
@@ -1066,4 +1145,5 @@ def _serialize_holding(h: dict) -> dict:
             float(h["period_return"]) if h["period_return"] is not None else None
         ),
         "metrics": metrics,
+        "market_value": h.get("market_value"),
     }

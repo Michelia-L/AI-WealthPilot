@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import { getIpsDocuments, getMonitoring, type MonitoringHolding } from "@/lib/api";
+import { getIpsDocuments, getMonitoring, getHoldingSnapshots, type MonitoringHolding } from "@/lib/api";
 import { fmtLocal, fmtPct } from "@/lib/format";
 import { cx } from "@/lib/cx";
 import { Suspense } from "react";
 import { ApiOffline } from "@/components/api-offline";
 import BacktestSection from "@/components/backtest-section";
+import HoldingsWorkspace from "@/components/holdings-workspace";
 import MonitoringSelector from "@/components/monitoring-selector";
 import RebalanceAdvice from "@/components/rebalance-advice";
 import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
@@ -131,7 +132,9 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
     );
   }
 
-  const data = docId ? await getMonitoring(docId, locale) : null;
+  const [data, history] = docId
+    ? await Promise.all([getMonitoring(docId, locale), getHoldingSnapshots(docId, locale)])
+    : [null, null];
 
   const bandLabels: Record<string, string> = {
     within: t.monitoring.bandWithin,
@@ -149,6 +152,10 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
       />
 
       <MonitoringSelector documents={documents} selected={docId} />
+
+      {docId && (history
+        ? <HoldingsWorkspace key={docId} history={history} />
+        : <ApiOffline resource={t.monitoring.holdings.resource} />)}
 
       {!docId ? (
         <Panel pad={false}>
@@ -172,6 +179,11 @@ export default async function MonitoringPage({ searchParams }: PageProps) {
             <span className="tnum">{t.monitoring.asOf(fmtLocal(data.as_of))}</span>
             <span>·</span>
             <span>{t.monitoring.cmeCache(data.cme_cache_status)}</span>
+            <Badge tone={data.valuation_source === "actual_holdings" ? "jade" : "mist"}>
+              {data.valuation_source === "actual_holdings"
+                ? `${t.monitoring.holdings.actual} · ${data.valuation_as_of}`
+                : t.monitoring.holdings.simulated}
+            </Badge>
             {(() => {
               const optimizerKeys = [
                 ...new Set(
