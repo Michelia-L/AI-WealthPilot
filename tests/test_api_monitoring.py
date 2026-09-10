@@ -11,7 +11,7 @@ daily TTL cache).
 """
 
 import json
-from datetime import date, datetime
+from datetime import datetime
 
 import pandas as pd
 import pytest
@@ -693,18 +693,11 @@ def test_currency_exposure_unknown_drift_degrades(
 
 
 @pytest.fixture(autouse=True)
-def _reset_fleet_status_cache():
-    """The module-level fleet TTLCache must not leak results across tests."""
-    # P22: the cache key carries the request locale (zh via the client
-    # fixture, en for headerless/explicit-en requests).
-    keys = [
-        f"fleet-status:{date.today().isoformat()}:{locale}" for locale in ("zh", "en")
-    ]
-    for key in keys:
-        monitoring_router._fleet_status_cache.invalidate(key)
-    yield
-    for key in keys:
-        monitoring_router._fleet_status_cache.invalidate(key)
+def _reset_fleet_status_cache(monkeypatch):
+    """Isolate every date/locale/snapshot revision without coupling to cache keys."""
+    from api.cache import TTLCache
+
+    monkeypatch.setattr(monitoring_router, "_fleet_status_cache", TTLCache())
 
 
 def test_fleet_status_full_chain(client, ips_dir, monkeypatch):
@@ -906,3 +899,265 @@ def test_fleet_status_route_not_shadowed_by_document_id(client):
     body = resp.json()
     assert body["items"] == []
     assert body["summary"] == {"total": 0, "breach": 0, "ok": 0, "unknown": 0}
+
+
+# Actual holdings (#47): complete append-only valuations, no broker or price input.
+@pytest.fixture
+def actual_doc(ips_dir, stub_cme, monkeypatch):
+    _write_ips_doc(
+        ips_dir,
+        "ips_actual",
+        [
+            _saa_entry("固定收益", 0.6, 0.5, 0.7),
+            _saa_entry("现金等价物", 0.4, 0.3, 0.5),
+        ],
+        saved_at="",
+    )
+    monkeypatch.setattr(
+        "src.portfolio.monitoring.fetch_price_history",
+        lambda **kw: pytest.fail("actual holdings must not fetch proxy prices"),
+    )
+    return "/api/monitoring/ips_actual"
+
+
+def _actual_payload(as_of="2026-06-10", amount=800):
+    return {
+        "as_of": as_of,
+        "base_currency": "CNY",
+        "holdings": [
+            {
+                "asset_class": "固定收益",
+                "market_value": amount,
+                "cost_basis": 700,
+                "cost_basis_date": "2026-01-01",
+            },
+            {"asset_class": "现金等价物", "quantity": 200, "unit_price": 1},
+        ],
+    }
+
+
+def test_actual_holdings_drift_history_and_fleet(client, actual_doc):
+    assert client.get(actual_doc + "/holdings").json()["snapshots"] == []
+    first = client.post(actual_doc + "/holdings", json=_actual_payload())
+    assert first.status_code == 201, first.text
+    first = first.json()
+    assert first["total_market_value"] == 1000
+    data = client.get(actual_doc).json()
+    assert data["valuation_source"] == "actual_holdings"
+    assert data["valuation_as_of"] == "2026-06-10"
+    assert data["snapshot_id"] == first["id"]
+    assert data["total_market_value"] == 1000
+    bonds, cash = data["holdings"]
+    assert bonds["drifted_weight"] == pytest.approx(0.8)
+    assert bonds["drift_pp"] == pytest.approx(0.2)
+    assert bonds["period_return"] is None
+    assert bonds["market_value"] == 800
+    assert cash["drifted_weight"] == pytest.approx(0.2)
+    assert data["rebalance"]["status"] == "needed"
+    fleet = client.get("/api/monitoring/status").json()
+    assert fleet["items"][0]["status"] == "breach"
+    assert fleet["items"][0]["valuation_source"] == "actual_holdings"
+    assert fleet["price_as_of"] is None
+
+    second = client.post(
+        actual_doc + "/holdings", json=_actual_payload("2026-06-11", 300)
+    ).json()
+    # No refresh flag: the snapshot revision must invalidate both locale caches.
+    for locale in ("en", "zh"):
+        fleet = client.get(
+            "/api/monitoring/status", headers={"X-Locale": locale}
+        ).json()
+        assert fleet["items"][0]["status"] == "ok"
+    history = client.get(actual_doc + "/holdings").json()["snapshots"]
+    assert [s["id"] for s in history] == [second["id"], first["id"]]
+    assert history[0]["previous_snapshot_id"] == first["id"]
+    assert history[0]["total_market_value_change"] == -500
+    bonds = next(h for h in history[0]["holdings"] if h["asset_class"] == "固定收益")
+    assert bonds["weight_change"] == pytest.approx(-0.2)
+    assert bonds["market_value_change"] == -500
+    assert history[1]["holdings"][0]["cost_basis_date"] == "2026-01-01"
+    assert history[1]["holdings"][1]["quantity"] == 200
+    assert history[1]["holdings"][1]["unit_price"] == 1
+    assert history[1]["total_market_value_change"] is None
+
+
+def test_actual_backfill_and_same_date_revision(client, actual_doc):
+    latest = client.post(
+        actual_doc + "/holdings", json=_actual_payload("2026-06-11", 300)
+    ).json()
+    client.post(actual_doc + "/holdings", json=_actual_payload("2026-06-10", 100))
+    assert client.get(actual_doc).json()["snapshot_id"] == latest["id"]
+    revised = client.post(
+        actual_doc + "/holdings", json=_actual_payload("2026-06-11", 500)
+    ).json()
+    assert client.get(actual_doc).json()["snapshot_id"] == revised["id"]
+    assert len(client.get(actual_doc + "/holdings").json()["snapshots"]) == 3
+
+
+def test_actual_omitted_and_off_policy_assets(client, actual_doc):
+    payload = _actual_payload()
+    context = client.get(actual_doc + "/holdings").json()
+    gold = next(
+        a["asset_class"] for a in context["assets"] if a["key"] == "alternative_gold"
+    )
+    payload["holdings"] = [{"asset_class": gold, "market_value": 100}]
+    assert client.post(actual_doc + "/holdings", json=payload).status_code == 201
+    data = client.get(actual_doc).json()
+    assert sum(h["drifted_weight"] for h in data["holdings"]) == pytest.approx(1)
+    assert [h["drifted_weight"] for h in data["holdings"][:2]] == [0, 0]
+    assert data["holdings"][2]["target_weight"] == 0
+    assert data["holdings"][2]["band_status"] == "above"
+    assert client.get("/api/monitoring/status").json()["items"][0]["out_of_band"] == 3
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"as_of": "2999-01-01"},
+        {"as_of": "bad"},
+        {"base_currency": "USD"},
+        {"holdings": []},
+        {"holdings": [{"asset_class": "固定收益", "market_value": 0}]},
+        {"holdings": [{"asset_class": "固定收益", "market_value": -1}]},
+        {"holdings": [{"asset_class": "固定收益", "market_value": "NaN"}]},
+        {"holdings": [{"asset_class": "固定收益", "market_value": "Infinity"}]},
+        {
+            "holdings": [
+                {"asset_class": "固定收益", "quantity": 1e308, "unit_price": 1e308}
+            ]
+        },
+        {
+            "holdings": [
+                {"asset_class": "固定收益", "market_value": 1e308},
+                {"asset_class": "现金等价物", "market_value": 1e308},
+            ]
+        },
+        {"holdings": [{"asset_class": "unknown", "market_value": 1}]},
+        {"holdings": [{"asset_class": "固定收益", "market_value": 1}] * 2},
+        {"holdings": [{"asset_class": "固定收益", "quantity": 2}]},
+        {"holdings": [{"asset_class": "固定收益", "unit_price": 2}]},
+        {"holdings": [{"asset_class": "固定收益", "quantity": 2, "unit_price": 0}]},
+        {"holdings": [{"asset_class": "固定收益", "quantity": -1, "unit_price": 2}]},
+        {
+            "holdings": [
+                {
+                    "asset_class": "固定收益",
+                    "market_value": 2,
+                    "quantity": 1,
+                    "unit_price": 2,
+                }
+            ]
+        },
+        {"holdings": [{"asset_class": "固定收益", "market_value": 2, "cost_basis": 1}]},
+        {
+            "holdings": [
+                {
+                    "asset_class": "固定收益",
+                    "market_value": 2,
+                    "cost_basis_date": "2026-06-11",
+                }
+            ]
+        },
+        {"unexpected": "ignored?"},
+    ],
+)
+def test_actual_invalid_snapshots_are_atomic(client, actual_doc, changes):
+    response = client.post(
+        actual_doc + "/holdings", json={**_actual_payload(), **changes}
+    )
+    assert response.status_code == 422, response.text
+    assert client.get(actual_doc + "/holdings").json()["snapshots"] == []
+
+
+def test_actual_endpoints_scope_currency_and_locale(client, actual_doc, ips_dir):
+    for verb in (client.get, client.post):
+        kwargs = {"json": _actual_payload()} if verb == client.post else {}
+        assert verb("/api/monitoring/missing/holdings", **kwargs).status_code == 404
+    _write_ips_doc(ips_dir, "other", [_saa_entry("现金等价物", 1, 0, 1)])
+    client.post(actual_doc + "/holdings", json=_actual_payload())
+    assert client.get("/api/monitoring/other/holdings").json()["snapshots"] == []
+    for locale, expected in [("en", "base currency"), ("zh", "基准币种")]:
+        response = client.post(
+            actual_doc + "/holdings",
+            json={**_actual_payload(), "base_currency": "USD"},
+            headers={"X-Locale": locale},
+        )
+        assert expected in response.json()["detail"]
+    _write_ips_doc(ips_dir, "no_saa", [])
+    assert client.get("/api/monitoring/no_saa/holdings").status_code == 422
+    path = ips_dir / "other.json"
+    record = json.loads(path.read_text())
+    record["ips"]["currency_policy"] = {"base_currency": "USD"}
+    path.write_text(json.dumps(record))
+    payload = {
+        "as_of": "2026-06-10",
+        "base_currency": "USD",
+        "holdings": [{"asset_class": "现金等价物", "market_value": 20}],
+    }
+    assert (
+        client.post("/api/monitoring/other/holdings", json=payload).status_code == 201
+    )
+
+
+def test_actual_advice_uses_snapshot_without_sending_costs(
+    client, actual_doc, monkeypatch
+):
+    from src.agents.rebalance_advisor import _slim_monitoring
+
+    first = client.post(actual_doc + "/holdings", json=_actual_payload()).json()
+    monkeypatch.setattr(monitoring_router, "is_api_configured", lambda: True)
+    captured = {}
+
+    def events(monitoring, profile, locale):
+        captured.update(monitoring)
+        yield 'data: {"type":"done"}\n\n'
+
+    monkeypatch.setattr(monitoring_router, "_advice_event_stream", events)
+    response = client.post("/api/monitoring/advice", json={"document_id": "ips_actual"})
+    assert response.status_code == 200
+    assert captured["snapshot_id"] == first["id"]
+    assert captured["holdings"][0]["drifted_weight"] == pytest.approx(0.8)
+    slim = _slim_monitoring(captured)
+    assert slim["valuation_source"] == "actual_holdings"
+    assert slim["valuation_as_of"] == "2026-06-10"
+    assert "cost_basis" not in json.dumps(slim)
+    assert "quantity" not in json.dumps(slim)
+
+
+def test_actual_snapshot_persists_across_connections(client, actual_doc):
+    from api import db
+
+    first = client.post(actual_doc + "/holdings", json=_actual_payload()).json()
+    db.engine.dispose()
+    history = client.get(actual_doc + "/holdings").json()["snapshots"]
+    assert history[0]["id"] == first["id"]
+    assert history[0]["total_market_value"] == 1000
+
+
+def test_actual_fleet_survives_simulation_price_failure(
+    client, actual_doc, ips_dir, monkeypatch
+):
+    client.post(actual_doc + "/holdings", json=_actual_payload())
+    _write_ips_doc(ips_dir, "ips_simulated", [_saa_entry("固定收益", 1, 0, 1)])
+
+    def unavailable(**kwargs):
+        raise RuntimeError("unavailable")
+
+    monkeypatch.setattr("src.portfolio.monitoring.fetch_price_history", unavailable)
+    items = {
+        i["document_id"]: i
+        for i in client.get("/api/monitoring/status").json()["items"]
+    }
+    assert items["ips_actual"]["status"] == "breach"
+    assert items["ips_simulated"]["status"] == "unknown"
+
+
+def test_actual_recording_does_not_require_cme(client, actual_doc, monkeypatch):
+    monkeypatch.setattr(
+        "src.portfolio.monitoring.compute_cme",
+        lambda: pytest.fail("holdings entry should not use CME"),
+    )
+    assert (
+        client.post(actual_doc + "/holdings", json=_actual_payload()).status_code == 201
+    )
+    assert len(client.get(actual_doc + "/holdings").json()["snapshots"]) == 1

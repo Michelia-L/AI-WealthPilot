@@ -86,6 +86,18 @@ class AppSettingRecord(SQLModel, table=True):
     updated_at: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 
+class HoldingSnapshotRecord(SQLModel, table=True):
+    """Append-only, complete valuations for an IPS; same-day corrections append."""
+
+    __tablename__ = "holding_snapshots"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    document_id: str = Field(index=True)
+    as_of: str = Field(index=True)
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    data: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+
+
 def init_db() -> None:
     """Create tables that don't exist yet (idempotent)."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)

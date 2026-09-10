@@ -18,12 +18,21 @@ from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
 from api.cache import TTLCache
-from api.db import ProfileRecord, get_session
+from api.db import HoldingSnapshotRecord, ProfileRecord, get_session
+from api.holding_snapshots import (
+    latest_snapshot,
+    latest_snapshots,
+    serialize,
+    snapshot_history,
+)
 from api.i18n import get_request_locale, msg
 from api.profile_convert import profile_from_data
 from api.routers.market import _fig_json
 from api.schemas import (
     BacktestResponse,
+    HoldingSnapshotHistory,
+    HoldingSnapshotInput,
+    HoldingSnapshotResponse,
     MonitoringFleetResponse,
     MonitoringResponse,
     RebalanceAdviceRequest,
@@ -36,6 +45,7 @@ from src.agents.rebalance_advisor import (
     generate_rebalance_advice_stream,
     is_api_configured,
 )
+from src.portfolio.actual_holdings import HoldingValidationError, value_snapshot
 from src.portfolio.backtest import (
     VALID_PERIODS as BACKTEST_PERIODS,
 )
@@ -46,6 +56,7 @@ from src.portfolio.backtest import (
 from src.portfolio.monitoring import (
     compute_fleet_status,
     compute_monitoring,
+    resolve_holdings_context,
     resolve_saa_weights,
 )
 from src.visualization.charts import plot_backtest_equity, plot_drawdown
@@ -75,19 +86,31 @@ FLEET_STATUS_CACHE_TTL_SECONDS = 86400  # the date in the key expires it daily
     summary="Band-status overview across all stored IPS documents",
 )
 def get_fleet_status(
-    request: Request, refresh: bool = False
+    request: Request, refresh: bool = False, session: Session = Depends(get_session)
 ) -> MonitoringFleetResponse:
     locale = get_request_locale(request)
     # Date inside the key: the first request of a new day misses the cache
     # and recomputes — the lazy "daily auto re-check" semantic. Locale is
     # part of the key because fleet item notes are localized.
+    snapshots = latest_snapshots(session)
+    # Snapshot IDs in the cache key prevent stale results after writes, including
+    # writes by another worker. Older backfills do not replace newer valuations.
+    revision = ",".join(
+        str(s["id"]) for s in sorted(snapshots.values(), key=lambda s: s["id"])
+    )
     key = f"fleet-status:{date.today().isoformat()}:{locale}"
+    if revision:
+        key += f":{revision}"
     if refresh:
         _fleet_status_cache.invalidate(key)
     return _fleet_status_cache.get_or_set(
         key,
         FLEET_STATUS_CACHE_TTL_SECONDS,
-        lambda: MonitoringFleetResponse(**compute_fleet_status(locale=locale)),
+        lambda: MonitoringFleetResponse(
+            **compute_fleet_status(
+                locale=locale, **({"snapshots": snapshots} if snapshots else {})
+            )
+        ),
     )
 
 
@@ -96,14 +119,19 @@ def get_fleet_status(
     response_model=MonitoringResponse,
     summary="Drift monitoring and rebalancing diagnostics for a stored IPS",
 )
-def get_monitoring(document_id: str, request: Request) -> MonitoringResponse:
+def get_monitoring(
+    document_id: str, request: Request, session: Session = Depends(get_session)
+) -> MonitoringResponse:
     locale = get_request_locale(request)
     if not _is_valid_document_id(document_id):
         raise HTTPException(
             status_code=404, detail=msg("common.ips_doc_not_found", locale)
         )
     try:
-        result = compute_monitoring(document_id, locale=locale)
+        snapshot = latest_snapshot(session, document_id)
+        result = compute_monitoring(
+            document_id, locale=locale, **({"snapshot": snapshot} if snapshot else {})
+        )
     except KeyError:
         raise HTTPException(
             status_code=404, detail=msg("common.ips_doc_not_found", locale)
@@ -320,7 +348,12 @@ def stream_rebalance_advice(
             status_code=404, detail=msg("common.ips_doc_not_found", locale)
         )
     try:
-        monitoring = compute_monitoring(payload.document_id, locale=locale)
+        snapshot = latest_snapshot(session, payload.document_id)
+        monitoring = compute_monitoring(
+            payload.document_id,
+            locale=locale,
+            **({"snapshot": snapshot} if snapshot else {}),
+        )
     except KeyError:
         raise HTTPException(
             status_code=404, detail=msg("common.ips_doc_not_found", locale)
@@ -343,3 +376,50 @@ def stream_rebalance_advice(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+def _holdings_context(document_id: str, locale: str) -> dict:
+    try:
+        return resolve_holdings_context(document_id, locale=locale)
+    except KeyError:
+        raise HTTPException(
+            status_code=404, detail=msg("common.ips_doc_not_found", locale)
+        ) from None
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+
+@router.get("/{document_id}/holdings", response_model=HoldingSnapshotHistory)
+def get_holding_snapshots(
+    document_id: str, request: Request, session: Session = Depends(get_session)
+) -> HoldingSnapshotHistory:
+    context = _holdings_context(document_id, get_request_locale(request))
+    return HoldingSnapshotHistory(
+        **context, snapshots=snapshot_history(session, document_id)
+    )
+
+
+@router.post(
+    "/{document_id}/holdings", response_model=HoldingSnapshotResponse, status_code=201
+)
+def create_holding_snapshot(
+    document_id: str,
+    payload: HoldingSnapshotInput,
+    request: Request,
+    session: Session = Depends(get_session),
+) -> HoldingSnapshotResponse:
+    locale = get_request_locale(request)
+    context = _holdings_context(document_id, locale)
+    try:
+        data = value_snapshot(payload.model_dump(mode="json"), context)
+    except HoldingValidationError as e:
+        raise HTTPException(
+            status_code=422, detail=msg(f"holdings.{e}", locale)
+        ) from None
+    record = HoldingSnapshotRecord(
+        document_id=document_id, as_of=data["as_of"], data=data
+    )
+    session.add(record)
+    session.commit()
+    session.refresh(record)
+    return HoldingSnapshotResponse(**serialize(record))

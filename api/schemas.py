@@ -5,7 +5,7 @@ CME models are imported directly from the core (src.portfolio.cme_models)
 so the API contract and the engine can never drift apart.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
@@ -780,6 +780,55 @@ class IpsDetailResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class ActualHoldingInput(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    asset_class: str = Field(min_length=1, max_length=200)
+    market_value: Optional[float] = Field(default=None, ge=0, allow_inf_nan=False)
+    quantity: Optional[float] = Field(default=None, ge=0, allow_inf_nan=False)
+    unit_price: Optional[float] = Field(default=None, gt=0, allow_inf_nan=False)
+    cost_basis: Optional[float] = Field(default=None, ge=0, allow_inf_nan=False)
+    cost_basis_date: Optional[date] = None
+
+
+class HoldingSnapshotInput(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    as_of: date
+    base_currency: str = Field(min_length=3, max_length=3)
+    holdings: list[ActualHoldingInput] = Field(min_length=1, max_length=200)
+
+
+class ActualHoldingValue(ActualHoldingInput):
+    weight: float
+    market_value_change: Optional[float] = None
+    weight_change: Optional[float] = None
+
+
+class HoldingSnapshotResponse(BaseModel):
+    id: int
+    document_id: str
+    as_of: str
+    created_at: str
+    base_currency: str
+    total_market_value: float
+    holdings: list[ActualHoldingValue]
+    previous_snapshot_id: Optional[int] = None
+    total_market_value_change: Optional[float] = None
+
+
+class HoldingAssetOption(BaseModel):
+    asset_class: str
+    key: Optional[str] = None
+
+
+class HoldingSnapshotHistory(BaseModel):
+    document_id: str
+    base_currency: str
+    assets: list[HoldingAssetOption]
+    snapshots: list[HoldingSnapshotResponse]
+
+
 class MonitoringPortfolioMetrics(BaseModel):
     """Portfolio-level metrics under one weight set (target or drifted)."""
 
@@ -813,6 +862,7 @@ class MonitoringHolding(BaseModel):
     band_status: Literal["within", "above", "below", "unknown"]
     period_return: Optional[float] = None
     metrics: Optional[MonitoringHoldingMetrics] = None
+    market_value: Optional[float] = None
 
 
 class MonitoringTrade(BaseModel):
@@ -875,6 +925,10 @@ class MonitoringResponse(BaseModel):
     client_name: str
     saved_at: str
     as_of: str
+    valuation_source: Literal["buy_and_hold", "actual_holdings"] = "buy_and_hold"
+    valuation_as_of: Optional[str] = None
+    snapshot_id: Optional[int] = None
+    total_market_value: Optional[float] = None
     cme_cache_status: str = Field(
         description="CME provenance: 'fresh' | 'cached' | 'stale' | 'fallback'"
     )
@@ -905,6 +959,8 @@ class MonitoringFleetItem(BaseModel):
     document_id: str
     client_name: str
     saved_at: str
+    valuation_source: Literal["buy_and_hold", "actual_holdings"] = "buy_and_hold"
+    valuation_as_of: Optional[str] = None
     status: Literal["ok", "breach", "unknown"]
     out_of_band: int = Field(
         description="Number of holdings above/below their policy band"

@@ -78,8 +78,10 @@ Start with the client's goals and constraints, then choose the analysis needed f
 | Market & CME (`/market`, `/api/cme/report`) | Proxy prices, yields, growth and inflation assumptions | Historical estimates blended with building-block return assumptions and available implied volatility | Capital Market Expectations (CME), correlations, and source/cache information |
 | Portfolio construction (`/optimizer`) | Asset universe, return source, method-specific views or constraints | Six optimization methods | Candidate weights, return/risk metrics, and method-specific comparisons |
 | Advisor & IPS (`/advisor`, `/ips`) | Profile; CME and reference documents for IPS | LLM advisory report, or IPS generation with review and quantitative checks | Reports, IPS documents, revision history, and exports |
-| Monitoring (`/monitoring`) | Saved IPS allocation and proxy prices since it was saved | Buy-and-hold weight drift, policy-band checks, historical backtest and attribution | Drift diagnostics, rebalance amounts, and optional AI commentary |
+| Monitoring (`/monitoring`) | Saved IPS allocation and manually entered/imported holdings snapshots, or proxy prices since it was saved | Actual-value or buy-and-hold weight drift, policy-band checks, snapshot comparisons, historical backtest and attribution | Drift diagnostics, suggested rebalance weights, and optional AI commentary |
 | Retirement (`/retirement`) | Savings, contributions, spending, horizon, return and volatility assumptions | Accumulation/withdrawal Monte Carlo simulation; optional spending guardrails | Wealth percentiles, survival rate, and spending comparisons |
+
+Holdings entry, JSON import, valuation rules and snapshot persistence are described in [Actual holdings snapshots](docs/actual-holdings.md).
 
 ### How an IPS is produced
 
@@ -149,7 +151,7 @@ For out-of-sample research, the separate [walk-forward evaluator](validation/por
 | FX | Historical prices can be translated to the CNY base, including unhedged FX movements. The forward-return building blocks assume zero expected FX change; there is no separate forward FX process. |
 | CVaR & LDI | CVaR uses available historical daily scenarios, which cannot represent unseen shocks. LDI uses first-order duration exposure to yield changes, with a duration-scaled bond proxy fallback. |
 | Retirement | Annual GBM draws use fixed return/volatility parameters within each phase and an assumed inflation rate. Regime switching and stochastic volatility are not modeled. Survival rates are conditional simulation outputs. |
-| Backtesting & monitoring | Backtests apply supplied target weights to history, not a walk-forward retraining strategy. Monitoring infers drift from IPS weights and proxy returns, not broker positions or actual cash flows. There is no order execution or tax-lot accounting. |
+| Backtesting & monitoring | Backtests apply supplied target weights to history, not a walk-forward retraining strategy. Monitoring uses manually valued holdings snapshots when available; otherwise it infers drift from IPS weights and proxy returns. Snapshot changes can include cash flows and are not performance returns. There is no broker sync, order execution or tax-lot accounting. |
 | LLM & IPS validation | Reviews can be wrong. Quantitative checks cover selected SAA properties, not every narrative claim. Volatility checks allow a 20% tolerance; low volatility produces a warning, high volatility a critical finding. Missing CME skips SAA validation. A passed review is not regulatory certification. |
 
 The [quant engine](guide/internals/02-quant-engine.md), [data/CME](guide/internals/03-data-pipeline-cme.md), and [AI workflow](guide/internals/04-ai-agents.md) chapters explain implementation choices and additional boundaries. The Internals guide is currently written in Chinese.

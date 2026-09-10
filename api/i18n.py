@@ -30,6 +30,36 @@ def get_request_locale(request: Request) -> str:
 
 
 _MESSAGES: dict[str, dict[str, dict[str, str]]] = {
+    "holdings": {
+        "currency": {
+            "zh": "所有金额及单价必须使用 IPS 基准币种。",
+            "en": "All amounts and unit prices must use the IPS base currency.",
+        },
+        "future_date": {
+            "zh": "估值日期不能晚于今天。",
+            "en": "The valuation date cannot be in the future.",
+        },
+        "asset": {
+            "zh": "资产类别不在可录入列表中。",
+            "en": "The asset class is not in the available holdings list.",
+        },
+        "duplicate": {
+            "zh": "同一资产类别只能录入一次，请先合并持仓。",
+            "en": "Each asset class may appear only once; aggregate positions first.",
+        },
+        "valuation": {
+            "zh": "每行须填写市值金额，或同时填写份额和单价；两种方式不能混用。",
+            "en": "Enter either market value or both quantity and unit price per row, not both methods.",
+        },
+        "cost_date": {
+            "zh": "填写成本金额时须提供成本基准日，且成本基准日不得晚于估值日期。",
+            "en": "A cost basis amount requires a cost basis date, which must not be after the valuation date.",
+        },
+        "total": {
+            "zh": "持仓总市值必须为有限正数。",
+            "en": "Total holdings market value must be finite and positive.",
+        },
+    },
     # Shared across routers.
     "common": {
         "llm_not_configured": {
