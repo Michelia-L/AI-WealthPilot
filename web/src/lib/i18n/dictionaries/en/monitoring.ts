@@ -1,6 +1,15 @@
 /** monitoring namespace — populated by the localization pass (phase 22). */
 export const monitoring = {
   holdings: {
+    dateTimezone: (zone: string) => `Valuation dates use ${zone}, including the JSON template.`,
+    positivePrice: "Unit price must be a finite number greater than zero.",
+    requiredValue: "This field is required.",
+    nonNegative: "Enter zero or a positive number.",
+    unexpectedField: "Unexpected field; check the JSON template.",
+    invalidDate: "Enter a valid calendar date (YYYY-MM-DD).",
+    invalidNumber: "Enter a finite number.",
+    invalidValue: "Check the value and format.",
+    rowError: (row: number, field: string, reason: string) => `Row ${row} · ${field}: ${reason}`,
     title: "Actual Holdings",
     resource: "holdings snapshots",
     hint: "Each save is a complete snapshot; omitted assets have zero holdings. Enter values, unit prices and costs in the IPS base currency. Supply your own valuation prices; quotes and FX conversions are not automatic.",

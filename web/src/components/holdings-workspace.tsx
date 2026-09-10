@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { HoldingSnapshotHistory, HoldingSnapshotInput } from "@/lib/api";
 import { useT } from "@/components/locale-context";
 import { fmtLocal, fmtPct } from "@/lib/format";
+import { holdingsInputError, valuationDate } from "@/lib/holdings-input";
 import { Button, Field, Input, NumInput, Panel, Select, Table, TD, TH, THead, TR, Textarea } from "@/components/ui";
 
 type EntryRow = {
@@ -49,7 +50,7 @@ export default function HoldingsWorkspace({ history }: { history: HoldingSnapsho
       });
       const result = await response.json();
       if (!response.ok) {
-        setError(typeof result.detail === "string" ? result.detail : c.failed);
+        setError(holdingsInputError(result.detail, c));
         return;
       }
       setSaved(true);
@@ -62,6 +63,13 @@ export default function HoldingsWorkspace({ history }: { history: HoldingSnapsho
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
+    const invalidPrice = rows.findIndex((r) => r.method === "units" &&
+      (!Number.isFinite(Number(r.price)) || Number(r.price) <= 0));
+    if (invalidPrice >= 0) {
+      setError(c.rowError(invalidPrice + 1, c.price, c.positivePrice));
+      setSaved(false);
+      return;
+    }
     const payload: HoldingSnapshotInput = {
       as_of: asOf, base_currency: history.base_currency,
       holdings: rows.map((r) => ({
@@ -77,7 +85,7 @@ export default function HoldingsWorkspace({ history }: { history: HoldingSnapsho
 
   function downloadTemplate() {
     const template = {
-      as_of: asOf || new Date().toISOString().slice(0, 10), base_currency: history.base_currency,
+      as_of: asOf || valuationDate(new Date(), history.valuation_timezone), base_currency: history.base_currency,
       holdings: history.assets.map((a) => ({ asset_class: a.asset_class, market_value: 0, cost_basis: null, cost_basis_date: null })),
     };
     const url = URL.createObjectURL(new Blob([JSON.stringify(template, null, 2)], { type: "application/json" }));
@@ -93,7 +101,7 @@ export default function HoldingsWorkspace({ history }: { history: HoldingSnapsho
       <form onSubmit={submit} className="mt-5 space-y-4">
         <fieldset disabled={pending} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={c.asOf}><Input type="date" required value={asOf} onChange={(e) => setAsOf(e.target.value)} /></Field>
+            <Field label={c.asOf} hint={c.dateTimezone(history.valuation_timezone)}><Input aria-label={c.asOf} type="date" required value={asOf} onChange={(e) => setAsOf(e.target.value)} /></Field>
             <Field label={c.currency}><Input readOnly value={history.base_currency} /></Field>
           </div>
           {rows.map((r, index) => (
@@ -110,7 +118,16 @@ export default function HoldingsWorkspace({ history }: { history: HoldingSnapsho
                   <Field label={c.amount}><NumInput required min="0" step="any" value={r.amount} onChange={(e) => update(r.id, { amount: e.target.value })} /></Field>
                 ) : <>
                   <Field label={c.quantity}><NumInput required min="0" step="any" value={r.quantity} onChange={(e) => update(r.id, { quantity: e.target.value })} /></Field>
-                  <Field label={c.price}><NumInput required min="0" step="any" value={r.price} onChange={(e) => update(r.id, { price: e.target.value })} /></Field>
+                  <Field label={c.price}><NumInput required step="any" value={r.price}
+                    onChange={(e) => {
+                      const price = e.currentTarget.valueAsNumber;
+                      e.currentTarget.setCustomValidity(e.currentTarget.value && (!Number.isFinite(price) || price <= 0) ? c.positivePrice : "");
+                      update(r.id, { price: e.target.value });
+                    }}
+                    onInvalid={(e) => {
+                      e.currentTarget.setCustomValidity(c.positivePrice);
+                      setError(c.rowError(index + 1, c.price, c.positivePrice));
+                    }} /></Field>
                 </>}
                 <Field label={c.cost}><NumInput min="0" step="any" value={r.cost} onChange={(e) => update(r.id, { cost: e.target.value })} /></Field>
                 <Field label={c.costDate}><Input type="date" required={r.cost !== ""} max={asOf || undefined} value={r.costDate} onChange={(e) => update(r.id, { costDate: e.target.value })} /></Field>
@@ -137,7 +154,7 @@ export default function HoldingsWorkspace({ history }: { history: HoldingSnapsho
           void save(payload);
         }}>{c.importSave}</Button>
       </details>
-      {error && <p role="alert" className="mt-4 text-sm text-cinnabar-300">{error}</p>}
+      {error && <p role="alert" className="mt-4 whitespace-pre-line text-sm text-cinnabar-300">{error}</p>}
       {saved && <p role="status" className="mt-4 text-sm text-jade-300">{c.saved}</p>}
       <section className="mt-6 space-y-4 border-t border-white/[0.08] pt-5">
         <h3 className="text-sm font-medium text-mist-100">{c.history}</h3>

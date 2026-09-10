@@ -1,6 +1,15 @@
 /** monitoring namespace — populated by the localization pass (phase 22). */
 export const monitoring = {
   holdings: {
+    dateTimezone: (zone: string) => `估值日期统一采用 ${zone}，JSON 模板使用同一时区。`,
+    positivePrice: "单价必须是大于零的有限数值。",
+    requiredValue: "此字段必填。",
+    nonNegative: "请输入零或正数。",
+    unexpectedField: "包含不支持的字段，请核对 JSON 模板。",
+    invalidDate: "请输入有效日期（YYYY-MM-DD）。",
+    invalidNumber: "请输入有限数值。",
+    invalidValue: "请检查数值及格式。",
+    rowError: (row: number, field: string, reason: string) => `第 ${row} 行 · ${field}：${reason}`,
     title: "实际持仓",
     resource: "持仓快照",
     hint: "每次保存都是完整快照；未录入资产按零持仓处理。金额、单价和成本均须折算为 IPS 基准币种。份额单价由你提供，系统不自动获取报价或换汇。",

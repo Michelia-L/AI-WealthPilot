@@ -150,6 +150,7 @@ export interface HoldingSnapshot extends HoldingSnapshotInput {
 }
 
 export interface HoldingSnapshotHistory {
+  valuation_timezone: string;
   document_id: string;
   base_currency: string;
   assets: { asset_class: string; key: string | null }[];

@@ -823,6 +823,7 @@ class HoldingAssetOption(BaseModel):
 
 
 class HoldingSnapshotHistory(BaseModel):
+    valuation_timezone: str
     document_id: str
     base_currency: str
     assets: list[HoldingAssetOption]

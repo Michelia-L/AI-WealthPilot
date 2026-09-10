@@ -5,7 +5,18 @@ No proxy price, FX rate, or return is inferred from quantities or cost basis.
 """
 
 import math
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
+
+HOLDINGS_TIMEZONE = "Asia/Shanghai"
+
+
+def holdings_today(instant: datetime | None = None) -> date:
+    """Calendar date for valuations, independent of the API host timezone."""
+    zone = ZoneInfo(HOLDINGS_TIMEZONE)
+    return (
+        instant.astimezone(zone) if instant is not None else datetime.now(zone)
+    ).date()
 
 
 class HoldingValidationError(ValueError):
@@ -17,7 +28,7 @@ def value_snapshot(payload: dict, context: dict) -> dict:
     if payload["base_currency"] != context["base_currency"]:
         raise HoldingValidationError("currency")
     as_of = date.fromisoformat(payload["as_of"])
-    if as_of > date.today():
+    if as_of > holdings_today():
         raise HoldingValidationError("future_date")
     allowed = {a["asset_class"] for a in context["assets"]}
     seen = set()

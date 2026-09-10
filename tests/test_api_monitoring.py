@@ -1161,3 +1161,98 @@ def test_actual_recording_does_not_require_cme(client, actual_doc, monkeypatch):
         client.post(actual_doc + "/holdings", json=_actual_payload()).status_code == 201
     )
     assert len(client.get(actual_doc + "/holdings").json()["snapshots"]) == 1
+
+
+def test_fleet_cache_versions_do_not_accumulate_or_reload_history(
+    client, actual_doc, monkeypatch
+):
+    from api.holding_snapshots import latest_snapshots
+
+    calls = []
+
+    def load(session):
+        calls.append(True)
+        return latest_snapshots(session)
+
+    monkeypatch.setattr(monitoring_router, "latest_snapshots", load)
+    for amount in range(800, 810):
+        client.post(actual_doc + "/holdings", json=_actual_payload(amount=amount))
+        first = client.get("/api/monitoring/status").json()
+        assert client.get("/api/monitoring/status").json() == first
+    assert len(calls) == 10  # no JSON/history loading on cache hits
+    assert len(monitoring_router._fleet_status_cache._entries) == 1
+
+
+def test_latest_snapshots_loads_only_sql_winners(client, actual_doc, ips_dir):
+    from sqlalchemy import event
+    from sqlmodel import Session
+
+    from api import db
+    from api.db import HoldingSnapshotRecord
+    from api.holding_snapshots import latest_snapshots, snapshot_revision
+
+    newest = client.post(
+        actual_doc + "/holdings", json=_actual_payload("2026-06-12")
+    ).json()
+    for _ in range(20):
+        client.post(actual_doc + "/holdings", json=_actual_payload("2026-06-10"))
+    revision = client.post(
+        actual_doc + "/holdings", json=_actual_payload("2026-06-12", 500)
+    ).json()
+    _write_ips_doc(ips_dir, "ips_second", [_saa_entry("固定收益", 1, 0, 1)])
+    second = client.post(
+        "/api/monitoring/ips_second/holdings", json=_actual_payload("2026-06-09")
+    ).json()
+    loaded = []
+    with Session(db.engine) as session:
+        event.listen(
+            session, "loaded_as_persistent", lambda session, obj: loaded.append(obj)
+        )
+        assert snapshot_revision(session) == second["id"]
+        assert loaded == []  # scalar max(id) does not materialize JSON/ORM records
+        snapshots = latest_snapshots(session)
+    assert snapshots["ips_actual"]["id"] == revision["id"] != newest["id"]
+    assert snapshots["ips_second"]["id"] == second["id"]
+    assert len([obj for obj in loaded if isinstance(obj, HoldingSnapshotRecord)]) == 2
+
+
+@pytest.mark.parametrize(
+    "utc_time, expected",
+    [
+        ("2026-09-09T15:59:59+00:00", "2026-09-09"),
+        ("2026-09-09T16:00:00+00:00", "2026-09-10"),
+        ("2026-09-10T00:30:00+09:00", "2026-09-09"),
+    ],
+)
+def test_holdings_business_date(utc_time, expected):
+    from src.portfolio.actual_holdings import holdings_today
+
+    assert holdings_today(datetime.fromisoformat(utc_time)).isoformat() == expected
+
+
+def test_holdings_future_date_uses_business_timezone(client, actual_doc, monkeypatch):
+    from src.portfolio import actual_holdings
+
+    class UtcHostClock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime.fromisoformat("2026-09-09T16:30:00+00:00")
+            return instant.astimezone(tz) if tz else instant.replace(tzinfo=None)
+
+    monkeypatch.setattr(actual_holdings, "datetime", UtcHostClock)
+    assert (
+        client.post(
+            actual_doc + "/holdings", json=_actual_payload("2026-09-10")
+        ).status_code
+        == 201
+    )
+    assert (
+        client.post(
+            actual_doc + "/holdings", json=_actual_payload("2026-09-11")
+        ).status_code
+        == 422
+    )
+    assert (
+        client.get(actual_doc + "/holdings").json()["valuation_timezone"]
+        == "Asia/Shanghai"
+    )

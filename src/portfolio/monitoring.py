@@ -41,7 +41,7 @@ from src.config import (
     IPS_ASSET_CLASS_TICKERS,
 )
 from src.data.market_data import fetch_price_history
-from src.portfolio.actual_holdings import apply_actual_holdings
+from src.portfolio.actual_holdings import HOLDINGS_TIMEZONE, apply_actual_holdings
 from src.portfolio.cme_engine import compute_cme
 from src.portfolio.cme_models import AssetClassCME
 
@@ -330,6 +330,7 @@ def resolve_holdings_context(document_id: str, locale: str = "zh") -> dict:
         "base_currency": (ips.get("currency_policy") or {}).get("base_currency")
         or BASE_CURRENCY,
         "assets": assets,
+        "valuation_timezone": HOLDINGS_TIMEZONE,
     }
 
 

@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: state.refresh }
 vi.mock("@/components/locale-context", () => ({ useT: () => dictionaries[state.locale] }));
 const c = dictionaries.en.monitoring.holdings;
 const history: HoldingSnapshotHistory = {
-  document_id: "ips_example", base_currency: "CNY",
+  document_id: "ips_example", base_currency: "CNY", valuation_timezone: "Asia/Shanghai",
   assets: [{ asset_class: "Fixed Income", key: "fixed_income" }, { asset_class: "Cash", key: "cash" }], snapshots: [],
 };
 const fetchMock = vi.fn();
@@ -111,4 +111,37 @@ describe("HoldingsWorkspace", () => {
     expect(screen.getByRole("heading", { name: "实际持仓" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "保存新快照" })).toBeInTheDocument();
   });
+});
+
+it("rejects zero unit prices before POST and clears validity after correction", async () => {
+  fetchMock.mockResolvedValue(new Response(JSON.stringify({ id: 10 }), { status: 201 }));
+  render(<HoldingsWorkspace history={history} />);
+  fillAmount();
+  fireEvent.change(screen.getByLabelText(c.method), { target: { value: "units" } });
+  fireEvent.change(screen.getByRole("spinbutton", { name: c.quantity }), { target: { value: "1" } });
+  const price = screen.getByRole("spinbutton", { name: c.price }) as HTMLInputElement;
+  fireEvent.change(price, { target: { value: "0" } });
+  expect(price.validity.valid).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: c.save }));
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(screen.getByRole("alert")).toHaveTextContent(c.positivePrice);
+  fireEvent.change(price, { target: { value: "0.000001" } });
+  expect(price.validity.valid).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: c.save }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+});
+
+it.each(["en", "zh"] as const)("renders field-level import errors in %s", async (locale) => {
+  state.locale = locale;
+  const copy = dictionaries[locale].monitoring.holdings;
+  fetchMock.mockResolvedValue(new Response(JSON.stringify({ detail: [
+    { loc: ["body", "holdings", 0, "unit_price"], type: "greater_than", input: 0 },
+  ] }), { status: 422 }));
+  render(<HoldingsWorkspace history={history} />);
+  fireEvent.click(screen.getByText(copy.importTitle));
+  fireEvent.change(screen.getByLabelText(copy.importData), { target: { value: JSON.stringify({
+    as_of: "2026-06-10", base_currency: "CNY", holdings: [{ asset_class: "Cash", quantity: 1, unit_price: 0 }],
+  }) } });
+  fireEvent.click(screen.getByRole("button", { name: copy.importSave }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(copy.rowError(1, copy.price, copy.positivePrice));
 });

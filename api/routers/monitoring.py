@@ -24,6 +24,7 @@ from api.holding_snapshots import (
     latest_snapshots,
     serialize,
     snapshot_history,
+    snapshot_revision,
 )
 from api.i18n import get_request_locale, msg
 from api.profile_convert import profile_from_data
@@ -92,25 +93,24 @@ def get_fleet_status(
     # Date inside the key: the first request of a new day misses the cache
     # and recomputes — the lazy "daily auto re-check" semantic. Locale is
     # part of the key because fleet item notes are localized.
-    snapshots = latest_snapshots(session)
-    # Snapshot IDs in the cache key prevent stale results after writes, including
-    # writes by another worker. Older backfills do not replace newer valuations.
-    revision = ",".join(
-        str(s["id"]) for s in sorted(snapshots.values(), key=lambda s: s["id"])
-    )
+    revision = snapshot_revision(session)
     key = f"fleet-status:{date.today().isoformat()}:{locale}"
-    if revision:
-        key += f":{revision}"
+
+    def compute() -> MonitoringFleetResponse:
+        snapshots = latest_snapshots(session)
+        return MonitoringFleetResponse(
+            **compute_fleet_status(
+                locale=locale, **({"snapshots": snapshots} if snapshots else {})
+            )
+        )
+
     if refresh:
         _fleet_status_cache.invalidate(key)
     return _fleet_status_cache.get_or_set(
         key,
         FLEET_STATUS_CACHE_TTL_SECONDS,
-        lambda: MonitoringFleetResponse(
-            **compute_fleet_status(
-                locale=locale, **({"snapshots": snapshots} if snapshots else {})
-            )
-        ),
+        compute,
+        version=revision,
     )
 
 

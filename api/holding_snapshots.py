@@ -1,5 +1,6 @@
 """SQLite access for append-only IPS holdings; valuation rules live in src/."""
 
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from api.db import HoldingSnapshotRecord
@@ -16,16 +17,31 @@ def serialize(record: HoldingSnapshotRecord) -> dict:
     }
 
 
+def snapshot_revision(session: Session) -> int:
+    """An indexed scalar lookup; the table is append-only, including backfills."""
+    return session.exec(select(func.max(HoldingSnapshotRecord.id))).one() or 0
+
+
 def latest_snapshots(session: Session) -> dict[str, dict]:
-    records = session.exec(
-        select(HoldingSnapshotRecord).order_by(
-            HoldingSnapshotRecord.as_of.desc(), HoldingSnapshotRecord.id.desc()
+    # Rank IDs in SQL and load JSON only for the winning row per document.
+    ranked = select(
+        HoldingSnapshotRecord.id,
+        func.row_number()
+        .over(
+            partition_by=HoldingSnapshotRecord.document_id,
+            order_by=(
+                HoldingSnapshotRecord.as_of.desc(),
+                HoldingSnapshotRecord.id.desc(),
+            ),
         )
+        .label("position"),
+    ).subquery()
+    records = session.exec(
+        select(HoldingSnapshotRecord)
+        .join(ranked, HoldingSnapshotRecord.id == ranked.c.id)
+        .where(ranked.c.position == 1)
     ).all()
-    latest = {}
-    for record in records:
-        latest.setdefault(record.document_id, serialize(record))
-    return latest
+    return {record.document_id: serialize(record) for record in records}
 
 
 def latest_snapshot(session: Session, document_id: str) -> dict | None:

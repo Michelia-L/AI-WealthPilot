@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+
+test.use({ timezoneId: "America/Los_Angeles" });
 
 test("actual holdings: entry, persisted drift, JSON import, history and Chinese errors", async ({ page, request }) => {
   test.setTimeout(120_000);
@@ -21,6 +24,16 @@ test("actual holdings: entry, persisted drift, JSON import, history and Chinese 
   await page.addInitScript((id) => localStorage.setItem("wealthpilot.activeClient", JSON.stringify({ id, name: "Holdings Example" })), profileId);
   await page.goto(`/monitoring?doc=${done.document_id}`);
   await expect(page.getByRole("heading", { name: "Actual Holdings", exact: true })).toBeVisible();
+  await page.clock.setFixedTime(new Date("2026-09-09T16:30:00Z"));
+  await expect(page.getByText("Valuation dates use Asia/Shanghai, including the JSON template.")).toBeVisible();
+  await page.getByText("Import JSON snapshot", { exact: true }).click();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Download JSON template" }).click(),
+  ]);
+  const template = JSON.parse(await readFile((await download.path())!, "utf8"));
+  expect(template.as_of).toBe("2026-09-10");
+  await page.getByText("Import JSON snapshot", { exact: true }).click();
   await page.getByLabel("Valuation date", { exact: true }).fill("2026-06-10");
   const asset = await page.getByRole("combobox", { name: "Asset class", exact: true }).inputValue();
   const currency = await page.getByLabel("Base currency", { exact: true }).inputValue();
@@ -58,4 +71,10 @@ test("actual holdings: entry, persisted drift, JSON import, history and Chinese 
   await page.getByRole("button", { name: "导入并保存快照" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "估值日期不能晚于今天。" })).toHaveText("估值日期不能晚于今天。");
   await expect(page.getByRole("combobox", { name: "查看快照", exact: true }).locator("option")).toHaveCount(2);
+  await page.getByRole("textbox", { name: "快照 JSON", exact: true }).fill(JSON.stringify({
+    as_of: "2026-06-11", base_currency: currency, holdings: [{ asset_class: asset, quantity: 1, unit_price: 0 }],
+  }));
+  await page.getByRole("button", { name: "导入并保存快照" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "单价必须是大于零的有限数值。" }))
+    .toHaveText("第 1 行 · 单价（基准币种）：单价必须是大于零的有限数值。");
 });
