@@ -11,12 +11,23 @@ from zoneinfo import ZoneInfo
 HOLDINGS_TIMEZONE = "Asia/Shanghai"
 
 
+def business_now() -> datetime:
+    """Current time in the business timezone, independent of the API host TZ."""
+    return datetime.now(ZoneInfo(HOLDINGS_TIMEZONE))
+
+
+def business_today() -> date:
+    """Current business calendar date; shared by holdings and monitoring dates."""
+    return business_now().date()
+
+
 def holdings_today(instant: datetime | None = None) -> date:
     """Calendar date for valuations, independent of the API host timezone."""
-    zone = ZoneInfo(HOLDINGS_TIMEZONE)
-    return (
-        instant.astimezone(zone) if instant is not None else datetime.now(zone)
-    ).date()
+    if instant is None:
+        return business_today()
+    if instant.tzinfo is None:
+        raise ValueError("holdings_today requires a timezone-aware datetime")
+    return instant.astimezone(ZoneInfo(HOLDINGS_TIMEZONE)).date()
 
 
 class HoldingValidationError(ValueError):

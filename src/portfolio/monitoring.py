@@ -41,7 +41,11 @@ from src.config import (
     IPS_ASSET_CLASS_TICKERS,
 )
 from src.data.market_data import fetch_price_history
-from src.portfolio.actual_holdings import HOLDINGS_TIMEZONE, apply_actual_holdings
+from src.portfolio.actual_holdings import (
+    HOLDINGS_TIMEZONE,
+    apply_actual_holdings,
+    business_today,
+)
 from src.portfolio.cme_engine import compute_cme
 from src.portfolio.cme_models import AssetClassCME
 
@@ -65,6 +69,10 @@ _NOTE_STRINGS: dict[str, dict[str, str]] = {
     "actual_snapshot": {
         "zh": "漂移使用 {as_of} 的人工持仓估值快照；未录入资产按零持仓处理。市值变化可能包含现金流，不代表投资收益。行情代理仅用于 CME 风险指标和币种敞口估算。",
         "en": "Drift uses the manually valued holdings snapshot dated {as_of}; omitted assets have zero holdings. Value changes may include cash flows and are not investment returns. Proxies only inform CME risk metrics and currency exposure estimates.",
+    },
+    "snapshot_currency_mismatch": {
+        "zh": "持仓快照的基准币种（{snapshot}）与 IPS 当前基准币种（{current}）不一致，该快照已失效；请按当前基准币种重新录入持仓。",
+        "en": "The holdings snapshot's base currency ({snapshot}) no longer matches the IPS base currency ({current}); the snapshot is stale. Record a new valuation in the current base currency.",
     },
     "ambiguous_assets": {
         "zh": "IPS 中存在重复的资产类别名称，请先修正配置再录入持仓。",
@@ -204,7 +212,9 @@ def compute_monitoring(
 
     Raises:
         KeyError: If the IPS document does not exist.
-        ValueError: If the document has no strategic allocation (SAA).
+        ValueError: If the document has no strategic allocation (SAA), or the
+            supplied snapshot was recorded under a different base currency
+            than the document's current currency policy.
     """
     filepath = _find_ips_file(document_id)
     if filepath is None:
@@ -216,6 +226,22 @@ def compute_monitoring(
     saa = ips.get("investment_guidelines", {}).get("strategic_allocation") or []
     if not saa:
         raise ValueError(_t("missing_saa_monitoring", locale))
+
+    # Base currency from the IPS currency policy when present, else the global
+    # default. A persisted snapshot recorded under a different policy currency
+    # is stale: its amounts must never be read under the new currency's meaning.
+    base_currency = (ips.get("currency_policy") or {}).get(
+        "base_currency"
+    ) or BASE_CURRENCY
+    if snapshot is not None and snapshot.get("base_currency") != base_currency:
+        raise ValueError(
+            _t(
+                "snapshot_currency_mismatch",
+                locale,
+                snapshot=snapshot.get("base_currency"),
+                current=base_currency,
+            )
+        )
 
     notes: list[str] = []
     holdings = _build_holdings(saa, notes, locale)
@@ -279,11 +305,7 @@ def compute_monitoring(
 
     rebalance = _compute_rebalance(holdings, notes, locale)
 
-    # Per-currency exposure / net currency mismatch (base currency from the
-    # IPS currency policy when present, else the global default).
-    base_currency = (ips.get("currency_policy") or {}).get(
-        "base_currency"
-    ) or BASE_CURRENCY
+    # Per-currency exposure / net currency mismatch.
     currency_exposure = _compute_currency_exposure(
         holdings, base_currency, notes, locale
     )
@@ -292,7 +314,7 @@ def compute_monitoring(
         "document_id": document_id,
         "client_name": meta.get("client_name") or ips.get("client_name", "Unknown"),
         "saved_at": saved_at,
-        "as_of": datetime.now().date().isoformat(),
+        "as_of": business_today().isoformat(),
         "valuation_source": "actual_holdings" if snapshot else "buy_and_hold",
         "valuation_as_of": snapshot["as_of"] if snapshot else None,
         "snapshot_id": snapshot["id"] if snapshot else None,
@@ -666,7 +688,7 @@ def _compute_period_returns(
     if saved_date is None or not tickers:
         return result
 
-    elapsed_days = max((datetime.now().date() - saved_date).days, 1)
+    elapsed_days = max((business_today() - saved_date).days, 1)
     period = _choose_period(elapsed_days)
 
     try:
@@ -776,6 +798,8 @@ def compute_fleet_status(
         - price fetch failure        -> every document 'unknown' + note
         - missing SAA / parse error  -> that document 'unknown' + note
         - window shorter than 2 obs  -> affected tickers 'unknown'
+        - snapshot base currency no  -> that document 'unknown' + note;
+          longer matching the IPS      the stale snapshot is never applied
 
     Args:
         locale: Language of the per-item ``note`` fields ("zh" / "en").
@@ -783,7 +807,7 @@ def compute_fleet_status(
     Returns:
         Dict matching the api.schemas.MonitoringFleetResponse contract.
     """
-    today = datetime.now().date()
+    today = business_today()
     entries = _parse_fleet_documents(locale)
     for entry in entries:
         entry["snapshot"] = (snapshots or {}).get(entry["document_id"])
@@ -853,6 +877,7 @@ def _parse_fleet_documents(locale: str = "zh") -> list[dict]:
             "document_id": Path(summary["filepath"]).stem,
             "client_name": summary.get("client_name") or "Unknown",
             "saved_at": summary.get("saved_at", "") or "",
+            "base_currency": BASE_CURRENCY,
             "holdings": None,
             "saved_date": None,
             "notes": [],
@@ -868,6 +893,9 @@ def _parse_fleet_documents(locale: str = "zh") -> list[dict]:
                 or entry["client_name"]
             )
             entry["saved_at"] = meta.get("saved_at", "") or entry["saved_at"]
+            entry["base_currency"] = (ips.get("currency_policy") or {}).get(
+                "base_currency"
+            ) or BASE_CURRENCY
             saa = ips.get("investment_guidelines", {}).get("strategic_allocation") or []
             if not saa:
                 entry["error"] = _t("fleet_missing_saa", locale)
@@ -918,6 +946,16 @@ def _fleet_item(
     holdings = entry["holdings"]
     saved_date = entry["saved_date"]
     snapshot = entry.get("snapshot")
+    if snapshot is not None and snapshot.get("base_currency") != entry["base_currency"]:
+        # Recorded under a previous policy currency: never read its amounts
+        # under the new currency's meaning — degrade to unknown + note.
+        item["note"] = _t(
+            "snapshot_currency_mismatch",
+            locale,
+            snapshot=snapshot.get("base_currency"),
+            current=entry["base_currency"],
+        )
+        return item
     if snapshot is not None:
         _include_actual_assets(holdings, snapshot, entry["notes"], locale)
         apply_actual_holdings(holdings, snapshot)

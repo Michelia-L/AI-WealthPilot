@@ -6,9 +6,9 @@ so the API contract and the engine can never drift apart.
 """
 
 from datetime import date, datetime
-from typing import Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, BeforeValidator, Field, model_validator
 
 from src.portfolio.cme_models import CMEReport
 
@@ -780,14 +780,27 @@ class IpsDetailResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _reject_boolean(value: Any) -> Any:
+    """bool is an int subclass; keep JSON true/false out of numeric fields."""
+    if isinstance(value, bool):
+        raise ValueError("expected a number, got a boolean")
+    return value
+
+
+# Monetary/quantity inputs: lax int->float coercion stays, booleans do not.
+NonBoolFloat = Annotated[float, BeforeValidator(_reject_boolean)]
+
+
 class ActualHoldingInput(BaseModel):
     model_config = {"extra": "forbid"}
 
     asset_class: str = Field(min_length=1, max_length=200)
-    market_value: Optional[float] = Field(default=None, ge=0, allow_inf_nan=False)
-    quantity: Optional[float] = Field(default=None, ge=0, allow_inf_nan=False)
-    unit_price: Optional[float] = Field(default=None, gt=0, allow_inf_nan=False)
-    cost_basis: Optional[float] = Field(default=None, ge=0, allow_inf_nan=False)
+    market_value: Optional[NonBoolFloat] = Field(
+        default=None, ge=0, allow_inf_nan=False
+    )
+    quantity: Optional[NonBoolFloat] = Field(default=None, ge=0, allow_inf_nan=False)
+    unit_price: Optional[NonBoolFloat] = Field(default=None, gt=0, allow_inf_nan=False)
+    cost_basis: Optional[NonBoolFloat] = Field(default=None, ge=0, allow_inf_nan=False)
     cost_basis_date: Optional[date] = None
 
 
