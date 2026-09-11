@@ -22,8 +22,8 @@ from src.portfolio.cme_models import AssetClassCME, CMEReport
 SAVED_AT = "2026-06-01T09:30:00"
 
 # Frozen clock for as_of assertions: the server derives "today" from the
-# business clock in src.portfolio.actual_holdings, so a local datetime.now()
-# assertion races midnight.
+# business clock in src.business_time, so a local datetime.now() assertion
+# races midnight.
 FROZEN_DATE = "2026-06-15"
 
 
@@ -31,6 +31,15 @@ class _FrozenDatetime(datetime):
     @classmethod
     def now(cls, tz=None):
         return cls(2026, 6, 15, 23, 59)
+
+
+class _UtcBoundaryClock(datetime):
+    """Frozen at 2026-09-09T16:30Z: Shanghai 2026-09-10 00:30, UTC still 09-09."""
+
+    @classmethod
+    def now(cls, tz=None):
+        instant = datetime.fromisoformat("2026-09-09T16:30:00+00:00")
+        return instant.astimezone(tz) if tz else instant.replace(tzinfo=None)
 
 
 # ---------------------------------------------------------------------------
@@ -170,7 +179,7 @@ def stub_cme(monkeypatch):
 
 def test_monitoring_full_chain(client, ips_dir, stub_cme, monkeypatch):
     """End-to-end 200: cash plug, CME alignment, drift, portfolio metrics."""
-    monkeypatch.setattr("src.portfolio.actual_holdings.datetime", _FrozenDatetime)
+    monkeypatch.setattr("src.business_time.datetime", _FrozenDatetime)
     monkeypatch.setattr(
         "src.portfolio.monitoring.fetch_price_history",
         _stub_fetch(
@@ -566,7 +575,7 @@ def _write_ips_doc_with_currency_policy(
 
 def test_currency_exposure_breakdown(client, ips_dir, stub_cme, monkeypatch):
     """Domestic + international SAA splits into CNY / USD buckets."""
-    monkeypatch.setattr("src.portfolio.actual_holdings.datetime", _FrozenDatetime)
+    monkeypatch.setattr("src.business_time.datetime", _FrozenDatetime)
     monkeypatch.setattr(
         "src.portfolio.monitoring.fetch_price_history",
         _stub_fetch(
@@ -610,7 +619,7 @@ def test_currency_exposure_base_currency_from_ips(
     client, ips_dir, stub_cme, monkeypatch
 ):
     """The IPS currency_policy base_currency drives the breakdown ordering."""
-    monkeypatch.setattr("src.portfolio.actual_holdings.datetime", _FrozenDatetime)
+    monkeypatch.setattr("src.business_time.datetime", _FrozenDatetime)
     monkeypatch.setattr(
         "src.portfolio.monitoring.fetch_price_history",
         _stub_fetch(
@@ -639,7 +648,7 @@ def test_currency_exposure_base_currency_from_ips(
 
 def test_currency_exposure_unmapped_excluded(client, ips_dir, stub_cme, monkeypatch):
     """Unmapped SAA entries are excluded from the breakdown, with a note."""
-    monkeypatch.setattr("src.portfolio.actual_holdings.datetime", _FrozenDatetime)
+    monkeypatch.setattr("src.business_time.datetime", _FrozenDatetime)
     monkeypatch.setattr(
         "src.portfolio.monitoring.fetch_price_history",
         _stub_fetch(_prices({"000300.SS": [100.0, 100.0, 100.0]})),
@@ -668,7 +677,7 @@ def test_currency_exposure_unknown_drift_degrades(
     client, ips_dir, stub_cme, monkeypatch
 ):
     """Missing price data -> foreign drifted null; mismatch falls back to target."""
-    monkeypatch.setattr("src.portfolio.actual_holdings.datetime", _FrozenDatetime)
+    monkeypatch.setattr("src.business_time.datetime", _FrozenDatetime)
     monkeypatch.setattr(
         "src.portfolio.monitoring.fetch_price_history",
         _stub_fetch(_prices({"000300.SS": [100.0, 100.0, 100.0]})),  # no EFA
@@ -703,7 +712,7 @@ def _reset_fleet_status_cache(monkeypatch):
 
 def test_fleet_status_full_chain(client, ips_dir, monkeypatch):
     """One breach doc + one ok doc; single shared fetch; saved_at desc."""
-    monkeypatch.setattr("src.portfolio.actual_holdings.datetime", _FrozenDatetime)
+    monkeypatch.setattr("src.business_time.datetime", _FrozenDatetime)
     counter = {"calls": 0}
     monkeypatch.setattr(
         "src.portfolio.monitoring.fetch_price_history",
@@ -1366,15 +1375,7 @@ def test_holdings_today_rejects_naive_datetime():
 
 def test_monitoring_dates_use_business_timezone(client, ips_dir, stub_cme, monkeypatch):
     """Shanghai 00:30 / UTC previous day: monitoring dates all follow Shanghai."""
-    from src.portfolio import actual_holdings
-
-    class UtcBoundaryClock(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            instant = datetime.fromisoformat("2026-09-09T16:30:00+00:00")
-            return instant.astimezone(tz) if tz else instant.replace(tzinfo=None)
-
-    monkeypatch.setattr(actual_holdings, "datetime", UtcBoundaryClock)
+    monkeypatch.setattr("src.business_time.datetime", _UtcBoundaryClock)
     seen = {}
 
     def fetch(tickers=None, period="5y", **kwargs):
@@ -1396,16 +1397,45 @@ def test_monitoring_dates_use_business_timezone(client, ips_dir, stub_cme, monke
     assert client.get("/api/monitoring/status").json()["as_of"] == "2026-09-10"
 
 
+def test_saved_at_and_drift_cutoff_use_business_timezone(client, stub_cme, monkeypatch):
+    """save_ips at Shanghai 00:30 must record saved_at on the Shanghai date.
+
+    A host-UTC naive saved_at would read as 2026-09-09 and start the drift
+    window one day early, wrongly including the 09-09 close in the return.
+    """
+    from src.agents import ips_storage
+
+    monkeypatch.setattr("src.business_time.datetime", _UtcBoundaryClock)
+    filepath = ips_storage.save_ips(
+        {
+            "client_name": "Boundary Client",
+            "investment_guidelines": {
+                "strategic_allocation": [_saa_entry("固定收益", 1.0, 0.5, 1.0)]
+            },
+        },
+        {"final_status": "approved", "total_rounds": 0},
+        "Boundary Client",
+    )
+    saved_at = json.loads(filepath.read_text(encoding="utf-8"))["metadata"]["saved_at"]
+    saved_dt = datetime.fromisoformat(saved_at)
+    assert saved_dt.tzinfo is not None  # timezone-aware business time
+    assert saved_dt.date().isoformat() == "2026-09-10"  # not the host UTC date
+
+    prices = pd.DataFrame(
+        {"AGG": [100.0, 110.0]}, index=pd.bdate_range("2026-09-09", periods=2)
+    )
+    monkeypatch.setattr(
+        "src.portfolio.monitoring.fetch_price_history", _stub_fetch(prices)
+    )
+    body = client.get(f"/api/monitoring/{filepath.stem}").json()
+    assert body["saved_at"] == saved_at
+    assert body["as_of"] == "2026-09-10"
+    # Cutoff on the Shanghai save date leaves a single close: no period return.
+    assert body["holdings"][0]["period_return"] is None
+
+
 def test_holdings_future_date_uses_business_timezone(client, actual_doc, monkeypatch):
-    from src.portfolio import actual_holdings
-
-    class UtcHostClock(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            instant = datetime.fromisoformat("2026-09-09T16:30:00+00:00")
-            return instant.astimezone(tz) if tz else instant.replace(tzinfo=None)
-
-    monkeypatch.setattr(actual_holdings, "datetime", UtcHostClock)
+    monkeypatch.setattr("src.business_time.datetime", _UtcBoundaryClock)
     assert (
         client.post(
             actual_doc + "/holdings", json=_actual_payload("2026-09-10")

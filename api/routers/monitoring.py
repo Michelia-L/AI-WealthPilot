@@ -46,11 +46,8 @@ from src.agents.rebalance_advisor import (
     generate_rebalance_advice_stream,
     is_api_configured,
 )
-from src.portfolio.actual_holdings import (
-    HoldingValidationError,
-    business_today,
-    value_snapshot,
-)
+from src.business_time import business_today
+from src.portfolio.actual_holdings import HoldingValidationError, value_snapshot
 from src.portfolio.backtest import (
     VALID_PERIODS as BACKTEST_PERIODS,
 )

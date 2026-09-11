@@ -8,17 +8,7 @@ import math
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-HOLDINGS_TIMEZONE = "Asia/Shanghai"
-
-
-def business_now() -> datetime:
-    """Current time in the business timezone, independent of the API host TZ."""
-    return datetime.now(ZoneInfo(HOLDINGS_TIMEZONE))
-
-
-def business_today() -> date:
-    """Current business calendar date; shared by holdings and monitoring dates."""
-    return business_now().date()
+from src.business_time import BUSINESS_TIMEZONE, business_today
 
 
 def holdings_today(instant: datetime | None = None) -> date:
@@ -27,7 +17,7 @@ def holdings_today(instant: datetime | None = None) -> date:
         return business_today()
     if instant.tzinfo is None:
         raise ValueError("holdings_today requires a timezone-aware datetime")
-    return instant.astimezone(ZoneInfo(HOLDINGS_TIMEZONE)).date()
+    return instant.astimezone(ZoneInfo(BUSINESS_TIMEZONE)).date()
 
 
 class HoldingValidationError(ValueError):

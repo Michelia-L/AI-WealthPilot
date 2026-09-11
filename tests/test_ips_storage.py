@@ -32,10 +32,10 @@ def test_same_timestamp_documents_keep_distinct_ids_and_client_associations(
 
     class FrozenDatetime(datetime):
         @classmethod
-        def now(cls):
+        def now(cls, tz=None):
             return cls(2026, 9, 6, 12, 34, 56)
 
-    monkeypatch.setattr(ips_storage, "datetime", FrozenDatetime)
+    monkeypatch.setattr("src.business_time.datetime", FrozenDatetime)
     first = ips_storage.save_ips({}, {}, "Same Name", profile_id=1)
     second = ips_storage.save_ips({}, {}, "Same Name", profile_id=2)
     assert first != second

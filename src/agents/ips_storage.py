@@ -16,13 +16,13 @@ Key Features:
 import json
 import logging
 import re
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
 from fpdf.enums import TextMode, XPos, YPos
 
+from src.business_time import business_now
 from src.config import DATA_DIR
 from src.utils import sanitize_filename
 
@@ -67,8 +67,9 @@ def save_ips(
     """
     _ensure_ips_dir()
 
+    now = business_now()
     safe_name = sanitize_filename(client_name)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = now.strftime("%Y%m%d_%H%M%S")
     filename = f"ips_{safe_name}_{timestamp}_{uuid4().hex}.json"
     filepath = IPS_DIR / filename
 
@@ -78,7 +79,7 @@ def save_ips(
         "metadata": {
             "client_name": client_name,
             "profile_id": profile_id,
-            "saved_at": datetime.now().isoformat(),
+            "saved_at": now.isoformat(),
             "notes": notes,
         },
     }
