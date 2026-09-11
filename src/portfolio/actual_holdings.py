@@ -8,15 +8,16 @@ import math
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-HOLDINGS_TIMEZONE = "Asia/Shanghai"
+from src.business_time import BUSINESS_TIMEZONE, business_today
 
 
 def holdings_today(instant: datetime | None = None) -> date:
     """Calendar date for valuations, independent of the API host timezone."""
-    zone = ZoneInfo(HOLDINGS_TIMEZONE)
-    return (
-        instant.astimezone(zone) if instant is not None else datetime.now(zone)
-    ).date()
+    if instant is None:
+        return business_today()
+    if instant.tzinfo is None:
+        raise ValueError("holdings_today requires a timezone-aware datetime")
+    return instant.astimezone(ZoneInfo(BUSINESS_TIMEZONE)).date()
 
 
 class HoldingValidationError(ValueError):

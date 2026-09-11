@@ -21,8 +21,9 @@ from src.portfolio.cme_models import AssetClassCME, CMEReport
 
 SAVED_AT = "2026-06-01T09:30:00"
 
-# Frozen clock for as_of assertions: the server reads datetime.now() inside
-# src.portfolio.monitoring, so a local datetime.now() assertion races midnight.
+# Frozen clock for as_of assertions: the server derives "today" from the
+# business clock in src.business_time, so a local datetime.now() assertion
+# races midnight.
 FROZEN_DATE = "2026-06-15"
 
 
@@ -30,6 +31,15 @@ class _FrozenDatetime(datetime):
     @classmethod
     def now(cls, tz=None):
         return cls(2026, 6, 15, 23, 59)
+
+
+class _UtcBoundaryClock(datetime):
+    """Frozen at 2026-09-09T16:30Z: Shanghai 2026-09-10 00:30, UTC still 09-09."""
+
+    @classmethod
+    def now(cls, tz=None):
+        instant = datetime.fromisoformat("2026-09-09T16:30:00+00:00")
+        return instant.astimezone(tz) if tz else instant.replace(tzinfo=None)
 
 
 # ---------------------------------------------------------------------------
@@ -169,7 +179,7 @@ def stub_cme(monkeypatch):
 
 def test_monitoring_full_chain(client, ips_dir, stub_cme, monkeypatch):
     """End-to-end 200: cash plug, CME alignment, drift, portfolio metrics."""
-    monkeypatch.setattr("src.portfolio.monitoring.datetime", _FrozenDatetime)
+    monkeypatch.setattr("src.business_time.datetime", _FrozenDatetime)
     monkeypatch.setattr(
         "src.portfolio.monitoring.fetch_price_history",
         _stub_fetch(
@@ -565,7 +575,7 @@ def _write_ips_doc_with_currency_policy(
 
 def test_currency_exposure_breakdown(client, ips_dir, stub_cme, monkeypatch):
     """Domestic + international SAA splits into CNY / USD buckets."""
-    monkeypatch.setattr("src.portfolio.monitoring.datetime", _FrozenDatetime)
+    monkeypatch.setattr("src.business_time.datetime", _FrozenDatetime)
     monkeypatch.setattr(
         "src.portfolio.monitoring.fetch_price_history",
         _stub_fetch(
@@ -609,7 +619,7 @@ def test_currency_exposure_base_currency_from_ips(
     client, ips_dir, stub_cme, monkeypatch
 ):
     """The IPS currency_policy base_currency drives the breakdown ordering."""
-    monkeypatch.setattr("src.portfolio.monitoring.datetime", _FrozenDatetime)
+    monkeypatch.setattr("src.business_time.datetime", _FrozenDatetime)
     monkeypatch.setattr(
         "src.portfolio.monitoring.fetch_price_history",
         _stub_fetch(
@@ -638,7 +648,7 @@ def test_currency_exposure_base_currency_from_ips(
 
 def test_currency_exposure_unmapped_excluded(client, ips_dir, stub_cme, monkeypatch):
     """Unmapped SAA entries are excluded from the breakdown, with a note."""
-    monkeypatch.setattr("src.portfolio.monitoring.datetime", _FrozenDatetime)
+    monkeypatch.setattr("src.business_time.datetime", _FrozenDatetime)
     monkeypatch.setattr(
         "src.portfolio.monitoring.fetch_price_history",
         _stub_fetch(_prices({"000300.SS": [100.0, 100.0, 100.0]})),
@@ -667,7 +677,7 @@ def test_currency_exposure_unknown_drift_degrades(
     client, ips_dir, stub_cme, monkeypatch
 ):
     """Missing price data -> foreign drifted null; mismatch falls back to target."""
-    monkeypatch.setattr("src.portfolio.monitoring.datetime", _FrozenDatetime)
+    monkeypatch.setattr("src.business_time.datetime", _FrozenDatetime)
     monkeypatch.setattr(
         "src.portfolio.monitoring.fetch_price_history",
         _stub_fetch(_prices({"000300.SS": [100.0, 100.0, 100.0]})),  # no EFA
@@ -702,7 +712,7 @@ def _reset_fleet_status_cache(monkeypatch):
 
 def test_fleet_status_full_chain(client, ips_dir, monkeypatch):
     """One breach doc + one ok doc; single shared fetch; saved_at desc."""
-    monkeypatch.setattr("src.portfolio.monitoring.datetime", _FrozenDatetime)
+    monkeypatch.setattr("src.business_time.datetime", _FrozenDatetime)
     counter = {"calls": 0}
     monkeypatch.setattr(
         "src.portfolio.monitoring.fetch_price_history",
@@ -892,6 +902,61 @@ def test_fleet_status_cached_until_refresh(client, ips_dir, monkeypatch):
     assert counter["calls"] == 2
 
 
+def test_fleet_cache_tracks_ips_document_changes(client, ips_dir, monkeypatch):
+    """IPS add/edit/delete versions the fleet cache — no ?refresh=true needed."""
+    counter = {"calls": 0}
+    monkeypatch.setattr(
+        "src.portfolio.monitoring.fetch_price_history",
+        _counting_fetch(FLAT_PRICES, counter),
+    )
+    doc_id = _write_ips_doc(
+        ips_dir,
+        "ips_fleet_flat_20260601_093000",
+        [_saa_entry("固定收益", 1.0, 0.5, 1.0)],
+        saved_at="2026-06-01T09:30:00",
+        client_name="首位客户",
+    )
+
+    first = client.get("/api/monitoring/status").json()
+    assert [i["document_id"] for i in first["items"]] == [doc_id]
+    assert counter["calls"] == 1
+    assert client.get("/api/monitoring/status").json() == first  # cache hit
+    assert counter["calls"] == 1
+
+    # Add: a new document appears without an explicit refresh.
+    _write_ips_doc(
+        ips_dir,
+        "ips_fleet_added_20260602_093000",
+        [_saa_entry("固定收益", 1.0, 0.5, 1.0)],
+        saved_at="2026-06-02T09:30:00",
+        client_name="新增客户",
+    )
+    added = client.get("/api/monitoring/status").json()
+    assert counter["calls"] == 2
+    assert {i["document_id"] for i in added["items"]} == {
+        doc_id,
+        "ips_fleet_added_20260602_093000",
+    }
+
+    # Modify: edited content (client name here) must not stay cached.
+    path = ips_dir / f"{doc_id}.json"
+    record = json.loads(path.read_text(encoding="utf-8"))
+    record["metadata"]["client_name"] = "改名客户"
+    path.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
+    renamed = client.get("/api/monitoring/status").json()
+    assert counter["calls"] == 3
+    names = {i["document_id"]: i["client_name"] for i in renamed["items"]}
+    assert names[doc_id] == "改名客户"
+
+    # Delete: the document leaves the fleet.
+    path.unlink()
+    deleted = client.get("/api/monitoring/status").json()
+    assert counter["calls"] == 4
+    assert [i["document_id"] for i in deleted["items"]] == [
+        "ips_fleet_added_20260602_093000"
+    ]
+
+
 def test_fleet_status_route_not_shadowed_by_document_id(client):
     """/monitoring/status must not be captured by /{document_id} (->404)."""
     resp = client.get("/api/monitoring/status")
@@ -1021,6 +1086,33 @@ def test_actual_omitted_and_off_policy_assets(client, actual_doc):
         {"holdings": [{"asset_class": "固定收益", "market_value": -1}]},
         {"holdings": [{"asset_class": "固定收益", "market_value": "NaN"}]},
         {"holdings": [{"asset_class": "固定收益", "market_value": "Infinity"}]},
+        # JSON booleans must never coerce into numeric fields (true -> 1.0).
+        {"holdings": [{"asset_class": "固定收益", "market_value": True}]},
+        {"holdings": [{"asset_class": "固定收益", "market_value": False}]},
+        {"holdings": [{"asset_class": "固定收益", "quantity": True, "unit_price": 2}]},
+        {"holdings": [{"asset_class": "固定收益", "quantity": False, "unit_price": 2}]},
+        {"holdings": [{"asset_class": "固定收益", "quantity": 2, "unit_price": True}]},
+        {"holdings": [{"asset_class": "固定收益", "quantity": 2, "unit_price": False}]},
+        {
+            "holdings": [
+                {
+                    "asset_class": "固定收益",
+                    "market_value": 2,
+                    "cost_basis": True,
+                    "cost_basis_date": "2026-01-01",
+                }
+            ]
+        },
+        {
+            "holdings": [
+                {
+                    "asset_class": "固定收益",
+                    "market_value": 2,
+                    "cost_basis": False,
+                    "cost_basis_date": "2026-01-01",
+                }
+            ]
+        },
         {
             "holdings": [
                 {"asset_class": "固定收益", "quantity": 1e308, "unit_price": 1e308}
@@ -1152,6 +1244,49 @@ def test_actual_fleet_survives_simulation_price_failure(
     assert items["ips_simulated"]["status"] == "unknown"
 
 
+def test_actual_snapshot_rejected_after_ips_currency_change(
+    client, actual_doc, ips_dir, monkeypatch
+):
+    """A CNY snapshot must not be read as USD after the IPS currency changes."""
+    first = client.post(actual_doc + "/holdings", json=_actual_payload()).json()
+    assert client.get(actual_doc).json()["valuation_source"] == "actual_holdings"
+
+    # The IPS is replaced under the same document id with a USD base currency.
+    path = ips_dir / "ips_actual.json"
+    record = json.loads(path.read_text(encoding="utf-8"))
+    record["ips"]["currency_policy"] = {"base_currency": "USD"}
+    path.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
+
+    detail = client.get(actual_doc)
+    assert detail.status_code == 422
+    assert "CNY" in detail.json()["detail"]
+    assert "USD" in detail.json()["detail"]
+
+    monkeypatch.setattr(monitoring_router, "is_api_configured", lambda: True)
+    advice = client.post("/api/monitoring/advice", json={"document_id": "ips_actual"})
+    assert advice.status_code == 422
+
+    fleet = client.get("/api/monitoring/status").json()
+    assert fleet["summary"] == {"total": 1, "breach": 0, "ok": 0, "unknown": 1}
+    item = fleet["items"][0]
+    assert item["status"] == "unknown"
+    assert item["valuation_source"] == "buy_and_hold"  # stale snapshot not applied
+    assert item["valuation_as_of"] is None
+    assert "CNY" in item["note"] and "USD" in item["note"]
+
+    # A fresh snapshot in the new currency restores actual-holdings monitoring.
+    assert (
+        client.post(
+            actual_doc + "/holdings",
+            json={**_actual_payload("2026-06-11"), "base_currency": "USD"},
+        ).status_code
+        == 201
+    )
+    restored = client.get(actual_doc).json()
+    assert restored["valuation_source"] == "actual_holdings"
+    assert restored["snapshot_id"] != first["id"]
+
+
 def test_actual_recording_does_not_require_cme(client, actual_doc, monkeypatch):
     monkeypatch.setattr(
         "src.portfolio.monitoring.compute_cme",
@@ -1230,16 +1365,77 @@ def test_holdings_business_date(utc_time, expected):
     assert holdings_today(datetime.fromisoformat(utc_time)).isoformat() == expected
 
 
+def test_holdings_today_rejects_naive_datetime():
+    """Naive inputs would be read in the host timezone — reject them instead."""
+    from src.portfolio.actual_holdings import holdings_today
+
+    with pytest.raises(ValueError, match="timezone-aware"):
+        holdings_today(datetime(2026, 9, 9, 23, 30))
+
+
+def test_monitoring_dates_use_business_timezone(client, ips_dir, stub_cme, monkeypatch):
+    """Shanghai 00:30 / UTC previous day: monitoring dates all follow Shanghai."""
+    monkeypatch.setattr("src.business_time.datetime", _UtcBoundaryClock)
+    seen = {}
+
+    def fetch(tickers=None, period="5y", **kwargs):
+        seen["period"] = period
+        return _prices({"AGG": [100.0, 100.0, 100.0]})
+
+    monkeypatch.setattr("src.portfolio.monitoring.fetch_price_history", fetch)
+    doc_id = _write_ips_doc(
+        ips_dir,
+        "ips_boundary_20260608_093000",
+        [_saa_entry("固定收益", 1.0, 0.5, 1.0)],
+        saved_at="2026-06-08T09:30:00",
+    )
+
+    body = client.get(f"/api/monitoring/{doc_id}").json()
+    assert body["as_of"] == "2026-09-10"  # not the host UTC date 2026-09-09
+    # 94 elapsed Shanghai days -> "6mo"; the UTC date would pick "3mo" (93).
+    assert seen["period"] == "6mo"
+    assert client.get("/api/monitoring/status").json()["as_of"] == "2026-09-10"
+
+
+def test_saved_at_and_drift_cutoff_use_business_timezone(client, stub_cme, monkeypatch):
+    """save_ips at Shanghai 00:30 must record saved_at on the Shanghai date.
+
+    A host-UTC naive saved_at would read as 2026-09-09 and start the drift
+    window one day early, wrongly including the 09-09 close in the return.
+    """
+    from src.agents import ips_storage
+
+    monkeypatch.setattr("src.business_time.datetime", _UtcBoundaryClock)
+    filepath = ips_storage.save_ips(
+        {
+            "client_name": "Boundary Client",
+            "investment_guidelines": {
+                "strategic_allocation": [_saa_entry("固定收益", 1.0, 0.5, 1.0)]
+            },
+        },
+        {"final_status": "approved", "total_rounds": 0},
+        "Boundary Client",
+    )
+    saved_at = json.loads(filepath.read_text(encoding="utf-8"))["metadata"]["saved_at"]
+    saved_dt = datetime.fromisoformat(saved_at)
+    assert saved_dt.tzinfo is not None  # timezone-aware business time
+    assert saved_dt.date().isoformat() == "2026-09-10"  # not the host UTC date
+
+    prices = pd.DataFrame(
+        {"AGG": [100.0, 110.0]}, index=pd.bdate_range("2026-09-09", periods=2)
+    )
+    monkeypatch.setattr(
+        "src.portfolio.monitoring.fetch_price_history", _stub_fetch(prices)
+    )
+    body = client.get(f"/api/monitoring/{filepath.stem}").json()
+    assert body["saved_at"] == saved_at
+    assert body["as_of"] == "2026-09-10"
+    # Cutoff on the Shanghai save date leaves a single close: no period return.
+    assert body["holdings"][0]["period_return"] is None
+
+
 def test_holdings_future_date_uses_business_timezone(client, actual_doc, monkeypatch):
-    from src.portfolio import actual_holdings
-
-    class UtcHostClock(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            instant = datetime.fromisoformat("2026-09-09T16:30:00+00:00")
-            return instant.astimezone(tz) if tz else instant.replace(tzinfo=None)
-
-    monkeypatch.setattr(actual_holdings, "datetime", UtcHostClock)
+    monkeypatch.setattr("src.business_time.datetime", _UtcBoundaryClock)
     assert (
         client.post(
             actual_doc + "/holdings", json=_actual_payload("2026-09-10")

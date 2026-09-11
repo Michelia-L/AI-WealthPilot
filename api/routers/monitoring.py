@@ -10,7 +10,6 @@ Server-Sent Events, reusing the advisor SSE protocol verbatim (reasoning
 and token events, then a terminal done/error event).
 """
 
-from datetime import date
 from typing import Generator, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -39,6 +38,7 @@ from api.schemas import (
     RebalanceAdviceRequest,
 )
 from api.tasks import sse
+from src.agents import ips_storage
 from src.agents.demo_mode import demo_rebalance_stream, is_demo_mode
 from src.agents.profiler import ClientProfile
 from src.agents.rebalance_advisor import (
@@ -46,6 +46,7 @@ from src.agents.rebalance_advisor import (
     generate_rebalance_advice_stream,
     is_api_configured,
 )
+from src.business_time import business_today
 from src.portfolio.actual_holdings import HoldingValidationError, value_snapshot
 from src.portfolio.backtest import (
     VALID_PERIODS as BACKTEST_PERIODS,
@@ -93,8 +94,10 @@ def get_fleet_status(
     # Date inside the key: the first request of a new day misses the cache
     # and recomputes — the lazy "daily auto re-check" semantic. Locale is
     # part of the key because fleet item notes are localized.
-    revision = snapshot_revision(session)
-    key = f"fleet-status:{date.today().isoformat()}:{locale}"
+    # The version covers both inputs the computation reads: holdings snapshots
+    # and the IPS document set itself (add/edit/delete/restore).
+    revision = (snapshot_revision(session), ips_storage.ips_revision())
+    key = f"fleet-status:{business_today().isoformat()}:{locale}"
 
     def compute() -> MonitoringFleetResponse:
         snapshots = latest_snapshots(session)
