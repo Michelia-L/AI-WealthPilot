@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="650" viewBox="0 0 960 650" role="img" aria-labelledby="title desc">
+  <title id="title">Model Validation 的五条研究线与 production 复用边界</title>
+  <desc id="desc">调用方提供离线数据和假设。Portfolio Walk-Forward 复用生产优化器，其保存结果用于成本、稳定性、风险校准与压力分析。CME archive 和 retirement harness 是独立入口，分别复用 CME 数据模型及混合公式、退休现金流逻辑。事后分析不反馈配权。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker>
+  </defs>
+  <rect width="960" height="650" rx="14" fill="#f8fafc"/>
+  <g font-family="sans-serif" text-anchor="middle">
+    <text x="480" y="35" font-size="22" font-weight="bold" fill="#0f172a">Model Validation · Five Workstreams</text>
+    <rect x="30" y="58" width="900" height="57" rx="8" fill="#e2e8f0"/>
+    <text x="480" y="82" font-size="17" fill="#0f172a">Caller-supplied snapshots, dated source evidence and explicit assumptions</text>
+    <text x="480" y="103" font-size="13" fill="#334155">Three offline entry points · No live data filling · Caller owns source evidence</text>
+    <g stroke="#64748b" stroke-width="2" marker-end="url(#arrow)">
+      <path d="M180 115 V153"/><path d="M480 115 V153"/><path d="M780 115 V153"/>
+      <path d="M180 248 V288"/><path d="M180 248 H323 V430 H307" fill="none"/>
+      <path d="M180 377 V418" stroke-dasharray="5 4"/>
+    </g>
+    <g fill="#dbeafe" stroke="#93c5fd">
+      <rect x="40" y="155" width="270" height="93" rx="8"/>
+      <rect x="350" y="155" width="260" height="93" rx="8"/>
+      <rect x="650" y="155" width="270" height="93" rx="8"/>
+    </g>
+    <g fill="#0f172a" font-size="15" font-weight="bold">
+      <text x="175" y="185">#60 · Portfolio Walk-Forward</text>
+      <text x="480" y="185">#63 · CME Vintage</text>
+      <text x="785" y="185">#64 · Retirement Validation</text>
+    </g>
+    <g fill="#334155" font-size="13">
+      <text x="175" y="210">as_of allocation → holding OOS</text><text x="175" y="232">Save weights, NAV and risk forecasts</text>
+      <text x="480" y="210">Immutable archive → mature outcomes</text><text x="480" y="232">return / vol / correlation / blend</text>
+      <text x="785" y="210">GBM / IID / moving blocks</text><text x="785" y="232">Fixed / guardrails · Sensitivity / stress</text>
+    </g>
+    <g fill="#fef3c7" stroke="#fcd34d">
+      <rect x="40" y="290" width="270" height="87" rx="8"/>
+      <rect x="40" y="420" width="270" height="90" rx="8"/>
+    </g>
+    <g fill="#0f172a" font-size="15" font-weight="bold">
+      <text x="175" y="319">#61 · Costs / Robustness</text><text x="175" y="449">#62 · Risk / Regimes / Stress</text>
+    </g>
+    <g fill="#334155" font-size="13">
+      <text x="175" y="343">Drift turnover, costs, weight stability</text><text x="175" y="364">Sensitivity reuses evaluate</text>
+      <text x="175" y="474">Read gross paths and ex-ante snapshots</text><text x="175" y="495">Ex-post regime analysis only</text>
+      <text x="243" y="404">Reuse turnover</text>
+    </g>
+    <rect x="350" y="290" width="570" height="220" rx="8" fill="#ecfdf5" stroke="#6ee7b7"/>
+    <text x="635" y="320" font-size="18" font-weight="bold" fill="#065f46">Shared Production Logic</text>
+    <g fill="#065f46" font-size="15" text-anchor="start">
+      <text x="372" y="355">Portfolio → PortfolioOptimizer / risk_metrics</text>
+      <text x="372" y="390">CME → CMEReport / blend_assumption</text>
+      <text x="372" y="425">Retirement → MonteCarloSimulator / retirement_paths</text>
+      <text x="372" y="464">Research adds time boundaries, experiments and evidence.</text>
+      <text x="372" y="488">No automatic CME feed into portfolio or retirement runs.</text>
+    </g>
+    <rect x="40" y="550" width="880" height="66" rx="8" fill="#e2e8f0"/>
+    <text x="480" y="576" font-size="17" fill="#0f172a">Common evidence: config, versions, seeds, sources, diagnostics and missing reasons</text>
+    <text x="480" y="600" font-size="14" fill="#334155">Full JSON + input snapshots for replay · Ex-post analysis does not alter past decisions</text>
+  </g>
+</svg>

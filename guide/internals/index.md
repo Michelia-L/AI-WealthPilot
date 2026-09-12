@@ -13,6 +13,13 @@
 | 05 | [API 传输壳与任务机制](05-api-shell.md) | 43 个端点地图、82 个 Pydantic 模型、SQLite 三表、SSE 任务写穿透与断线回放、TTL 缓存、双语消息表 | ✅ |
 | 06 | [Web 前端](06-web-frontend.md) | 12 个页面、RSC 与同源代理的分界、自研 i18n 的类型约束设计、plot-chart 主题层、优化器工作区状态机、设计令牌 | ✅ |
 | 07 | [质量与可复现性工程](07-quality-engineering.md) | 测试套件组织与隔离模式、CI 三job 与 87% 覆盖率门、Dependabot、e2e 双进程编排、版本钉与容器 | ✅ |
+| 08 | [Model Validation 与研究工作流](08-model-validation.md) | 历史信息边界、Portfolio / risk-regime / CME vintage / retirement validation、离线实验与 provenance | ✅ |
+| 09 | Portfolio Monitoring & Rebalancing | 监控与再平衡的完整工作流 | Planned / backlog |
+| 10 | Retirement Planning | 退休规划业务流程与产品层边界 | Planned / backlog |
+| 11 | Client Profile / Goals / Risk Model | 客户、目标与风险模型 | Planned / backlog，等待 #51 相关数据模型与授权边界稳定 |
+| 12 | IPS / Deliverables Workflow | 文档交付与生命周期 | Planned / backlog，等待 #51 相关文档工作流稳定 |
+
+09–12 尚未创建独立章节，将在相关架构稳定后分别开 docs issue。当前监控与退休的 API / Web 入口由第 05、06 章覆盖，退休模型研究见第 08 章及 [retirement README](https://github.com/Michelia-L/AI-WealthPilot/blob/main/validation/retirement/README.md)；画像评分与 IPS 生成、存储由第 04 章覆盖。这些现有说明不预先定义未来的 multi-user、Advisor / RBAC 或 document lifecycle 架构。
 
 ## 每章的统一结构
 
