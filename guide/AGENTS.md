@@ -11,6 +11,8 @@ mkdocs serve            # 本地预览（仓库根）
 mkdocs build --strict   # guide 或 MkDocs 配置改动的主要门禁
 ```
 
+包含 Python fenced code blocks 的 Markdown 也会被当前 Ruff formatter 检查。修改这类示例后，使用 `requirements-dev.txt` 中的 Ruff 版本运行 `ruff format <文档路径>`，并在仓库根执行 `ruff check`、`ruff format --check`；仅通过 MkDocs 构建不足以通过 Python CI 的格式门禁。
+
 push 到 `main` 后，相关路径变更会由 `.github/workflows/docs.yml` 构建并部署 GitHub Pages。文档工具依赖以 `requirements-dev.txt` 为准。
 
 ## 结构

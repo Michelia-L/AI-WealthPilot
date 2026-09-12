@@ -261,23 +261,34 @@ import numpy as np
 import pandas as pd
 
 from validation.portfolio import (
-    AnalysisSeries, CostConfig, StrategySpec, WalkForwardConfig,
-    analyze_risk, compare_runs, evaluate,
+    AnalysisSeries,
+    CostConfig,
+    StrategySpec,
+    WalkForwardConfig,
+    analyze_risk,
+    compare_runs,
+    evaluate,
 )
 
 out = Path(mkdtemp(prefix="wealthpilot-portfolio-"))
 dates = pd.bdate_range("2017-01-01", "2020-06-30")
 returns = pd.DataFrame(
-    np.random.default_rng(71).normal(
-        [0.0003, 0.0001], [0.012, 0.004], (len(dates), 2)
-    ), index=dates, columns=["SPY", "AGG"],
+    np.random.default_rng(71).normal([0.0003, 0.0001], [0.012, 0.004], (len(dates), 2)),
+    index=dates,
+    columns=["SPY", "AGG"],
 )
 config = WalkForwardConfig(
-    start_date="2019-12-31", end_date="2020-06-30",
-    universe=("SPY", "AGG"), training_window=24,
-    risk_free_rate=0.02, risk_free_rate_source="fixed synthetic assumption",
-    random_seed=71, data_source="synthetic daily returns, seed 71",
-    code_version=subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+    start_date="2019-12-31",
+    end_date="2020-06-30",
+    universe=("SPY", "AGG"),
+    training_window=24,
+    risk_free_rate=0.02,
+    risk_free_rate_source="fixed synthetic assumption",
+    random_seed=71,
+    data_source="synthetic daily returns, seed 71",
+    code_version=subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], text=True
+    ).strip(),
 )
 runs = {
     name: evaluate(returns, replace(config, strategy=StrategySpec(name)))
@@ -286,10 +297,13 @@ runs = {
 assert all(run.metrics["complete"] for run in runs.values())
 costs = compare_runs(runs, CostConfig(rates_bps=(0, 10, 25)))
 risk = analyze_risk(
-    runs, historical_scenarios=[],  # 本例只演示校准与事后 regime
+    runs,
+    historical_scenarios=[],  # 本例只演示校准与事后 regime
     benchmark=AnalysisSeries(
-        returns["SPY"], source="synthetic benchmark",
-        revision_policy="synthetic", units="daily_simple_return",
+        returns["SPY"],
+        source="synthetic benchmark",
+        revision_policy="synthetic",
+        units="daily_simple_return",
     ),
 )
 returns.to_csv(out / "input.csv")
@@ -319,38 +333,64 @@ import pandas as pd
 
 from src.portfolio.cme_models import AssetClassCME, CMEReport
 from validation.cme import (
-    CMEVintage, RealizedPanel, SourceRecord, VintageStore,
-    calibrate, evaluate_blending,
+    CMEVintage,
+    RealizedPanel,
+    SourceRecord,
+    VintageStore,
+    calibrate,
+    evaluate_blending,
 )
 
 out = Path(mkdtemp(prefix="wealthpilot-cme-"))
 available = datetime(2019, 12, 31, tzinfo=timezone.utc)
 generated = datetime(2026, 9, 12, tzinfo=timezone.utc)
 asset = AssetClassCME(
-    name="Synthetic asset", key="fixture", ticker="FIXTURE",
-    historical_return=0.05, expected_return=0.05, volatility=0.12,
-    sharpe_ratio=0, max_drawdown=0, var_95=0, cvar_95=0,
+    name="Synthetic asset",
+    key="fixture",
+    ticker="FIXTURE",
+    historical_return=0.05,
+    expected_return=0.05,
+    volatility=0.12,
+    sharpe_ratio=0,
+    max_drawdown=0,
+    var_95=0,
+    cvar_95=0,
 )  # 描述性风险字段为占位；没有 forward / implied 构件
 report = CMEReport(
-    as_of_date="2019-12-31", data_lookback_years=3,
-    risk_free_rate=0.02, risk_free_rate_source="synthetic fixed assumption",
-    inflation_assumption=0.025, asset_classes=[asset],
+    as_of_date="2019-12-31",
+    data_lookback_years=3,
+    risk_free_rate=0.02,
+    risk_free_rate_source="synthetic fixed assumption",
+    inflation_assumption=0.025,
+    asset_classes=[asset],
     correlation_matrix={"fixture": {"fixture": 1.0}},
 )
 sources = tuple(
     SourceRecord(
-        component=component, provider="synthetic fixture", proxy="FIXTURE",
-        observed_at=available, available_at=available, retrieved_at=generated,
-        quality="fresh", revision_policy="fixed_assumption",
+        component=component,
+        provider="synthetic fixture",
+        proxy="FIXTURE",
+        observed_at=available,
+        available_at=available,
+        retrieved_at=generated,
+        quality="fresh",
+        revision_policy="fixed_assumption",
     )
     for component in ("history", "correlation", "risk_free", "inflation", "fx")
 )
 vintage = CMEVintage.from_report(
-    report, as_of=date(2019, 12, 31), generated_at=generated,
-    vintage_type="reconstructed", model_version="synthetic-fixed-v1",
-    code_version=subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
-    base_currency="CNY", fx_treatment="synthetic CNY total returns",
-    cache_status="fresh", sources=sources,
+    report,
+    as_of=date(2019, 12, 31),
+    generated_at=generated,
+    vintage_type="reconstructed",
+    model_version="synthetic-fixed-v1",
+    code_version=subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], text=True
+    ).strip(),
+    base_currency="CNY",
+    fx_treatment="synthetic CNY total returns",
+    cache_status="fresh",
+    sources=sources,
 )
 assert not vintage.strict_issues()
 store = VintageStore(out / "vintages")
@@ -361,9 +401,14 @@ returns = pd.DataFrame(
     index=dates,
 )
 panel = RealizedPanel(
-    returns, {"fixture": "FIXTURE"}, "CNY", "synthetic CNY total returns",
-    source="synthetic daily outcome", revision_policy="synthetic",
-    coverage_start="2019-12-31", coverage_end="2024-12-31",
+    returns,
+    {"fixture": "FIXTURE"},
+    "CNY",
+    "synthetic CNY total returns",
+    source="synthetic daily outcome",
+    revision_policy="synthetic",
+    coverage_start="2019-12-31",
+    coverage_end="2024-12-31",
 )
 calibration = calibrate([saved], panel, evaluation_date="2024-12-31")
 blending = evaluate_blending([saved], panel, evaluation_date="2024-12-31")
@@ -391,19 +436,32 @@ from validation.retirement import HistoricalReturns, RetirementScenario, compare
 
 out = Path(mkdtemp(prefix="wealthpilot-retirement-"))
 scenario = RetirementScenario(
-    current_age=55, retirement_age=65, life_expectancy=90,
-    current_savings=800_000, annual_savings=40_000, desired_annual_income=80_000,
-    expected_return=0.06, volatility=0.15, base_currency="CNY",
-    inflation_rate=0.025, distribution_inflation_rate=0.03,
-    n_simulations=1000, seed=71,
-    code_version=subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+    current_age=55,
+    retirement_age=65,
+    life_expectancy=90,
+    current_savings=800_000,
+    annual_savings=40_000,
+    desired_annual_income=80_000,
+    expected_return=0.06,
+    volatility=0.15,
+    base_currency="CNY",
+    inflation_rate=0.025,
+    distribution_inflation_rate=0.03,
+    n_simulations=1000,
+    seed=71,
+    code_version=subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], text=True
+    ).strip(),
 )
 history = HistoricalReturns(
     dates=tuple(pd.date_range("2000-01-31", periods=240, freq="ME").date),
     returns=tuple(np.tile([-0.08, -0.02, 0.01, 0.02, 0.04, 0.07], 40)),
-    frequency="monthly", source="deterministic synthetic fixture",
+    frequency="monthly",
+    source="deterministic synthetic fixture",
     portfolio_mapping="synthetic whole-portfolio nominal total returns",
-    currency="CNY", fx_treatment="already CNY", sample_kind="synthetic",
+    currency="CNY",
+    fx_treatment="already CNY",
+    sample_kind="synthetic",
 )
 for mode in ("empirical", "matched_gbm_moments"):
     comparison = compare_models(scenario, history, block_length=6, bootstrap_mode=mode)
