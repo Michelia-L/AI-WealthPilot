@@ -11,6 +11,8 @@ mkdocs serve            # 本地预览（仓库根）
 mkdocs build --strict   # guide 或 MkDocs 配置改动的主要门禁
 ```
 
+包含 Python fenced code blocks 的 Markdown 也会被当前 Ruff formatter 检查。修改这类示例后，使用 `requirements-dev.txt` 中的 Ruff 版本运行 `ruff format <文档路径>`，并在仓库根执行 `ruff check`、`ruff format --check`；仅通过 MkDocs 构建不足以通过 Python CI 的格式门禁。
+
 push 到 `main` 后，相关路径变更会由 `.github/workflows/docs.yml` 构建并部署 GitHub Pages。文档工具依赖以 `requirements-dev.txt` 为准。
 
 ## 结构
@@ -32,6 +34,10 @@ push 到 `main` 后，相关路径变更会由 `.github/workflows/docs.yml` 构�
 - 新增或重构章节后，同步检查 `internals/index.md` 的路线图、链接与状态是否仍准确。
 
 建议的章节骨架是：目的与边界 → 核心概念 → 逐模块讲解 → 设计决策与取舍 → 已知近似与边界 → 自检问题 → 代码入口。它是默认组织方式，不要求为了形式保留空洞章节。
+
+## Feature PR 的文档同步检查
+
+新增独立业务或研究子系统、引入重要数据 / security / provenance 边界、改变核心模型假设、新增跨模块工作流，或使已有 guide 描述失真时，PR 应检查是否需要同步 `guide/`，并说明更新入口或暂缓原因。小改动不必单独开章；模块 README 保留精确 API 与 research contract，Internals 解释系统设计并链接源码，避免复制两套长期维护的使用说明。
 
 ## 语言风格
 

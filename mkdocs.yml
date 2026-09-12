@@ -60,3 +60,4 @@ nav:
       - 05 · API 传输壳与任务机制: internals/05-api-shell.md
       - 06 · Web 前端: internals/06-web-frontend.md
       - 07 · 质量与可复现性工程: internals/07-quality-engineering.md
+      - 08 · Model Validation 与研究工作流: internals/08-model-validation.md
