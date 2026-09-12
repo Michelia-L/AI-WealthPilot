@@ -11,7 +11,7 @@ pytest-cov==7.1.0
 pip-audit==2.10.1
 
 # Lint & format gates (config in pyproject.toml)
-ruff==0.16.4
+ruff==0.16.6
 
 # Documentation site (mkdocs.yml, deployed to GitHub Pages by docs.yml)
 # jieba: build-time CJK segmentation for the search plugin (verified working)
