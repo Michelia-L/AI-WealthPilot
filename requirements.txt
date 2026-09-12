@@ -7,7 +7,7 @@
 # set against newly disclosed CVEs.
 
 # Core
-numpy==2.5.2
+numpy==2.5.3
 pandas==3.0.5
 scipy==1.18.1
 scikit-learn==1.9.0
