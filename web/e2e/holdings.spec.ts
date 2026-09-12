@@ -42,10 +42,10 @@ test("actual holdings: entry, persisted drift, JSON import, history and Chinese 
   await page.getByLabel("Cost basis date", { exact: true }).fill("2026-01-01");
   await page.getByRole("button", { name: "Save new snapshot" }).click();
   await expect(page.getByRole("status")).toContainText("Snapshot saved");
-  await expect(page.getByText("Actual holdings snapshot · 2026-06-10", { exact: true })).toBeVisible();
+  await expect(page.getByRole("main").getByText("Actual holdings snapshot · 2026-06-10", { exact: true })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "View snapshot", exact: true }).locator("option")).toHaveCount(1);
   await page.reload();
-  await expect(page.getByText("Actual holdings snapshot · 2026-06-10", { exact: true })).toBeVisible();
+  await expect(page.getByRole("main").getByText("Actual holdings snapshot · 2026-06-10", { exact: true })).toBeVisible();
   await expect(page.getByRole("cell", { name: "100.0%", exact: true })).toBeVisible();
 
   await page.getByText("Import JSON snapshot", { exact: true }).click();
@@ -54,7 +54,7 @@ test("actual holdings: entry, persisted drift, JSON import, history and Chinese 
   }));
   await page.getByRole("button", { name: "Import and save snapshot" }).click();
   await expect(page.getByRole("combobox", { name: "View snapshot", exact: true }).locator("option")).toHaveCount(2);
-  await expect(page.getByText("Actual holdings snapshot · 2026-06-11", { exact: true })).toBeVisible();
+  await expect(page.getByRole("main").getByText("Actual holdings snapshot · 2026-06-11", { exact: true })).toBeVisible();
   await expect(page.getByText(/Compared with previous snapshot: 2026-06-10/)).toBeVisible();
   const oldId = await page.getByRole("combobox", { name: "View snapshot", exact: true }).locator("option").nth(1).getAttribute("value");
   await page.getByRole("combobox", { name: "View snapshot", exact: true }).selectOption(oldId!);
