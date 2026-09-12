@@ -2,7 +2,7 @@
 
 ## 目的与边界
 
-本章讲 `api/`，FastAPI 薄传输壳。它的存在理由一句话可以说完，**让 `src/` 的计算核心可以不知道 HTTP 的存在**。壳的职责被严格限定为三件事，参数校验（Pydantic + 路由内 fail-fast）、调用 `src/`、组装响应。红线只有一条，路由里禁止写业务逻辑。
+本章讲 `api/`，它让 `src/` 的计算核心不依赖 HTTP。路由负责参数校验、调用核心并组装响应；API 层也拥有身份认证、持久化和后台任务生命周期。金融计算与量化规则仍由 `src/` 实现。
 
 和第 1 章的分工是这样的，第 1 章沿一次优化请求走叙事，本章把壳本身的机制与边界讲全，端点地图、持久化、SSE 任务、缓存、i18n 都在其中。
 
@@ -25,22 +25,33 @@
 
 ## 端点地图
 
-9 个 router + `main.py` 的 health，共 **43 个端点**。按域分组见下表（`*` = SSE 流式）。
+端点按域分组见下表（`*` = SSE 流式）。除 health 行已写出完整路径外，路径统一带 `/api` 前缀；完整模型以运行中的 OpenAPI 为准。
 
 | 域 | 文件 | 端点数 | 端点 |
 |---|---|---|---|
+| 身份 | `routers/auth.py` | 4 | `POST /auth/login`、`POST /auth/demo`、`GET /auth/me`、`POST /auth/logout` |
 | 行情 | `routers/market.py` | 4 | `GET /market/universe`、`/market/quotes`、`/market/risk-free-rate`、`/market/analytics` |
 | CME | `routers/cme.py` | 1 | `GET /cme`（API 层**零缓存**，src 已有三级降级） |
 | 组合 | `routers/portfolio.py` | 6 | `GET /portfolio/asset-classes`、`/portfolio/recommendation`、`POST /portfolio/backtest`、`POST /portfolio/optimize`、`POST /portfolio/optimize/async`（202）、`GET /portfolio/tasks/{id}/events`* |
-| 监控 | `routers/monitoring.py` | 4 | `GET /monitoring/status`、`/monitoring/{doc_id}`、`/monitoring/{doc_id}/backtest`、`POST /monitoring/advice`* |
+| 监控 | `routers/monitoring.py` | 6 | `GET /monitoring/status`、`/monitoring/{doc_id}`、`/monitoring/{doc_id}/backtest`、`POST /monitoring/advice`*、`GET/POST /monitoring/{doc_id}/holdings` |
 | 退休 | `routers/retirement.py` | 2 | `GET /retirement/cme-suggestion`、`POST /retirement/simulate` |
-| 画像 | `routers/profiles.py` | 8 | CRUD 五件 + `/profiles/questionnaire`、`/profiles/compare`、`/profiles/import` |
+| 画像 | `routers/profiles.py` | 9 | CRUD 五件 + `/profiles/questionnaire`、`/profiles/compare`、`/profiles/import`、`/profiles/import/upload` |
 | 顾问 | `routers/advisor.py` | 8 | `GET /advisor/status`、`POST /advisor/report/stream`*、报告库 CRUD + pdf/export |
 | IPS | `routers/ips.py` | 6 | `POST /ips/generate`（202）、`GET /ips/tasks/{id}/events`*、文档库 list/detail + pdf/export |
 | 设置 | `routers/settings.py` | 3 | `GET/PUT /settings/llm`、`POST /settings/llm/models` |
 | 元 | `main.py` | 1 | `GET /api/health` |
 
 ## 请求生命周期
+
+### 身份认证边界
+
+`api/auth.py` 的 `get_current_principal` 从 Bearer token 解析当前身份。token 本身不包含用户 ID 或角色；服务端计算摘要，查询 `auth_sessions`，检查到期时间，再查询 `users` 检查用户是否存在、是否启用。客户端提交的用户 ID、角色或 cookie 不参与身份判定。
+
+密码登录和显式 Demo 登录都签发同一种数据库会话，退出永久删除当前会话，重启后未到期会话仍有效。`is_active=False` 和关闭 `DEMO_MODE` 都只暂停认证，不删除会话；恢复后，未过期且未退出的旧 token 会重新有效。安全性禁用账号所需的全部会话撤销属于后续工作，不能用翻转标志替代。
+
+密码哈希每个 API 进程最多并发两次，槽位满时立即返回本地化 503 与 `Retry-After: 1`，不在共享 AnyIO 工作线程中排队等待，也不增加账号失败计数。有空余槽位时，密码错误或账号冷却返回统一 401；认证请求的 422 不回显输入。账号级五次失败冷却仍可能被攻击者用于阻断已知用户登录；对外部署前的联合限流和永久撤销需求记录在仓库 `docs/known-issues.md` 的 KI-004。
+
+当前只有 `/api/auth/me` 和 `/api/auth/logout` 使用身份依赖，既有业务 API 尚未接入。principal 只含 `user_id`、`email`、`is_demo`；组织、角色、客户归属及对象授权属于后续 issue。创建用户不会使其取得某个客户画像的归属，Web 工作站也尚未接入登录。使用说明见仓库中的 [身份配置文档](https://github.com/Michelia-L/AI-WealthPilot/blob/main/docs/identity-auth.md)。
 
 ### 校验顺序即语义优先级
 
@@ -58,7 +69,7 @@
 
 ## 契约层（`api/schemas.py`）
 
-82 个 Pydantic 模型集中在一个文件（1116 行），按域分组，meta/行情、优化、退休、画像、顾问、IPS、监控、LLM 设置。有几处设计值得说。
+Pydantic 模型集中在一个文件，按身份、meta/行情、优化、退休、画像、顾问、IPS、监控、LLM 设置等域分组。有几处设计值得说。
 
 - **CME 契约与引擎共享同一份模型**。`CMEReport` 直接 import 自 `src/portfolio/cme_models.py`，schema 与引擎不可能漂移（模块 docstring 明示此意图）。
 - 约束集中在 Field。`OptimizeRequest.method` 是 6 值 Literal，`n_simulations ∈ [50,2000]`，`annual_fee_rate ∈ [0, 0.10]`；`SurplusConfigInput` 等用 `model_validator` 做跨字段校验。
@@ -66,13 +77,16 @@
 
 ## SQLite 持久化（`api/db.py`）
 
-三张表，都走 SQLModel。
+以下表都走 SQLModel。身份表通过现有 `init_db()` 增量创建，不重写旧画像或自动分配归属。
 
 | 表 | 模型 | 设计 |
 |---|---|---|
+| `users` | `UserRecord` | UUID 身份、唯一规范化 email、加盐密码哈希、启用/Demo 标志、登录失败计数与冷却截止时间；不包含组织与角色 |
+| `auth_sessions` | `AuthSessionRecord` | 随机 token 的 SHA-256 摘要、用户 ID、创建/到期时间；不存明文 token |
 | `client_profiles` | `ProfileRecord` | **JSON 列存完整 `asdict(ClientProfile)`**，dataclass 形状归 src/ 所有，可自由演进；`name`/`updated_at` 等索引列冗余出列表 UI 要过滤/排序的字段。`user_id` 为多用户未来预留，当前恒 NULL |
 | `background_tasks` | `TaskRecord` | 内存任务注册表的写穿透镜像，`task_id` 主键、`kind`（ips/optimize）、`status`、`meta_json`、**`events_json` 纯文本 JSON 列**（事件词汇表归路由所有，可随任务类型演进） |
 | `app_settings` | `AppSettingRecord` | KV 表，存 FR-002 的 LLM 端点配置（`llm_base_url`/`llm_api_key`/`llm_model`） |
+| `holding_snapshots` | `HoldingSnapshotRecord` | 按 IPS 文档保存完整估值快照；同日修订追加记录 |
 
 工程上有两个细节。`connect_args={"check_same_thread": False}`，因为 FastAPI 在线程池里跑同步路由。engine 在**导入时**创建，import `api.db` 即解析 DB URL，测试经 `AIWP_DB_URL` 环境变量或 monkeypatch 重定向。
 
@@ -99,7 +113,7 @@
 
 ## i18n 消息表（`api/i18n.py`）
 
-49 个 key、8 个分组（common/advisor/ips/monitoring/portfolio/profiles/settings/tasks），每 key 双语，zh 是 i18n 改造前的既有中文逐字保留。`msg(key, locale, **fmt)` 的语义有两条。
+消息表按 auth、holdings、common、advisor 等域分组，每 key 提供中英文。`msg(key, locale, **fmt)` 的语义有两条。
 
 - 未知 key **抛 `KeyError`**，让缺失条目在测试里响亮失败。
 - 未知 locale **静默回退英文**，两种未知情况的处理故意相反。
@@ -116,6 +130,7 @@
 - 启动时若画像表为空，种子虚构客户「林晓兰」（数据与 demo 夹具对齐，同客户、同 SAA 上下文）。
 - 三个 LLM 流式端点在 demo 下整体换成夹具回放（`demo_mode.py`），端点外壳/SSE 协议不变；无 LLM key 也不返 503。
 - `GET /advisor/status` 与 `GET /settings/llm` 会暴露 `demo` 标志，前端据此显示演示水印。
+- `POST /auth/demo` 显式取得共享虚构身份的会话，首次调用才创建该身份。Demo 模式不会自动把匿名请求视为已登录，也不把身份绑定到演示画像。
 
 ## `api/Dockerfile`
 
@@ -124,13 +139,14 @@
 
 ## 设计决策与取舍
 
-- **为什么选 SQLite 不选 Postgres？** 这是单用户本地工作站，零运维、一个文件、volume 一挂就走。`user_id` 列的预留说明多用户是想过的，但那是以后的事，现在不付运维税。
+- **为什么继续使用 SQLite？** 本地工作站的现有数据都存放在一个文件中，身份与会话可复用同一持久化入口。用户表的引入没有完成多用户隔离；画像 `user_id` 仍待归属模型接入。
 - **为什么事件存纯文本 JSON 列不建关系表？** 事件词汇表归各任务类型所有且会演进，关系表会把每次演进变成 migration。JSON 列用读方负责解析换掉 schema 刚性。
-- **为什么 82 个模型集中一个文件，不按域分文件？** 单一事实源加全局可查；文件大但分组注释清晰，还消除了跨文件循环 import 的可能。
+- **为什么模型集中一个文件，不按域分文件？** API 契约集中可查，各消费方复用同一份模型。
 - **为什么 fleet 每日重检用日期进 key，不用定时任务？** 没有调度器依赖，进程重启天然安全；代价是当日首次请求略慢（懒语义）。
 
 ## 已知近似与边界
 
+- 身份认证目前只保护身份查询和退出；既有业务路由仍未认证，尚无角色、组织或对象级授权。
 - 任务注册表单进程；持久化事件只保留最后 500 条。
 - TTL 缓存无容量上限。缓存键空间有界（ticker 组合有限），当前无内存压力，但理论上无主动清理。
 - `expected_return_source` 的 schema 描述过期（以代码为准）。
@@ -150,11 +166,12 @@
 
 ## 代码入口清单（推荐阅读顺序）
 
-1. `api/main.py`，启动序列与路由挂载（171 行，全貌最小入口）
-2. `api/db.py`，三表设计（98 行）
+1. `api/main.py`，启动序列、路由挂载与认证输入错误脱敏
+2. `api/db.py`，身份、会话、画像和其他持久化模型
 3. `api/tasks.py`，SSE 任务的写穿透与回放（本章含金量最高）
 4. `api/cache.py`，41 行，读完即懂
 5. `api/i18n.py`，消息表与 `msg()` 语义
 6. `api/routers/portfolio.py`，最复杂的路由（校验顺序、TTL 缓存、异步任务）
 7. `api/profile_convert.py` / `migrate_profiles.py`，转换与迁移
 8. `api/schemas.py` 按域抽查 + `api/Dockerfile`
+9. `api/auth.py` / `api/routers/auth.py` / `api/create_user.py`，身份依赖、会话端点和本地用户创建

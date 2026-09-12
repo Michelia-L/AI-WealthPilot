@@ -30,6 +30,28 @@ def get_request_locale(request: Request) -> str:
 
 
 _MESSAGES: dict[str, dict[str, dict[str, str]]] = {
+    "auth": {
+        "busy": {
+            "zh": "登录服务繁忙，请稍后重试。",
+            "en": "Sign-in is busy. Please try again shortly.",
+        },
+        "required": {
+            "zh": "请登录后重试。",
+            "en": "Please sign in and try again.",
+        },
+        "invalid_login": {
+            "zh": "无法登录，请检查凭据或稍后重试。",
+            "en": "Unable to sign in. Check your credentials or try again later.",
+        },
+        "invalid_request": {
+            "zh": "登录请求格式无效。",
+            "en": "Invalid authentication request.",
+        },
+        "demo_unavailable": {
+            "zh": "演示登录不可用。",
+            "en": "Demo sign-in is unavailable.",
+        },
+    },
     "holdings": {
         "currency": {
             "zh": "所有金额及单价必须使用 IPS 基准币种。",

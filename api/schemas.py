@@ -8,7 +8,15 @@ so the API contract and the engine can never drift apart.
 from datetime import date, datetime
 from typing import Annotated, Any, Literal, Optional
 
-from pydantic import BaseModel, BeforeValidator, Field, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    SecretStr,
+    field_validator,
+    model_validator,
+)
 
 from src.portfolio.cme_models import CMEReport
 
@@ -17,6 +25,55 @@ class HealthResponse(BaseModel):
     status: str = "ok"
     app: str
     version: str
+
+
+class LoginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+
+    email: str = Field(min_length=3, max_length=254, repr=False)
+    password: SecretStr = Field(min_length=1, max_length=1024, repr=False)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_text(cls, value: SecretStr) -> SecretStr:
+        # JSON can encode lone surrogates, which must not reach the KDF and
+        # raise a UnicodeEncodeError containing submitted password text.
+        try:
+            value.get_secret_value().encode("utf-8")
+        except UnicodeEncodeError:
+            raise ValueError("Password must be valid UTF-8 text") from None
+        return value
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        # Email is a case-insensitive login identifier, not a verified address.
+        value = value.strip().lower()
+        parts = value.split("@")
+        if (
+            len(parts) != 2
+            or not all(parts)
+            or not value.isprintable()
+            or any(c.isspace() for c in value)
+        ):
+            raise ValueError("Invalid email identifier")
+        return value
+
+
+class Principal(BaseModel):
+    """Server-resolved identity; no implied role, tenant or client ownership."""
+
+    model_config = ConfigDict(frozen=True)
+
+    user_id: str
+    email: str
+    is_demo: bool
+
+
+class LoginResponse(BaseModel):
+    access_token: str = Field(repr=False)
+    token_type: Literal["bearer"] = "bearer"
+    expires_at: datetime
 
 
 class AssetInfo(BaseModel):

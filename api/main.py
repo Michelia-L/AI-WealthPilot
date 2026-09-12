@@ -10,8 +10,11 @@ Interactive docs: http://localhost:8000/docs
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlmodel import Session, select
 
 # Importing the api package first ensures the project-root sys.path guard
@@ -19,10 +22,12 @@ from sqlmodel import Session, select
 import api  # noqa: F401
 from api import db
 from api.db import ProfileRecord, init_db
+from api.i18n import get_request_locale, msg
 from api.migrate_profiles import maybe_auto_import
 from api.profile_convert import tolerance_level
 from api.routers import (
     advisor,
+    auth,
     cme,
     ips,
     market,
@@ -151,6 +156,20 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(request: Request, exc: RequestValidationError):
+        if request.url.path.startswith("/api/auth/"):
+            # FastAPI's default 422 includes submitted values, including passwords.
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "detail": msg("auth.invalid_request", get_request_locale(request))
+                },
+                headers={"Cache-Control": "no-store"},
+            )
+        return await request_validation_exception_handler(request, exc)
+
+    app.include_router(auth.router, prefix="/api")
     app.include_router(market.router, prefix="/api")
     app.include_router(cme.router, prefix="/api")
     app.include_router(monitoring.router, prefix="/api")

@@ -1,8 +1,8 @@
 """
 SQLite persistence layer (SQLModel).
 
-Single database for all API-side state — client profiles now, IPS workflow
-and advisor tables in later phases. Local-first: one file under DATA_DIR,
+Single database for API-side profiles, identity, sessions, settings, background
+tasks and holding snapshots. Local-first: one file under DATA_DIR,
 volume-mounted in Docker Compose (./data:/app/data).
 
 The full ClientProfile is stored as a JSON column (the dataclass shape is
@@ -15,6 +15,7 @@ import os
 from collections.abc import Iterator
 from datetime import datetime
 from typing import Any, Optional
+from uuid import uuid4
 
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, Session, SQLModel, create_engine
@@ -35,6 +36,32 @@ def make_engine(url: Optional[str] = None):
 
 
 engine = make_engine()
+
+
+class UserRecord(SQLModel, table=True):
+    """Login identity only; organization/membership belongs to issue #73."""
+
+    __tablename__ = "users"
+
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    email: str = Field(unique=True, index=True, repr=False)
+    password_hash: Optional[str] = Field(default=None, repr=False)
+    is_active: bool = True  # Temporary authentication pause, not session revocation.
+    is_demo: bool = False
+    failed_logins: int = 0
+    locked_until: int = 0
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+
+class AuthSessionRecord(SQLModel, table=True):
+    """Opaque bearer sessions. Only the SHA-256 digest is persisted."""
+
+    __tablename__ = "auth_sessions"
+
+    token_hash: str = Field(primary_key=True, repr=False)
+    user_id: str = Field(foreign_key="users.id", index=True)
+    created_at: int
+    expires_at: int = Field(index=True)
 
 
 class ProfileRecord(SQLModel, table=True):
