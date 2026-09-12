@@ -46,7 +46,7 @@ class UserRecord(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
     email: str = Field(unique=True, index=True, repr=False)
     password_hash: Optional[str] = Field(default=None, repr=False)
-    is_active: bool = True
+    is_active: bool = True  # Temporary authentication pause, not session revocation.
     is_demo: bool = False
     failed_logins: int = 0
     locked_until: int = 0

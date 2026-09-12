@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 import pytest
+from anyio.to_thread import current_default_thread_limiter
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sqlalchemy import text
@@ -146,6 +147,92 @@ def test_user_status_is_checked_on_every_request(bare_client, identity, action):
         session.commit()
     assert bare_client.get("/api/auth/me", headers=headers).status_code == 401
     assert login(bare_client, credentials).status_code == 401
+
+
+def test_inactive_user_is_paused_without_revoking_unexpired_sessions(
+    bare_client, identity
+):
+    user_id, credentials = identity
+    headers = bearer(login(bare_client, credentials))
+    with Session(db.engine) as session:
+        user = session.get(db.UserRecord, user_id)
+        user.is_active = False
+        session.add(user)
+        session.commit()
+    assert bare_client.get("/api/auth/me", headers=headers).status_code == 401
+    with Session(db.engine) as session:
+        assert len(session.exec(select(db.AuthSessionRecord)).all()) == 1
+        user = session.get(db.UserRecord, user_id)
+        user.is_active = True
+        session.add(user)
+        session.commit()
+    assert bare_client.get("/api/auth/me", headers=headers).status_code == 200
+
+
+@pytest.mark.parametrize("locale", ["en", "zh"])
+def test_hash_capacity_rejects_overload_without_starving_sync_routes(
+    bare_client, identity, monkeypatch, locale
+):
+    user_id, credentials = identity
+    entered = threading.Barrier(3)
+    release = threading.Event()
+    original_scrypt = auth.hashlib.scrypt
+
+    def held_scrypt(*args, **kwargs):
+        entered.wait(timeout=10)
+        assert release.wait(timeout=20)
+        return original_scrypt(*args, **kwargs)
+
+    async def set_worker_limit(limit):
+        limiter = current_default_thread_limiter()
+        previous = limiter.total_tokens
+        limiter.total_tokens = limit
+        return previous
+
+    # A small real shared pool makes starvation reproducible with few requests.
+    previous = bare_client.portal.call(set_worker_limit, 4)
+    monkeypatch.setattr(auth.hashlib, "scrypt", held_scrypt)
+    try:
+        with ThreadPoolExecutor(max_workers=9) as pool:
+            admitted = [pool.submit(login, bare_client, credentials) for _ in range(2)]
+            try:
+                entered.wait(timeout=10)  # both real KDF slots are now occupied
+                overloaded = [
+                    pool.submit(
+                        login, bare_client, credentials, headers={"X-Locale": locale}
+                    )
+                    for _ in range(6)
+                ]
+                health = pool.submit(bare_client.get, "/api/health")
+                assert health.result(timeout=5).status_code == 200
+                for future in overloaded:
+                    response = future.result(timeout=5)
+                    assert response.status_code == 503
+                    assert response.json() == {"detail": auth.msg("auth.busy", locale)}
+                    assert response.headers["retry-after"] == "1"
+                    assert response.headers["cache-control"] == "no-store"
+                with Session(db.engine) as session:
+                    assert session.get(db.UserRecord, user_id).failed_logins == 0
+                    assert session.exec(select(db.AuthSessionRecord)).all() == []
+            finally:
+                monkeypatch.setattr(auth.hashlib, "scrypt", original_scrypt)
+                release.set()
+            assert all(
+                future.result(timeout=10).status_code == 200 for future in admitted
+            )
+    finally:
+        bare_client.portal.call(set_worker_limit, previous)
+    assert login(bare_client, credentials).status_code == 200
+
+
+def test_failed_hash_work_releases_capacity(monkeypatch):
+    def failed_scrypt(*args, **kwargs):
+        raise RuntimeError("Hash operation failed")
+
+    monkeypatch.setattr(auth.hashlib, "scrypt", failed_scrypt)
+    for _ in range(3):  # more failures than slots, without exhausting capacity
+        with pytest.raises(RuntimeError, match="Hash operation failed"):
+            auth.verify_password(secrets.token_urlsafe(24), None)
 
 
 def test_login_failure_does_not_disclose_account_state(bare_client, identity):
@@ -293,6 +380,10 @@ def test_demo_is_explicit_and_uses_normal_sessions(bare_client, monkeypatch):
     monkeypatch.setattr("src.config.DEMO_MODE", False)
     assert bare_client.post("/api/auth/demo").status_code == 404
     assert bare_client.get("/api/auth/me", headers=bearer(second)).status_code == 401
+    # Mode toggles pause authentication; only logout permanently removed first.
+    monkeypatch.setattr("src.config.DEMO_MODE", True)
+    assert bare_client.get("/api/auth/me", headers=bearer(second)).status_code == 200
+    assert bare_client.get("/api/auth/me", headers=bearer(first)).status_code == 401
 
 
 def test_concurrent_demo_logins_share_identity(bare_client, monkeypatch):

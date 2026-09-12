@@ -37,6 +37,8 @@ Provisioning and the API use the same configured `AIWP_DB_URL`, defaulting to `d
 
 Missing, malformed, unknown, expired, revoked, or disabled-user credentials return HTTP 401 with `WWW-Authenticate: Bearer`. Bad login credentials, unavailable accounts, and temporary login cooldowns share the same generic 401 response. Invalid login bodies return a sanitized 422 response without echoing submitted values. `X-Locale: en` or `zh` selects API error text, defaulting to English.
 
+When both password-hashing slots are occupied, password login immediately returns a localized HTTP 503 with `Retry-After: 1`. Capacity rejection does not count as a failed password attempt or issue a session. Clients should back off before retrying.
+
 Bearer tokens must be sent in the `Authorization` header; cookies, query parameters, user IDs, and role headers do not authenticate requests. Successful identity responses and authentication/validation errors use `Cache-Control: no-store`. The API stores no browser session cookie.
 
 The following local example keeps credentials and the bearer token in process memory and prints only response status codes:
@@ -62,15 +64,19 @@ with requests.Session() as client:
 ## Session and password behavior
 
 - Sessions expire 12 hours after issuance, without sliding renewal. Each login issues an independent random 256-bit token. Only its SHA-256 digest, user ID, creation time, and expiry are persisted. Expired session rows are removed when a new session is issued.
-- Sessions survive API restarts. Logout deletes the presented session from SQLite; other sessions remain valid. Every protected request rechecks user existence and active status. Removing or disabling a user makes their sessions unusable.
-- Passwords use independently salted scrypt hashes (`N=2^17`, `r=8`, `p=1`), with a versioned storage format. These parameters follow the [OWASP scrypt baseline](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#scrypt). Unknown users still incur password-hash work; hash comparison uses constant-time comparison. Concurrent hashing is bounded to two operations per API process.
+- Sessions survive API restarts. Logout permanently deletes the presented session from SQLite; other sessions remain valid. Every protected request rechecks user existence and active status. `is_active=False` is a **temporary authentication pause**, not session revocation: rows remain stored, and re-enabling the user restores unexpired, non-logged-out sessions. Removing a user prevents lookup of that identity. This increment has no administrative disable/re-enable or revoke-all endpoint.
+- Passwords use independently salted scrypt hashes (`N=2^17`, `r=8`, `p=1`), with a versioned storage format. These parameters follow the [OWASP scrypt baseline](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#scrypt). When capacity is available, unknown users still incur password-hash work; hash comparison uses constant-time comparison. Concurrent hashing is bounded to two operations per API process. Slot acquisition is nonblocking: excess requests receive 503 instead of occupying shared FastAPI/AnyIO workers while waiting. Slots are released even if hashing raises an exception.
 - Five consecutive failed password attempts lock that user out of new password logins for five minutes. A successful login resets the counter; after a cooldown the next failed attempt starts a new counter. State is persisted and increments are atomic. This does not revoke existing sessions and is not a deployment-wide request limiter. Network-level rate limiting and HTTPS are still required before exposing authentication beyond localhost, alongside the unfinished business authorization controls.
+
+An attacker who knows an email can repeatedly trigger the account-only lockout and deny that user new logins. The current cooldown is not sufficient protection for external deployments. [KI-004](known-issues.md#ki-004--认证对外部署前的限流与撤销边界) tracks combined account/source rate limiting or bounded progressive backoff, plus permanent all-session revocation for security-sensitive account disablement. Future administrative disablement must explicitly revoke sessions (for example, via transactional deletion or session versioning); flipping `is_active` alone does not provide that guarantee.
 
 ## Demo strategy
 
 With `DEMO_MODE=1`, callers explicitly request `POST /api/auth/demo`. On first use it creates one persisted, passwordless, fictional identity (`demo@wealthpilot.invalid`). Subsequent demo logins reuse that identity and issue independent ordinary bearer sessions. Local provisioning reserves this identifier.
 
 Demo mode does not automatically authenticate anonymous requests. Demo sessions pass through the same database lookup, expiry, active-user checks, principal dependency, and logout behavior as password sessions. The demo endpoint returns 404 when demo mode is disabled, and existing demo sessions are rejected while it is disabled. Password-based local identities continue to use their normal login flow in either mode. No demo identity is automatically attached to an existing client profile.
+
+Turning demo mode back on restores any demo sessions that have neither expired nor been logged out. Mode changes pause authentication and do not permanently revoke tokens. This behavior is covered by regression tests and shares the revocation follow-up in KI-004.
 
 ## Route integration and validation
 

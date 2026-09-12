@@ -36,8 +36,16 @@ _DUMMY_DIGEST = secrets.token_bytes(32)
 _bearer = HTTPBearer(auto_error=False, scheme_name="SessionBearer")
 
 
+class PasswordHashBusy(RuntimeError):
+    """The process has no spare password-hashing capacity; callers may retry."""
+
+
 def _derive(password: str, salt: bytes) -> bytes:
-    with _KDF_SLOTS:
+    # Sync routes already hold an AnyIO worker token. Never queue here: waiting
+    # for a KDF slot could occupy every worker and starve unrelated API routes.
+    if not _KDF_SLOTS.acquire(blocking=False):
+        raise PasswordHashBusy
+    try:
         return hashlib.scrypt(
             password.encode("utf-8"),
             salt=salt,
@@ -47,6 +55,8 @@ def _derive(password: str, salt: bytes) -> bytes:
             maxmem=256 * 1024 * 1024,
             dklen=32,
         )
+    finally:
+        _KDF_SLOTS.release()
 
 
 def hash_password(password: str) -> str:
@@ -110,9 +120,17 @@ def authenticate_password(
     user = session.exec(
         select(UserRecord).where(UserRecord.email == credentials.email)
     ).first()
-    correct = verify_password(
-        credentials.password.get_secret_value(), user.password_hash if user else None
-    )
+    try:
+        correct = verify_password(
+            credentials.password.get_secret_value(),
+            user.password_hash if user else None,
+        )
+    except PasswordHashBusy:
+        raise HTTPException(
+            status_code=503,
+            detail=msg("auth.busy", locale),
+            headers={"Retry-After": "1", "Cache-Control": "no-store"},
+        ) from None
     now = int(time.time())
     if not user or not user.is_active or user.is_demo or user.locked_until > now:
         raise authentication_error(locale, "invalid_login")
@@ -210,6 +228,8 @@ def get_current_session(
     if record is None or record.expires_at <= int(time.time()):
         raise authentication_error(locale)
     user = session.get(UserRecord, record.user_id)
+    # These flags suspend authentication without deleting sessions. Re-enabling
+    # an account/demo mode can restore unexpired tokens; this is not revocation.
     if not user or not user.is_active or (user.is_demo and not is_demo_mode()):
         raise authentication_error(locale)
     return record

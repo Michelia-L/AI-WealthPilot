@@ -31,6 +31,10 @@ def get_request_locale(request: Request) -> str:
 
 _MESSAGES: dict[str, dict[str, dict[str, str]]] = {
     "auth": {
+        "busy": {
+            "zh": "登录服务繁忙，请稍后重试。",
+            "en": "Sign-in is busy. Please try again shortly.",
+        },
         "required": {
             "zh": "请登录后重试。",
             "en": "Please sign in and try again.",

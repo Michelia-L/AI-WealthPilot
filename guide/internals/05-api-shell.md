@@ -47,7 +47,9 @@
 
 `api/auth.py` 的 `get_current_principal` 从 Bearer token 解析当前身份。token 本身不包含用户 ID 或角色；服务端计算摘要，查询 `auth_sessions`，检查到期时间，再查询 `users` 检查用户是否存在、是否启用。客户端提交的用户 ID、角色或 cookie 不参与身份判定。
 
-密码登录和显式 Demo 登录都签发同一种数据库会话，退出删除当前会话，重启后未到期会话仍有效。Demo 会话在 `DEMO_MODE` 关闭时被拒绝。登录失败统一返回本地化 401，认证请求的 422 不回显输入，避免密码进入错误响应。
+密码登录和显式 Demo 登录都签发同一种数据库会话，退出永久删除当前会话，重启后未到期会话仍有效。`is_active=False` 和关闭 `DEMO_MODE` 都只暂停认证，不删除会话；恢复后，未过期且未退出的旧 token 会重新有效。安全性禁用账号所需的全部会话撤销属于后续工作，不能用翻转标志替代。
+
+密码哈希每个 API 进程最多并发两次，槽位满时立即返回本地化 503 与 `Retry-After: 1`，不在共享 AnyIO 工作线程中排队等待，也不增加账号失败计数。有空余槽位时，密码错误或账号冷却返回统一 401；认证请求的 422 不回显输入。账号级五次失败冷却仍可能被攻击者用于阻断已知用户登录；对外部署前的联合限流和永久撤销需求记录在仓库 `docs/known-issues.md` 的 KI-004。
 
 当前只有 `/api/auth/me` 和 `/api/auth/logout` 使用身份依赖，既有业务 API 尚未接入。principal 只含 `user_id`、`email`、`is_demo`；组织、角色、客户归属及对象授权属于后续 issue。创建用户不会使其取得某个客户画像的归属，Web 工作站也尚未接入登录。使用说明见仓库中的 [身份配置文档](https://github.com/Michelia-L/AI-WealthPilot/blob/main/docs/identity-auth.md)。
 
