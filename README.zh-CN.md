@@ -178,7 +178,7 @@ IPS 中的战略资产配置（SAA）由 LLM 提出，再用可用 CME 输入检
 | [`docs/`](docs/) | 工程记录、IPS 参考材料与截图资源 |
 | [`examples/`](examples/) | 独立的量化与工作流示例 |
 
-客户画像、任务/事件记录与 LLM 设置使用 SQLite；报告、IPS 文档与 CME 缓存使用 `data/` 下的 JSON 文件存储。[请求旅程](guide/internals/01-request-journey.md)追踪浏览器到引擎的调用；运行中的 [OpenAPI 页面](http://localhost:8000/docs)提供端点模型，[API 章节](guide/internals/05-api-shell.md)解释传输与任务持久化。
+客户画像、用户、认证会话、任务/事件记录与 LLM 设置使用 SQLite；报告、IPS 文档与 CME 缓存使用 `data/` 下的 JSON 文件存储。[请求旅程](guide/internals/01-request-journey.md)追踪浏览器到引擎的调用；运行中的 [OpenAPI 页面](http://localhost:8000/docs)提供端点模型，[API 章节](guide/internals/05-api-shell.md)解释传输与任务持久化。
 
 ## 本地开发与测试
 
@@ -230,7 +230,7 @@ Playwright 需要安装 Chromium（`cd web && npx playwright install chromium`�
 
 - **存储与凭据。** 客户画像与设置默认本地存储，LLM API Key 持久化在 SQLite 中；数据库并非加密密钥库。请保护 `.env`、`data/` 及其备份。
 - **外部调用。** 真实模型请求携带任务所需的客户/报告上下文，并使用配置的密钥认证。行情请求发往各数据源。配置本地模型端点只改变模型请求目的地，不会关闭行情请求。
-- **访问控制。** API 没有内置身份认证。提供的 Compose 配置将端口绑定到 `127.0.0.1`；部署到本机之外前，需要补充身份认证与访问控制。
+- **访问控制。** API 已提供按路由接入的身份依赖，以及受保护的 `/api/auth/me` 和 `/api/auth/logout` 端点。现有业务 API 仍未接入认证；角色、客户归属和对象级授权尚未实现。提供的 Compose 配置将端口绑定到 `127.0.0.1`；部署到本机之外前，需要完成这些访问控制。身份层可通过 `python -m api.create_user` 交互式创建用户，详见[身份配置与 API 使用](docs/identity-auth.md)；Web 登录接入属于后续工作。
 - **模型输入。** 部分提示词以 XML 标签和指令界定客户文本，这是缓解措施，不保证阻止提示词注入或错误输出。生成文档需复核后再使用。
 
 软件用于学习、研究和技术验证。计算结果与生成文档不构成投资、税务或法律建议，也不代替专业复核。不保证收益、适当性认定或监管批准。

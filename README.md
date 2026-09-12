@@ -178,7 +178,7 @@ Browser → Next.js web/
 | [`docs/`](docs/) | Engineering records, IPS reference material, and screenshot assets |
 | [`examples/`](examples/) | Standalone quantitative and workflow examples |
 
-Profiles, task/event records, and LLM settings use SQLite; reports, IPS documents, and CME caches use JSON file storage under `data/`. The [request journey](guide/internals/01-request-journey.md) traces browser-to-engine calls. The running API's [OpenAPI UI](http://localhost:8000/docs) provides endpoint schemas; the [API chapter](guide/internals/05-api-shell.md) explains transport and task persistence.
+Profiles, users, authentication sessions, task/event records, and LLM settings use SQLite; reports, IPS documents, and CME caches use JSON file storage under `data/`. The [request journey](guide/internals/01-request-journey.md) traces browser-to-engine calls. The running API's [OpenAPI UI](http://localhost:8000/docs) provides endpoint schemas; the [API chapter](guide/internals/05-api-shell.md) explains transport and task persistence.
 
 ## Local development and testing
 
@@ -207,6 +207,8 @@ npm run dev
 
 Open [localhost:3000](http://localhost:3000). CJK PDF exports require a supported Chinese font; on Ubuntu/Debian, install `fonts-wqy-microhei`. The Docker API image includes it.
 
+The backend identity foundation provides login, logout, and current-principal endpoints. Provision a local user with `python -m api.create_user` (interactive email/password prompts), or use explicit demo sign-in when `DEMO_MODE=1`. See [identity setup and API usage](docs/identity-auth.md). Business API protection and Web sign-in integration are follow-up work; creating a user does not establish client-data access control.
+
 Run the following checks from the repository root with the virtual environment active. Subshells keep each command's working directory independent:
 
 ```bash
@@ -230,7 +232,7 @@ For documentation edits, run `mkdocs build --strict`. To try the Python engine w
 
 - **Storage and credentials.** Profiles and settings are stored locally by default. LLM API keys are persisted in SQLite; do not treat the database as an encrypted secrets vault. Protect `.env`, `data/`, and their backups.
 - **External calls.** Live model requests include task-specific client/report context and use the configured key for authentication. Market data requests go to their respective providers. A local model endpoint changes the model destination; it does not disable market-provider traffic.
-- **Access control.** The API has no built-in authentication. The supplied Compose configuration binds ports to `127.0.0.1`; add authentication and access controls before exposing a deployment beyond your machine.
+- **Access control.** The API has an opt-in identity dependency and protected `/api/auth/me` and `/api/auth/logout` endpoints. Existing business APIs are still unauthenticated; roles, client ownership, and object-level authorization are not implemented. The supplied Compose configuration binds ports to `127.0.0.1`; complete those access controls before exposing a deployment beyond your machine. See [the identity boundary](docs/identity-auth.md).
 - **Model inputs.** Some prompts delimit client text with XML tags and instructions. This is a mitigation, not a guarantee against prompt injection or incorrect output. Review generated documents before relying on them.
 
 The software is intended for educational, research, and technical evaluation purposes. Its calculations and generated documents do not constitute investment, tax, or legal advice, and do not replace professional review. No return, suitability determination, or regulatory approval is guaranteed.
