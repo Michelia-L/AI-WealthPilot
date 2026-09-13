@@ -392,3 +392,77 @@ def test_ownership_upgrade_keeps_existing_identity_and_settings(tmp_path, monkey
             session.get(db.AppSettingRecord, "fictional-setting").value == "preserved"
         )
         assert session.exec(select(db.OrganizationMembershipRecord)).all() == []
+
+
+@pytest.mark.parametrize(
+    "client_column, extra_index",
+    [
+        ("VARCHAR UNIQUE REFERENCES clients(id)", ""),
+        ("VARCHAR NOT NULL REFERENCES clients(id)", ""),
+        ("VARCHAR NOT NULL UNIQUE", ""),
+        ("VARCHAR NOT NULL UNIQUE REFERENCES organizations(id)", ""),
+        (
+            "VARCHAR NOT NULL REFERENCES clients(id)",
+            "CREATE UNIQUE INDEX partial_owner ON client_profiles(client_id) WHERE age > 18",
+        ),
+        (
+            "VARCHAR NOT NULL REFERENCES clients(id)",
+            "CREATE UNIQUE INDEX composite_owner ON client_profiles(client_id, name)",
+        ),
+    ],
+    ids=[
+        "nullable",
+        "not-unique",
+        "no-fk",
+        "wrong-fk",
+        "partial-unique",
+        "composite-unique",
+    ],
+)
+def test_existing_client_column_requires_full_ownership_constraints(
+    tmp_path, monkeypatch, client_column, extra_index
+):
+    engine = legacy_database(tmp_path, monkeypatch, empty=True)
+    with engine.begin() as connection:
+        connection.exec_driver_sql("DROP TABLE client_profiles")
+        connection.exec_driver_sql(
+            "CREATE TABLE client_profiles (id INTEGER PRIMARY KEY, user_id VARCHAR, "
+            "name VARCHAR NOT NULL, age INTEGER NOT NULL, risk_level VARCHAR NOT NULL, "
+            "created_at VARCHAR NOT NULL, updated_at VARCHAR NOT NULL, data JSON, "
+            f"client_id {client_column})"
+        )
+        if extra_index:
+            connection.exec_driver_sql(extra_index)
+    with engine.connect() as connection:
+        before = connection.exec_driver_sql(
+            "SELECT type, name, sql FROM sqlite_master ORDER BY type, name"
+        ).all()
+    with pytest.raises(RuntimeError, match="Incompatible profile ownership schema"):
+        db.init_db()
+    with engine.connect() as connection:
+        assert (
+            connection.exec_driver_sql(
+                "SELECT type, name, sql FROM sqlite_master ORDER BY type, name"
+            ).all()
+            == before
+        )
+
+
+def test_existing_table_unique_constraint_is_accepted(tmp_path, monkeypatch):
+    engine = legacy_database(tmp_path, monkeypatch, empty=True)
+    with engine.begin() as connection:
+        connection.exec_driver_sql("DROP TABLE client_profiles")
+        connection.exec_driver_sql(
+            "CREATE TABLE client_profiles (id INTEGER PRIMARY KEY, user_id VARCHAR, "
+            "name VARCHAR NOT NULL, age INTEGER NOT NULL, risk_level VARCHAR NOT NULL, "
+            "created_at VARCHAR NOT NULL, updated_at VARCHAR NOT NULL, data JSON, "
+            "client_id VARCHAR NOT NULL UNIQUE REFERENCES clients(id))"
+        )
+    db.init_db()
+    with Session(engine) as session:
+        profile = create_local_profile(session, new_profile())
+        profile_id, client_id = profile.id, profile.client_id
+        session.commit()
+    db.init_db()
+    with Session(engine) as session:
+        assert get_profile_owner(session, profile_id).id == client_id

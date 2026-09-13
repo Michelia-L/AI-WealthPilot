@@ -15,15 +15,38 @@ from api.ownership import LOCAL_ORGANIZATION_ID, LOCAL_ORGANIZATION_NAME
 
 
 def migrate_ownership(connection: Connection) -> None:
+    inspector = inspect(connection)
     columns = {
-        column["name"] for column in inspect(connection).get_columns("client_profiles")
+        column["name"]: column for column in inspector.get_columns("client_profiles")
     }
     if "client_id" in columns:
+        unique_constraints = inspector.get_unique_constraints("client_profiles")
+        unique_indexes = [
+            index
+            for index in inspector.get_indexes("client_profiles")
+            if index["unique"]
+            and index.get("dialect_options", {}).get("sqlite_where") is None
+        ]
+        unique = any(
+            constraint["column_names"] == ["client_id"]
+            for constraint in unique_constraints + unique_indexes
+        )
+        foreign_key = any(
+            fk["constrained_columns"] == ["client_id"]
+            and fk["referred_table"] == "clients"
+            and fk["referred_columns"] == ["id"]
+            for fk in inspector.get_foreign_keys("client_profiles")
+        )
+        if columns["client_id"]["nullable"] or not unique or not foreign_key:
+            raise RuntimeError(
+                "Incompatible profile ownership schema; expected client_id "
+                "NOT NULL, UNIQUE, and FOREIGN KEY to clients.id; migration aborted"
+            )
         return
     expected = {column.name for column in ProfileRecord.__table__.columns} - {
         "client_id"
     }
-    if columns != expected:
+    if set(columns) != expected:
         raise RuntimeError("Unrecognized legacy profile schema; migration aborted")
 
     # A separate table is needed to enforce NOT NULL, UNIQUE and FOREIGN KEY

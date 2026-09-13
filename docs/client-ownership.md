@@ -39,7 +39,7 @@ Profile HTTP request and response contracts remain unchanged. Existing routes st
 Application startup and the existing provisioning/import commands call `api.db.init_db()`. For the supported pre-#73 SQLite profile schema, initialization automatically:
 
 1. Begins an explicit `BEGIN IMMEDIATE` transaction, serializing concurrent initializers and making SQLite schema changes transactional.
-2. Creates missing tables. If `client_profiles` already has `client_id`, the ownership upgrade is skipped.
+2. Creates missing tables. If `client_profiles` already has `client_id`, initialization verifies its NOT NULL constraint, single-column uniqueness (an unconditional unique index or table constraint), and foreign key to `clients.id` before skipping the ownership upgrade. A partially compatible schema aborts initialization without attempting an automatic repair.
 3. Creates one login-independent Client per existing profile under `local`. No users or memberships are created or inferred, even if a reserved legacy `user_id` was populated.
 4. Rebuilds the profile table with required ownership constraints, preserving every integer ID, timestamp, index field, raw JSON value, and legacy `user_id`. Existing references to profile IDs remain valid.
 5. Recreates profile indexes, checks profile foreign keys, and commits. Any error rolls back both schema and data changes. Retrying a completed migration preserves client IDs and creates no duplicates.
