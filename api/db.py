@@ -7,17 +7,18 @@ volume-mounted in Docker Compose (./data:/app/data).
 
 The full ClientProfile is stored as a JSON column (the dataclass shape is
 owned by src/ and may evolve); index columns duplicate the fields the list
-UI filters/sorts on. ``user_id`` is reserved for the multi-user future and
-stays NULL in the single-user local deployment.
+UI filters/sorts on. Every profile belongs to one Client, which belongs to
+one Organization. Login identity and organization roles are separate.
 """
 
 import os
 from collections.abc import Iterator
 from datetime import datetime
+from enum import StrEnum
 from typing import Any, Optional
 from uuid import uuid4
 
-from sqlalchemy import JSON, Column
+from sqlalchemy import JSON, CheckConstraint, Column, String, UniqueConstraint, event
 from sqlmodel import Field, Session, SQLModel, create_engine
 
 from src.config import DATA_DIR
@@ -32,14 +33,24 @@ def get_db_url() -> str:
 
 def make_engine(url: Optional[str] = None):
     # check_same_thread=False: FastAPI serves requests from a threadpool.
-    return create_engine(url or get_db_url(), connect_args={"check_same_thread": False})
+    db_engine = create_engine(
+        url or get_db_url(), connect_args={"check_same_thread": False}
+    )
+
+    @event.listens_for(db_engine, "connect")
+    def enable_foreign_keys(connection, _):
+        cursor = connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+    return db_engine
 
 
 engine = make_engine()
 
 
 class UserRecord(SQLModel, table=True):
-    """Login identity only; organization/membership belongs to issue #73."""
+    """Login identity only; roles live on organization memberships."""
 
     __tablename__ = "users"
 
@@ -64,13 +75,52 @@ class AuthSessionRecord(SQLModel, table=True):
     expires_at: int = Field(index=True)
 
 
+class MembershipRole(StrEnum):
+    CLIENT = "client"
+    ADVISOR = "advisor"
+    ADMIN = "admin"
+
+
+class OrganizationRecord(SQLModel, table=True):
+    __tablename__ = "organizations"
+
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    name: str
+
+
+class OrganizationMembershipRecord(SQLModel, table=True):
+    __tablename__ = "organization_memberships"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "user_id"),
+        CheckConstraint("role IN ('client', 'advisor', 'admin')"),
+    )
+
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    organization_id: str = Field(foreign_key="organizations.id", index=True)
+    user_id: str = Field(foreign_key="users.id", index=True)
+    # Store enum values, not Python enum member names.
+    role: MembershipRole = Field(sa_column=Column(String, nullable=False))
+
+
+class ClientRecord(SQLModel, table=True):
+    """Business client, optionally linked to a login identity."""
+
+    __tablename__ = "clients"
+
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    organization_id: str = Field(foreign_key="organizations.id", index=True)
+    user_id: Optional[str] = Field(default=None, foreign_key="users.id", index=True)
+
+
 class ProfileRecord(SQLModel, table=True):
     """One client profile row: JSON payload + queryable index columns."""
 
     __tablename__ = "client_profiles"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: Optional[str] = Field(default=None, index=True)  # reserved
+    client_id: str = Field(foreign_key="clients.id", unique=True, index=True)
+    # Legacy provenance only. Never use this column to authorize access.
+    user_id: Optional[str] = Field(default=None, index=True)
     name: str = Field(index=True)
     age: int
     risk_level: str = ""
@@ -126,9 +176,21 @@ class HoldingSnapshotRecord(SQLModel, table=True):
 
 
 def init_db() -> None:
-    """Create tables that don't exist yet (idempotent)."""
+    """Create tables and atomically migrate legacy SQLite profile ownership."""
+    from api.migrate_ownership import migrate_ownership
+
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    SQLModel.metadata.create_all(engine)
+    with engine.connect() as connection:
+        # Explicit BEGIN includes SQLite DDL in the transaction and serializes
+        # concurrent startup migrations before inspecting the schema.
+        connection.exec_driver_sql("BEGIN IMMEDIATE")
+        try:
+            SQLModel.metadata.create_all(connection)
+            migrate_ownership(connection)
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
 
 
 def get_session() -> Iterator[Session]:

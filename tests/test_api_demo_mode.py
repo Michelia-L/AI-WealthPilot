@@ -13,10 +13,11 @@ import re
 from datetime import date
 
 import pytest
-from sqlmodel import Session, SQLModel, create_engine, select
+from sqlmodel import Session, SQLModel, select
 
-from api.db import ProfileRecord
+from api.db import ProfileRecord, make_engine
 from api.main import _demo_profile_data, _seed_demo_profile
+from api.ownership import create_local_profile
 from api.profile_convert import profile_from_data
 from src.agents import demo_mode, ips_storage
 from src.agents.demo_mode import DEMO_CLIENT_NAME, DEMO_CLIENT_NAME_EN, FIXTURES_DIR
@@ -589,9 +590,7 @@ def test_demo_rebalance_stream_emits_reasoning_before_tokens():
 
 
 def _tmp_session(tmp_path) -> Session:
-    engine = create_engine(
-        f"sqlite:///{tmp_path}/seed.db", connect_args={"check_same_thread": False}
-    )
+    engine = make_engine(f"sqlite:///{tmp_path}/seed.db")
     SQLModel.metadata.create_all(engine)
     return Session(engine)
 
@@ -624,7 +623,9 @@ def test_seed_demo_profile_inserts_on_empty_table(tmp_path, monkeypatch):
 def test_seed_demo_profile_skips_non_empty_table(tmp_path, monkeypatch):
     monkeypatch.setattr("src.config.DEMO_MODE", True)
     with _tmp_session(tmp_path) as session:
-        session.add(ProfileRecord(name="既有客户", age=45, risk_level="", data={}))
+        create_local_profile(
+            session, ProfileRecord(name="既有客户", age=45, risk_level="", data={})
+        )
         session.commit()
 
         assert _seed_demo_profile(session) is False
