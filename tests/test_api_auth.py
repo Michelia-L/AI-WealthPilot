@@ -143,6 +143,15 @@ def test_user_status_is_checked_on_every_request(bare_client, identity, action):
             user.is_active = False
             session.add(user)
         else:
+            # Foreign keys now enforce identity references; revoke sessions
+            # before deleting an identity instead of leaving dangling rows.
+            for record in session.exec(
+                select(db.AuthSessionRecord).where(
+                    db.AuthSessionRecord.user_id == user_id
+                )
+            ).all():
+                session.delete(record)
+            session.flush()
             session.delete(user)
         session.commit()
     assert bare_client.get("/api/auth/me", headers=headers).status_code == 401

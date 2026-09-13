@@ -1,8 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel
 
-from api.db import get_session
+from api.db import get_session, make_engine
 from api.main import create_app
 
 
@@ -43,9 +43,7 @@ def isolate_storage_dirs(tmp_path, monkeypatch):
     # are read via a dynamically-resolved api.db.engine — point it at a
     # throwaway tmp DB so a developer's real data/wealthpilot.db can never
     # leak saved endpoint settings into the suite.
-    engine = create_engine(
-        f"sqlite:///{tmp_path}/unit.db", connect_args={"check_same_thread": False}
-    )
+    engine = make_engine(f"sqlite:///{tmp_path}/unit.db")
     SQLModel.metadata.create_all(engine)
     monkeypatch.setattr("api.db.engine", engine)
 
@@ -54,9 +52,7 @@ def isolate_storage_dirs(tmp_path, monkeypatch):
 
 def _make_client(tmp_path, monkeypatch) -> TestClient:
     """Build a TestClient backed by an isolated tmp-path SQLite database."""
-    engine = create_engine(
-        f"sqlite:///{tmp_path}/test.db", connect_args={"check_same_thread": False}
-    )
+    engine = make_engine(f"sqlite:///{tmp_path}/test.db")
     SQLModel.metadata.create_all(engine)
     # The lifespan hook would otherwise create/seed the real data/wealthpilot.db.
     monkeypatch.setattr("api.main.init_db", lambda: None)

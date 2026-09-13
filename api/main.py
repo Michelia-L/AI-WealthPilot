@@ -24,6 +24,7 @@ from api import db
 from api.db import ProfileRecord, init_db
 from api.i18n import get_request_locale, msg
 from api.migrate_profiles import maybe_auto_import
+from api.ownership import create_local_profile
 from api.profile_convert import tolerance_level
 from api.routers import (
     advisor,
@@ -113,7 +114,8 @@ def _seed_demo_profile(session: Session) -> bool:
     if session.exec(select(ProfileRecord.id).limit(1)).first() is not None:
         return False
     data = _demo_profile_data()
-    session.add(
+    create_local_profile(
+        session,
         ProfileRecord(
             name=data["name"],
             age=data["age"],
@@ -121,7 +123,7 @@ def _seed_demo_profile(session: Session) -> bool:
             created_at=data["created_at"],
             updated_at=data["updated_at"],
             data=data,
-        )
+        ),
     )
     session.commit()
     return True

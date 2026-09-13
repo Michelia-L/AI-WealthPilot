@@ -16,6 +16,7 @@ from pydantic import ValidationError
 from sqlmodel import Session, select
 
 from api.db import ProfileRecord, make_engine
+from api.ownership import create_local_profile, local_profile_keys
 from api.profile_convert import payload_to_data
 from api.schemas import ProfilePayload, ProfileUploadFile, RiskScoresInput
 from src.agents import profiler  # module attr so conftest monkeypatching works
@@ -48,9 +49,7 @@ def import_json_profiles(session: Session, profiles_dir: Path | None = None) -> 
     directory = profiles_dir or profiler.PROFILES_DIR
     files = sorted(directory.glob("*.json")) if directory.exists() else []
 
-    existing = set(
-        session.exec(select(ProfileRecord.name, ProfileRecord.created_at)).all()
-    )
+    existing = local_profile_keys(session)
 
     imported = skipped = 0
     for filepath in files:
@@ -58,7 +57,7 @@ def import_json_profiles(session: Session, profiles_dir: Path | None = None) -> 
         if record is None or (record.name, record.created_at) in existing:
             skipped += 1
             continue
-        session.add(record)
+        create_local_profile(session, record)
         existing.add((record.name, record.created_at))
         imported += 1
     session.commit()
@@ -100,9 +99,7 @@ def import_uploaded_profiles(session: Session, files: list[ProfileUploadFile]) -
     (name, created_at) like import_json_profiles; entries without created_at
     (typical LLM output) dedupe on name alone. Invalid files/entries are
     reported, not raised."""
-    existing = set(
-        session.exec(select(ProfileRecord.name, ProfileRecord.created_at)).all()
-    )
+    existing = local_profile_keys(session)
     existing_names = {name for name, _ in existing}
 
     imported = skipped = 0
@@ -140,7 +137,8 @@ def import_uploaded_profiles(session: Session, files: list[ProfileUploadFile]) -
                 data["created_at"] = datetime.now().isoformat()
             existing.add((data["name"], data["created_at"]))
             existing_names.add(data["name"])
-            session.add(
+            create_local_profile(
+                session,
                 ProfileRecord(
                     name=data["name"],
                     age=data["age"],
@@ -148,7 +146,7 @@ def import_uploaded_profiles(session: Session, files: list[ProfileUploadFile]) -
                     created_at=data["created_at"],
                     updated_at=data["updated_at"],
                     data=data,
-                )
+                ),
             )
             imported += 1
     session.commit()

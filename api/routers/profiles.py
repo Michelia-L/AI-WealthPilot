@@ -16,6 +16,7 @@ from sqlmodel import Session, select
 from api.db import ProfileRecord, get_session
 from api.i18n import get_request_locale, msg
 from api.migrate_profiles import import_json_profiles, import_uploaded_profiles
+from api.ownership import create_local_profile
 from api.profile_convert import build_derived, payload_to_data, profile_from_data
 from api.schemas import (
     BiasItem,
@@ -122,7 +123,7 @@ def create_profile(
         updated_at=data["updated_at"],
         data=data,
     )
-    session.add(record)
+    create_local_profile(session, record)
     session.commit()
     session.refresh(record)
     return _detail(record)

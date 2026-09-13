@@ -6,7 +6,7 @@ The API can persist users, authenticate passwords, issue revocable bearer sessio
 
 Only `GET /api/auth/me` and `POST /api/auth/logout` require authentication in this increment. Existing profile, IPS, monitoring, settings, portfolio, and other business APIs retain their existing behavior. The Web workstation does not yet have a login page or forward these sessions. This foundation does **not** make the application a protected multi-user deployment.
 
-The principal contains `user_id`, `email`, and `is_demo`. It has no implied role, organization, membership, client ownership, or advisor assignment. Those belong to #73 and #74; securing existing routes belongs to #75. An email is a case-insensitive login identifier and is not verified by email delivery.
+The principal contains `user_id`, `email`, and `is_demo`. It has no implied role, organization, membership, client ownership, or advisor assignment. The [ownership model](client-ownership.md) stores organizations, memberships, and clients separately; advisor assignment belongs to #74 and securing existing routes belongs to #75. An email is a case-insensitive login identifier and is not verified by email delivery.
 
 ## Local setup
 
@@ -24,7 +24,7 @@ docker compose exec api python -m api.create_user
 
 The command prompts for email, password, and password confirmation. Passwords must contain 15–1024 characters; spaces and Unicode are preserved. Password entry fails if the terminal cannot hide it. Credentials are not accepted as command-line arguments, printed on success, or included in controlled error messages. Duplicate normalized emails are rejected. There is no default password, public registration endpoint, email verification, password-reset workflow, MFA, or SSO integration.
 
-Provisioning and the API use the same configured `AIWP_DB_URL`, defaulting to `data/wealthpilot.db`. Use the same configuration for both. Application startup adds `users` and `auth_sessions` tables via the existing idempotent initialization; it does not alter or assign existing profiles. Startup does not provision a local user automatically.
+Provisioning and the API use the same configured `AIWP_DB_URL`, defaulting to `data/wealthpilot.db`. Use the same configuration for both. Application startup adds `users` and `auth_sessions` tables via idempotent initialization and applies the [profile ownership migration](client-ownership.md#existing-database-migration). It does not infer any profile-to-login link or membership. Startup does not provision a local user automatically.
 
 ## API contract
 
