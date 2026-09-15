@@ -30,6 +30,20 @@ def get_request_locale(request: Request) -> str:
 
 
 _MESSAGES: dict[str, dict[str, dict[str, str]]] = {
+    "authorization": {
+        "forbidden": {
+            "zh": "无权执行此操作。",
+            "en": "You do not have permission to perform this action.",
+        },
+        "client_not_found": {
+            "zh": "未找到客户。",
+            "en": "Client not found.",
+        },
+        "advisor_required": {
+            "zh": "分配对象必须是本组织中可用的顾问。",
+            "en": "Assignment requires an active advisor in this organization.",
+        },
+    },
     "auth": {
         "busy": {
             "zh": "登录服务繁忙，请稍后重试。",

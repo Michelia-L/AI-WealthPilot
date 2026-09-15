@@ -32,7 +32,7 @@ Deleting a profile leaves its Client intact, since Client is an independent busi
 
 Existing profile creation, legacy JSON import, uploaded JSON import, and demo seeding explicitly create a Client under `local` (display name `Local workspace`). The workspace is created idempotently without resetting an existing name. Import deduplication is scoped to this organization, so matching profiles elsewhere do not suppress a local import. Demo seeding and first-boot import retain their existing empty-profile-table checks.
 
-Profile HTTP request and response contracts remain unchanged. Existing routes still expose the local workstation's shared data and do not filter by authenticated organization. This increment does not make the application safe for a shared multi-user deployment. Organization selection and route authorization belong to #75; advisor-client assignment belongs to #74. User-controlled IDs, email, and roles must not replace those checks. No frontend changes are included.
+Profile HTTP request and response contracts remain unchanged. Existing routes still expose the local workstation's shared data and do not filter by authenticated organization. This increment does not make the application safe for a shared multi-user deployment. Organization selection and route authorization belong to #75; advisor-client assignments and shared access checks are documented in [the authorization guide](authorization.md). User-controlled IDs, email, and roles must not replace those checks. No frontend changes are included.
 
 ## Existing database migration
 

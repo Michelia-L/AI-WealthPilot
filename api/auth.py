@@ -1,7 +1,8 @@
 """Password authentication and revocable, database-backed bearer sessions.
 
 This module resolves identity. It does not grant access to any business object.
-Routes opt in through get_current_principal; RBAC follows in #74/#75.
+Routes opt in through get_current_principal; api.authorization checks roles and
+client access. Existing business-route integration remains a separate step.
 """
 
 import hashlib

@@ -6,7 +6,7 @@ The API can persist users, authenticate passwords, issue revocable bearer sessio
 
 Only `GET /api/auth/me` and `POST /api/auth/logout` require authentication in this increment. Existing profile, IPS, monitoring, settings, portfolio, and other business APIs retain their existing behavior. The Web workstation does not yet have a login page or forward these sessions. This foundation does **not** make the application a protected multi-user deployment.
 
-The principal contains `user_id`, `email`, and `is_demo`. It has no implied role, organization, membership, client ownership, or advisor assignment. The [ownership model](client-ownership.md) stores organizations, memberships, and clients separately; advisor assignment belongs to #74 and securing existing routes belongs to #75. An email is a case-insensitive login identifier and is not verified by email delivery.
+The principal contains `user_id`, `email`, and `is_demo`. It has no implied role, organization, membership, client ownership, or advisor assignment. The [ownership model](client-ownership.md) stores organizations, memberships, and clients separately; [advisor assignments and access checks](authorization.md) evaluate them server-side, while securing existing routes belongs to #75. An email is a case-insensitive login identifier and is not verified by email delivery.
 
 ## Local setup
 
