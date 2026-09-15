@@ -18,7 +18,16 @@ from enum import StrEnum
 from typing import Any, Optional
 from uuid import uuid4
 
-from sqlalchemy import JSON, CheckConstraint, Column, String, UniqueConstraint, event
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    Column,
+    ForeignKeyConstraint,
+    Index,
+    String,
+    UniqueConstraint,
+    event,
+)
 from sqlmodel import Field, Session, SQLModel, create_engine
 
 from src.config import DATA_DIR
@@ -102,14 +111,45 @@ class OrganizationMembershipRecord(SQLModel, table=True):
     role: MembershipRole = Field(sa_column=Column(String, nullable=False))
 
 
+CLIENT_ORGANIZATION_INDEX = Index(
+    "ux_clients_organization_id_id", "organization_id", "id", unique=True
+)
+
+
 class ClientRecord(SQLModel, table=True):
     """Business client, optionally linked to a login identity."""
 
     __tablename__ = "clients"
+    __table_args__ = (CLIENT_ORGANIZATION_INDEX,)
 
     id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
     organization_id: str = Field(foreign_key="organizations.id", index=True)
     user_id: Optional[str] = Field(default=None, foreign_key="users.id", index=True)
+
+
+class AdvisorClientAssignmentRecord(SQLModel, table=True):
+    """An explicit assignment within one organization; not a role grant."""
+
+    __tablename__ = "advisor_client_assignments"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "advisor_user_id", "client_id"),
+        ForeignKeyConstraint(
+            ["organization_id", "advisor_user_id"],
+            [
+                "organization_memberships.organization_id",
+                "organization_memberships.user_id",
+            ],
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "client_id"], ["clients.organization_id", "clients.id"]
+        ),
+    )
+
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    organization_id: str
+    advisor_user_id: str = Field(index=True)
+    client_id: str = Field(index=True)
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 
 class ProfileRecord(SQLModel, table=True):
@@ -186,6 +226,9 @@ def init_db() -> None:
         connection.exec_driver_sql("BEGIN IMMEDIATE")
         try:
             SQLModel.metadata.create_all(connection)
+            # create_all does not add indexes to an existing #73 clients table.
+            # SQLite needs this composite parent key for assignment tenant FKs.
+            CLIENT_ORGANIZATION_INDEX.create(connection, checkfirst=True)
             migrate_ownership(connection)
             connection.commit()
         except Exception:
