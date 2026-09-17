@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 /**
  * Crown-jewel e2e: the advisor SSE pipeline end to end — browser → same-origin

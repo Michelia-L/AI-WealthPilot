@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { readFile } from "node:fs/promises";
 
 test.use({ timezoneId: "America/Los_Angeles" });
@@ -25,7 +25,7 @@ test("actual holdings: entry, persisted drift, JSON import, history and Chinese 
   await page.goto(`/monitoring?doc=${done.document_id}`);
   await expect(page.getByRole("heading", { name: "Actual Holdings", exact: true })).toBeVisible();
   await page.clock.setFixedTime(new Date("2026-09-09T16:30:00Z"));
-  await expect(page.getByText("Valuation dates use Asia/Shanghai, including the JSON template.")).toBeVisible();
+  await expect(page.getByRole("main").getByText("Valuation dates use Asia/Shanghai, including the JSON template.")).toBeVisible();
   await page.getByText("Import JSON snapshot", { exact: true }).click();
   const [download] = await Promise.all([
     page.waitForEvent("download"),

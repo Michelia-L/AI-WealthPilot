@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getAdvisorReports, getAdvisorStatus, getProfiles } from "@/lib/api";
+import { getAdvisorReports, getAdvisorStatus, getProfiles } from "@/lib/api/server";
 import { altLocale } from "@/lib/i18n/locale";
 import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
 import AdvisorWorkspace from "@/components/advisor-workspace";

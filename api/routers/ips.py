@@ -15,14 +15,14 @@ import asyncio
 import json
 import tempfile
 from pathlib import Path
-from typing import Optional
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
-from api.db import ProfileRecord, get_session
+from api.access import Access, get_access
+from api.db import get_session
 from api.i18n import get_request_locale, msg
 from api.schemas import (
     IpsDetailResponse,
@@ -40,7 +40,7 @@ from src.agents import ips_storage, ips_workflow
 from src.agents.advisor import is_api_configured
 from src.agents.demo_mode import is_demo_mode, run_demo_ips_task
 
-router = APIRouter(prefix="/ips", tags=["ips"])
+router = APIRouter(prefix="/ips", tags=["ips"], dependencies=[Depends(get_access)])
 
 # Workflow nodes carrying a bilingual progress label (SSE timeline in the
 # UI); the rendered text lives in api.i18n under these message keys.
@@ -119,6 +119,7 @@ async def _run_ips_task(
             audit_trail_dict=state.get("audit_trail") or {},
             client_name=task.meta["client_name"],
             profile_id=task.meta.get("profile_id"),
+            client_id=task.meta.get("client_id"),
         )
         task.status = "completed"
         await task.publish(
@@ -149,27 +150,34 @@ async def _run_ips_task(
         )
 
 
-@router.post("/generate", response_model=IpsTaskCreatedResponse, status_code=202)
+@router.post(
+    "/generate",
+    response_model=IpsTaskCreatedResponse,
+    status_code=202,
+    openapi_extra={"x-access-scope": "advisor-scoped"},
+)
 async def generate_ips(
     payload: IpsGenerateRequest,
     request: Request,
     session: Session = Depends(get_session),
+    access: Access = Depends(get_access),
 ) -> IpsTaskCreatedResponse:
+    access.staff()
+    record = access.profile(payload.profile_id)
     locale = get_request_locale(request)
     if not is_api_configured() and not is_demo_mode():
         raise HTTPException(
             status_code=503,
             detail=msg("common.llm_not_configured", locale),
         )
-    record = session.get(ProfileRecord, payload.profile_id)
-    if record is None:
-        raise HTTPException(
-            status_code=404,
-            detail=msg("common.profile_not_found", locale, id=payload.profile_id),
-        )
 
     task = registry.create(
-        "ips", profile_id=payload.profile_id, client_name=record.name
+        "ips",
+        profile_id=payload.profile_id,
+        client_name=record.name,
+        client_id=record.client_id,
+        organization_id=access.organization_id,
+        created_by=access.principal.user_id,
     )
     # Demo mode (P20): replay the recorded fixture workflow instead of LangGraph.
     runner = run_demo_ips_task if is_demo_mode() else _run_ips_task
@@ -177,8 +185,14 @@ async def generate_ips(
     return IpsTaskCreatedResponse(task_id=task.task_id, profile_id=payload.profile_id)
 
 
-@router.get("/tasks/{task_id}/events")
-async def task_events(task_id: str, request: Request) -> StreamingResponse:
+@router.get(
+    "/tasks/{task_id}/events", openapi_extra={"x-access-scope": "advisor-scoped"}
+)
+async def task_events(
+    task_id: str, request: Request, access: Access = Depends(get_access)
+) -> StreamingResponse:
+    access.staff()
+    access.task(task_id, "ips")
     stream = task_events_stream(registry, task_id, get_request_locale(request))
     if stream is None:
         raise HTTPException(
@@ -198,16 +212,12 @@ async def task_events(task_id: str, request: Request) -> StreamingResponse:
 # ---------------------------------------------------------------------------
 
 
-def _find_ips_file(document_id: str) -> Optional[Path]:
-    """Locate an IPS file by stem; glob keeps lookups inside IPS_DIR."""
-    if not all(c.isalnum() or c in "_-" for c in document_id):
-        return None
-    matches = list(ips_storage.IPS_DIR.glob(f"{document_id}.json"))
-    return matches[0] if matches else None
-
-
-@router.get("", response_model=IpsListResponse)
-def list_ips() -> IpsListResponse:
+@router.get(
+    "",
+    response_model=IpsListResponse,
+    openapi_extra={"x-access-scope": "client-scoped"},
+)
+def list_ips(access: Access = Depends(get_access)) -> IpsListResponse:
     documents = [
         IpsDocumentSummary(
             document_id=Path(d["filepath"]).stem,
@@ -219,20 +229,21 @@ def list_ips() -> IpsListResponse:
             revision_rounds=d["revision_rounds"],
             saved_at=d["saved_at"],
         )
-        for d in ips_storage.list_ips_documents()
+        for d in access.ips_documents()
     ]
     return IpsListResponse(documents=documents)
 
 
-@router.get("/{document_id}", response_model=IpsDetailResponse)
-def get_ips(document_id: str, request: Request) -> IpsDetailResponse:
+@router.get(
+    "/{document_id}",
+    response_model=IpsDetailResponse,
+    openapi_extra={"x-access-scope": "client-scoped"},
+)
+def get_ips(
+    document_id: str, request: Request, access: Access = Depends(get_access)
+) -> IpsDetailResponse:
+    record = access.ips(document_id)
     locale = get_request_locale(request)
-    filepath = _find_ips_file(document_id)
-    if filepath is None:
-        raise HTTPException(
-            status_code=404, detail=msg("common.ips_doc_not_found", locale)
-        )
-    record = ips_storage.load_ips(filepath)
     ips = record.get("ips", {})
     meta = record.get("metadata", {})
     audit = record.get("audit_trail", {})
@@ -251,21 +262,18 @@ def get_ips(document_id: str, request: Request) -> IpsDetailResponse:
     )
 
 
-@router.get("/{document_id}/pdf")
-def get_ips_pdf(document_id: str, request: Request) -> Response:
+@router.get("/{document_id}/pdf", openapi_extra={"x-access-scope": "client-scoped"})
+def get_ips_pdf(
+    document_id: str, request: Request, access: Access = Depends(get_access)
+) -> Response:
     """Render the stored IPS as a downloadable PDF (src export_ips_pdf).
 
     The src builder writes to a file path, so we render into a temp dir and
     stream the bytes back. document_id may contain CJK (client names), hence
     the RFC 5987 filename* in Content-Disposition.
     """
+    record = access.ips(document_id)
     locale = get_request_locale(request)
-    filepath = _find_ips_file(document_id)
-    if filepath is None:
-        raise HTTPException(
-            status_code=404, detail=msg("common.ips_doc_not_found", locale)
-        )
-    record = ips_storage.load_ips(filepath)
     with tempfile.TemporaryDirectory() as tmpdir:
         pdf_path = ips_storage.export_ips_pdf(
             record.get("ips", {}),
@@ -284,16 +292,13 @@ def get_ips_pdf(document_id: str, request: Request) -> Response:
     )
 
 
-@router.get("/{document_id}/export")
-def export_ips_markdown(document_id: str, request: Request) -> Response:
+@router.get("/{document_id}/export", openapi_extra={"x-access-scope": "client-scoped"})
+def export_ips_markdown(
+    document_id: str, request: Request, access: Access = Depends(get_access)
+) -> Response:
     """Export the stored IPS (with audit trail) as a Markdown download."""
+    record = access.ips(document_id)
     locale = get_request_locale(request)
-    filepath = _find_ips_file(document_id)
-    if filepath is None:
-        raise HTTPException(
-            status_code=404, detail=msg("common.ips_doc_not_found", locale)
-        )
-    record = ips_storage.load_ips(filepath)
     markdown = ips_storage.export_ips_markdown(
         record.get("ips", {}), record.get("audit_trail"), locale=locale
     )

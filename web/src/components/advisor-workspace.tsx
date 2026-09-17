@@ -57,6 +57,7 @@ export default function AdvisorWorkspace({
   const [reasoning, setReasoning] = useState("");
   const [done, setDone] = useState<AdvisorDoneEvent | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [generatedProfileId, setGeneratedProfileId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [clientName, setClientName] = useState("");
@@ -83,6 +84,7 @@ export default function AdvisorWorkspace({
 
   async function generate() {
     if (selectedId === null) return;
+    setGeneratedProfileId(selectedId);
     setStreaming(true);
     setText("");
     setReasoning("");
@@ -134,7 +136,7 @@ export default function AdvisorWorkspace({
   }
 
   async function saveReport() {
-    if (!done || !text || !clientName.trim()) return;
+    if (!done || !text || !clientName.trim() || generatedProfileId === null) return;
     setSaving(true);
     setError(null);
     try {
@@ -142,6 +144,7 @@ export default function AdvisorWorkspace({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          profile_id: generatedProfileId,
           client_name: clientName.trim(),
           content: text,
           model: done.model,

@@ -4,27 +4,27 @@ The API can persist users, authenticate passwords, issue revocable bearer sessio
 
 ## Scope
 
-Only `GET /api/auth/me` and `POST /api/auth/logout` require authentication in this increment. Existing profile, IPS, monitoring, settings, portfolio, and other business APIs retain their existing behavior. The Web workstation does not yet have a login page or forward these sessions. This foundation does **not** make the application a protected multi-user deployment.
+Business APIs now require authenticated sessions and server-side organization/object checks. The Web sign-in form stores the session in an HttpOnly cookie and forwards it through server rendering and same-origin proxy routes. See the [route access audit](api-access.md) for permissions and upgrade behavior.
 
-The principal contains `user_id`, `email`, and `is_demo`. It has no implied role, organization, membership, client ownership, or advisor assignment. The [ownership model](client-ownership.md) stores organizations, memberships, and clients separately; [advisor assignments and access checks](authorization.md) evaluate them server-side, while securing existing routes belongs to #75. An email is a case-insensitive login identifier and is not verified by email delivery.
+The principal contains `user_id`, `email`, and `is_demo`. It has no implied role, organization, membership, client ownership, or advisor assignment. The [ownership model](client-ownership.md) stores organizations, memberships, and clients separately; [advisor assignments and access checks](authorization.md) evaluate them server-side, and [existing routes enforce these checks](api-access.md). An email is a case-insensitive login identifier and is not verified by email delivery.
 
 ## Local setup
 
 From the repository root with the Python environment active:
 
 ```bash
-python -m api.create_user
+python -m api.create_user --local-admin
 ```
 
 For Compose, use an interactive terminal:
 
 ```bash
-docker compose exec api python -m api.create_user
+docker compose exec api python -m api.create_user --local-admin
 ```
 
 The command prompts for email, password, and password confirmation. Passwords must contain 15–1024 characters; spaces and Unicode are preserved. Password entry fails if the terminal cannot hide it. Credentials are not accepted as command-line arguments, printed on success, or included in controlled error messages. Duplicate normalized emails are rejected. There is no default password, public registration endpoint, email verification, password-reset workflow, MFA, or SSO integration.
 
-Provisioning and the API use the same configured `AIWP_DB_URL`, defaulting to `data/wealthpilot.db`. Use the same configuration for both. Application startup adds `users` and `auth_sessions` tables via idempotent initialization and applies the [profile ownership migration](client-ownership.md#existing-database-migration). It does not infer any profile-to-login link or membership. Startup does not provision a local user automatically.
+`--local-admin` explicitly grants admin membership in the local organization; omitting the flag creates an identity without workspace access. Provisioning and the API use the same configured `AIWP_DB_URL`, defaulting to `data/wealthpilot.db`. Use the same configuration for both. Application startup adds `users` and `auth_sessions` tables via idempotent initialization and applies the [profile ownership migration](client-ownership.md#existing-database-migration). It does not infer any profile-to-login link or membership. Startup does not provision a local user automatically.
 
 ## API contract
 
@@ -32,6 +32,7 @@ Provisioning and the API use the same configured `AIWP_DB_URL`, defaulting to `d
 | --- | --- | --- |
 | `POST /api/auth/login` | JSON `email`, `password` | `access_token`, `token_type: "bearer"`, UTC `expires_at` |
 | `POST /api/auth/demo` | No credentials; requires `DEMO_MODE=1` | Same session response for the shared demo identity |
+| `GET /api/auth/organizations` | Bearer header | Membership workspace IDs, names, and roles |
 | `GET /api/auth/me` | `Authorization: Bearer <access_token>` | Server-resolved `user_id`, `email`, `is_demo` |
 | `POST /api/auth/logout` | Same bearer header | HTTP 204; revokes this session only |
 
@@ -66,7 +67,7 @@ with requests.Session() as client:
 - Sessions expire 12 hours after issuance, without sliding renewal. Each login issues an independent random 256-bit token. Only its SHA-256 digest, user ID, creation time, and expiry are persisted. Expired session rows are removed when a new session is issued.
 - Sessions survive API restarts. Logout permanently deletes the presented session from SQLite; other sessions remain valid. Every protected request rechecks user existence and active status. `is_active=False` is a **temporary authentication pause**, not session revocation: rows remain stored, and re-enabling the user restores unexpired, non-logged-out sessions. Removing a user prevents lookup of that identity. This increment has no administrative disable/re-enable or revoke-all endpoint.
 - Passwords use independently salted scrypt hashes (`N=2^17`, `r=8`, `p=1`), with a versioned storage format. These parameters follow the [OWASP scrypt baseline](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#scrypt). When capacity is available, unknown users still incur password-hash work; hash comparison uses constant-time comparison. Concurrent hashing is bounded to two operations per API process. Slot acquisition is nonblocking: excess requests receive 503 instead of occupying shared FastAPI/AnyIO workers while waiting. Slots are released even if hashing raises an exception.
-- Five consecutive failed password attempts lock that user out of new password logins for five minutes. A successful login resets the counter; after a cooldown the next failed attempt starts a new counter. State is persisted and increments are atomic. This does not revoke existing sessions and is not a deployment-wide request limiter. Network-level rate limiting and HTTPS are still required before exposing authentication beyond localhost, alongside the unfinished business authorization controls.
+- Five consecutive failed password attempts lock that user out of new password logins for five minutes. A successful login resets the counter; after a cooldown the next failed attempt starts a new counter. State is persisted and increments are atomic. This does not revoke existing sessions and is not a deployment-wide request limiter. Network-level rate limiting and HTTPS are still required before exposing authentication beyond localhost, alongside the remaining controls recorded in KI-004.
 
 An attacker who knows an email can repeatedly trigger the account-only lockout and deny that user new logins. The current cooldown is not sufficient protection for external deployments. [KI-004](known-issues.md#ki-004--认证对外部署前的限流与撤销边界) tracks combined account/source rate limiting or bounded progressive backoff, plus permanent all-session revocation for security-sensitive account disablement. Future administrative disablement must explicitly revoke sessions (for example, via transactional deletion or session versioning); flipping `is_active` alone does not provide that guarantee.
 
@@ -74,13 +75,13 @@ An attacker who knows an email can repeatedly trigger the account-only lockout a
 
 With `DEMO_MODE=1`, callers explicitly request `POST /api/auth/demo`. On first use it creates one persisted, passwordless, fictional identity (`demo@wealthpilot.invalid`). Subsequent demo logins reuse that identity and issue independent ordinary bearer sessions. Local provisioning reserves this identifier.
 
-Demo mode does not automatically authenticate anonymous requests. Demo sessions pass through the same database lookup, expiry, active-user checks, principal dependency, and logout behavior as password sessions. The demo endpoint returns 404 when demo mode is disabled, and existing demo sessions are rejected while it is disabled. Password-based local identities continue to use their normal login flow in either mode. No demo identity is automatically attached to an existing client profile.
+Demo mode does not automatically authenticate anonymous requests. Demo sessions pass through the same database lookup, expiry, active-user checks, principal dependency, and logout behavior as password sessions. The demo endpoint returns 404 when demo mode is disabled, and existing demo sessions are rejected while it is disabled. Password-based local identities continue to use their normal login flow in either mode. An explicit demo login grants admin membership only in the dedicated `demo` organization. The fictional startup profile belongs to that organization. It does not grant access to `local` profiles or deployment settings.
 
 Turning demo mode back on restores any demo sessions that have neither expired nor been logged out. Mode changes pause authentication and do not permanently revoke tokens. This behavior is covered by regression tests and shares the revocation follow-up in KI-004.
 
 ## Route integration and validation
 
-Future protected routes use `principal: Principal = Depends(get_current_principal)` from `api.auth` and `api.schemas`. Identity alone does not authorize access to a requested client or resource. Do not trust submitted user IDs or roles as a substitute for this dependency or future object-access checks.
+Protected routes use `principal: Principal = Depends(get_current_principal)` from `api.auth` and `api.schemas`. Identity alone does not authorize access to a requested client or resource. Do not trust submitted user IDs or roles as a substitute for this dependency or object-access checks.
 
 Run the targeted tests with:
 

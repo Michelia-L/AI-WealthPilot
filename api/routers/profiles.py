@@ -13,10 +13,11 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import Session, select
 
+from api.access import Access, get_access
 from api.db import ProfileRecord, get_session
 from api.i18n import get_request_locale, msg
 from api.migrate_profiles import import_json_profiles, import_uploaded_profiles
-from api.ownership import create_local_profile
+from api.ownership import create_scoped_profile
 from api.profile_convert import build_derived, payload_to_data, profile_from_data
 from api.schemas import (
     BiasItem,
@@ -39,7 +40,9 @@ from src.agents.profiler import (
     identify_behavioral_biases,
 )
 
-router = APIRouter(prefix="/profiles", tags=["profiles"])
+router = APIRouter(
+    prefix="/profiles", tags=["profiles"], dependencies=[Depends(get_access)]
+)
 
 
 def _detail(record: ProfileRecord) -> ProfileDetailResponse:
@@ -51,16 +54,6 @@ def _detail(record: ProfileRecord) -> ProfileDetailResponse:
         profile=record.data,
         derived=build_derived(profile),
     )
-
-
-def _get_or_404(profile_id: int, session: Session, locale: str) -> ProfileRecord:
-    record = session.get(ProfileRecord, profile_id)
-    if record is None:
-        raise HTTPException(
-            status_code=404,
-            detail=msg("common.profile_not_found", locale, id=profile_id),
-        )
-    return record
 
 
 def _build_track(questions: dict, locale: str) -> list[QuestionnaireQuestion]:
@@ -91,10 +84,18 @@ def _build_track(questions: dict, locale: str) -> list[QuestionnaireQuestion]:
 # ---------------------------------------------------------------------------
 
 
-@router.get("", response_model=ProfileListResponse)
-def list_profiles(session: Session = Depends(get_session)) -> ProfileListResponse:
+@router.get(
+    "",
+    response_model=ProfileListResponse,
+    openapi_extra={"x-access-scope": "client-scoped"},
+)
+def list_profiles(
+    session: Session = Depends(get_session), access: Access = Depends(get_access)
+) -> ProfileListResponse:
     records = session.exec(
-        select(ProfileRecord).order_by(ProfileRecord.updated_at.desc())
+        select(ProfileRecord)
+        .where(ProfileRecord.client_id.in_(access.client_ids()))
+        .order_by(ProfileRecord.updated_at.desc())
     ).all()
     return ProfileListResponse(
         profiles=[
@@ -110,10 +111,18 @@ def list_profiles(session: Session = Depends(get_session)) -> ProfileListRespons
     )
 
 
-@router.post("", response_model=ProfileDetailResponse, status_code=201)
+@router.post(
+    "",
+    response_model=ProfileDetailResponse,
+    status_code=201,
+    openapi_extra={"x-access-scope": "advisor-scoped"},
+)
 def create_profile(
-    payload: ProfilePayload, session: Session = Depends(get_session)
+    payload: ProfilePayload,
+    session: Session = Depends(get_session),
+    access: Access = Depends(get_access),
 ) -> ProfileDetailResponse:
+    access.staff()
     data = payload_to_data(payload, created_at=datetime.now().isoformat())
     record = ProfileRecord(
         name=payload.name,
@@ -123,7 +132,12 @@ def create_profile(
         updated_at=data["updated_at"],
         data=data,
     )
-    create_local_profile(session, record)
+    create_scoped_profile(
+        session,
+        record,
+        access.organization_id,
+        advisor_user_id=access.principal.user_id if access.role == "advisor" else None,
+    )
     session.commit()
     session.refresh(record)
     return _detail(record)
@@ -131,7 +145,11 @@ def create_profile(
 
 # NOTE: declared before /{profile_id} — FastAPI matches routes in order, so
 # the literal "questionnaire" segment must win over the int parameter.
-@router.get("/questionnaire", response_model=QuestionnaireResponse)
+@router.get(
+    "/questionnaire",
+    response_model=QuestionnaireResponse,
+    openapi_extra={"x-access-scope": "authenticated"},
+)
 def get_questionnaire(request: Request) -> QuestionnaireResponse:
     """9-question dual-track risk questionnaire straight from src/ profiler.
 
@@ -151,9 +169,16 @@ MAX_COMPARE_PROFILES = 6
 
 # NOTE: declared before /{profile_id} for the same routing-order reason as
 # /questionnaire above.
-@router.get("/compare", response_model=ProfileCompareResponse)
+@router.get(
+    "/compare",
+    response_model=ProfileCompareResponse,
+    openapi_extra={"x-access-scope": "advisor-scoped"},
+)
 def compare_profile_set(
-    ids: str, request: Request, session: Session = Depends(get_session)
+    ids: str,
+    request: Request,
+    session: Session = Depends(get_session),
+    access: Access = Depends(get_access),
 ) -> ProfileCompareResponse:
     """Compare 2–6 profiles (src compare_profiles) with per-profile biases.
 
@@ -176,7 +201,8 @@ def compare_profile_set(
             detail=msg("profiles.compare_max", locale, max_count=MAX_COMPARE_PROFILES),
         )
 
-    records = [session.get(ProfileRecord, i) for i in id_list]
+    access.staff()
+    records = [access.profile(i) for i in id_list]
     missing = [i for i, r in zip(id_list, records, strict=False) if r is None]
     if missing:
         raise HTTPException(
@@ -210,21 +236,33 @@ def compare_profile_set(
     )
 
 
-@router.get("/{profile_id}", response_model=ProfileDetailResponse)
+@router.get(
+    "/{profile_id}",
+    response_model=ProfileDetailResponse,
+    openapi_extra={"x-access-scope": "client-scoped"},
+)
 def get_profile(
-    profile_id: int, request: Request, session: Session = Depends(get_session)
+    profile_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    access: Access = Depends(get_access),
 ) -> ProfileDetailResponse:
-    return _detail(_get_or_404(profile_id, session, get_request_locale(request)))
+    return _detail(access.profile(profile_id))
 
 
-@router.put("/{profile_id}", response_model=ProfileDetailResponse)
+@router.put(
+    "/{profile_id}",
+    response_model=ProfileDetailResponse,
+    openapi_extra={"x-access-scope": "client-scoped"},
+)
 def update_profile(
     profile_id: int,
     payload: ProfilePayload,
     request: Request,
     session: Session = Depends(get_session),
+    access: Access = Depends(get_access),
 ) -> ProfileDetailResponse:
-    record = _get_or_404(profile_id, session, get_request_locale(request))
+    record = access.profile(profile_id)
     data = payload_to_data(payload, created_at=record.created_at)
     record.name = payload.name
     record.age = payload.age
@@ -237,27 +275,50 @@ def update_profile(
     return _detail(record)
 
 
-@router.delete("/{profile_id}", status_code=204)
+@router.delete(
+    "/{profile_id}", status_code=204, openapi_extra={"x-access-scope": "advisor-scoped"}
+)
 def delete_profile(
-    profile_id: int, request: Request, session: Session = Depends(get_session)
+    profile_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    access: Access = Depends(get_access),
 ) -> None:
-    session.delete(_get_or_404(profile_id, session, get_request_locale(request)))
+    access.staff()
+    session.delete(access.profile(profile_id))
     session.commit()
 
 
-@router.post("/import", response_model=ProfileImportResponse)
+@router.post(
+    "/import",
+    response_model=ProfileImportResponse,
+    openapi_extra={"x-access-scope": "admin-scoped"},
+)
 def import_legacy_json(
-    session: Session = Depends(get_session),
+    session: Session = Depends(get_session), access: Access = Depends(get_access)
 ) -> ProfileImportResponse:
     """Import data/profiles/*.json (Streamlit era) into SQLite. Idempotent."""
+    access.admin()
+    if access.organization_id != "local" or access.principal.is_demo:
+        access.deny()
     return ProfileImportResponse(**import_json_profiles(session))
 
 
-@router.post("/import/upload", response_model=ProfileImportResponse)
+@router.post(
+    "/import/upload",
+    response_model=ProfileImportResponse,
+    openapi_extra={"x-access-scope": "admin-scoped"},
+)
 def import_uploaded_json(
     req: ProfileUploadRequest,
     session: Session = Depends(get_session),
+    access: Access = Depends(get_access),
 ) -> ProfileImportResponse:
     """Import browser-uploaded profile JSON. Each file holds one profile or an
     array; validation failures are reported in ``invalid``, not raised."""
-    return ProfileImportResponse(**import_uploaded_profiles(session, req.files))
+    access.admin()
+    return ProfileImportResponse(
+        **import_uploaded_profiles(
+            session, req.files, organization_id=access.organization_id
+        )
+    )

@@ -4,6 +4,7 @@ Credentials are entered interactively, never accepted as command-line flags.
 No public registration endpoint or default password is installed.
 """
 
+import argparse
 import getpass
 import sys
 import warnings
@@ -17,7 +18,14 @@ from api.auth import create_user
 from api.schemas import LoginRequest
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--local-admin",
+        action="store_true",
+        help="Grant admin membership in the local workspace",
+    )
+    options = parser.parse_args(argv or [])
     try:
         email = input("Email: ")
         # Fail if this terminal cannot hide password entry (no echo fallback).
@@ -31,7 +39,13 @@ def main() -> int:
         credentials = LoginRequest(email=email, password=password)
         db.init_db()
         with Session(db.engine) as session:
-            create_user(session, credentials)
+            user = create_user(session, credentials)
+            if options.local_admin:
+                from api.ownership import ensure_local_organization, set_membership
+
+                org = ensure_local_organization(session)
+                set_membership(session, org.id, user.id, "admin")
+                session.commit()
     except ValidationError:
         print("Enter a valid email and password.", file=sys.stderr)
         return 1
@@ -51,4 +65,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

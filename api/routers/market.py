@@ -179,6 +179,7 @@ def _build_analytics(tickers: list[str], period: str) -> dict:
     "/universe",
     response_model=UniverseResponse,
     summary="Static metadata for the full asset universe",
+    openapi_extra={"x-access-scope": "shared"},
 )
 def get_universe() -> UniverseResponse:
     return UniverseResponse(
@@ -190,6 +191,7 @@ def get_universe() -> UniverseResponse:
     "/quotes",
     response_model=QuotesResponse,
     summary="Latest quotes, optionally filtered to a comma-separated ticker list",
+    openapi_extra={"x-access-scope": "shared"},
 )
 def get_quotes(tickers: Optional[str] = Query(None)) -> QuotesResponse:
     selected = _parse_tickers(tickers)
@@ -215,6 +217,7 @@ def get_quotes(tickers: Optional[str] = Query(None)) -> QuotesResponse:
     "/risk-free-rate",
     response_model=RiskFreeRateResponse,
     summary="Current annualized risk-free rate on the base currency (CNY: akshare ChinaBond 1Y; USD: FRED → yfinance; static fallback)",
+    openapi_extra={"x-access-scope": "shared"},
 )
 def get_risk_free_rate() -> RiskFreeRateResponse:
     # Base-currency leg: the optimizer's returns are CNY-adjusted, so the
@@ -231,6 +234,7 @@ def get_risk_free_rate() -> RiskFreeRateResponse:
     "/analytics",
     response_model=AnalyticsResponse,
     summary="Dashboard analytics: price chart, correlation heatmap, risk stats",
+    openapi_extra={"x-access-scope": "shared"},
 )
 def get_analytics(
     period: str = Query("1y", description="Analysis horizon"),

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 /** Client-side validation of the optimizer form — no backend compute. */
 test("optimizer: run button guards BL views and the min-2 asset rule", async ({

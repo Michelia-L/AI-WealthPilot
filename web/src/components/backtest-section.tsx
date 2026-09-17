@@ -1,4 +1,4 @@
-import { getBacktest } from "@/lib/api";
+import { getBacktest } from "@/lib/api/server";
 import { ApiOffline } from "@/components/api-offline";
 import BacktestPeriodSelector from "@/components/backtest-period-selector";
 import BacktestResults from "@/components/backtest-results";

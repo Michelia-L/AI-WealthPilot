@@ -1,4 +1,4 @@
-import { getHealth } from "@/lib/api";
+import { getHealth } from "@/lib/api/server";
 import { getDict } from "@/lib/i18n/server";
 import { Badge } from "./ui/chip";
 

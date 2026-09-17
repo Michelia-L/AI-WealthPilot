@@ -141,9 +141,8 @@ def test_legacy_document_has_no_inferred_client_association(client):
     path = ips_storage.IPS_DIR / "ips_legacy_20260906_123456.json"
     path.write_text(json.dumps({"ips": {"client_name": "John Doe"}, "metadata": {}}))
     listing = client.get("/api/ips").json()["documents"]
-    assert listing[0]["profile_id"] is None
-    assert listing[0]["document_id"] == path.stem
-    assert client.get(f"/api/ips/{path.stem}").status_code == 200
+    assert listing == []
+    assert client.get(f"/api/ips/{path.stem}").status_code == 404
 
 
 def test_pdf_export(client, fake_workflow):

@@ -22,7 +22,9 @@ def snapshot_revision(session: Session) -> int:
     return session.exec(select(func.max(HoldingSnapshotRecord.id))).one() or 0
 
 
-def latest_snapshots(session: Session) -> dict[str, dict]:
+def latest_snapshots(
+    session: Session, document_ids: list[str] | None = None
+) -> dict[str, dict]:
     # Rank IDs in SQL and load JSON only for the winning row per document.
     ranked = select(
         HoldingSnapshotRecord.id,
@@ -35,7 +37,10 @@ def latest_snapshots(session: Session) -> dict[str, dict]:
             ),
         )
         .label("position"),
-    ).subquery()
+    )
+    if document_ids is not None:
+        ranked = ranked.where(HoldingSnapshotRecord.document_id.in_(document_ids))
+    ranked = ranked.subquery()
     records = session.exec(
         select(HoldingSnapshotRecord)
         .join(ranked, HoldingSnapshotRecord.id == ranked.c.id)

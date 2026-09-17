@@ -15,7 +15,8 @@ import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import Session
 
-from api.db import ProfileRecord, get_session
+from api.access import Access, get_access, staff_access
+from api.db import get_session
 from api.i18n import get_request_locale, msg
 from api.routers.market import _fig_json
 from api.schemas import (
@@ -36,7 +37,9 @@ from src.portfolio.inflation import resolve_personal_inflation
 from src.portfolio.simulator import MonteCarloSimulator
 from src.visualization.charts import plot_monte_carlo_paths
 
-router = APIRouter(prefix="/retirement", tags=["retirement"])
+router = APIRouter(
+    prefix="/retirement", tags=["retirement"], dependencies=[Depends(staff_access)]
+)
 
 SEED = 42  # Fixed seed for reproducibility (same as the Streamlit planner)
 SAVINGS_MULTIPLIERS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
@@ -48,11 +51,13 @@ CHART_DISPLAY_PATHS = 200
     "/cme-suggestion",
     response_model=CmeSuggestionResponse,
     summary="CME-derived μ/σ suggestion for the retirement planner",
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 def cme_suggestion(
     request: Request,
     profile_id: Optional[int] = None,
     session: Session = Depends(get_session),
+    access: Access = Depends(get_access),
 ) -> CmeSuggestionResponse:
     """Reference-portfolio expected return and volatility from the CME report.
 
@@ -67,7 +72,7 @@ def cme_suggestion(
     allocation: Optional[dict[str, float]] = None
     risk_level: Optional[str] = None
     if profile_id is not None:
-        record = session.get(ProfileRecord, profile_id)
+        record = access.profile(profile_id)
         if record is None:
             raise HTTPException(
                 status_code=404,
@@ -161,6 +166,7 @@ def _depletion_analysis(dist_paths: np.ndarray) -> DepletionAnalysis:
     "/simulate",
     response_model=RetirementResponse,
     summary="Two-phase retirement Monte Carlo (accumulation → distribution)",
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 def simulate(req: RetirementRequest) -> RetirementResponse:
     if req.retirement_age <= req.current_age:

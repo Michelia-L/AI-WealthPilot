@@ -206,7 +206,7 @@ def test_no_profile_id_leaves_response_unconstrained(client, monkeypatch):
 def test_missing_profile_404(client):
     resp = client.post("/api/portfolio/optimize", json=_body(profile_id=999))
     assert resp.status_code == 404
-    assert "画像不存在" in resp.json()["detail"]
+    assert "未找到客户画像。" == resp.json()["detail"]
 
 
 def test_unclassified_risk_level_422(client):

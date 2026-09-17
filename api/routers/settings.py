@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from openai import APIConnectionError, APITimeoutError, AuthenticationError, OpenAI
 from sqlmodel import Session
 
+from api.access import Access, get_access, settings_access
 from api.db import AppSettingRecord, get_session
 from api.i18n import get_request_locale, msg
 from api.schemas import (
@@ -38,7 +39,9 @@ from src.agents.llm_config import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/settings", tags=["settings"])
+router = APIRouter(
+    prefix="/settings", tags=["settings"], dependencies=[Depends(settings_access)]
+)
 
 
 def _current_settings() -> LlmSettingsResponse:
@@ -64,12 +67,29 @@ def _upsert(session: Session, key: str, value: str) -> None:
     session.add(record)
 
 
-@router.get("/llm", response_model=LlmSettingsResponse)
-def get_llm_settings() -> LlmSettingsResponse:
+@router.get(
+    "/llm",
+    response_model=LlmSettingsResponse,
+    openapi_extra={"x-access-scope": "admin-scoped"},
+)
+def get_llm_settings(access: Access = Depends(get_access)) -> LlmSettingsResponse:
+    if access.principal.is_demo:
+        return LlmSettingsResponse(
+            configured=True,
+            model="demo",
+            base_url="",
+            source="env",
+            api_key_masked="",
+            demo=True,
+        )
     return _current_settings()
 
 
-@router.put("/llm", response_model=LlmSettingsResponse)
+@router.put(
+    "/llm",
+    response_model=LlmSettingsResponse,
+    openapi_extra={"x-access-scope": "admin-scoped"},
+)
 def put_llm_settings(
     payload: LlmSettingsUpdateRequest,
     request: Request,
@@ -100,9 +120,7 @@ def put_llm_settings(
     _upsert(session, KEY_API_KEY, api_key)
     _upsert(session, KEY_MODEL, model)
     session.commit()
-    logger.info(
-        "LLM endpoint settings updated (base_url=%s, model=%s)", base_url, model
-    )
+    logger.info("LLM endpoint settings updated")
     return _current_settings()
 
 
@@ -112,7 +130,11 @@ def _fetch_models(base_url: str, api_key: str) -> list[str]:
     return sorted(m.id for m in client.models.list())
 
 
-@router.post("/llm/models", response_model=LlmModelsResponse)
+@router.post(
+    "/llm/models",
+    response_model=LlmModelsResponse,
+    openapi_extra={"x-access-scope": "admin-scoped"},
+)
 def list_llm_models(
     payload: LlmModelsFetchRequest, request: Request
 ) -> LlmModelsResponse:
@@ -132,8 +154,7 @@ def list_llm_models(
             detail=msg("settings.endpoint_auth_failed", locale),
         ) from e
     except Exception as e:
-        text = str(e).strip()
         raise HTTPException(
             status_code=502,
-            detail=msg("settings.models_fetch_failed", locale, error=text[:200]),
+            detail=msg("settings.models_fetch_failed", locale, error=""),
         ) from e

@@ -94,7 +94,7 @@ function NavLink({
 }
 
 /** 语言切换 —— EN/中文分段选择，写 cookie 后整树刷新。 */
-function LocaleSwitcher() {
+export function LocaleSwitcher() {
   const { locale, setLocale } = useLocale();
   return (
     <Segmented
@@ -116,10 +116,12 @@ function LocaleSwitcher() {
 export default function AppShell({
   profiles,
   healthBadge,
+  sessionControls,
   children,
 }: {
   profiles: ProfileSummary[];
   healthBadge: React.ReactNode;
+  sessionControls?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -153,6 +155,7 @@ export default function AppShell({
             <LocaleSwitcher />
           </div>
           {healthBadge}
+          {sessionControls}
         </div>
       </aside>
 
@@ -204,6 +207,7 @@ export default function AppShell({
                 <LocaleSwitcher />
               </div>
               {healthBadge}
+          {sessionControls}
             </div>
           </div>
         </div>

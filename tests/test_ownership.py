@@ -337,7 +337,7 @@ def test_demo_seed_has_ownership_without_identity_or_membership(session, monkeyp
     assert not _seed_demo_profile(session)
     profile = session.exec(select(db.ProfileRecord)).one()
     owner = get_profile_owner(session, profile.id)
-    assert owner.organization_id == LOCAL_ORGANIZATION_ID
+    assert owner.organization_id == "demo"
     assert owner.user_id is None
     assert session.exec(select(db.UserRecord)).all() == []
     assert session.exec(select(db.OrganizationMembershipRecord)).all() == []

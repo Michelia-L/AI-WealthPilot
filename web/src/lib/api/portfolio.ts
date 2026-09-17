@@ -1,6 +1,5 @@
 import type { InflationPreset } from "./retirement";
 import type { PlotlyFigure } from "./market";
-import { getJson } from "./client";
 
 // ---------------------------------------------------------------------------
 // Portfolio optimization
@@ -176,9 +175,6 @@ export const OPTIMIZER_PERIOD_OPTIONS = [
   { value: "10y", label: "10Y" },
 ] as const;
 
-export const getAssetClasses = () =>
-  getJson<AssetClassesResponse>("/api/portfolio/asset-classes");
-
 /** Personalized allocation from the risk-score-driven recommender (P12). */
 export interface RecommendationResponse {
   profile_id: number;
@@ -191,10 +187,4 @@ export interface RecommendationResponse {
   sharpe_ratio: number;
   rationale: string;
 }
-
-export const getRecommendation = (profileId: number, locale?: string) =>
-  getJson<RecommendationResponse>(
-    `/api/portfolio/recommendation?profile_id=${profileId}`,
-    locale
-  );
 

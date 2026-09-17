@@ -1,5 +1,4 @@
 import type { PlotlyFigure } from "./market";
-import { getJson } from "./client";
 
 // ---------------------------------------------------------------------------
 // Backtest & stress test (P13)
@@ -77,12 +76,6 @@ export interface BacktestResponse {
   notes: string[];
   attribution: BacktestAttribution | null;
 }
-
-export const getBacktest = (documentId: string, period: string, locale?: string) =>
-  getJson<BacktestResponse>(
-    `/api/monitoring/${encodeURIComponent(documentId)}/backtest?period=${encodeURIComponent(period)}`,
-    locale
-  );
 
 /** 任意权重组合的回测响应（优化器回测联动）。 */
 export type PortfolioBacktestResponse = Omit<

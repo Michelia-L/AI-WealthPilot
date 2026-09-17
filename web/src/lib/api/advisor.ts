@@ -1,4 +1,3 @@
-import { getJson } from "./client";
 
 // ---------------------------------------------------------------------------
 // AI Advisor (Phase 4a — SSE streaming advisory reports)
@@ -43,17 +42,4 @@ export interface AdvisorDoneEvent {
   reasoning_tokens?: number;
   error_message: string;
 }
-
-export const getAdvisorStatus = () =>
-  getJson<AdvisorStatusResponse>("/api/advisor/status");
-
-export const getAdvisorReports = (clientName?: string) =>
-  getJson<ReportListResponse>(
-    `/api/advisor/reports${clientName ? `?client_name=${encodeURIComponent(clientName)}` : ""}`
-  );
-
-export const getAdvisorReport = (reportId: string) =>
-  getJson<ReportDetailResponse>(
-    `/api/advisor/reports/${encodeURIComponent(reportId)}`
-  );
 

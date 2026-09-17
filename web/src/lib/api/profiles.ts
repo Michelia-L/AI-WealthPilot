@@ -1,4 +1,3 @@
-import { getJson } from "./client";
 
 // ---------------------------------------------------------------------------
 // Client profiles (Phase 3c — SQLite persistence)
@@ -145,11 +144,6 @@ export const TAX_STATUS_OPTIONS = [
   { value: "tax-deferred", label: "延税账户" },
 ] as const;
 
-export const getProfiles = () => getJson<ProfileListResponse>("/api/profiles");
-
-export const getProfile = (id: number) =>
-  getJson<ProfileDetailResponse>(`/api/profiles/${id}`);
-
 // ---------------------------------------------------------------------------
 // Risk questionnaire (Phase 5b — 9-question dual-track assessment)
 // ---------------------------------------------------------------------------
@@ -170,9 +164,6 @@ export interface QuestionnaireResponse {
   ability: QuestionnaireQuestion[];
   willingness: QuestionnaireQuestion[];
 }
-
-export const getQuestionnaire = (locale?: string) =>
-  getJson<QuestionnaireResponse>("/api/profiles/questionnaire", locale);
 
 // ---------------------------------------------------------------------------
 // Profile comparison + behavioral biases (Phase 5c)

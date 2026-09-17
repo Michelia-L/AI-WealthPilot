@@ -31,6 +31,10 @@ def get_request_locale(request: Request) -> str:
 
 _MESSAGES: dict[str, dict[str, dict[str, str]]] = {
     "authorization": {
+        "profile_not_found": {"en": "Profile not found.", "zh": "未找到客户画像。"},
+        "ips_not_found": {"en": "IPS document not found.", "zh": "未找到 IPS 文档。"},
+        "report_not_found": {"en": "Report not found.", "zh": "未找到报告。"},
+        "task_not_found": {"en": "Task not found.", "zh": "未找到任务。"},
         "forbidden": {
             "zh": "无权执行此操作。",
             "en": "You do not have permission to perform this action.",

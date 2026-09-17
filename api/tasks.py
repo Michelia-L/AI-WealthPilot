@@ -13,8 +13,8 @@ the persisted log, then resumes the live queue, skipping queued events at or
 below the max replayed seq — the full sequence, no gaps, no duplicates.
 
 All DB access opens a short session per call and resolves ``api.db.engine``
-dynamically (tests redirect it to a tmp-path SQLite). Persistence failures
-are logged and swallowed — they must never interrupt the task itself.
+dynamically (tests redirect it to a tmp-path SQLite). Task creation requires
+durable ownership metadata. Subsequent event persistence failures are logged without exception payloads and do not interrupt computation.
 """
 
 import asyncio
@@ -67,7 +67,6 @@ class TaskRegistry:
 
     def create(self, kind: str, **meta: Any) -> BackgroundTask:
         task = BackgroundTask(task_id=uuid.uuid4().hex[:12], kind=kind, meta=meta)
-        self._tasks[task.task_id] = task
         try:
             with Session(db.engine) as session:
                 session.add(
@@ -80,7 +79,9 @@ class TaskRegistry:
                 )
                 session.commit()
         except Exception:
-            logger.exception("Failed to persist task record %s", task.task_id)
+            logger.error("Failed to persist task record")
+            raise RuntimeError("Unable to persist task") from None
+        self._tasks[task.task_id] = task
         return task
 
     def get(self, task_id: str) -> Optional[BackgroundTask]:
@@ -110,7 +111,7 @@ def _persist_event(task_id: str, event: dict[str, Any]) -> None:
             session.add(record)
             session.commit()
     except Exception:
-        logger.exception("Failed to persist event for task %s", task_id)
+        logger.error("Failed to persist event for task %s", task_id)
 
 
 def _read_persisted_events(task_id: str) -> list[dict[str, Any]]:
@@ -127,7 +128,7 @@ def _read_persisted_events(task_id: str) -> list[dict[str, Any]]:
                 return []
             return list(json.loads(record.events_json))
     except Exception:
-        logger.exception("Failed to load persisted events for task %s", task_id)
+        logger.error("Failed to load persisted events for task %s", task_id)
         return []
 
 
@@ -149,7 +150,7 @@ def load_task_events(
             events: list[dict[str, Any]] = json.loads(record.events_json)
             status = record.status
     except Exception:
-        logger.exception("Failed to load persisted events for task %s", task_id)
+        logger.error("Failed to load persisted events for task %s", task_id)
         return None
     if status == "running":
         events.append(

@@ -5,7 +5,7 @@ import {
   getIpsDocuments,
   getProfile,
   getRecommendation,
-} from "@/lib/api";
+} from "@/lib/api/server";
 import { fmtLocal, fmtMoney, fmtPct } from "@/lib/format";
 import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
 import { altLocale } from "@/lib/i18n/locale";

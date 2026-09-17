@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from sqlmodel import Session
 
+from api.access import Access, get_access, staff_access
 from api.db import ProfileRecord, get_session
 from api.i18n import get_request_locale, msg
 from api.profile_convert import profile_from_data
@@ -46,7 +47,9 @@ from src.agents.demo_mode import demo_advice_stream, is_demo_mode
 from src.agents.llm_config import get_llm_config
 from src.utils import sanitize_filename
 
-router = APIRouter(prefix="/advisor", tags=["advisor"])
+router = APIRouter(
+    prefix="/advisor", tags=["advisor"], dependencies=[Depends(staff_access)]
+)
 
 
 def _event_stream(record: ProfileRecord, locale: str) -> Generator[str, None, None]:
@@ -107,7 +110,11 @@ def _event_stream(record: ProfileRecord, locale: str) -> Generator[str, None, No
     )
 
 
-@router.get("/status", response_model=AdvisorStatusResponse)
+@router.get(
+    "/status",
+    response_model=AdvisorStatusResponse,
+    openapi_extra={"x-access-scope": "advisor-scoped"},
+)
 def advisor_status() -> AdvisorStatusResponse:
     return AdvisorStatusResponse(
         configured=is_api_configured() or is_demo_mode(),
@@ -116,23 +123,19 @@ def advisor_status() -> AdvisorStatusResponse:
     )
 
 
-@router.post("/report/stream")
+@router.post("/report/stream", openapi_extra={"x-access-scope": "advisor-scoped"})
 def stream_report(
     payload: AdvisorStreamRequest,
     request: Request,
     session: Session = Depends(get_session),
+    access: Access = Depends(get_access),
 ) -> StreamingResponse:
     locale = get_request_locale(request)
+    record = access.profile(payload.profile_id)
     if not is_api_configured() and not is_demo_mode():
         raise HTTPException(
             status_code=503,
             detail=msg("common.llm_not_configured", locale),
-        )
-    record = session.get(ProfileRecord, payload.profile_id)
-    if record is None:
-        raise HTTPException(
-            status_code=404,
-            detail=msg("common.profile_not_found", locale, id=payload.profile_id),
         )
 
     return StreamingResponse(
@@ -155,11 +158,20 @@ def _find_report_file(report_id: str):
     return matches[0] if matches else None
 
 
-@router.post("/reports", response_model=ReportSummary, status_code=201)
-def save_report(payload: SaveReportRequest) -> ReportSummary:
+@router.post(
+    "/reports",
+    response_model=ReportSummary,
+    status_code=201,
+    openapi_extra={"x-access-scope": "advisor-scoped"},
+)
+def save_report(
+    payload: SaveReportRequest, access: Access = Depends(get_access)
+) -> ReportSummary:
+    record = access.profile(payload.profile_id)
     stored = report_storage.save_report(
         content=payload.content,
-        client_name=payload.client_name,
+        client_name=record.name,
+        client_id=record.client_id,
         model=payload.model,
         prompt_tokens=payload.prompt_tokens,
         completion_tokens=payload.completion_tokens,
@@ -175,22 +187,38 @@ def save_report(payload: SaveReportRequest) -> ReportSummary:
     )
 
 
-@router.get("/reports", response_model=ReportListResponse)
+@router.get(
+    "/reports",
+    response_model=ReportListResponse,
+    openapi_extra={"x-access-scope": "advisor-scoped"},
+)
 def list_reports(
     client_name: Optional[str] = Query(default=None),
+    access: Access = Depends(get_access),
 ) -> ReportListResponse:
     # Never expose internal filepaths in the API surface.
     reports = [
         ReportSummary(**{k: v for k, v in r.items() if k != "filepath"})
-        for r in report_storage.list_reports(client_name=client_name)
+        for r in report_storage.list_reports(
+            client_name=client_name,
+            allowed_client_ids=set(access.session.exec(access.client_ids()).all()),
+        )
     ]
     return ReportListResponse(reports=reports)
 
 
-@router.get("/reports/{report_id}", response_model=ReportDetailResponse)
-def get_report(report_id: str, request: Request) -> ReportDetailResponse:
+@router.get(
+    "/reports/{report_id}",
+    response_model=ReportDetailResponse,
+    openapi_extra={"x-access-scope": "advisor-scoped"},
+)
+def get_report(
+    report_id: str, request: Request, access: Access = Depends(get_access)
+) -> ReportDetailResponse:
     filepath = _find_report_file(report_id)
-    if filepath is None:
+    if filepath is None or not access.owns(
+        report_storage.load_report(filepath).client_id
+    ):
         raise HTTPException(
             status_code=404,
             detail=msg("common.report_not_found", get_request_locale(request)),
@@ -210,10 +238,20 @@ def get_report(report_id: str, request: Request) -> ReportDetailResponse:
     )
 
 
-@router.delete("/reports/{report_id}", status_code=204)
-def delete_report(report_id: str, request: Request) -> None:
+@router.delete(
+    "/reports/{report_id}",
+    status_code=204,
+    openapi_extra={"x-access-scope": "advisor-scoped"},
+)
+def delete_report(
+    report_id: str, request: Request, access: Access = Depends(get_access)
+) -> None:
     filepath = _find_report_file(report_id)
-    if filepath is None or not report_storage.delete_report(filepath):
+    if filepath is None or not access.owns(
+        report_storage.load_report(filepath).client_id
+    ):
+        access.deny(404, "report_not_found")
+    if not report_storage.delete_report(filepath):
         raise HTTPException(
             status_code=404,
             detail=msg("common.report_not_found", get_request_locale(request)),
@@ -237,8 +275,12 @@ def _attachment_disposition(base: str, ext: str) -> str:
     )
 
 
-@router.get("/reports/{report_id}/pdf")
-def get_report_pdf(report_id: str, request: Request) -> Response:
+@router.get(
+    "/reports/{report_id}/pdf", openapi_extra={"x-access-scope": "advisor-scoped"}
+)
+def get_report_pdf(
+    report_id: str, request: Request, access: Access = Depends(get_access)
+) -> Response:
     """Render a stored report as a downloadable PDF (src export_report_pdf).
 
     Same pattern as the IPS pdf endpoint: the src builder writes to a file
@@ -248,7 +290,9 @@ def get_report_pdf(report_id: str, request: Request) -> Response:
     """
     locale = get_request_locale(request)
     filepath = _find_report_file(report_id)
-    if filepath is None:
+    if filepath is None or not access.owns(
+        report_storage.load_report(filepath).client_id
+    ):
         raise HTTPException(
             status_code=404, detail=msg("common.report_not_found", locale)
         )
@@ -268,11 +312,14 @@ def get_report_pdf(report_id: str, request: Request) -> Response:
     )
 
 
-@router.get("/reports/{report_id}/export")
+@router.get(
+    "/reports/{report_id}/export", openapi_extra={"x-access-scope": "advisor-scoped"}
+)
 def export_report_file(
     report_id: str,
     request: Request,
     format: str = Query(default="html"),
+    access: Access = Depends(get_access),
 ) -> Response:
     """Export a stored report as a downloadable file (html / markdown / json).
 
@@ -291,7 +338,9 @@ def export_report_file(
             ),
         )
     filepath = _find_report_file(report_id)
-    if filepath is None:
+    if filepath is None or not access.owns(
+        report_storage.load_report(filepath).client_id
+    ):
         raise HTTPException(
             status_code=404, detail=msg("common.report_not_found", locale)
         )

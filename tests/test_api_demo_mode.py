@@ -23,6 +23,7 @@ from src.agents import demo_mode, ips_storage
 from src.agents.demo_mode import DEMO_CLIENT_NAME, DEMO_CLIENT_NAME_EN, FIXTURES_DIR
 from src.agents.profiler import InvestmentGoal
 from src.portfolio.monitoring import resolve_saa_weights
+from tests.api_ownership_helpers import write_owned_ips
 from tests.test_api_advisor import _parse_sse
 from tests.test_api_profiles import sample_payload
 
@@ -101,6 +102,7 @@ def _collect_events(gen):
 
 
 def test_gate_demo_off_no_key_returns_503(client, no_api_key):
+    write_owned_ips(DOC_ID)
     profile_id = _create_profile(client)
 
     resp = client.post("/api/advisor/report/stream", json={"profile_id": profile_id})
@@ -249,6 +251,7 @@ def test_ips_generate_demo_error_path(client, demo_on, monkeypatch):
 
 
 def test_monitoring_advice_demo_replays_fixture(client, demo_on, monkeypatch):
+    write_owned_ips(DOC_ID)
     monkeypatch.setattr(
         "api.routers.monitoring.compute_monitoring",
         lambda document_id, locale="zh": {
@@ -289,6 +292,8 @@ def test_monitoring_advice_demo_replays_fixture(client, demo_on, monkeypatch):
 
 
 def test_monitoring_advice_demo_document_not_found(client, demo_on, monkeypatch):
+    write_owned_ips(DOC_ID)
+
     def _raise_keyerror(document_id, locale="zh"):
         raise KeyError(document_id)
 
@@ -348,6 +353,7 @@ def test_advisor_stream_demo_en_locale_replays_english_fixture(bare_client, demo
 def test_monitoring_advice_demo_en_locale_replays_english_fixture(
     bare_client, demo_on, monkeypatch
 ):
+    write_owned_ips(DOC_ID)
     monkeypatch.setattr(
         "api.routers.monitoring.compute_monitoring",
         lambda document_id, locale="zh": {

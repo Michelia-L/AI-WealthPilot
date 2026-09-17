@@ -10,12 +10,14 @@ Server-Sent Events, reusing the advisor SSE protocol verbatim (reasoning
 and token events, then a terminal done/error event).
 """
 
+from pathlib import Path
 from typing import Generator, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
+from api.access import Access, get_access, staff_access
 from api.cache import TTLCache
 from api.db import HoldingSnapshotRecord, ProfileRecord, get_session
 from api.holding_snapshots import (
@@ -63,7 +65,9 @@ from src.portfolio.monitoring import (
 )
 from src.visualization.charts import plot_backtest_equity, plot_drawdown
 
-router = APIRouter(prefix="/monitoring", tags=["monitoring"])
+router = APIRouter(
+    prefix="/monitoring", tags=["monitoring"], dependencies=[Depends(staff_access)]
+)
 
 
 def _is_valid_document_id(document_id: str) -> bool:
@@ -86,9 +90,13 @@ FLEET_STATUS_CACHE_TTL_SECONDS = 86400  # the date in the key expires it daily
     "/status",
     response_model=MonitoringFleetResponse,
     summary="Band-status overview across all stored IPS documents",
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 def get_fleet_status(
-    request: Request, refresh: bool = False, session: Session = Depends(get_session)
+    request: Request,
+    refresh: bool = False,
+    session: Session = Depends(get_session),
+    access: Access = Depends(get_access),
 ) -> MonitoringFleetResponse:
     locale = get_request_locale(request)
     # Date inside the key: the first request of a new day misses the cache
@@ -96,14 +104,23 @@ def get_fleet_status(
     # part of the key because fleet item notes are localized.
     # The version covers both inputs the computation reads: holdings snapshots
     # and the IPS document set itself (add/edit/delete/restore).
-    revision = (snapshot_revision(session), ips_storage.ips_revision())
-    key = f"fleet-status:{business_today().isoformat()}:{locale}"
+    documents = access.ips_documents()
+    revision = (
+        snapshot_revision(session),
+        ips_storage.ips_revision(),
+        tuple(d["filepath"] for d in documents),
+    )
+    key = f"fleet-status:{access.organization_id}:{access.principal.user_id}:{business_today().isoformat()}:{locale}"
 
     def compute() -> MonitoringFleetResponse:
-        snapshots = latest_snapshots(session)
+        snapshots = latest_snapshots(
+            session, [Path(d["filepath"]).stem for d in documents]
+        )
         return MonitoringFleetResponse(
             **compute_fleet_status(
-                locale=locale, **({"snapshots": snapshots} if snapshots else {})
+                locale=locale,
+                documents=documents,
+                **({"snapshots": snapshots} if snapshots else {}),
             )
         )
 
@@ -121,10 +138,15 @@ def get_fleet_status(
     "/{document_id}",
     response_model=MonitoringResponse,
     summary="Drift monitoring and rebalancing diagnostics for a stored IPS",
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 def get_monitoring(
-    document_id: str, request: Request, session: Session = Depends(get_session)
+    document_id: str,
+    request: Request,
+    session: Session = Depends(get_session),
+    access: Access = Depends(get_access),
 ) -> MonitoringResponse:
+    access.ips(document_id)
     locale = get_request_locale(request)
     if not _is_valid_document_id(document_id):
         raise HTTPException(
@@ -194,10 +216,15 @@ def _resolve_annual_fee_rate(
     "/{document_id}/backtest",
     response_model=BacktestResponse,
     summary="Monthly-rebalanced backtest + stress tests for a stored IPS SAA",
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 def get_backtest(
-    document_id: str, request: Request, period: str = "5y"
+    document_id: str,
+    request: Request,
+    period: str = "5y",
+    access: Access = Depends(get_access),
 ) -> BacktestResponse:
+    access.ips(document_id)
     locale = get_request_locale(request)
     if not _is_valid_document_id(document_id):
         raise HTTPException(
@@ -334,12 +361,17 @@ def _advice_event_stream(
 @router.post(
     "/advice",
     summary="Stream AI rebalancing advice for a stored IPS (SSE)",
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 def stream_rebalance_advice(
     payload: RebalanceAdviceRequest,
     request: Request,
     session: Session = Depends(get_session),
+    access: Access = Depends(get_access),
 ) -> StreamingResponse:
+    access.ips(payload.document_id)
+    if payload.profile_id is not None:
+        access.profile(payload.profile_id)
     locale = get_request_locale(request)
     if not is_api_configured() and not is_demo_mode():
         raise HTTPException(
@@ -392,10 +424,18 @@ def _holdings_context(document_id: str, locale: str) -> dict:
         raise HTTPException(status_code=422, detail=str(e)) from e
 
 
-@router.get("/{document_id}/holdings", response_model=HoldingSnapshotHistory)
+@router.get(
+    "/{document_id}/holdings",
+    response_model=HoldingSnapshotHistory,
+    openapi_extra={"x-access-scope": "advisor-scoped"},
+)
 def get_holding_snapshots(
-    document_id: str, request: Request, session: Session = Depends(get_session)
+    document_id: str,
+    request: Request,
+    session: Session = Depends(get_session),
+    access: Access = Depends(get_access),
 ) -> HoldingSnapshotHistory:
+    access.ips(document_id)
     context = _holdings_context(document_id, get_request_locale(request))
     return HoldingSnapshotHistory(
         **context, snapshots=snapshot_history(session, document_id)
@@ -403,14 +443,19 @@ def get_holding_snapshots(
 
 
 @router.post(
-    "/{document_id}/holdings", response_model=HoldingSnapshotResponse, status_code=201
+    "/{document_id}/holdings",
+    response_model=HoldingSnapshotResponse,
+    status_code=201,
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 def create_holding_snapshot(
     document_id: str,
     payload: HoldingSnapshotInput,
     request: Request,
     session: Session = Depends(get_session),
+    access: Access = Depends(get_access),
 ) -> HoldingSnapshotResponse:
+    access.ips(document_id)
     locale = get_request_locale(request)
     context = _holdings_context(document_id, locale)
     try:

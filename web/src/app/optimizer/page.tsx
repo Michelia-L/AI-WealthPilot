@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getAssetClasses } from "@/lib/api";
+import { getAssetClasses } from "@/lib/api/server";
 import { ApiOffline } from "@/components/api-offline";
 import OptimizerWorkspace from "@/components/optimizer-workspace";
 import SectionHeader from "@/components/ui/section-header";

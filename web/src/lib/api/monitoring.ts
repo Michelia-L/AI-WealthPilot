@@ -1,4 +1,3 @@
-import { getJson } from "./client";
 
 // ---------------------------------------------------------------------------
 // Portfolio monitoring (Phase P10 — SAA drift & rebalancing)
@@ -89,12 +88,6 @@ export interface MonitoringResponse {
   notes: string[];
 }
 
-export const getMonitoring = (documentId: string, locale?: string) =>
-  getJson<MonitoringResponse>(
-    `/api/monitoring/${encodeURIComponent(documentId)}`,
-    locale
-  );
-
 /** Fleet-wide drift status (Phase 17 — overview alert light). */
 export type FleetStatus = "ok" | "breach" | "unknown";
 
@@ -114,10 +107,6 @@ export interface MonitoringFleetResponse {
   items: MonitoringFleetItem[];
   summary: { total: number; breach: number; ok: number; unknown: number };
 }
-
-export const getMonitoringFleetStatus = (locale?: string) =>
-  getJson<MonitoringFleetResponse>("/api/monitoring/status", locale);
-
 
 export interface ActualHoldingInput {
   asset_class: string;
@@ -156,6 +145,3 @@ export interface HoldingSnapshotHistory {
   assets: { asset_class: string; key: string | null }[];
   snapshots: HoldingSnapshot[];
 }
-
-export const getHoldingSnapshots = (documentId: string, locale?: string) =>
-  getJson<HoldingSnapshotHistory>(`/api/monitoring/${encodeURIComponent(documentId)}/holdings`, locale);

@@ -26,6 +26,7 @@ export default defineConfig({
   outputDir: "./test-results",
   use: {
     baseURL: `http://127.0.0.1:${webPort}`,
+    extraHTTPHeaders: { Origin: `http://127.0.0.1:${webPort}` },
     trace: "retain-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],

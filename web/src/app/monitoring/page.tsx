@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getIpsDocuments, getMonitoring, getHoldingSnapshots, type MonitoringHolding } from "@/lib/api";
+import { getIpsDocuments, getMonitoring, getHoldingSnapshots, type MonitoringHolding } from "@/lib/api/server";
 import { fmtLocal, fmtPct } from "@/lib/format";
 import { cx } from "@/lib/cx";
 import { Suspense } from "react";

@@ -1,3 +1,4 @@
+import { auth } from "./auth";
 import { advisor } from "./advisor";
 import { clientSelector } from "./clientSelector";
 import { common } from "./common";
@@ -18,6 +19,7 @@ import { retirement } from "./retirement";
 import { settings } from "./settings";
 
 export const en = {
+  auth,
   advisor,
   clientSelector,
   common,

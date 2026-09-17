@@ -6,18 +6,20 @@ degradation (cache → stale → static fallback), so no additional caching
 is needed at the API layer.
 """
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
+from api.access import staff_access
 from api.schemas import CMEResponse
 from src.portfolio.cme_engine import compute_cme
 
-router = APIRouter(prefix="/cme", tags=["cme"])
+router = APIRouter(prefix="/cme", tags=["cme"], dependencies=[Depends(staff_access)])
 
 
 @router.get(
     "",
     response_model=CMEResponse,
     summary="Capital Market Expectations report for all IPS asset classes",
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 def get_cme(
     force_refresh: bool = Query(

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getLlmSettings } from "@/lib/api";
+import { getLlmSettings } from "@/lib/api/server";
 import { altLocale } from "@/lib/i18n/locale";
 import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
 import { ApiOffline } from "@/components/api-offline";

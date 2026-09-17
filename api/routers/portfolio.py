@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
+from api.access import Access, get_access, staff_access
 from api.cache import TTLCache
 from api.db import ProfileRecord, get_session
 from api.i18n import get_request_locale, msg
@@ -86,7 +87,9 @@ from src.visualization.charts import (
     plot_efficient_frontier,
 )
 
-router = APIRouter(prefix="/portfolio", tags=["portfolio"])
+router = APIRouter(
+    prefix="/portfolio", tags=["portfolio"], dependencies=[Depends(staff_access)]
+)
 
 _prices_cache: TTLCache = TTLCache()
 _rf_cache: TTLCache = TTLCache()
@@ -103,6 +106,7 @@ YIELD_CURVE_TTL_SECONDS = 3600
     "/asset-classes",
     response_model=AssetClassesResponse,
     summary="Optimization asset universe (DEFAULT_ASSET_CLASSES)",
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 def get_asset_classes() -> AssetClassesResponse:
     return AssetClassesResponse(
@@ -116,15 +120,19 @@ def get_asset_classes() -> AssetClassesResponse:
     "/recommendation",
     response_model=RecommendationResponse,
     summary="Personalized allocation for a client profile (P12)",
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 def get_recommendation(
-    profile_id: int, request: Request, session: Session = Depends(get_session)
+    profile_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    access: Access = Depends(get_access),
 ) -> RecommendationResponse:
     """Risk-score-driven allocation from src portfolio_recommender: the
     profile's final score maps to a target volatility, and the MVO engine
     solves the min-volatility portfolio (goal-aware) on the full universe."""
     locale = get_request_locale(request)
-    record = session.get(ProfileRecord, profile_id)
+    record = access.profile(profile_id)
     if record is None:
         raise HTTPException(
             status_code=404,
@@ -160,6 +168,7 @@ def get_recommendation(
     "/backtest",
     response_model=PortfolioBacktestResponse,
     summary="Backtest an arbitrary long-only weight map (optimizer results)",
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 def backtest_weights(
     req: PortfolioBacktestRequest, request: Request
@@ -610,10 +619,16 @@ def _validate_method_constraints(req: OptimizeRequest, locale: str = "zh") -> No
     "/optimize",
     response_model=OptimizeResponse,
     summary="Run portfolio optimization (MVO / Resampled / Black-Litterman / Mean-CVaR / Surplus / Risk-Parity)",
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 def optimize(
-    req: OptimizeRequest, request: Request, session: Session = Depends(get_session)
+    req: OptimizeRequest,
+    request: Request,
+    session: Session = Depends(get_session),
+    access: Access = Depends(get_access),
 ) -> OptimizeResponse:
+    if req.profile_id is not None:
+        access.profile(req.profile_id)
     locale = get_request_locale(request)
     risk_info = _resolve_risk_constraints(req, session, locale)
     surplus_raw = _resolve_surplus_raw(req, session, locale)
@@ -896,10 +911,16 @@ async def _run_optimize_task(
     response_model=PortfolioTaskCreatedResponse,
     status_code=202,
     summary="Create an async optimization task; poll /tasks/{id}/events (SSE)",
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 async def optimize_async(
-    req: OptimizeRequest, request: Request, session: Session = Depends(get_session)
+    req: OptimizeRequest,
+    request: Request,
+    session: Session = Depends(get_session),
+    access: Access = Depends(get_access),
 ) -> PortfolioTaskCreatedResponse:
+    if req.profile_id is not None:
+        access.profile(req.profile_id)
     locale = get_request_locale(request)
     # Validate everything that doesn't need market data up front, so bad
     # requests fail fast with 422 instead of surfacing on the event stream.
@@ -909,14 +930,26 @@ async def optimize_async(
     risk_info = _resolve_risk_constraints(req, session, locale)
     surplus_raw = _resolve_surplus_raw(req, session, locale)
     task = registry.create(
-        "optimize", method=req.method, n_simulations=req.n_simulations
+        "optimize",
+        method=req.method,
+        n_simulations=req.n_simulations,
+        organization_id=access.organization_id,
+        created_by=access.principal.user_id,
+        client_id=access.profile(req.profile_id).client_id
+        if req.profile_id is not None
+        else None,
     )
     asyncio.create_task(_run_optimize_task(task, req, risk_info, locale, surplus_raw))
     return PortfolioTaskCreatedResponse(task_id=task.task_id)
 
 
-@router.get("/tasks/{task_id}/events")
-async def optimize_task_events(task_id: str, request: Request) -> StreamingResponse:
+@router.get(
+    "/tasks/{task_id}/events", openapi_extra={"x-access-scope": "advisor-scoped"}
+)
+async def optimize_task_events(
+    task_id: str, request: Request, access: Access = Depends(get_access)
+) -> StreamingResponse:
+    access.task(task_id, "optimize")
     stream = task_events_stream(registry, task_id, get_request_locale(request))
     if stream is None:
         raise HTTPException(

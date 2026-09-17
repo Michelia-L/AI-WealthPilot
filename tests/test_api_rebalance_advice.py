@@ -9,6 +9,7 @@ status mapping (404 / 422 / 503), not model output or monitoring math.
 import pytest
 
 from src.agents.advisor import AdvisorReport
+from tests.api_ownership_helpers import write_owned_ips
 from tests.test_api_advisor import _parse_sse
 from tests.test_api_profiles import sample_payload
 
@@ -128,6 +129,7 @@ def _create_profile(client) -> int:
 
 
 def test_advice_emits_tokens_then_done(client, configured):
+    write_owned_ips(DOC_ID)
     resp = client.post("/api/monitoring/advice", json={"document_id": DOC_ID})
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/event-stream")
@@ -148,6 +150,7 @@ def test_advice_emits_tokens_then_done(client, configured):
 
 def test_advice_emits_reasoning_then_tokens(client, configured, monkeypatch):
     """Dict-protocol streams pass reasoning events straight through."""
+    write_owned_ips(DOC_ID)
     monkeypatch.setattr(
         "api.routers.monitoring.generate_rebalance_advice_stream",
         _fake_reasoning_stream,
@@ -166,6 +169,8 @@ def test_advice_emits_reasoning_then_tokens(client, configured, monkeypatch):
 
 
 def test_advice_document_not_found(client, configured, monkeypatch):
+    write_owned_ips(DOC_ID)
+
     def _raise_keyerror(document_id, locale="zh"):
         raise KeyError(document_id)
 
@@ -174,16 +179,19 @@ def test_advice_document_not_found(client, configured, monkeypatch):
         "/api/monitoring/advice", json={"document_id": "ips_nobody_20260101_000000"}
     )
     assert resp.status_code == 404
-    assert "IPS 文档不存在" in resp.json()["detail"]
+    assert "未找到 IPS 文档。" == resp.json()["detail"]
 
 
 def test_advice_invalid_document_id_charset(client, configured):
     """Path-traversal-shaped ids are rejected before the engine runs."""
+    write_owned_ips(DOC_ID)
     resp = client.post("/api/monitoring/advice", json={"document_id": "../../etc"})
     assert resp.status_code == 404
 
 
 def test_advice_missing_saa_returns_422(client, configured, monkeypatch):
+    write_owned_ips(DOC_ID)
+
     def _raise_valueerror(document_id, locale="zh"):
         raise ValueError(
             "IPS 文档缺少战略性资产配置（strategic_allocation），无法执行组合监控。"
@@ -196,6 +204,7 @@ def test_advice_missing_saa_returns_422(client, configured, monkeypatch):
 
 
 def test_advice_requires_api_key(client, monkeypatch):
+    write_owned_ips(DOC_ID)
     monkeypatch.setattr("api.routers.monitoring.is_api_configured", lambda: False)
     resp = client.post("/api/monitoring/advice", json={"document_id": DOC_ID})
     assert resp.status_code == 503
@@ -203,15 +212,17 @@ def test_advice_requires_api_key(client, monkeypatch):
 
 
 def test_advice_profile_not_found(client, configured):
+    write_owned_ips(DOC_ID)
     resp = client.post(
         "/api/monitoring/advice",
         json={"document_id": DOC_ID, "profile_id": 999},
     )
     assert resp.status_code == 404
-    assert "画像不存在" in resp.json()["detail"]
+    assert "未找到客户画像。" == resp.json()["detail"]
 
 
 def test_advice_with_profile(client, configured):
+    write_owned_ips(DOC_ID)
     profile_id = _create_profile(client)
 
     resp = client.post(

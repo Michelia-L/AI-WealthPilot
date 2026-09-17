@@ -37,7 +37,7 @@ These errors use `api/i18n.py` (`X-Locale: en/zh`) and `Cache-Control: no-store`
 
 An assignment is not a role grant. Demoting an advisor immediately changes the rules applied to that identity, even if assignment rows remain. Re-promoting the identity can restore access through those retained assignments; use `unassign_advisor` for permanent revocation. It works for demoted or inactive advisors too. Removing an assigned membership or moving/deleting an assigned Client is rejected by foreign keys until the assignments are explicitly removed. No implicit cascading deletion or cross-organization reassignment is configured.
 
-Demo identities receive no automatic membership or assignment and have no authorization bypass. When demo mode is enabled, any explicitly provisioned memberships and assignments follow the same checks as other identities. Disabling demo mode rejects those identities through the existing authentication policy.
+Explicit demo login grants admin membership in the dedicated `demo` organization. It grants no access to `local` or other organizations; demo identities follow the same object checks. Disabling demo mode rejects those identities through the existing authentication policy.
 
 ## Upgrade from #73
 
@@ -45,9 +45,9 @@ Demo identities receive no automatic membership or assignment and have no author
 
 ## Route integration boundary
 
-No business route is switched to protected behavior by this change; that audit and integration belong to #75. Existing profile, IPS, monitoring, advisor, and settings APIs still have the shared-workstation behavior described in the identity guide. There are no public assignment-management endpoints or frontend changes in this increment. Other resource ownership checks remain part of #76.
+Existing routes now enforce authentication and scoped authorization; the [route audit](api-access.md) records each group and its object checks. Assignment management remains an internal service with no public management endpoint. The broader resource ownership and migration audit remains in #76.
 
-A future route can use the helpers with an explicit scope and the real identity dependency:
+Additional routes can use the helpers with an explicit scope and the real identity dependency:
 
 ```python
 from fastapi import Depends
@@ -74,7 +74,7 @@ def client_detail(
     return {"id": client.id}
 ```
 
-This example demonstrates the Client check only. Routes returning profiles, reports, tasks, or other records must also bind every subsequent query to that authorized Client and organization, rather than trusting another submitted ID. The helpers do not yet protect existing endpoints merely by being available.
+This example demonstrates the Client check only. Routes returning profiles, reports, tasks, or other records must also bind every subsequent query to that authorized Client and organization, rather than trusting another submitted ID. Existing routes use `api/access.py` to bind profiles, artifacts, and tasks to authorized Clients.
 
 ## Validation
 

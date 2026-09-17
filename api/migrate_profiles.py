@@ -16,7 +16,12 @@ from pydantic import ValidationError
 from sqlmodel import Session, select
 
 from api.db import ProfileRecord, make_engine
-from api.ownership import create_local_profile, local_profile_keys
+from api.ownership import (
+    create_local_profile,
+    create_scoped_profile,
+    ensure_local_organization,
+    local_profile_keys,
+)
 from api.profile_convert import payload_to_data
 from api.schemas import ProfilePayload, ProfileUploadFile, RiskScoresInput
 from src.agents import profiler  # module attr so conftest monkeypatching works
@@ -93,13 +98,17 @@ def _payload_from_stored(data: dict) -> ProfilePayload:
     )
 
 
-def import_uploaded_profiles(session: Session, files: list[ProfileUploadFile]) -> dict:
+def import_uploaded_profiles(
+    session: Session, files: list[ProfileUploadFile], *, organization_id: str = "local"
+) -> dict:
     """Import browser-uploaded JSON profiles. Each file holds one profile
     object or an array of them. Idempotent: entries with created_at dedupe on
     (name, created_at) like import_json_profiles; entries without created_at
     (typical LLM output) dedupe on name alone. Invalid files/entries are
     reported, not raised."""
-    existing = local_profile_keys(session)
+    if organization_id == "local":
+        ensure_local_organization(session)
+    existing = local_profile_keys(session, organization_id)
     existing_names = {name for name, _ in existing}
 
     imported = skipped = 0
@@ -137,7 +146,7 @@ def import_uploaded_profiles(session: Session, files: list[ProfileUploadFile]) -
                 data["created_at"] = datetime.now().isoformat()
             existing.add((data["name"], data["created_at"]))
             existing_names.add(data["name"])
-            create_local_profile(
+            create_scoped_profile(
                 session,
                 ProfileRecord(
                     name=data["name"],
@@ -147,6 +156,7 @@ def import_uploaded_profiles(session: Session, files: list[ProfileUploadFile]) -
                     updated_at=data["updated_at"],
                     data=data,
                 ),
+                organization_id,
             )
             imported += 1
     session.commit()

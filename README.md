@@ -49,7 +49,7 @@ In `.env`, uncomment `DEMO_MODE=1`, then start the application:
 docker compose up --build
 ```
 
-Open the [workstation](http://localhost:3000) or [interactive API documentation](http://localhost:8000/docs). Compose binds both services to localhost and stores application data in the host's `data/` directory. For an existing checkout, edit your current `.env` instead of replacing it.
+Open the [workstation](http://localhost:3000) and choose **Try demo**, or inspect [interactive API documentation](http://localhost:8000/docs). Compose binds both services to localhost and stores application data in the host's `data/` directory. For an existing checkout, edit your current `.env` instead of replacing it.
 
 Demo mode needs no LLM key. If the profiles table is empty, startup adds the fictional client **林晓兰**. The sidebar switches the interface between English and Chinese.
 
@@ -62,11 +62,11 @@ Demo mode needs no LLM key. If the profiles table is empty, startup adds the fic
 
 ### Use live data and an LLM
 
-Disable demo mode and restart the backend (`docker compose up -d --force-recreate api` for Compose). In **Settings** (`/settings`), configure an OpenAI-compatible base URL, model, and API key. Saved nonempty fields override environment defaults. Alternatively, set `DEEPSEEK_API_KEY` in `.env` before starting the backend.
+Disable demo mode and restart the backend (`docker compose up -d --force-recreate api` for Compose). Provision a login with `docker compose exec api python -m api.create_user --local-admin`, then sign in. In **Settings** (`/settings`), configure an OpenAI-compatible base URL, model, and API key. Saved nonempty fields override environment defaults. Alternatively, set `DEEPSEEK_API_KEY` in `.env` before starting the backend.
 
 Quantitative features can run without an LLM key; live AI endpoints return HTTP 503 when no key is configured. Replace the placeholder key in `.env` with a real key, or leave it empty when using only quantitative features. Optional `FRED_API_KEY` and `TUSHARE_TOKEN` enable additional data sources. See [.env.example](.env.example) for configuration entries and [data internals](guide/internals/03-data-pipeline-cme.md) for provider routing.
 
-Client records are stored locally by default. **Live AI requests send the profile and report context needed for that task to your configured model provider**, and the key is used to authenticate those requests. See [data and deployment boundaries](#data-and-deployment-boundaries).
+Business APIs require a session and scoped access; see [API access and upgrade notes](docs/api-access.md). Client records are stored locally by default. **Live AI requests send the profile and report context needed for that task to your configured model provider**, and the key is used to authenticate those requests. See [data and deployment boundaries](#data-and-deployment-boundaries).
 
 ## Wealth management workflow
 
@@ -207,7 +207,7 @@ npm run dev
 
 Open [localhost:3000](http://localhost:3000). CJK PDF exports require a supported Chinese font; on Ubuntu/Debian, install `fonts-wqy-microhei`. The Docker API image includes it.
 
-The backend identity foundation provides login, logout, and current-principal endpoints. Provision a local user with `python -m api.create_user` (interactive email/password prompts), or use explicit demo sign-in when `DEMO_MODE=1`. See [identity setup and API usage](docs/identity-auth.md). Business API protection and Web sign-in integration are follow-up work; creating a user does not establish client-data access control.
+Sign in before using the workstation. For local development, `python -m api.create_user --local-admin` provisions a local workspace admin with interactive email/password prompts; omit the flag to create an identity without membership. Demo mode supports explicit **Try demo** sign-in. See [identity setup](docs/identity-auth.md) and the [API access audit](docs/api-access.md).
 
 Run the following checks from the repository root with the virtual environment active. Subshells keep each command's working directory independent:
 
@@ -232,7 +232,7 @@ For documentation edits, run `mkdocs build --strict`. To try the Python engine w
 
 - **Storage and credentials.** Profiles and settings are stored locally by default. LLM API keys are persisted in SQLite; do not treat the database as an encrypted secrets vault. Protect `.env`, `data/`, and their backups.
 - **External calls.** Live model requests include task-specific client/report context and use the configured key for authentication. Market data requests go to their respective providers. A local model endpoint changes the model destination; it does not disable market-provider traffic.
-- **Access control.** The API has an opt-in identity dependency and protected `/api/auth/me` and `/api/auth/logout` endpoints. Organization memberships, roles, and client/profile ownership are persisted (see [the ownership model](docs/client-ownership.md)). [Advisor assignments and authorization helpers](docs/authorization.md) implement role and client-access checks. Existing business APIs are still unauthenticated and do not yet apply these checks. The supplied Compose configuration binds ports to `127.0.0.1`; complete those access controls before exposing a deployment beyond your machine. See [the identity boundary](docs/identity-auth.md).
+- **Access control.** Business APIs require sessions and scoped role/object checks; see the [route audit](docs/api-access.md). The Web app forwards an HttpOnly session and validates same-origin mutations. Compose binds ports to `127.0.0.1`. Before external deployment, address the rate-limiting and session-revocation controls tracked in [KI-004](docs/known-issues.md#ki-004--认证对外部署前的限流与撤销边界).
 - **Model inputs.** Some prompts delimit client text with XML tags and instructions. This is a mitigation, not a guarantee against prompt injection or incorrect output. Review generated documents before relying on them.
 
 The software is intended for educational, research, and technical evaluation purposes. Its calculations and generated documents do not constitute investment, tax, or legal advice, and do not replace professional review. No return, suitability determination, or regulatory approval is guaranteed.

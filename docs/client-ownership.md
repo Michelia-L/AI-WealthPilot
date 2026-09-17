@@ -30,9 +30,9 @@ Deleting a profile leaves its Client intact, since Client is an independent busi
 
 `api/ownership.py` provides organization creation, membership creation/role changes, client creation, profile attachment, and profile-owner lookup. Services validate referenced records and flush within the caller's transaction; they do not commit. Database constraints remain authoritative for concurrent writes. Callers must roll back a failed transaction. These are internal persistence helpers, not permission checks or public management endpoints.
 
-Existing profile creation, legacy JSON import, uploaded JSON import, and demo seeding explicitly create a Client under `local` (display name `Local workspace`). The workspace is created idempotently without resetting an existing name. Import deduplication is scoped to this organization, so matching profiles elsewhere do not suppress a local import. Demo seeding and first-boot import retain their existing empty-profile-table checks.
+Profile creation and uploaded JSON import create Clients in the selected organization. An advisor creating a new profile receives an assignment to its new Client. Legacy disk import targets `local` (display name `Local workspace`); demo seeding targets the separate `demo` organization. Import deduplication is scoped to its destination organization. Demo seeding and first-boot import retain their empty-profile-table checks.
 
-Profile HTTP request and response contracts remain unchanged. Existing routes still expose the local workstation's shared data and do not filter by authenticated organization. This increment does not make the application safe for a shared multi-user deployment. Organization selection and route authorization belong to #75; advisor-client assignments and shared access checks are documented in [the authorization guide](authorization.md). User-controlled IDs, email, and roles must not replace those checks. No frontend changes are included.
+Profile HTTP payload shapes remain unchanged. [Route authorization](api-access.md) now filters requests by the selected organization and the authenticated role, client login link, or advisor assignment. The Web session selects a workspace; no organization or client ownership value from a profile payload can override the server-side association.
 
 ## Existing database migration
 

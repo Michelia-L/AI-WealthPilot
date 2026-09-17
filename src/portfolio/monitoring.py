@@ -777,7 +777,9 @@ def _apply_bands(holdings: list[dict]) -> None:
 
 
 def compute_fleet_status(
-    locale: str = "zh", snapshots: dict[str, dict] | None = None
+    locale: str = "zh",
+    snapshots: dict[str, dict] | None = None,
+    documents: list[dict] | None = None,
 ) -> dict:
     """
     Lightweight drift-band check across all stored IPS documents.
@@ -805,7 +807,7 @@ def compute_fleet_status(
         Dict matching the api.schemas.MonitoringFleetResponse contract.
     """
     today = business_today()
-    entries = _parse_fleet_documents(locale)
+    entries = _parse_fleet_documents(locale, documents)
     for entry in entries:
         entry["snapshot"] = (snapshots or {}).get(entry["document_id"])
 
@@ -860,7 +862,9 @@ def compute_fleet_status(
     }
 
 
-def _parse_fleet_documents(locale: str = "zh") -> list[dict]:
+def _parse_fleet_documents(
+    locale: str = "zh", documents: list[dict] | None = None
+) -> list[dict]:
     """
     Enumerate stored IPS documents and parse each SAA into holdings.
 
@@ -869,7 +873,7 @@ def _parse_fleet_documents(locale: str = "zh") -> list[dict]:
     fleet run.
     """
     entries = []
-    for summary in ips_storage.list_ips_documents():
+    for summary in ips_storage.list_ips_documents() if documents is None else documents:
         entry: dict = {
             "document_id": Path(summary["filepath"]).stem,
             "client_name": summary.get("client_name") or "Unknown",

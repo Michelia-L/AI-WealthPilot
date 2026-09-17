@@ -1,6 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session, SQLModel
+from sqlmodel import Session, SQLModel, select
 
 from api.db import get_session, make_engine
 from api.main import create_app
@@ -50,7 +50,7 @@ def isolate_storage_dirs(tmp_path, monkeypatch):
     return temp_profiles_dir, temp_reports_dir
 
 
-def _make_client(tmp_path, monkeypatch) -> TestClient:
+def _make_client(tmp_path, monkeypatch, *, authenticated=True) -> TestClient:
     """Build a TestClient backed by an isolated tmp-path SQLite database."""
     engine = make_engine(f"sqlite:///{tmp_path}/test.db")
     SQLModel.metadata.create_all(engine)
@@ -70,7 +70,25 @@ def _make_client(tmp_path, monkeypatch) -> TestClient:
             yield session
 
     app.dependency_overrides[get_session] = override_session
-    return TestClient(app)
+    test_client = TestClient(app)
+    if authenticated:
+        from api import auth, db
+        from api.ownership import ensure_local_organization, set_membership
+
+        with Session(engine) as session:
+            organization = ensure_local_organization(session)
+            user = session.exec(
+                select(db.UserRecord).where(
+                    db.UserRecord.email == "api-tests@example.invalid"
+                )
+            ).first() or db.UserRecord(email="api-tests@example.invalid")
+            session.add(user)
+            session.flush()
+            set_membership(session, organization.id, user.id, "admin")
+            token = auth.issue_session(session, user).access_token
+        test_client.headers["Authorization"] = f"Bearer {token}"
+        test_client.headers["X-Organization-ID"] = "local"
+    return test_client
 
 
 @pytest.fixture
@@ -90,4 +108,10 @@ def client(tmp_path, monkeypatch):
 def bare_client(tmp_path, monkeypatch):
     """Same as ``client`` but with no X-Locale header (API default: English)."""
     with _make_client(tmp_path, monkeypatch) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def anonymous_client(tmp_path, monkeypatch):
+    with _make_client(tmp_path, monkeypatch, authenticated=False) as test_client:
         yield test_client

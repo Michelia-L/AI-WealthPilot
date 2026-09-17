@@ -1,3 +1,4 @@
+import { getSessionHeaders } from "./session";
 import { NextResponse } from "next/server";
 import { getDict, getLocale } from "@/lib/i18n/server";
 
@@ -5,7 +6,7 @@ const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:8000";
 
 /** X-Locale header forwarded to the API (resolved from the wp_locale cookie). */
 async function localeHeader(): Promise<Record<string, string>> {
-  return { "X-Locale": await getLocale() };
+  return { ...(await getSessionHeaders()), "X-Locale": await getLocale() };
 }
 
 /** Localized "API unreachable" detail for proxy failures. */
@@ -41,9 +42,9 @@ export async function proxyJson(
       cache: "no-store",
     });
     // 204 No Content (deletes) has no body to parse.
-    if (res.status === 204) return new NextResponse(null, { status: 204 });
+    if (res.status === 204) return new NextResponse(null, { status: 204, headers: privateHeaders(res) });
     const data = await res.json();
-    return NextResponse.json(data, { status: res.status });
+    return NextResponse.json(data, { status: res.status, headers: privateHeaders(res) });
   } catch {
     return NextResponse.json(
       { detail: await unreachableDetail() },
@@ -74,13 +75,13 @@ export async function proxyStream(path: string, body: unknown) {
       const data = await res
         .json()
         .catch(async () => ({ detail: await upstreamDetail(res.status) }));
-      return NextResponse.json(data, { status: res.status });
+      return NextResponse.json(data, { status: res.status, headers: privateHeaders(res) });
     }
     return new Response(res.body, {
       status: 200,
       headers: {
         "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
+        "Cache-Control": "no-store",
       },
     });
   } catch {
@@ -102,13 +103,13 @@ export async function proxyStreamGet(path: string) {
       const data = await res
         .json()
         .catch(async () => ({ detail: await upstreamDetail(res.status) }));
-      return NextResponse.json(data, { status: res.status });
+      return NextResponse.json(data, { status: res.status, headers: privateHeaders(res) });
     }
     return new Response(res.body, {
       status: 200,
       headers: {
         "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
+        "Cache-Control": "no-store",
       },
     });
   } catch {
@@ -134,12 +135,13 @@ export async function proxyFile(path: string) {
       const data = await res
         .json()
         .catch(async () => ({ detail: await upstreamDetail(res.status) }));
-      return NextResponse.json(data, { status: res.status });
+      return NextResponse.json(data, { status: res.status, headers: privateHeaders(res) });
     }
     return new Response(res.body, {
       status: 200,
       headers: {
         "Content-Type": res.headers.get("Content-Type") ?? "application/octet-stream",
+        "Cache-Control": "no-store",
         "Content-Disposition": res.headers.get("Content-Disposition") ?? "attachment",
       },
     });
@@ -149,4 +151,11 @@ export async function proxyFile(path: string) {
       { status: 502 }
     );
   }
+}
+
+function privateHeaders(res: Response): Record<string, string> {
+  const headers: Record<string, string> = { "Cache-Control": "no-store" };
+  const challenge = res.headers.get("WWW-Authenticate");
+  if (challenge) headers["WWW-Authenticate"] = challenge;
+  return headers;
 }

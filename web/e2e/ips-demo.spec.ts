@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 /**
  * IPS LangGraph workflow e2e in demo mode: task creation → SSE progress →

@@ -51,6 +51,7 @@ def save_ips(
     client_name: str,
     notes: str = "",
     profile_id: Optional[int] = None,
+    client_id: Optional[str] = None,
 ) -> Path:
     """
     Save an IPS document and its audit trail to JSON.
@@ -60,7 +61,8 @@ def save_ips(
         audit_trail_dict: AuditTrail serialized as dict.
         client_name: Client name for filename.
         notes: Optional notes.
-        profile_id: Stable client profile ID, absent for legacy/standalone documents.
+        profile_id: Originating profile ID for navigation.
+        client_id: Stable ownership UUID, absent for legacy/standalone documents.
 
     Returns:
         Path to the saved JSON file.
@@ -79,6 +81,7 @@ def save_ips(
         "metadata": {
             "client_name": client_name,
             "profile_id": profile_id,
+            "client_id": client_id,
             "saved_at": now.isoformat(),
             "notes": notes,
         },
@@ -104,7 +107,9 @@ def load_ips(filepath: Path) -> dict:
         return json.load(f)
 
 
-def list_ips_documents(limit: int = 50) -> list[dict]:
+def list_ips_documents(
+    limit: int = 50, *, allowed_client_ids: set[str] | None = None
+) -> list[dict]:
     """
     List all saved IPS documents with summary info.
 
@@ -123,6 +128,11 @@ def list_ips_documents(limit: int = 50) -> list[dict]:
             ips = record.get("ips", {})
             meta = record.get("metadata", {})
             audit = record.get("audit_trail", {})
+            if (
+                allowed_client_ids is not None
+                and meta.get("client_id") not in allowed_client_ids
+            ):
+                continue
 
             documents.append(
                 {

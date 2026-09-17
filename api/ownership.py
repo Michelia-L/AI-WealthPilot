@@ -9,6 +9,7 @@ from sqlalchemy.dialects.sqlite import insert
 from sqlmodel import Session, select
 
 from api.db import (
+    AdvisorClientAssignmentRecord,
     ClientRecord,
     MembershipRole,
     OrganizationMembershipRecord,
@@ -124,12 +125,54 @@ def get_profile_owner(session: Session, profile_id: int) -> ClientRecord:
     return client
 
 
-def local_profile_keys(session: Session) -> set[tuple[str, str]]:
+def local_profile_keys(
+    session: Session, organization_id: str = LOCAL_ORGANIZATION_ID
+) -> set[tuple[str, str]]:
     """Scope legacy import deduplication to its destination organization."""
     return set(
         session.exec(
             select(ProfileRecord.name, ProfileRecord.created_at)
             .join(ClientRecord, ProfileRecord.client_id == ClientRecord.id)
-            .where(ClientRecord.organization_id == LOCAL_ORGANIZATION_ID)
+            .where(ClientRecord.organization_id == organization_id)
         ).all()
     )
+
+
+def create_scoped_profile(
+    session: Session,
+    profile: ProfileRecord,
+    organization_id: str,
+    *,
+    advisor_user_id: str | None = None,
+) -> ProfileRecord:
+    client = create_client(session, organization_id)
+    if advisor_user_id is not None:
+        membership = session.exec(
+            select(OrganizationMembershipRecord).where(
+                OrganizationMembershipRecord.organization_id == organization_id,
+                OrganizationMembershipRecord.user_id == advisor_user_id,
+                OrganizationMembershipRecord.role == MembershipRole.ADVISOR,
+            )
+        ).first()
+        if membership is None:
+            raise ValueError("Advisor membership required")
+        session.add(
+            AdvisorClientAssignmentRecord(
+                organization_id=organization_id,
+                advisor_user_id=advisor_user_id,
+                client_id=client.id,
+            )
+        )
+    return attach_profile(session, client.id, profile)
+
+
+DEMO_ORGANIZATION_ID = "demo"
+
+
+def ensure_demo_organization(session: Session) -> OrganizationRecord:
+    session.execute(
+        insert(OrganizationRecord)
+        .values(id=DEMO_ORGANIZATION_ID, name="Demo workspace")
+        .on_conflict_do_nothing(index_elements=["id"])
+    )
+    return session.get(OrganizationRecord, DEMO_ORGANIZATION_ID)
