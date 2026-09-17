@@ -140,7 +140,7 @@ export default function AppShell({
   return (
     <div className="relative z-[1] flex min-h-screen">
       {/* 桌面侧边栏 */}
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-white/[0.06] bg-ink-950/70 px-5 py-7 backdrop-blur-xl lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto border-r border-white/[0.06] bg-ink-950/70 px-5 py-7 backdrop-blur-xl lg:flex">
         <Brand />
         <div className="mt-8">
           <ClientSelector profiles={profiles} />
