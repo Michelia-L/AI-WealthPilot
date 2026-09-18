@@ -510,8 +510,8 @@ def test_openapi_marks_identity_endpoints_and_legacy_routes_keep_contract(bare_c
     ]
     assert "security" not in spec["paths"]["/api/auth/login"]["post"]
     assert bare_client.get("/api/health").status_code == 200
-    assert bare_client.get("/api/profiles").status_code == 200
-    assert bare_client.post("/api/profiles", json={}).status_code == 422
+    assert bare_client.get("/api/profiles").status_code == 401
+    assert bare_client.post("/api/profiles", json={}).status_code == 401
 
 
 def test_cli_provisions_user_without_printing_credentials(
@@ -568,3 +568,24 @@ def test_cli_failures_do_not_leak_secrets(bare_client, monkeypatch, capsys, fail
     assert secret not in output.out + output.err
     with Session(db.engine) as session:
         assert session.exec(select(db.UserRecord)).all() == []
+
+
+@pytest.fixture
+def bare_client(anonymous_client):
+    return anonymous_client
+
+
+def test_cli_local_admin_flag_grants_workspace_access(bare_client, monkeypatch):
+    secret = secrets.token_urlsafe(24)
+    monkeypatch.setattr("builtins.input", lambda _: "admin@example.invalid")
+    monkeypatch.setattr(provision.getpass, "getpass", lambda _: secret)
+    assert provision.main(["--local-admin"]) == 0
+    response = login(
+        bare_client, LoginRequest(email="admin@example.invalid", password=secret)
+    )
+    headers = {"Authorization": f"Bearer {response.json()['access_token']}"}
+    organizations = bare_client.get("/api/auth/organizations", headers=headers).json()[
+        "organizations"
+    ]
+    assert [(org["id"], org["role"]) for org in organizations] == [("local", "admin")]
+    assert bare_client.get("/api/profiles", headers=headers).status_code == 200

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("locale switcher toggles zh/en and persists via cookie", async ({
   page,

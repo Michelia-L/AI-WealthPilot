@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 /** Full CRUD over the real SQLite layer — no external services involved. */
 test("profile create → list → delete", async ({ page }) => {

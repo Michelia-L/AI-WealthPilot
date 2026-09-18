@@ -33,6 +33,8 @@ Python 提供量化计算，LangGraph 编排 IPS 生成与审查，Next.js 界�
 
 ## 快速开始
 
+登录工作站时，演示模式选择“体验演示”。Live 模式先运行 `docker compose exec api python -m api.create_user --local-admin` 创建本地管理员，再登录配置模型。业务 API 已要求会话及组织／客户权限；升级后的访问规则与旧产物处理见 [API 访问说明](docs/api-access.md)。
+
 ### 用 Docker Compose 启动演示
 
 需要安装 Docker 及 Compose 插件。以下命令适用于新克隆的仓库：
@@ -230,7 +232,7 @@ Playwright 需要安装 Chromium（`cd web && npx playwright install chromium`�
 
 - **存储与凭据。** 客户画像与设置默认本地存储，LLM API Key 持久化在 SQLite 中；数据库并非加密密钥库。请保护 `.env`、`data/` 及其备份。
 - **外部调用。** 真实模型请求携带任务所需的客户/报告上下文，并使用配置的密钥认证。行情请求发往各数据源。配置本地模型端点只改变模型请求目的地，不会关闭行情请求。
-- **访问控制。** API 已提供按路由接入的身份依赖，以及受保护的 `/api/auth/me` 和 `/api/auth/logout` 端点。组织成员关系、角色和客户／画像归属已持久化，详见[归属模型](docs/client-ownership.md)。[顾问分配与授权函数](docs/authorization.md)已提供组织角色和客户访问检查。现有业务 API 仍未接入认证，也尚未调用这些检查。提供的 Compose 配置将端口绑定到 `127.0.0.1`；部署到本机之外前，需要完成这些访问控制。身份层可通过 `python -m api.create_user` 交互式创建用户，详见[身份配置与 API 使用](docs/identity-auth.md)；Web 登录接入属于后续工作。
+- **访问控制。** 业务 API 已要求会话及组织、角色和对象权限，详见[路由审计](docs/api-access.md)。Web 使用 HttpOnly 会话并验证写请求的同源性。Compose 将端口绑定到 `127.0.0.1`；对外部署前仍需处理 [KI-004](docs/known-issues.md#ki-004--认证对外部署前的限流与撤销边界) 中的限流与会话撤销要求。
 - **模型输入。** 部分提示词以 XML 标签和指令界定客户文本，这是缓解措施，不保证阻止提示词注入或错误输出。生成文档需复核后再使用。
 
 软件用于学习、研究和技术验证。计算结果与生成文档不构成投资、税务或法律建议，也不代替专业复核。不保证收益、适当性认定或监管批准。

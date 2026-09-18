@@ -14,6 +14,7 @@ import pytest
 from api.i18n import get_request_locale, msg
 from api.routers.monitoring import _resolve_annual_fee_rate
 from src.portfolio.monitoring import compute_fleet_status, resolve_saa_weights
+from tests.api_ownership_helpers import artifact_client_id
 from tests.test_api_advisor import _parse_sse
 from tests.test_api_profiles import sample_payload
 
@@ -29,7 +30,11 @@ def _write_doc_without_saa(ips_dir, doc_id: str) -> None:
     record = {
         "ips": {"client_name": "En Client", "version": "1.0"},
         "audit_trail": {},
-        "metadata": {"client_name": "En Client", "saved_at": "2026-06-01T09:30:00"},
+        "metadata": {
+            "client_id": artifact_client_id(),
+            "client_name": "En Client",
+            "saved_at": "2026-06-01T09:30:00",
+        },
     }
     (ips_dir / f"{doc_id}.json").write_text(
         json.dumps(record, ensure_ascii=False), encoding="utf-8"
@@ -80,26 +85,26 @@ def test_get_request_locale_parsing():
 def test_missing_header_defaults_to_english(bare_client):
     resp = bare_client.get("/api/profiles/999")
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "Profile not found (id=999)"
+    assert resp.json()["detail"] == "Profile not found."
 
 
 def test_invalid_header_falls_back_to_english(bare_client):
     resp = bare_client.get("/api/profiles/999", headers={"X-Locale": "fr"})
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "Profile not found (id=999)"
+    assert resp.json()["detail"] == "Profile not found."
 
 
 def test_explicit_zh_keeps_verbatim_chinese(bare_client):
     resp = bare_client.get("/api/profiles/999", headers={"X-Locale": "zh"})
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "画像不存在（id=999）"
+    assert resp.json()["detail"] == "未找到客户画像。"
 
 
 def test_client_fixture_sends_zh(client):
     """Sanity: the shared fixture pins Chinese for the legacy assertions."""
     resp = client.get("/api/profiles/999")
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "画像不存在（id=999）"
+    assert resp.json()["detail"] == "未找到客户画像。"
 
 
 def test_report_404_english(bare_client):
@@ -111,19 +116,21 @@ def test_report_404_english(bare_client):
 def test_ips_doc_404_english(bare_client):
     resp = bare_client.get("/api/ips/ips_nobody_20260101_000000")
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "IPS document not found"
+    assert resp.json()["detail"] == "IPS document not found."
 
 
 def test_task_404_english(bare_client):
     resp = bare_client.get("/api/ips/tasks/no_such_task/events")
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "Task not found"
+    assert resp.json()["detail"] == "Task not found."
 
 
 def test_llm_503_english(bare_client, monkeypatch):
     """Unconfigured LLM endpoint -> 503 worded in English for en requests."""
     monkeypatch.setattr("api.routers.advisor.is_api_configured", lambda: False)
-    resp = bare_client.post("/api/advisor/report/stream", json={"profile_id": 1})
+    resp = bare_client.post(
+        "/api/advisor/report/stream", json={"profile_id": _create_profile(bare_client)}
+    )
     assert resp.status_code == 503
     assert resp.json()["detail"].startswith("DEEPSEEK_API_KEY is not configured")
 
@@ -131,7 +138,9 @@ def test_llm_503_english(bare_client, monkeypatch):
 def test_llm_503_chinese_via_zh_header(bare_client, monkeypatch):
     monkeypatch.setattr("api.routers.advisor.is_api_configured", lambda: False)
     resp = bare_client.post(
-        "/api/advisor/report/stream", json={"profile_id": 1}, headers={"X-Locale": "zh"}
+        "/api/advisor/report/stream",
+        json={"profile_id": _create_profile(bare_client)},
+        headers={"X-Locale": "zh"},
     )
     assert resp.status_code == 503
     assert "DEEPSEEK_API_KEY 未配置" in resp.json()["detail"]

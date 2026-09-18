@@ -68,8 +68,8 @@ def configured_reasoning(monkeypatch):
     monkeypatch.setattr("api.routers.advisor.generate_advice_stream", fake_stream)
 
 
-def _create_profile(client) -> int:
-    resp = client.post("/api/profiles", json=sample_payload())
+def _create_profile(client, name="John Doe") -> int:
+    resp = client.post("/api/profiles", json={**sample_payload(), "name": name})
     assert resp.status_code == 201
     return resp.json()["id"]
 
@@ -169,6 +169,7 @@ def test_save_list_get_delete_report(client):
     saved = client.post(
         "/api/advisor/reports",
         json={
+            "profile_id": _create_profile(client),
             "client_name": "John Doe",
             "content": "# Report\nSome advice.",
             "model": "deepseek-v4-pro",
@@ -208,6 +209,7 @@ def _save_report(client) -> str:
     saved = client.post(
         "/api/advisor/reports",
         json={
+            "profile_id": _create_profile(client),
             "client_name": "John Doe",
             "content": "# Report\nSome advice.",
             "model": "deepseek-v4-pro",
@@ -261,6 +263,7 @@ def test_export_report_cjk_client_name(client):
     saved = client.post(
         "/api/advisor/reports",
         json={
+            "profile_id": _create_profile(client, "张伟"),
             "client_name": "张伟",
             "content": "# 建议\n一些建议内容。",
             "model": "deepseek-v4-pro",
@@ -284,6 +287,7 @@ def _save_rich_report(client) -> str:
     saved = client.post(
         "/api/advisor/reports",
         json={
+            "profile_id": _create_profile(client, "张伟"),
             "client_name": "张伟",
             "content": (
                 "# 一、客户概况\n"

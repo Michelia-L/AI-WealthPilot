@@ -85,18 +85,17 @@ def require_org_admin(
     _require_role(session, principal, organization_id, MembershipRole.ADMIN, locale)
 
 
-def get_authorized_client(
+def authorized_clients_statement(
     session: Session,
     principal: Principal,
     organization_id: str,
-    client_id: str,
     *,
     locale: str = "en",
-) -> ClientRecord:
-    """Return an accessible Client; missing and forbidden objects share 404."""
+):
+    """One query scope shared by single-object checks and collection filtering."""
     role = _current_role(session, principal, organization_id, locale)
     statement = select(ClientRecord).where(
-        ClientRecord.organization_id == organization_id, ClientRecord.id == client_id
+        ClientRecord.organization_id == organization_id
     )
     if role == MembershipRole.CLIENT:
         statement = statement.where(ClientRecord.user_id == principal.user_id)
@@ -112,6 +111,21 @@ def get_authorized_client(
         )
     elif role != MembershipRole.ADMIN:
         raise _error(404, "client_not_found", locale)
+    return statement
+
+
+def get_authorized_client(
+    session: Session,
+    principal: Principal,
+    organization_id: str,
+    client_id: str,
+    *,
+    locale: str = "en",
+) -> ClientRecord:
+    """Return an accessible Client; missing and forbidden objects share 404."""
+    statement = authorized_clients_statement(
+        session, principal, organization_id, locale=locale
+    ).where(ClientRecord.id == client_id)
     client = session.exec(statement.execution_options(populate_existing=True)).first()
     if client is None:
         raise _error(404, "client_not_found", locale)

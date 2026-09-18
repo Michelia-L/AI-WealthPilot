@@ -414,3 +414,8 @@ def test_client_link_changes_take_effect_without_changing_principal(context):
     assert get_authorized_client(
         session, principals["other_client"], "a", clients["own"]
     )
+
+
+@pytest.fixture
+def bare_client(anonymous_client):
+    return anonymous_client

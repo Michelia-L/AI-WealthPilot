@@ -10,7 +10,7 @@ Interactive docs: http://localhost:8000/docs
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,10 +21,11 @@ from sqlmodel import Session, select
 # in api/__init__.py runs before any `src.*` import below.
 import api  # noqa: F401
 from api import db
+from api.auth import get_current_principal
 from api.db import ProfileRecord, init_db
 from api.i18n import get_request_locale, msg
 from api.migrate_profiles import maybe_auto_import
-from api.ownership import create_local_profile
+from api.ownership import create_scoped_profile, ensure_demo_organization
 from api.profile_convert import tolerance_level
 from api.routers import (
     advisor,
@@ -114,7 +115,8 @@ def _seed_demo_profile(session: Session) -> bool:
     if session.exec(select(ProfileRecord.id).limit(1)).first() is not None:
         return False
     data = _demo_profile_data()
-    create_local_profile(
+    organization = ensure_demo_organization(session)
+    create_scoped_profile(
         session,
         ProfileRecord(
             name=data["name"],
@@ -124,6 +126,7 @@ def _seed_demo_profile(session: Session) -> bool:
             updated_at=data["updated_at"],
             data=data,
         ),
+        organization.id,
     )
     session.commit()
     return True
@@ -158,9 +161,16 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    @app.middleware("http")
+    async def private_responses(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/api/") and request.url.path != "/api/health":
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):
-        if request.url.path.startswith("/api/auth/"):
+        if request.url.path.startswith(("/api/auth/", "/api/settings/")):
             # FastAPI's default 422 includes submitted values, including passwords.
             return JSONResponse(
                 status_code=422,
@@ -172,7 +182,9 @@ def create_app() -> FastAPI:
         return await request_validation_exception_handler(request, exc)
 
     app.include_router(auth.router, prefix="/api")
-    app.include_router(market.router, prefix="/api")
+    app.include_router(
+        market.router, prefix="/api", dependencies=[Depends(get_current_principal)]
+    )
     app.include_router(cme.router, prefix="/api")
     app.include_router(monitoring.router, prefix="/api")
     app.include_router(portfolio.router, prefix="/api")
@@ -182,7 +194,12 @@ def create_app() -> FastAPI:
     app.include_router(ips.router, prefix="/api")
     app.include_router(settings.router, prefix="/api")
 
-    @app.get("/api/health", response_model=HealthResponse, tags=["meta"])
+    @app.get(
+        "/api/health",
+        response_model=HealthResponse,
+        tags=["meta"],
+        openapi_extra={"x-access-scope": "public"},
+    )
     def health() -> HealthResponse:
         return HealthResponse(app=APP_NAME, version=APP_VERSION)
 

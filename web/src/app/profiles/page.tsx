@@ -1,5 +1,5 @@
-import { detailToPayload, getProfile, getProfiles, getQuestionnaire } from "@/lib/api";
-import type { ProfilePayload } from "@/lib/api";
+import { detailToPayload, getProfile, getProfiles, getQuestionnaire } from "@/lib/api/server";
+import type { ProfilePayload } from "@/lib/api/server";
 import { getDict, getLocale } from "@/lib/i18n/server";
 import ProfilesManager from "@/components/profiles/profiles-manager";
 

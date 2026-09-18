@@ -1,3 +1,5 @@
+import { getWorkspaceSession } from "@/lib/session";
+import WorkspaceSessionControl from "@/components/workspace-session";
 import type { Metadata } from "next";
 import { Fraunces, Geist, Geist_Mono, IBM_Plex_Mono } from "next/font/google";
 import { Suspense } from "react";
@@ -6,7 +8,7 @@ import AppShell from "@/components/app-shell";
 import { ClientProvider } from "@/components/client-context";
 import HealthBadge from "@/components/health-badge";
 import { LocaleProvider } from "@/components/locale-context";
-import { getProfiles } from "@/lib/api";
+import { getProfiles } from "@/lib/api/server";
 import { getDict, getLocale } from "@/lib/i18n/server";
 
 const geistSans = Geist({
@@ -46,7 +48,9 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const [profilesData, locale] = await Promise.all([getProfiles(), getLocale()]);
+  const [profilesData, locale, session] = await Promise.all([
+    getProfiles(), getLocale(), getWorkspaceSession(),
+  ]);
 
   return (
     <html
@@ -56,7 +60,11 @@ export default async function RootLayout({
       <body className="min-h-full">
         <ClientProvider>
           <LocaleProvider locale={locale}>
+            {!session?.organizationId ? (
+              <WorkspaceSessionControl session={session} gate />
+            ) : (
             <AppShell
+              sessionControls={<WorkspaceSessionControl session={session} />}
               profiles={profilesData?.profiles ?? []}
               healthBadge={
                 <Suspense
@@ -70,6 +78,7 @@ export default async function RootLayout({
             >
               {children}
             </AppShell>
+            )}
           </LocaleProvider>
         </ClientProvider>
       </body>

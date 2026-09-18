@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("unmatched URL renders the root not-found UI", async ({ page }) => {
   await page.goto("/no-such-page");

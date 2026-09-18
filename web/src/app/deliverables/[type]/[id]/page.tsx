@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getAdvisorReport, getIpsDocument } from "@/lib/api";
+import { getAdvisorReport, getIpsDocument } from "@/lib/api/server";
 import { fmtLocal } from "@/lib/format";
 import Markdown from "@/components/markdown";
 import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";

@@ -1,4 +1,3 @@
-import { getJson } from "./client";
 
 // ---------------------------------------------------------------------------
 // IPS workflow (Phase 4b — async generation tasks)
@@ -30,9 +29,4 @@ export interface IpsDetailResponse {
   revision_rounds: number;
   saved_at: string;
 }
-
-export const getIpsDocuments = () => getJson<IpsListResponse>("/api/ips");
-
-export const getIpsDocument = (documentId: string) =>
-  getJson<IpsDetailResponse>(`/api/ips/${encodeURIComponent(documentId)}`);
 

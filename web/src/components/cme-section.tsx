@@ -1,4 +1,4 @@
-import { getCme } from "@/lib/api";
+import { getCme } from "@/lib/api/server";
 import { fmtPct } from "@/lib/format";
 import { getDict } from "@/lib/i18n/server";
 import { ApiOffline } from "@/components/api-offline";

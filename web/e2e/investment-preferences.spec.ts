@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 for (const locale of ["en", "zh"] as const) {
   test(`ESG and sector preferences are disclosed across the client workflow (${locale})`, async ({ page, request }) => {

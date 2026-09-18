@@ -1,4 +1,3 @@
-import { getJson } from "./client";
 
 // ---------------------------------------------------------------------------
 // LLM Settings (Phase 21 — user-defined OpenAI-compatible endpoint)
@@ -14,7 +13,4 @@ export interface LlmSettingsResponse {
   api_key_masked: string;
   demo: boolean;
 }
-
-export const getLlmSettings = () =>
-  getJson<LlmSettingsResponse>("/api/settings/llm");
 

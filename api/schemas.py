@@ -761,6 +761,7 @@ class AdvisorStreamRequest(BaseModel):
 
 
 class SaveReportRequest(BaseModel):
+    profile_id: int = Field(gt=0, description="Authorized profile to own this report")
     client_name: str = Field(min_length=1, max_length=100)
     content: str = Field(min_length=1, description="Report body in Markdown")
     model: str = ""
@@ -1298,3 +1299,13 @@ class LlmModelsFetchRequest(BaseModel):
 
 class LlmModelsResponse(BaseModel):
     models: list[str] = Field(description="Sorted model ids from GET /models")
+
+
+class OrganizationSummary(BaseModel):
+    id: str
+    name: str
+    role: str
+
+
+class OrganizationsResponse(BaseModel):
+    organizations: list[OrganizationSummary]

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { readFile } from "node:fs/promises";
 
 test.use({ timezoneId: "America/Los_Angeles" });
@@ -25,15 +25,15 @@ test("actual holdings: entry, persisted drift, JSON import, history and Chinese 
   await page.goto(`/monitoring?doc=${done.document_id}`);
   await expect(page.getByRole("heading", { name: "Actual Holdings", exact: true })).toBeVisible();
   await page.clock.setFixedTime(new Date("2026-09-09T16:30:00Z"));
-  await expect(page.getByText("Valuation dates use Asia/Shanghai, including the JSON template.")).toBeVisible();
-  await page.getByText("Import JSON snapshot", { exact: true }).click();
+  await expect(page.getByRole("main").getByText("Valuation dates use Asia/Shanghai, including the JSON template.")).toBeVisible();
+  await page.getByRole("main").getByText("Import JSON snapshot", { exact: true }).click();
   const [download] = await Promise.all([
     page.waitForEvent("download"),
     page.getByRole("button", { name: "Download JSON template" }).click(),
   ]);
   const template = JSON.parse(await readFile((await download.path())!, "utf8"));
   expect(template.as_of).toBe("2026-09-10");
-  await page.getByText("Import JSON snapshot", { exact: true }).click();
+  await page.getByRole("main").getByText("Import JSON snapshot", { exact: true }).click();
   await page.getByLabel("Valuation date", { exact: true }).fill("2026-06-10");
   const asset = await page.getByRole("combobox", { name: "Asset class", exact: true }).inputValue();
   const currency = await page.getByLabel("Base currency", { exact: true }).inputValue();
@@ -48,14 +48,14 @@ test("actual holdings: entry, persisted drift, JSON import, history and Chinese 
   await expect(page.getByRole("main").getByText("Actual holdings snapshot · 2026-06-10", { exact: true })).toBeVisible();
   await expect(page.getByRole("cell", { name: "100.0%", exact: true })).toBeVisible();
 
-  await page.getByText("Import JSON snapshot", { exact: true }).click();
+  await page.getByRole("main").getByText("Import JSON snapshot", { exact: true }).click();
   await page.getByRole("textbox", { name: "Snapshot JSON", exact: true }).fill(JSON.stringify({
     as_of: "2026-06-11", base_currency: currency, holdings: [{ asset_class: asset, quantity: 20, unit_price: 100 }],
   }));
   await page.getByRole("button", { name: "Import and save snapshot" }).click();
   await expect(page.getByRole("combobox", { name: "View snapshot", exact: true }).locator("option")).toHaveCount(2);
   await expect(page.getByRole("main").getByText("Actual holdings snapshot · 2026-06-11", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Compared with previous snapshot: 2026-06-10/)).toBeVisible();
+  await expect(page.getByRole("main").getByText(/Compared with previous snapshot: 2026-06-10/)).toBeVisible();
   const oldId = await page.getByRole("combobox", { name: "View snapshot", exact: true }).locator("option").nth(1).getAttribute("value");
   await page.getByRole("combobox", { name: "View snapshot", exact: true }).selectOption(oldId!);
   await expect(page.getByRole("cell", { name: "900", exact: true })).toBeVisible();
@@ -63,8 +63,8 @@ test("actual holdings: entry, persisted drift, JSON import, history and Chinese 
   await page.getByRole("button", { name: "中文", exact: true }).first().click();
   await expect(page.getByRole("heading", { name: "实际持仓", exact: true })).toBeVisible();
   // This error can only be localized by the same-origin proxy forwarding X-Locale.
-  const details = page.locator("details").filter({ has: page.getByText("导入 JSON 快照", { exact: true }) });
-  if (await details.getAttribute("open") === null) await page.getByText("导入 JSON 快照", { exact: true }).click();
+  const details = page.getByRole("main").locator("details").filter({ hasText: "导入 JSON 快照" });
+  if (await details.getAttribute("open") === null) await page.getByRole("main").getByText("导入 JSON 快照", { exact: true }).click();
   await page.getByRole("textbox", { name: "快照 JSON", exact: true }).fill(JSON.stringify({
     as_of: "2999-01-01", base_currency: currency, holdings: [{ asset_class: asset, market_value: 1 }],
   }));

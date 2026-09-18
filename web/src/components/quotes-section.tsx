@@ -1,4 +1,4 @@
-import { getQuotes, type Quote } from "@/lib/api";
+import { getQuotes, type Quote } from "@/lib/api/server";
 import { cx } from "@/lib/cx";
 import { formatAssetChange, formatAssetPrice, fmtUtc } from "@/lib/format";
 import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getAdvisorReports, getIpsDocuments, getProfiles } from "@/lib/api";
+import { getAdvisorReports, getIpsDocuments, getProfiles } from "@/lib/api/server";
 import { fmtLocal } from "@/lib/format";
 import DeliverablesControls from "@/components/deliverables-controls";
 import { ApiOffline } from "@/components/api-offline";

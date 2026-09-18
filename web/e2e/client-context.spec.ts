@@ -1,9 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, demoLogin } from "./fixtures";
 
 const clients: { id: number; age: number }[] = [];
 const name = "Client Context Example";
 
-test.beforeAll(async ({ request }) => {
+test.beforeAll(async ({ request, baseURL }) => {
+  await demoLogin(request, baseURL!);
   for (const age of [41, 52]) {
     const response = await request.post("/api/profiles", { data: {
       name, age, marital_status: "single", dependents: 0,

@@ -17,6 +17,7 @@ from sqlmodel import Session
 from api import db
 from api.db import TaskRecord
 from api.tasks import TaskRegistry, reconcile_interrupted_tasks, task_events_stream
+from tests.api_ownership_helpers import artifact_client_id
 from tests.test_api_advisor import _parse_sse
 
 # Reuse the IPS fake-workflow fixture pattern (imported fixtures register in
@@ -107,6 +108,9 @@ def test_running_record_replays_with_trailing_error(client):
         session.add(
             TaskRecord(
                 task_id="stuck1",
+                meta_json=json.dumps(
+                    {"organization_id": "local", "client_id": artifact_client_id()}
+                ),
                 kind="ips",
                 status="running",
                 events_json=json.dumps(
@@ -233,3 +237,17 @@ def test_seqless_events_pass_through_untouched(client):
     assert [e["type"] for e in events] == ["node", "node", "done"]
     assert [e.get("node") for e in events[:2]] == ["generate", "finalize"]
     assert all("seq" not in e for e in events)
+
+
+def test_task_is_not_started_without_durable_ownership(monkeypatch, caplog):
+    import api.tasks as tasks
+
+    def unavailable(*args, **kwargs):
+        raise RuntimeError("fictional private database parameters")
+
+    monkeypatch.setattr(tasks, "Session", unavailable)
+    registry = TaskRegistry()
+    with pytest.raises(RuntimeError, match="Unable to persist task"):
+        registry.create("ips", organization_id="fixture", client_id="fixture")
+    assert registry._tasks == {}
+    assert "fictional private database parameters" not in caplog.text

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import RetirementWorkspace from "@/components/retirement-workspace";
 import { SectionHeader } from "@/components/ui";
-import { getProfiles } from "@/lib/api";
+import { getProfiles } from "@/lib/api/server";
 import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
 import { altLocale } from "@/lib/i18n/locale";
 

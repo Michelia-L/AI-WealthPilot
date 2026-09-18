@@ -8,7 +8,7 @@ import {
   type MonitoringFleetResponse,
   type ProfileSummary,
   type Quote,
-} from "@/lib/api";
+} from "@/lib/api/server";
 import { cx } from "@/lib/cx";
 import { formatAssetPrice, fmtLocal } from "@/lib/format";
 import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";

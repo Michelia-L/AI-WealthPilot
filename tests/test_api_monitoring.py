@@ -18,6 +18,7 @@ import pytest
 
 from api.routers import monitoring as monitoring_router
 from src.portfolio.cme_models import AssetClassCME, CMEReport
+from tests.api_ownership_helpers import artifact_client_id
 
 SAVED_AT = "2026-06-01T09:30:00"
 
@@ -56,7 +57,12 @@ def _write_ips_doc(ips_dir, doc_id, saa, saved_at=SAVED_AT, client_name="测试�
             "investment_guidelines": {"strategic_allocation": saa},
         },
         "audit_trail": {"final_status": "approved", "total_rounds": 0},
-        "metadata": {"client_name": client_name, "saved_at": saved_at, "notes": ""},
+        "metadata": {
+            "client_id": artifact_client_id(),
+            "client_name": client_name,
+            "saved_at": saved_at,
+            "notes": "",
+        },
     }
     (ips_dir / f"{doc_id}.json").write_text(
         json.dumps(record, ensure_ascii=False), encoding="utf-8"
@@ -565,7 +571,12 @@ def _write_ips_doc_with_currency_policy(
             },
         },
         "audit_trail": {"final_status": "approved", "total_rounds": 0},
-        "metadata": {"client_name": "测试客户", "saved_at": saved_at, "notes": ""},
+        "metadata": {
+            "client_id": artifact_client_id(),
+            "client_name": "测试客户",
+            "saved_at": saved_at,
+            "notes": "",
+        },
     }
     (ips_dir / f"{doc_id}.json").write_text(
         json.dumps(record, ensure_ascii=False), encoding="utf-8"
@@ -1305,9 +1316,9 @@ def test_fleet_cache_versions_do_not_accumulate_or_reload_history(
 
     calls = []
 
-    def load(session):
+    def load(session, document_ids=None):
         calls.append(True)
-        return latest_snapshots(session)
+        return latest_snapshots(session, document_ids)
 
     monkeypatch.setattr(monitoring_router, "latest_snapshots", load)
     for amount in range(800, 810):
@@ -1415,6 +1426,7 @@ def test_saved_at_and_drift_cutoff_use_business_timezone(client, stub_cme, monke
         },
         {"final_status": "approved", "total_rounds": 0},
         "Boundary Client",
+        client_id=artifact_client_id(),
     )
     saved_at = json.loads(filepath.read_text(encoding="utf-8"))["metadata"]["saved_at"]
     saved_dt = datetime.fromisoformat(saved_at)

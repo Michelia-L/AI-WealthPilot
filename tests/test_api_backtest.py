@@ -12,6 +12,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from tests.api_ownership_helpers import artifact_client_id
+
 # ---------------------------------------------------------------------------
 # Stub builders
 # ---------------------------------------------------------------------------
@@ -29,7 +31,11 @@ def _write_ips_doc(ips_dir, doc_id, saa, client_name="回测客户", fee_schedul
     record = {
         "ips": ips,
         "audit_trail": {"final_status": "approved", "total_rounds": 0},
-        "metadata": {"client_name": client_name, "saved_at": "2026-06-01T09:30:00"},
+        "metadata": {
+            "client_id": artifact_client_id(),
+            "client_name": client_name,
+            "saved_at": "2026-06-01T09:30:00",
+        },
     }
     (ips_dir / f"{doc_id}.json").write_text(
         json.dumps(record, ensure_ascii=False), encoding="utf-8"

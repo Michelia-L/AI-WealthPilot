@@ -129,6 +129,8 @@ class StoredReport:
     filepath: str = ""
     # User notes
     notes: str = ""
+    # Stable ownership for API access; absent on legacy/standalone reports.
+    client_id: str | None = None
 
 
 # ============================================================
@@ -172,6 +174,7 @@ def save_report(
     prompt_tokens: int = 0,
     completion_tokens: int = 0,
     notes: str = "",
+    client_id: str | None = None,
 ) -> StoredReport:
     """Save an advisory report to JSON file.
 
@@ -215,6 +218,7 @@ def save_report(
     report_to_save = StoredReport(
         report_id=report_id,
         client_name=client_name,
+        client_id=client_id,
         profile_filepath=rel_profile_filepath,
         content=content,
         model=model,
@@ -234,6 +238,7 @@ def save_report(
     report_to_return = StoredReport(
         report_id=report_id,
         client_name=client_name,
+        client_id=client_id,
         profile_filepath=profile_filepath or "",
         content=content,
         model=model,
@@ -277,6 +282,8 @@ def load_report(filepath: Path) -> StoredReport:
 def list_reports(
     client_name: Optional[str] = None,
     limit: int = 50,
+    *,
+    allowed_client_ids: set[str] | None = None,
 ) -> list[dict]:
     """List stored advisory reports with optional filtering.
 
@@ -293,6 +300,12 @@ def list_reports(
     for filepath in sorted(REPORTS_DIR.glob("*.json"), reverse=True):
         try:
             report = load_report(filepath)
+
+            if (
+                allowed_client_ids is not None
+                and report.client_id not in allowed_client_ids
+            ):
+                continue
 
             # Filter by client name
             if client_name and report.client_name != client_name:

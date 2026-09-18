@@ -1,3 +1,4 @@
+vi.mock("./session", () => ({ getSessionHeaders: vi.fn(async () => ({ Authorization: "Bearer fixture", "X-Organization-ID": "workspace-a" })) }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { proxyDelete, proxyGet, proxyPost, proxyStream } from "./proxy";
 
@@ -37,6 +38,8 @@ describe("proxyJson", () => {
     expect(url).toBe("http://localhost:8000/api/profiles");
     expect(init.method).toBe("POST");
     expect(init.headers["X-Locale"]).toBe("zh");
+    expect(init.headers.Authorization).toBe("Bearer fixture");
+    expect(init.headers["X-Organization-ID"]).toBe("workspace-a");
     expect(init.headers["Content-Type"]).toBe("application/json");
     expect(JSON.parse(init.body)).toEqual({ name: "Jane" });
 
@@ -50,6 +53,8 @@ describe("proxyJson", () => {
 
     const [, init] = fetchMock.mock.calls[0];
     expect(init.headers["X-Locale"]).toBe("zh");
+    expect(init.headers.Authorization).toBe("Bearer fixture");
+    expect(init.headers["X-Organization-ID"]).toBe("workspace-a");
     expect(init.headers["Content-Type"]).toBeUndefined();
   });
 

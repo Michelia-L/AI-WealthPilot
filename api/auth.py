@@ -191,6 +191,12 @@ def demo_user(session: Session, locale: str) -> UserRecord:
             ).one()
     if not user.is_demo or not user.is_active:
         raise authentication_error(locale)
+    # Explicit demo login grants access only to the isolated fictional workspace.
+    from api.ownership import ensure_demo_organization, set_membership
+
+    organization = ensure_demo_organization(session)
+    set_membership(session, organization.id, user.id, "admin")
+    session.commit()
     return user
 
 

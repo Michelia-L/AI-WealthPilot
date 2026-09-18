@@ -1,3 +1,5 @@
+import "server-only";
+import { getSessionHeaders } from "../session";
 /**
  * Typed client for the AI WealthPilot FastAPI backend.
  *
@@ -13,12 +15,9 @@ const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:8000";
 
 export async function getJson<T>(path: string, locale?: string): Promise<T | null> {
   try {
-    // NOTE (P22): this module is in the client bundle too (dashboard-controls /
-    // retirement-workspace import runtime constants), so it cannot read the
-    // locale cookie via next/headers — RSC callers pass `locale` explicitly.
     const res = await fetch(`${API_ORIGIN}${path}`, {
       cache: "no-store",
-      headers: locale ? { "X-Locale": locale } : undefined,
+      headers: { ...(await getSessionHeaders()), ...(locale ? { "X-Locale": locale } : {}) },
     });
     if (!res.ok) return null;
     return (await res.json()) as T;

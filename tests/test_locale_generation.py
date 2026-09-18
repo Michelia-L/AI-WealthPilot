@@ -62,6 +62,7 @@ from src.agents.report_storage import (
 from src.config import RISK_VOLATILITY_BANDS
 from src.portfolio.cme_models import AssetClassCME, CMEReport
 from src.portfolio.risk_constraints import RISK_LEVEL_CAPS
+from tests.api_ownership_helpers import write_owned_ips
 from tests.test_api_advisor import _parse_sse
 from tests.test_api_profiles import sample_payload
 
@@ -663,6 +664,7 @@ class TestAdvisorRouterLocale:
         saved = client.post(
             "/api/advisor/reports",
             json={
+                "profile_id": _create_profile(client),
                 "client_name": "John Doe",
                 "content": "# Report\nSome advice.",
                 "model": "deepseek-v4-pro",
@@ -706,6 +708,7 @@ class TestMonitoringRouterLocale:
         )
 
     def test_advice_forwards_en_locale(self, client, configured, monkeypatch):
+        write_owned_ips("ips_test_20260601_093000")
         captured: dict = {}
         monkeypatch.setattr(
             "api.routers.monitoring.generate_rebalance_advice_stream",
@@ -723,6 +726,7 @@ class TestMonitoringRouterLocale:
     def test_advice_forwards_zh_locale_by_default(
         self, client, configured, monkeypatch
     ):
+        write_owned_ips("ips_test_20260601_093000")
         captured: dict = {}
         monkeypatch.setattr(
             "api.routers.monitoring.generate_rebalance_advice_stream",

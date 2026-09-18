@@ -1,4 +1,3 @@
-import { getJson, tickersParam } from "./client";
 
 export interface AssetInfo {
   name: string;
@@ -121,22 +120,4 @@ export const PERIOD_OPTIONS = [
 
 export const DEFAULT_PERIOD = "1y";
 export const VALID_PERIODS: readonly string[] = PERIOD_OPTIONS.map((p) => p.value);
-export const getHealth = () => getJson<HealthResponse>("/api/health");
-
-export const getUniverse = () => getJson<UniverseResponse>("/api/market/universe");
-
-export const getQuotes = (tickers?: string[]) =>
-  getJson<QuotesResponse>(
-    `/api/market/quotes${tickers?.length ? `?tickers=${tickersParam(tickers)}` : ""}`
-  );
-
-export const getRiskFreeRate = () =>
-  getJson<RiskFreeRateResponse>("/api/market/risk-free-rate");
-
-export const getCme = () => getJson<CMEResponse>("/api/cme");
-
-export const getAnalytics = (period: string, tickers: string[]) =>
-  getJson<AnalyticsResponse>(
-    `/api/market/analytics?period=${encodeURIComponent(period)}&tickers=${tickersParam(tickers)}`
-  );
 
