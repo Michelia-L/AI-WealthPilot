@@ -19,7 +19,7 @@
     "next": "16.3.5",
     "plotly.js-dist-min": "^4.0.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react-dom": "^19.3.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1"
   },
@@ -30,7 +30,7 @@
     "@testing-library/react": "^16.3.2",
     "@types/node": "^26.5.1",
     "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.4",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
