@@ -114,12 +114,14 @@ async def _run_ips_task(
             )
             return
 
-        filepath = ips_storage.save_ips(
+        from api.artifacts import save_task_ips
+
+        filepath = save_task_ips(
+            task,
             ips_dict=state["final_ips"],
             audit_trail_dict=state.get("audit_trail") or {},
             client_name=task.meta["client_name"],
             profile_id=task.meta.get("profile_id"),
-            client_id=task.meta.get("client_id"),
         )
         task.status = "completed"
         await task.publish(

@@ -108,7 +108,10 @@ def load_ips(filepath: Path) -> dict:
 
 
 def list_ips_documents(
-    limit: int = 50, *, allowed_client_ids: set[str] | None = None
+    limit: int = 50,
+    *,
+    allowed_client_ids: set[str] | None = None,
+    filepaths: list[Path] | None = None,
 ) -> list[dict]:
     """
     List all saved IPS documents with summary info.
@@ -122,7 +125,9 @@ def list_ips_documents(
     _ensure_ips_dir()
     documents = []
 
-    for filepath in sorted(IPS_DIR.glob("ips_*.json"), reverse=True):
+    for filepath in sorted(
+        filepaths if filepaths is not None else IPS_DIR.glob("ips_*.json"), reverse=True
+    ):
         try:
             record = load_ips(filepath)
             ips = record.get("ips", {})

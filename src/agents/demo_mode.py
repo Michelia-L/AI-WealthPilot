@@ -28,7 +28,6 @@ from pathlib import Path
 from typing import Generator, Optional
 
 from src import config
-from src.agents import ips_storage
 from src.agents.advisor import AdvisorReport
 from src.agents.investment_preferences import (
     apply_ips_preferences,
@@ -703,12 +702,14 @@ async def run_demo_ips_task(
         ips_dict = apply_ips_preferences(record["ips"], profile_data, locale)
         ips_dict["client_name"] = client_name
 
-        filepath = ips_storage.save_ips(
+        from api.artifacts import save_task_ips
+
+        filepath = save_task_ips(
+            task,
             ips_dict=ips_dict,
             audit_trail_dict=audit_trail,
             client_name=client_name,
             profile_id=task.meta.get("profile_id"),
-            client_id=task.meta.get("client_id"),
         )
         task.status = "completed"
         await task.publish(

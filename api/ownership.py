@@ -1,8 +1,7 @@
 """Ownership persistence services; callers own the transaction.
 
-These helpers validate references, not caller permissions. Legacy API routes
-explicitly use the local organization until organization-aware authorization
-is implemented. A login identity never implies a membership or client role.
+These helpers validate references, not caller permissions. API routes resolve
+the authorized organization before calling them. A login identity never implies a membership or client role.
 """
 
 from sqlalchemy.dialects.sqlite import insert

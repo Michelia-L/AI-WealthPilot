@@ -45,7 +45,7 @@ Explicit demo login grants admin membership in the dedicated `demo` organization
 
 ## Route integration boundary
 
-Existing routes now enforce authentication and scoped authorization; the [route audit](api-access.md) records each group and its object checks. Assignment management remains an internal service with no public management endpoint. The broader resource ownership and migration audit remains in #76.
+Existing routes now enforce authentication and scoped authorization; the [route audit](api-access.md) records each group and its object checks. Assignment management remains an internal service with no public management endpoint. The [resource ownership inventory and migration](resource-ownership.md) extend these checks to file artifacts, task replay, holdings and deployment settings.
 
 Additional routes can use the helpers with an explicit scope and the real identity dependency:
 

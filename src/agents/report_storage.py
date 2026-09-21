@@ -284,6 +284,7 @@ def list_reports(
     limit: int = 50,
     *,
     allowed_client_ids: set[str] | None = None,
+    filepaths: list[Path] | None = None,
 ) -> list[dict]:
     """List stored advisory reports with optional filtering.
 
@@ -297,7 +298,9 @@ def list_reports(
     _ensure_reports_dir()
 
     reports = []
-    for filepath in sorted(REPORTS_DIR.glob("*.json"), reverse=True):
+    for filepath in sorted(
+        filepaths if filepaths is not None else REPORTS_DIR.glob("*.json"), reverse=True
+    ):
         try:
             report = load_report(filepath)
 

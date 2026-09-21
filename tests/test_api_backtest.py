@@ -32,7 +32,7 @@ def _write_ips_doc(ips_dir, doc_id, saa, client_name="回测客户", fee_schedul
         "ips": ips,
         "audit_trail": {"final_status": "approved", "total_rounds": 0},
         "metadata": {
-            "client_id": artifact_client_id(),
+            "client_id": artifact_client_id(doc_id),
             "client_name": client_name,
             "saved_at": "2026-06-01T09:30:00",
         },

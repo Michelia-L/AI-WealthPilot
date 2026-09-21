@@ -57,14 +57,14 @@ def _read_db_settings() -> dict[str, str]:
         with Session(db.engine) as session:
             rows = session.exec(
                 select(db.AppSettingRecord).where(
-                    db.AppSettingRecord.key.in_(LLM_SETTING_KEYS)
+                    db.AppSettingRecord.scope == "deployment",
+                    db.AppSettingRecord.key.in_(LLM_SETTING_KEYS),
                 )
             ).all()
             return {row.key: row.value for row in rows}
     except Exception:
         logger.debug(
             "app_settings read failed; falling back to env LLM config",
-            exc_info=True,
         )
         return {}
 
