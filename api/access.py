@@ -85,17 +85,34 @@ class Access:
             self.deny(404, f"{kind}_not_found")
         return record
 
-    def artifact_paths(self, kind: str):
-        from api.artifacts import artifact_path, load_artifact
+    def iter_artifacts(self, kind: str):
+        from api.artifacts import load_artifact
 
-        paths = []
-        for record in self.session.exec(self.artifacts(kind)).all():
-            try:
-                load_artifact(record)
-                paths.append(artifact_path(record))
-            except (OSError, ValueError, TypeError):
-                continue
-        return paths
+        # Stream ordered rows in batches; callers stop after enough valid items.
+        statement = (
+            self.artifacts(kind)
+            .order_by(ArtifactRecord.filename.desc())
+            .execution_options(yield_per=50)
+        )
+        rows = self.session.exec(statement)
+        try:
+            for record in rows:
+                try:
+                    payload = load_artifact(record)
+                except (OSError, ValueError, TypeError):
+                    continue
+                yield record, payload
+        finally:
+            rows.close()
+
+    def report(self, report_id: str):
+        from api.artifacts import load_artifact
+
+        record = self.artifact(report_id, "report")
+        try:
+            return load_artifact(record)
+        except (OSError, ValueError, TypeError):
+            self.deny(404, "report_not_found")
 
     def report_path(self, report_id: str):
         from api.artifacts import artifact_path, load_artifact
@@ -107,10 +124,41 @@ class Access:
         except (OSError, ValueError, TypeError):
             self.deny(404, "report_not_found")
 
-    def ips_documents(self) -> list[dict]:
-        from src.agents import ips_storage
+    def ips_documents(
+        self, limit: int = 50, *, include_records: bool = False
+    ) -> list[dict]:
+        from api.artifacts import artifact_path
+        from src.agents.ips_storage import summarize_ips
 
-        return ips_storage.list_ips_documents(filepaths=self.artifact_paths("ips"))
+        documents = []
+        if limit <= 0:
+            return documents
+        for owner, payload in self.iter_artifacts("ips"):
+            try:
+                summary = summarize_ips(payload, artifact_path(owner))
+            except (ValueError, TypeError, AttributeError):
+                continue
+            if include_records:
+                # Internal fleet input; never included in the public list DTO.
+                summary["record"] = payload
+            documents.append(summary)
+            if len(documents) >= limit:
+                break
+        return documents
+
+    def reports(self, client_name: str | None = None, limit: int = 50) -> list[dict]:
+        from src.agents.report_storage import summarize_report
+
+        reports = []
+        if limit <= 0:
+            return reports
+        for _, payload in self.iter_artifacts("report"):
+            if client_name and payload.client_name != client_name:
+                continue
+            reports.append(summarize_report(payload))
+            if len(reports) >= limit:
+                break
+        return reports
 
     def task(self, task_id: str, kind: str) -> None:
         from sqlalchemy import and_, or_

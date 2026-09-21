@@ -1,6 +1,7 @@
 """Resource migrations preserve payloads and never infer permissions from names."""
 
 import json
+from pathlib import Path
 
 import pytest
 from sqlalchemy import event, inspect
@@ -365,3 +366,58 @@ def test_cli_failure_is_redacted_and_rolls_back(owners, tmp_path, capsys):
     output = capsys.readouterr().out
     assert owners["own"] not in output
     assert path.name not in output
+
+
+@pytest.mark.parametrize(
+    "first_name,second_name", [("Alpha", "Zulu"), ("Zulu", "Alpha")]
+)
+@pytest.mark.parametrize("unowned_first", [False, True])
+def test_duplicate_legacy_report_ids_abort_without_choosing_owner(
+    owners, monkeypatch, first_name, second_name, unowned_first
+):
+    monkeypatch.setattr(
+        report_storage, "_generate_report_id", lambda: "20300101_000000_000001"
+    )
+    first = report_storage.save_report(
+        "first",
+        first_name,
+        "fixture",
+        client_id=None if unowned_first else owners["own"],
+    )
+    second = report_storage.save_report(
+        "second", second_name, "fixture", client_id=owners["foreign"]
+    )
+    assert first.filepath != second.filepath
+    # An unrelated earlier insert must roll back too.
+    path = write_ips(owners["own"])
+    with pytest.raises(ValueError, match="Duplicate legacy artifact ID"):
+        migrate()
+    with Session(db.engine) as session:
+        assert session.get(db.ArtifactRecord, ("report", first.report_id)) is None
+        assert session.get(db.ArtifactRecord, ("ips", path.stem)) is None
+
+
+@pytest.mark.parametrize(
+    "first_name,second_name", [("Alpha", "Zulu"), ("Zulu", "Alpha")]
+)
+def test_duplicate_of_authoritative_report_is_counted_without_reassignment(
+    owners, monkeypatch, first_name, second_name
+):
+    monkeypatch.setattr(
+        report_storage, "_generate_report_id", lambda: "20300101_000000_000001"
+    )
+    first = report_storage.save_report(
+        "first", first_name, "fixture", client_id=owners["own"]
+    )
+    assert migrate()["artifacts"] == 1
+    report_storage.save_report(
+        "second", second_name, "fixture", client_id=owners["foreign"]
+    )
+    for _ in range(2):
+        result = migrate()
+        assert result["artifacts"] == 0
+        assert result["unresolved_files"] == 1
+    with Session(db.engine) as session:
+        record = session.get(db.ArtifactRecord, ("report", first.report_id))
+        assert record.client_id == owners["own"]
+        assert record.filename == Path(first.filepath).name

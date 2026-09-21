@@ -279,12 +279,24 @@ def load_report(filepath: Path) -> StoredReport:
     return report
 
 
+def summarize_report(report: StoredReport) -> dict:
+    """Build a summary without re-reading the validated report file."""
+    return {
+        "report_id": report.report_id,
+        "client_name": report.client_name,
+        "model": report.model,
+        "generated_at": report.generated_at,
+        "total_tokens": report.total_tokens,
+        "filepath": report.filepath,
+        "has_notes": bool(report.notes),
+    }
+
+
 def list_reports(
     client_name: Optional[str] = None,
     limit: int = 50,
     *,
     allowed_client_ids: set[str] | None = None,
-    filepaths: list[Path] | None = None,
 ) -> list[dict]:
     """List stored advisory reports with optional filtering.
 
@@ -298,9 +310,7 @@ def list_reports(
     _ensure_reports_dir()
 
     reports = []
-    for filepath in sorted(
-        filepaths if filepaths is not None else REPORTS_DIR.glob("*.json"), reverse=True
-    ):
+    for filepath in sorted(REPORTS_DIR.glob("*.json"), reverse=True):
         try:
             report = load_report(filepath)
 
@@ -314,17 +324,7 @@ def list_reports(
             if client_name and report.client_name != client_name:
                 continue
 
-            reports.append(
-                {
-                    "report_id": report.report_id,
-                    "client_name": report.client_name,
-                    "model": report.model,
-                    "generated_at": report.generated_at,
-                    "total_tokens": report.total_tokens,
-                    "filepath": report.filepath,
-                    "has_notes": bool(report.notes),
-                }
-            )
+            reports.append(summarize_report(report))
 
             if len(reports) >= limit:
                 break

@@ -107,11 +107,27 @@ def load_ips(filepath: Path) -> dict:
         return json.load(f)
 
 
+def summarize_ips(record: dict, filepath: Path) -> dict:
+    """Build a summary from the same payload the caller loaded and validated."""
+    ips = record.get("ips", {})
+    meta = record.get("metadata", {})
+    audit = record.get("audit_trail", {})
+    return {
+        "filepath": str(filepath),
+        "profile_id": meta.get("profile_id"),
+        "client_name": meta.get("client_name", ips.get("client_name", "Unknown")),
+        "version": ips.get("version", "?"),
+        "risk_level": ips.get("risk_tolerance", {}).get("overall_risk_level", "?"),
+        "status": audit.get("final_status", "?"),
+        "revision_rounds": audit.get("total_rounds", 0),
+        "saved_at": meta.get("saved_at", ""),
+    }
+
+
 def list_ips_documents(
     limit: int = 50,
     *,
     allowed_client_ids: set[str] | None = None,
-    filepaths: list[Path] | None = None,
 ) -> list[dict]:
     """
     List all saved IPS documents with summary info.
@@ -125,36 +141,17 @@ def list_ips_documents(
     _ensure_ips_dir()
     documents = []
 
-    for filepath in sorted(
-        filepaths if filepaths is not None else IPS_DIR.glob("ips_*.json"), reverse=True
-    ):
+    for filepath in sorted(IPS_DIR.glob("ips_*.json"), reverse=True):
         try:
             record = load_ips(filepath)
-            ips = record.get("ips", {})
             meta = record.get("metadata", {})
-            audit = record.get("audit_trail", {})
             if (
                 allowed_client_ids is not None
                 and meta.get("client_id") not in allowed_client_ids
             ):
                 continue
 
-            documents.append(
-                {
-                    "filepath": str(filepath),
-                    "profile_id": meta.get("profile_id"),
-                    "client_name": meta.get(
-                        "client_name", ips.get("client_name", "Unknown")
-                    ),
-                    "version": ips.get("version", "?"),
-                    "risk_level": ips.get("risk_tolerance", {}).get(
-                        "overall_risk_level", "?"
-                    ),
-                    "status": audit.get("final_status", "?"),
-                    "revision_rounds": audit.get("total_rounds", 0),
-                    "saved_at": meta.get("saved_at", ""),
-                }
-            )
+            documents.append(summarize_ips(record, filepath))
 
             if len(documents) >= limit:
                 break

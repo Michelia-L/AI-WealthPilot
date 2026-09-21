@@ -885,7 +885,13 @@ def _parse_fleet_documents(
             "error": None,
         }
         try:
-            record = ips_storage.load_ips(Path(summary["filepath"]))
+            # API callers pass the already authorized and validated payload.
+            # Reuse it so a summary and its computation share one file read.
+            record = (
+                summary["record"]
+                if "record" in summary
+                else ips_storage.load_ips(Path(summary["filepath"]))
+            )
             ips = record.get("ips", {})
             meta = record.get("metadata", {})
             entry["client_name"] = (

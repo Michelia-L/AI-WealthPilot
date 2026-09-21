@@ -23,7 +23,7 @@ Authentication and role checks are described in [API access](api-access.md). Thi
 
 New artifact, task and holdings writes derive ownership from the authenticated request or persisted task, never from client-submitted owner fields. Composite foreign keys reject a Client UUID from another organization. Historical creator identities remain null when unknown; migration does not invent them. Artifact index `created_at` records registration time; original generation timestamps remain in the unchanged payload. Profiles continue to use the existing Client relationship rather than duplicating organization IDs.
 
-The artifact SQL index is authoritative. Existing JSON formats remain compatible with standalone domain tools. An unindexed file returns 404 through the API, including a newly written standalone file. A payload that conflicts with its indexed owner is rejected. File symlinks are not adopted or served. Missing payload files remain inaccessible; the ownership index is retained so a later restore cannot silently reassign an ID.
+The artifact SQL index is authoritative. API lists stream authorized index rows in descending filename order, load and validate each payload once, and stop at the requested number of valid matching summaries (50 by default). Missing/corrupt files and report-name filters can require scanning further. Fleet calculations reuse those validated IPS payloads. Existing JSON formats remain compatible with standalone domain tools. An unindexed file returns 404 through the API, including a newly written standalone file. A payload that conflicts with its indexed owner is rejected. File symlinks are not adopted or served. Missing payload files remain inaccessible; the ownership index is retained so a later restore cannot silently reassign an ID.
 
 ## Automatic upgrade
 
@@ -35,7 +35,7 @@ On startup, `init_db()` runs under SQLite `BEGIN IMMEDIATE`:
 4. Promote valid #75 task ownership metadata into dedicated columns. Unknown or conflicting ownership stays null and cannot be accessed through task endpoints.
 5. Backfill legacy holdings ownership from the indexed IPS, never from a client name or numeric profile ID.
 
-Partially upgraded tables with missing required constraints are rejected. The database changes commit together or roll back together, including DDL. Running initialization again is safe. Artifact payload files are neither rewritten nor deleted. Malformed, missing-owner and dangling-owner files remain unindexed; ownership indexes already present are never reassigned. Keep the SQLite database and artifact directories together in backups and restores.
+Partially upgraded tables with missing required constraints are rejected. The database changes commit together or roll back together, including DDL. Running initialization again is safe. Artifact payload files are neither rewritten nor deleted. If different files share an ID that had no authoritative index before this scan, migration aborts and rolls back the entire batch; directory order never chooses the owner. If the ID was already indexed, that ownership is preserved and extra conflicting files count as unresolved. Resolve duplicate legacy IDs in an operator-reviewed copy before retrying. Malformed, missing-owner and dangling-owner files remain unindexed; ownership indexes already present are never reassigned. Keep the SQLite database and artifact directories together in backups and restores.
 
 ## Explicit legacy adoption
 

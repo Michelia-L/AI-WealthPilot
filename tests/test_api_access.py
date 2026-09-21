@@ -591,3 +591,80 @@ def test_holdings_queries_filter_tenant_and_document_owner(workspace):
         assert latest_snapshot(session, doc, organization_id="a") is None
         assert latest_snapshots(session, [doc], organization_id="a") == {}
         assert snapshot_history(session, doc, organization_id="a") == []
+
+
+@pytest.mark.parametrize("kind", ["ips", "report"])
+def test_artifact_lists_read_only_one_page_once(workspace, monkeypatch, kind):
+    from api.migrate_resources import migrate_resources
+
+    client, _, clients, _, _, headers = workspace
+    for i in range(70):
+        if kind == "ips":
+            ips_storage.save_ips(
+                {"client_name": f"Example {i}"},
+                {},
+                f"Example {i}",
+                client_id=clients["own"],
+            )
+        else:
+            report_storage.save_report(
+                "synthetic", f"Example {i}", "fixture", client_id=clients["own"]
+            )
+    with db.engine.begin() as connection:
+        migrate_resources(connection)
+    module, name = (
+        (ips_storage, "load_ips") if kind == "ips" else (report_storage, "load_report")
+    )
+    original = getattr(module, name)
+    reads = []
+
+    def load_once(path):
+        assert path not in reads, "Payload read more than once"
+        reads.append(path)
+        return original(path)
+
+    monkeypatch.setattr(module, name, load_once)
+    url = "/api/ips" if kind == "ips" else "/api/advisor/reports"
+    response = client.get(url, headers=headers("advisor"))
+    assert response.status_code == 200
+    items = response.json()["documents" if kind == "ips" else "reports"]
+    assert len(items) == len(reads) == 50
+    assert reads == sorted(reads, reverse=True)
+    assert all("record" not in item for item in items)
+
+
+def test_report_summary_uses_validated_payload_without_reopening(
+    workspace, monkeypatch
+):
+    client, _, _, _, artifacts, headers = workspace
+    original = report_storage.load_report
+
+    def replace_after_read(path):
+        report = original(path)
+        data = json.loads(path.read_text())
+        data["client_name"] = "UNVALIDATED REPLACEMENT"
+        path.write_text(json.dumps(data))
+        return report
+
+    monkeypatch.setattr(report_storage, "load_report", replace_after_read)
+    response = client.get("/api/advisor/reports", headers=headers("advisor"))
+    assert response.status_code == 200
+    assert [r["client_name"] for r in response.json()["reports"]] == ["own"]
+
+
+def test_fleet_reuses_validated_ips_payload(workspace, monkeypatch):
+    client, _, _, _, _, headers = workspace
+    original = ips_storage.load_ips
+    reads = []
+
+    def load_once(path):
+        assert path not in reads, "Fleet reopened the validated IPS"
+        reads.append(path)
+        return original(path)
+
+    monkeypatch.setattr(ips_storage, "load_ips", load_once)
+    response = client.get(
+        "/api/monitoring/status?refresh=true", headers=headers("advisor")
+    )
+    assert response.status_code == 200
+    assert len(reads) == 1

@@ -202,10 +202,7 @@ def list_reports(
     # Never expose internal filepaths in the API surface.
     reports = [
         ReportSummary(**{k: v for k, v in r.items() if k != "filepath"})
-        for r in report_storage.list_reports(
-            client_name=client_name,
-            filepaths=access.artifact_paths("report"),
-        )
+        for r in access.reports(client_name=client_name)
     ]
     return ReportListResponse(reports=reports)
 
@@ -218,8 +215,7 @@ def list_reports(
 def get_report(
     report_id: str, request: Request, access: Access = Depends(get_access)
 ) -> ReportDetailResponse:
-    filepath = access.report_path(report_id)
-    report = report_storage.load_report(filepath)
+    report = access.report(report_id)
     return ReportDetailResponse(
         report_id=report.report_id,
         client_name=report.client_name,
@@ -281,8 +277,7 @@ def get_report_pdf(
     Content-Disposition.
     """
     locale = get_request_locale(request)
-    filepath = access.report_path(report_id)
-    report = report_storage.load_report(filepath)
+    report = access.report(report_id)
     with tempfile.TemporaryDirectory() as tmpdir:
         pdf_path = report_storage.export_report_pdf(
             report, Path(tmpdir) / "report.pdf", locale=locale
@@ -323,8 +318,7 @@ def export_report_file(
                 formats=" / ".join(_EXPORT_FORMATS),
             ),
         )
-    filepath = access.report_path(report_id)
-    report = report_storage.load_report(filepath)
+    report = access.report(report_id)
 
     base = (
         f"report_{sanitize_filename(report.client_name) or 'client'}_{report.report_id}"

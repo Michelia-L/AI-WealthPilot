@@ -145,6 +145,7 @@ def migrate_resources(
 
     counts = {"artifacts": 0, "tasks": 0, "snapshots": 0, "unresolved_files": 0}
     seen = set()
+    scanned_ids: dict[tuple[str, str], tuple[str, bool]] = {}
     for kind, directory in (
         ("ips", ips_storage.IPS_DIR),
         ("report", report_storage.REPORTS_DIR),
@@ -186,6 +187,13 @@ def migrate_resources(
                 .mappings()
                 .first()
             )
+            identity = kind, resource_id
+            previous = scanned_ids.get(identity)
+            if previous is not None and previous[0] != path.name and not previous[1]:
+                # No authoritative index existed before this scan. Never let file
+                # ordering pick one owner from ambiguous legacy copies.
+                raise ValueError("Duplicate legacy artifact ID; migration aborted")
+            scanned_ids.setdefault(identity, (path.name, old is not None))
             if mapping:
                 client_id, organization_id = (
                     mapping["client_id"],
@@ -207,6 +215,13 @@ def migrate_resources(
                     old["filename"],
                 ) != (*owner, path.name):
                     raise ValueError("Mapping cannot reassign an indexed artifact")
+                if (
+                    old["filename"] != path.name
+                    or meta.get("client_id") not in (None, "", old["client_id"])
+                    or meta.get("organization_id")
+                    not in (None, "", old["organization_id"])
+                ):
+                    counts["unresolved_files"] += 1
                 continue
             if owner is None:
                 counts["unresolved_files"] += 1

@@ -104,7 +104,7 @@ def get_fleet_status(
     # part of the key because fleet item notes are localized.
     # The version covers both inputs the computation reads: holdings snapshots
     # and the IPS document set itself (add/edit/delete/restore).
-    documents = access.ips_documents()
+    documents = access.ips_documents(include_records=True)
     revision = (
         snapshot_revision(session, organization_id=access.organization_id),
         ips_storage.ips_revision(),
