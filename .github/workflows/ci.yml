@@ -1,6 +1,4 @@
-# CI — 让 README 的 Build 徽章名副其实。
-# push 到 main 与 PR 时运行：Python 全套测试（含覆盖率 gate + pip-audit
-# CVE 扫描）+ 前端 vitest/lint/build。
+# PR checks follow changed paths; main pushes and manual runs check everything.
 
 name: CI
 
@@ -8,10 +6,41 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Select checks
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.scope.outputs.python }}
+      web: ${{ steps.scope.outputs.web }}
+      e2e: ${{ steps.scope.outputs.e2e }}
+      docs: ${{ steps.scope.outputs.docs }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Test CI selection rules
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
+      - name: Select checks from PR diff
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 .github/scripts/ci_scope.py
+
   python:
     name: Python (pytest)
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -52,7 +81,7 @@ jobs:
       - name: Run test suite
         # Gate at 87%: measured 92% on the pinned dependency set (2026-08),
         # minus 5pp headroom so routine changes don't trip the gate.
-        run: python -m pytest -q --cov=src --cov=api --cov=validation --cov-report=term-missing --cov-report=xml --cov-fail-under=87
+        run: python -m pytest -q --durations=20 --cov=src --cov=api --cov=validation --cov-report=term-missing --cov-report=xml --cov-fail-under=87
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v7
@@ -66,6 +95,8 @@ jobs:
 
   web:
     name: Web (lint + build)
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -100,6 +131,8 @@ jobs:
 
   e2e:
     name: E2E (Playwright, demo-mode backend)
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -145,3 +178,48 @@ jobs:
           name: playwright-report
           path: web/playwright-report/
           if-no-files-found: ignore
+
+  docs:
+    name: Docs (MkDocs)
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install docs dependencies
+        run: pip install $(grep -E '^(mkdocs-material|jieba)==' requirements-dev.txt | cut -d' ' -f1)
+      - run: mkdocs build --strict
+
+  result:
+    name: CI result
+    if: always()
+    needs: [changes, python, web, e2e, docs]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require successful selected checks
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          selection = needs["changes"]
+          if selection["result"] != "success":
+              sys.exit("CI selection failed or was cancelled")
+          for job in ("python", "web", "e2e", "docs"):
+              enabled = selection["outputs"].get(job)
+              if enabled not in ("true", "false"):
+                  sys.exit(f"Missing or invalid selection for {job}")
+              expected = "success" if enabled == "true" else "skipped"
+              if needs[job]["result"] != expected:
+                  sys.exit(f"{job}: expected {expected}, got {needs[job]['result']}")
+          print("All selected checks passed.")
+          PY

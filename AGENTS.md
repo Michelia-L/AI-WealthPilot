@@ -65,16 +65,26 @@ docker compose up --build
 
 ## 验证策略
 
-先跑与改动最相关的最小测试集，再按影响面补齐门禁。不要因为只改文档就机械执行整套全栈测试，也不要因为改动很小就跳过相关验证。
+本地验证默认按影响范围选择，完整门禁由 CI 执行。开始前确定相关模块、调用方和风险边界；不要把每个 issue 都当作一次全栈回归。
 
-- **Python / `src/` / `api/` 改动**：至少跑 `ruff check`、`ruff format --check` 和相关 pytest；准备 PR 前，对影响面较广的改动跑 `python -m pytest -q`。
-- **Web 改动**：按影响面跑 `cd web && npm test`、`npm run typecheck`、`npm run lint`、`npm run build`。
-- **跨层用户流程、same-origin proxy、SSE / background task、locale 切换、断线恢复等改动**：补跑 `cd web && npm run test:e2e`。Playwright 配置会拉起独立 demo backend 和 web server。
+- **Python / `src/` / `api/` 改动**：跑 `ruff check`、`ruff format --check` 和相关模块及调用边界的 pytest，例如 `python -m pytest -q tests/test_<module>.py`。鉴权/租户隔离、数据库迁移、跨模块核心逻辑或无法可靠界定影响面的改动，本地补跑 `python -m pytest -q`。覆盖率门禁默认交给 CI，不要求每次本地重复收集。
+- **Web 改动**：选择相关 Vitest、类型检查、lint 和必要的 build；详细选择规则见 `web/AGENTS.md`。
+- **跨层用户流程、same-origin proxy、SSE / background task、locale 切换、断线恢复等改动**：补跑相关 Playwright spec，例如 `cd web && npm run test:e2e -- e2e/locale.spec.ts`；共享会话、代理、导航或广泛用户流程变更跑完整 E2E。Playwright 配置会拉起独立 demo backend 和 web server。
 - **`guide/` 内容或 MkDocs 配置改动**：跑 `mkdocs build --strict`；更多写作检查见 `guide/AGENTS.md`。
-- **仅 README / `docs/` / AGENTS 指令改动**：做链接、路径和事实核对；只有实际影响运行时或站点构建时才追加对应测试。
-- GitHub CI 是合并前最终门禁；本地验证用于尽早发现问题，不能替代 CI 结果。
+- **仅 README / 普通 `docs/` / AGENTS 指令改动**：做链接、路径和事实核对；`docs/ips_reference/` 被运行时读取，应按 Python 影响面验证。
+- **CI 选择逻辑 / workflow 改动**：运行 `python3 -m unittest discover -s .github/scripts -p 'test_*.py'`，检查 Python lint/格式和 workflow 语法；修改门禁条件时验证失败、取消和跳过分支。完整应用检查交给本次 PR 的 CI。
+- 已通过的检查可以复用，除非后续代码、依赖或配置变更使结果失效。只调整测试断言时重跑相关测试；不要无条件重新执行 build、全套 pytest、coverage 或 E2E。有失败或新的影响面证据时再扩大验证范围。
 
-当前 CI 由 Python、Web 和 Playwright E2E jobs 组成，并包含 Ruff、pytest coverage gate、pip-audit、Vitest、TypeScript、ESLint、Next build 等检查。具体命令和版本以 `.github/workflows/ci.yml` 为准，不要在本文件复制短生命周期数字。
+CI 在每个 PR 上运行选择逻辑和汇总门禁：普通文档跳过应用测试，站点内容跑 MkDocs，后端改动跑 Python + E2E，前端改动跑 Web + E2E；混合改动取并集。根目录依赖、CI 配置及未识别路径保守跑全套，main push 和手动运行也跑全套。具体路径规则以 `.github/scripts/ci_scope.py` 为准。
+
+保留 Python coverage、pip-audit、Web production dependency audit 和现有应用检查；pytest 输出最慢测试供后续优化。同一 PR 的过时 CI 自动取消。`CI result` 检查选择逻辑成功且所有选中的 job 成功；配置分支保护时应将其设为 required check，已有应用 job 名称保持不变。命令和版本以 `.github/workflows/ci.yml` 为准。
+
+## PR 交付与 CI 等待
+
+- 一轮 review 中相关修复尽量合并验证后再 push，减少重复 CI。
+- 默认交付点是完成相关本地验证并创建/更新 PR。读取一次当前 CI 状态，在交付中列出已跑检查、未跑的完整检查及 CI pending/通过/失败；pending 时结束交付，不反复轮询或为了等结果重复运行本地全套。
+- 用户明确要求等待 CI、合并，或当前任务就是修复 CI 失败时，继续跟进到所需结果。长任务使用工具支持的等待机制，避免频繁短轮询；读取失败 job 的相关步骤日志，成功检查只汇总。
+- 合并前必须确认最新提交的必需 CI 检查全部通过；本地测试或旧提交的绿灯不能替代该结果。
 
 ## Git 规范
 
