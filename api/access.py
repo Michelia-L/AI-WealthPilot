@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 from api.auth import get_current_principal
 from api.authorization import authorized_clients_statement
 from api.db import (
+    ArtifactRecord,
     ClientRecord,
     OrganizationMembershipRecord,
     ProfileRecord,
@@ -59,57 +60,124 @@ class Access:
         return record
 
     def ips(self, document_id: str) -> dict:
-        from src.agents import ips_storage
+        from api.artifacts import load_artifact
 
-        if not document_id or not all(c.isalnum() or c in "_-" for c in document_id):
-            self.deny(404, "ips_not_found")
-        path = ips_storage.IPS_DIR / f"{document_id}.json"
-        if not path.is_file():
-            self.deny(404, "ips_not_found")
+        owner = self.artifact(document_id, "ips")
         try:
-            record = ips_storage.load_ips(path)
-        except (OSError, ValueError):
+            return load_artifact(owner)
+        except (OSError, ValueError, TypeError):
             self.deny(404, "ips_not_found")
-        if not isinstance(record, dict) or not isinstance(record.get("metadata"), dict):
-            self.deny(404, "ips_not_found")
-        if not self.owns(record.get("metadata", {}).get("client_id")):
-            self.deny(404, "ips_not_found")
+
+    def artifacts(self, kind: str):
+        return select(ArtifactRecord).where(
+            ArtifactRecord.kind == kind,
+            ArtifactRecord.organization_id == self.organization_id,
+            ArtifactRecord.client_id.in_(self.client_ids()),
+        )
+
+    def artifact(self, resource_id: str, kind: str) -> ArtifactRecord:
+        record = self.session.exec(
+            self.artifacts(kind).where(
+                ArtifactRecord.resource_id == resource_id,
+            )
+        ).first()
+        if record is None:
+            self.deny(404, f"{kind}_not_found")
         return record
 
-    def owns(self, client_id: str | None) -> bool:
-        return bool(
-            isinstance(client_id, str)
-            and client_id
-            and self.session.exec(
-                self.client_ids().where(ClientRecord.id == client_id)
-            ).first()
-        )
+    def iter_artifacts(self, kind: str):
+        from api.artifacts import load_artifact
 
-    def ips_documents(self) -> list[dict]:
-        from src.agents import ips_storage
-
-        return ips_storage.list_ips_documents(
-            allowed_client_ids=set(self.session.exec(self.client_ids()).all())
+        # Stream ordered rows in batches; callers stop after enough valid items.
+        statement = (
+            self.artifacts(kind)
+            .order_by(ArtifactRecord.filename.desc())
+            .execution_options(yield_per=50)
         )
+        rows = self.session.exec(statement)
+        try:
+            for record in rows:
+                try:
+                    payload = load_artifact(record)
+                except (OSError, ValueError, TypeError):
+                    continue
+                yield record, payload
+        finally:
+            rows.close()
+
+    def report(self, report_id: str):
+        from api.artifacts import load_artifact
+
+        record = self.artifact(report_id, "report")
+        try:
+            return load_artifact(record)
+        except (OSError, ValueError, TypeError):
+            self.deny(404, "report_not_found")
+
+    def report_path(self, report_id: str):
+        from api.artifacts import artifact_path, load_artifact
+
+        record = self.artifact(report_id, "report")
+        try:
+            load_artifact(record)
+            return artifact_path(record)
+        except (OSError, ValueError, TypeError):
+            self.deny(404, "report_not_found")
+
+    def ips_documents(
+        self, limit: int = 50, *, include_records: bool = False
+    ) -> list[dict]:
+        from api.artifacts import artifact_path
+        from src.agents.ips_storage import summarize_ips
+
+        documents = []
+        if limit <= 0:
+            return documents
+        for owner, payload in self.iter_artifacts("ips"):
+            try:
+                summary = summarize_ips(payload, artifact_path(owner))
+            except (ValueError, TypeError, AttributeError):
+                continue
+            if include_records:
+                # Internal fleet input; never included in the public list DTO.
+                summary["record"] = payload
+            documents.append(summary)
+            if len(documents) >= limit:
+                break
+        return documents
+
+    def reports(self, client_name: str | None = None, limit: int = 50) -> list[dict]:
+        from src.agents.report_storage import summarize_report
+
+        reports = []
+        if limit <= 0:
+            return reports
+        for _, payload in self.iter_artifacts("report"):
+            if client_name and payload.client_name != client_name:
+                continue
+            reports.append(summarize_report(payload))
+            if len(reports) >= limit:
+                break
+        return reports
 
     def task(self, task_id: str, kind: str) -> None:
-        import json
+        from sqlalchemy import and_, or_
 
-        record = self.session.get(TaskRecord, task_id)
-        if record is None or record.kind != kind:
-            self.deny(404, "task_not_found")
-        try:
-            meta = json.loads(record.meta_json)
-        except (ValueError, TypeError):
-            self.deny(404, "task_not_found")
-        if not isinstance(meta, dict):
-            self.deny(404, "task_not_found")
-        if meta.get("organization_id") != self.organization_id:
-            self.deny(404, "task_not_found")
-        if meta.get("client_id"):
-            if not self.owns(meta["client_id"]):
-                self.deny(404, "task_not_found")
-        elif meta.get("created_by") != self.principal.user_id:
+        record = self.session.exec(
+            select(TaskRecord.task_id).where(
+                TaskRecord.task_id == task_id,
+                TaskRecord.kind == kind,
+                TaskRecord.organization_id == self.organization_id,
+                or_(
+                    TaskRecord.client_id.in_(self.client_ids()),
+                    and_(
+                        TaskRecord.client_id.is_(None),
+                        TaskRecord.created_by == self.principal.user_id,
+                    ),
+                ),
+            )
+        ).first()
+        if record is None:
             self.deny(404, "task_not_found")
 
 

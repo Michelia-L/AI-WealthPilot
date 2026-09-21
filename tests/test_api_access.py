@@ -2,6 +2,7 @@
 
 import json
 import re
+from pathlib import Path
 
 import pytest
 from sqlmodel import Session
@@ -12,6 +13,7 @@ from api.main import create_app
 from api.profile_convert import payload_to_data
 from api.schemas import ProfilePayload
 from src.agents import ips_storage, report_storage
+from tests.api_ownership_helpers import index_artifacts
 from tests.test_api_profiles import sample_payload
 from tests.test_authorization import seed
 
@@ -96,6 +98,8 @@ def workspace(anonymous_client):
             )
             session.commit()
         artifacts[key] = (path.stem, report.report_id)
+
+    index_artifacts()
 
     def headers(user, org="a"):
         return {"Authorization": f"Bearer {tokens[user]}", "X-Organization-ID": org}
@@ -377,6 +381,8 @@ def test_task_kind_and_creator_scope_cannot_be_bypassed(workspace):
         session.add(
             db.TaskRecord(
                 task_id="standalone",
+                organization_id="a",
+                created_by="advisor",
                 kind="optimize",
                 status="completed",
                 meta_json=json.dumps({"organization_id": "a", "created_by": "advisor"}),
@@ -473,3 +479,192 @@ def test_legacy_and_malformed_artifacts_fail_closed(workspace):
         ).status_code
         == 404
     )
+
+
+def test_task_authorization_uses_columns_not_mutable_metadata(workspace):
+    client, _, _, _, _, headers = workspace
+    with Session(db.engine) as session:
+        record = session.get(db.TaskRecord, "foreign")
+        record.meta_json = json.dumps({"organization_id": "a", "created_by": "advisor"})
+        session.add(record)
+        session.commit()
+    assert (
+        client.get(
+            "/api/ips/tasks/foreign/events", headers=headers("advisor")
+        ).status_code
+        == 404
+    )
+
+
+def test_artifact_authorization_precedes_payload_loading(workspace, monkeypatch):
+    client, _, _, _, artifacts, headers = workspace
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("Unauthorized artifact payload was loaded")
+
+    monkeypatch.setattr(ips_storage, "load_ips", unexpected)
+    monkeypatch.setattr(report_storage, "load_report", unexpected)
+    doc, report = artifacts["foreign"]
+    assert client.get(f"/api/ips/{doc}", headers=headers("admin")).status_code == 404
+    assert (
+        client.get(
+            f"/api/advisor/reports/{report}", headers=headers("admin")
+        ).status_code
+        == 404
+    )
+
+
+def test_explicit_legacy_adoption_respects_client_scope(workspace):
+    from api.migrate_resources import migrate_resources
+
+    client, _, clients, _, _, headers = workspace
+    path = ips_storage.save_ips({"client_name": "Legacy"}, {}, "Legacy")
+    report = report_storage.save_report("Legacy", "Legacy", "fixture")
+    assert (
+        client.get(f"/api/ips/{path.stem}", headers=headers("client")).status_code
+        == 404
+    )
+    with db.engine.begin() as connection:
+        migrate_resources(
+            connection,
+            [
+                {
+                    "kind": "ips",
+                    "filename": path.name,
+                    "organization_id": "a",
+                    "client_id": clients["own"],
+                },
+                {
+                    "kind": "report",
+                    "filename": Path(report.filepath).name,
+                    "organization_id": "a",
+                    "client_id": clients["own"],
+                },
+            ],
+        )
+    assert (
+        client.get(f"/api/ips/{path.stem}", headers=headers("client")).status_code
+        == 200
+    )
+    assert (
+        client.get(
+            f"/api/ips/{path.stem}", headers=headers("foreign_admin", "b")
+        ).status_code
+        == 404
+    )
+    assert (
+        client.get(
+            f"/api/advisor/reports/{report.report_id}", headers=headers("advisor")
+        ).status_code
+        == 200
+    )
+    assert (
+        client.get(
+            f"/api/advisor/reports/{report.report_id}",
+            headers=headers("foreign_admin", "b"),
+        ).status_code
+        == 404
+    )
+
+
+def test_holdings_queries_filter_tenant_and_document_owner(workspace):
+    from api.holding_snapshots import (
+        latest_snapshot,
+        latest_snapshots,
+        snapshot_history,
+    )
+
+    client, _, clients, _, artifacts, headers = workspace
+    doc = artifacts["own"][0]
+    with Session(db.engine) as session:
+        for org, client_id in [("b", clients["foreign"]), ("a", clients["other"])]:
+            session.add(
+                db.HoldingSnapshotRecord(
+                    document_id=doc,
+                    organization_id=org,
+                    client_id=client_id,
+                    as_of="2026-01-01",
+                    data={"sentinel": "must-not-leak"},
+                )
+            )
+        session.commit()
+        assert latest_snapshot(session, doc, organization_id="a") is None
+        assert latest_snapshots(session, [doc], organization_id="a") == {}
+        assert snapshot_history(session, doc, organization_id="a") == []
+
+
+@pytest.mark.parametrize("kind", ["ips", "report"])
+def test_artifact_lists_read_only_one_page_once(workspace, monkeypatch, kind):
+    from api.migrate_resources import migrate_resources
+
+    client, _, clients, _, _, headers = workspace
+    for i in range(70):
+        if kind == "ips":
+            ips_storage.save_ips(
+                {"client_name": f"Example {i}"},
+                {},
+                f"Example {i}",
+                client_id=clients["own"],
+            )
+        else:
+            report_storage.save_report(
+                "synthetic", f"Example {i}", "fixture", client_id=clients["own"]
+            )
+    with db.engine.begin() as connection:
+        migrate_resources(connection)
+    module, name = (
+        (ips_storage, "load_ips") if kind == "ips" else (report_storage, "load_report")
+    )
+    original = getattr(module, name)
+    reads = []
+
+    def load_once(path):
+        assert path not in reads, "Payload read more than once"
+        reads.append(path)
+        return original(path)
+
+    monkeypatch.setattr(module, name, load_once)
+    url = "/api/ips" if kind == "ips" else "/api/advisor/reports"
+    response = client.get(url, headers=headers("advisor"))
+    assert response.status_code == 200
+    items = response.json()["documents" if kind == "ips" else "reports"]
+    assert len(items) == len(reads) == 50
+    assert reads == sorted(reads, reverse=True)
+    assert all("record" not in item for item in items)
+
+
+def test_report_summary_uses_validated_payload_without_reopening(
+    workspace, monkeypatch
+):
+    client, _, _, _, artifacts, headers = workspace
+    original = report_storage.load_report
+
+    def replace_after_read(path):
+        report = original(path)
+        data = json.loads(path.read_text())
+        data["client_name"] = "UNVALIDATED REPLACEMENT"
+        path.write_text(json.dumps(data))
+        return report
+
+    monkeypatch.setattr(report_storage, "load_report", replace_after_read)
+    response = client.get("/api/advisor/reports", headers=headers("advisor"))
+    assert response.status_code == 200
+    assert [r["client_name"] for r in response.json()["reports"]] == ["own"]
+
+
+def test_fleet_reuses_validated_ips_payload(workspace, monkeypatch):
+    client, _, _, _, _, headers = workspace
+    original = ips_storage.load_ips
+    reads = []
+
+    def load_once(path):
+        reads.append(path)
+        return original(path)
+
+    monkeypatch.setattr(ips_storage, "load_ips", load_once)
+    response = client.get(
+        "/api/monitoring/status?refresh=true", headers=headers("advisor")
+    )
+    assert response.status_code == 200
+    assert len(response.json()["items"]) == 1
+    assert len(reads) == 1

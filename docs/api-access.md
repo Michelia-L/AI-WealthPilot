@@ -22,9 +22,9 @@ Paths below are relative to `/api`. “Staff” means advisor or admin in the se
 | `POST /profiles`; `GET /profiles/compare`; `DELETE /profiles/{id}` | advisor-scoped | Staff; every compared/deleted profile checked. New profile belongs to the selected organization; an advisor creator receives an assignment to that new Client |
 | `POST /profiles/import/upload` | admin-scoped | Import and deduplication confined to selected organization |
 | `POST /profiles/import` | admin-scoped | Local organization admin, excluding demo identities; reads server-local legacy files |
-| `GET /ips`, `/ips/{id}`, `/ips/{id}/pdf`, `/ips/{id}/export` | client-scoped | Stable Client ID in document metadata must be accessible |
+| `GET /ips`, `/ips/{id}`, `/ips/{id}/pdf`, `/ips/{id}/export` | client-scoped | SQL artifact ownership must be accessible before reading the payload |
 | `POST /ips/generate`; `GET /ips/tasks/{id}/events` | advisor-scoped | Authorized profile before generation; persisted task ownership before live/replayed SSE |
-| All `/advisor/*` | advisor-scoped | Staff; stream/save check profile, and report list/read/delete/export/PDF check stored Client ID |
+| All `/advisor/*` | advisor-scoped | Staff; stream/save check profile, and report list/read/delete/export/PDF check indexed organization and Client ID |
 | All `/monitoring/*` | advisor-scoped | Staff; IPS ownership before holdings, analysis, backtest, or advice. Optional advice profile is checked too. Fleet inputs are filtered and cache entries distinguish caller and organization |
 | All `/portfolio/*` | advisor-scoped | Staff; any supplied profile is checked before recommendation or optimization. Task events check kind, organization and Client ID, or creator for a task with no profile |
 | All `/retirement/*` | advisor-scoped | Staff; supplied profile checked before CME suggestion. Simulation uses submitted inputs only |
@@ -33,9 +33,9 @@ Paths below are relative to `/api`. “Staff” means advisor or admin in the se
 
 ## Stable artifacts and upgrade behavior
 
-New IPS documents and advisor reports store the originating Client UUID. Report saves require `profile_id`; the server resolves and stamps the Client and current profile name. Submitted client names or extra ownership fields do not determine access. New task records store organization, creator, and optional Client UUID; task kind must match the events endpoint.
+New IPS documents and advisor reports store the originating Client UUID and an authoritative SQL ownership index. Report saves require `profile_id`; the server resolves and stamps the Client and current profile name. Submitted client names or extra ownership fields do not determine access. New task records store organization, creator, and optional Client UUID; task kind must match the events endpoint.
 
-Legacy IPS/reports without a Client UUID and tasks without ownership metadata are hidden and return 404. Matching a client name or an old numeric profile ID does not imply ownership. This change does not rewrite or delete old files. The broader resource ownership and migration audit remains in #76. Deleting/recreating a numeric profile cannot transfer access to its prior Client's artifacts.
+Startup indexes artifacts with a valid stored Client UUID and migrates valid task ownership into dedicated columns. Unindexed IPS/reports and unowned tasks remain hidden and return 404. Matching a client name or an old numeric profile ID does not imply ownership. See [resource ownership and explicit legacy adoption](resource-ownership.md) for the full inventory, constraints and migration procedure. Payload files are not rewritten or deleted. Deleting/recreating a numeric profile cannot transfer access to its prior Client's artifacts.
 
 ## Web and local setup
 

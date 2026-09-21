@@ -18,7 +18,7 @@ import pytest
 
 from api.routers import monitoring as monitoring_router
 from src.portfolio.cme_models import AssetClassCME, CMEReport
-from tests.api_ownership_helpers import artifact_client_id
+from tests.api_ownership_helpers import artifact_client_id, index_artifacts
 
 SAVED_AT = "2026-06-01T09:30:00"
 
@@ -58,7 +58,7 @@ def _write_ips_doc(ips_dir, doc_id, saa, saved_at=SAVED_AT, client_name="测试�
         },
         "audit_trail": {"final_status": "approved", "total_rounds": 0},
         "metadata": {
-            "client_id": artifact_client_id(),
+            "client_id": artifact_client_id(doc_id),
             "client_name": client_name,
             "saved_at": saved_at,
             "notes": "",
@@ -572,7 +572,7 @@ def _write_ips_doc_with_currency_policy(
         },
         "audit_trail": {"final_status": "approved", "total_rounds": 0},
         "metadata": {
-            "client_id": artifact_client_id(),
+            "client_id": artifact_client_id(doc_id),
             "client_name": "测试客户",
             "saved_at": saved_at,
             "notes": "",
@@ -1316,9 +1316,9 @@ def test_fleet_cache_versions_do_not_accumulate_or_reload_history(
 
     calls = []
 
-    def load(session, document_ids=None):
+    def load(session, document_ids, *, organization_id):
         calls.append(True)
-        return latest_snapshots(session, document_ids)
+        return latest_snapshots(session, document_ids, organization_id=organization_id)
 
     monkeypatch.setattr(monitoring_router, "latest_snapshots", load)
     for amount in range(800, 810):
@@ -1354,9 +1354,11 @@ def test_latest_snapshots_loads_only_sql_winners(client, actual_doc, ips_dir):
         event.listen(
             session, "loaded_as_persistent", lambda session, obj: loaded.append(obj)
         )
-        assert snapshot_revision(session) == second["id"]
+        assert snapshot_revision(session, organization_id="local") == second["id"]
         assert loaded == []  # scalar max(id) does not materialize JSON/ORM records
-        snapshots = latest_snapshots(session)
+        snapshots = latest_snapshots(
+            session, ["ips_actual", "ips_second"], organization_id="local"
+        )
     assert snapshots["ips_actual"]["id"] == revision["id"] != newest["id"]
     assert snapshots["ips_second"]["id"] == second["id"]
     assert len([obj for obj in loaded if isinstance(obj, HoldingSnapshotRecord)]) == 2
@@ -1428,6 +1430,7 @@ def test_saved_at_and_drift_cutoff_use_business_timezone(client, stub_cme, monke
         "Boundary Client",
         client_id=artifact_client_id(),
     )
+    index_artifacts()
     saved_at = json.loads(filepath.read_text(encoding="utf-8"))["metadata"]["saved_at"]
     saved_dt = datetime.fromisoformat(saved_at)
     assert saved_dt.tzinfo is not None  # timezone-aware business time

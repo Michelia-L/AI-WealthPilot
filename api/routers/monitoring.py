@@ -104,9 +104,9 @@ def get_fleet_status(
     # part of the key because fleet item notes are localized.
     # The version covers both inputs the computation reads: holdings snapshots
     # and the IPS document set itself (add/edit/delete/restore).
-    documents = access.ips_documents()
+    documents = access.ips_documents(include_records=True)
     revision = (
-        snapshot_revision(session),
+        snapshot_revision(session, organization_id=access.organization_id),
         ips_storage.ips_revision(),
         tuple(d["filepath"] for d in documents),
     )
@@ -114,7 +114,9 @@ def get_fleet_status(
 
     def compute() -> MonitoringFleetResponse:
         snapshots = latest_snapshots(
-            session, [Path(d["filepath"]).stem for d in documents]
+            session,
+            [Path(d["filepath"]).stem for d in documents],
+            organization_id=access.organization_id,
         )
         return MonitoringFleetResponse(
             **compute_fleet_status(
@@ -153,7 +155,9 @@ def get_monitoring(
             status_code=404, detail=msg("common.ips_doc_not_found", locale)
         )
     try:
-        snapshot = latest_snapshot(session, document_id)
+        snapshot = latest_snapshot(
+            session, document_id, organization_id=access.organization_id
+        )
         result = compute_monitoring(
             document_id, locale=locale, **({"snapshot": snapshot} if snapshot else {})
         )
@@ -383,7 +387,9 @@ def stream_rebalance_advice(
             status_code=404, detail=msg("common.ips_doc_not_found", locale)
         )
     try:
-        snapshot = latest_snapshot(session, payload.document_id)
+        snapshot = latest_snapshot(
+            session, payload.document_id, organization_id=access.organization_id
+        )
         monitoring = compute_monitoring(
             payload.document_id,
             locale=locale,
@@ -438,7 +444,10 @@ def get_holding_snapshots(
     access.ips(document_id)
     context = _holdings_context(document_id, get_request_locale(request))
     return HoldingSnapshotHistory(
-        **context, snapshots=snapshot_history(session, document_id)
+        **context,
+        snapshots=snapshot_history(
+            session, document_id, organization_id=access.organization_id
+        ),
     )
 
 
@@ -464,8 +473,14 @@ def create_holding_snapshot(
         raise HTTPException(
             status_code=422, detail=msg(f"holdings.{e}", locale)
         ) from None
+    owner = access.artifact(document_id, "ips")
     record = HoldingSnapshotRecord(
-        document_id=document_id, as_of=data["as_of"], data=data
+        organization_id=owner.organization_id,
+        client_id=owner.client_id,
+        created_by=access.principal.user_id,
+        document_id=document_id,
+        as_of=data["as_of"],
+        data=data,
     )
     session.add(record)
     session.commit()

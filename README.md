@@ -66,7 +66,7 @@ Disable demo mode and restart the backend (`docker compose up -d --force-recreat
 
 Quantitative features can run without an LLM key; live AI endpoints return HTTP 503 when no key is configured. Replace the placeholder key in `.env` with a real key, or leave it empty when using only quantitative features. Optional `FRED_API_KEY` and `TUSHARE_TOKEN` enable additional data sources. See [.env.example](.env.example) for configuration entries and [data internals](guide/internals/03-data-pipeline-cme.md) for provider routing.
 
-Business APIs require a session and scoped access; see [API access and upgrade notes](docs/api-access.md). Client records are stored locally by default. **Live AI requests send the profile and report context needed for that task to your configured model provider**, and the key is used to authenticate those requests. See [data and deployment boundaries](#data-and-deployment-boundaries).
+Business APIs require a session and scoped access; see [API access and upgrade notes](docs/api-access.md) and [resource ownership migration](docs/resource-ownership.md). Client records are stored locally by default. **Live AI requests send the profile and report context needed for that task to your configured model provider**, and the key is used to authenticate those requests. See [data and deployment boundaries](#data-and-deployment-boundaries).
 
 ## Wealth management workflow
 

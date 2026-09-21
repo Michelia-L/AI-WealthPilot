@@ -232,7 +232,7 @@ def test_ips_generate_demo_error_path(client, demo_on, monkeypatch):
     def _boom(**kwargs):
         raise RuntimeError("disk full")
 
-    monkeypatch.setattr("src.agents.demo_mode.ips_storage.save_ips", _boom)
+    monkeypatch.setattr("api.artifacts.ips_storage.save_ips", _boom)
     profile_id = _create_profile(client)
 
     task_id = client.post("/api/ips/generate", json={"profile_id": profile_id}).json()[

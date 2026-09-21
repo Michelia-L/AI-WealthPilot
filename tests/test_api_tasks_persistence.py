@@ -17,7 +17,7 @@ from sqlmodel import Session
 from api import db
 from api.db import TaskRecord
 from api.tasks import TaskRegistry, reconcile_interrupted_tasks, task_events_stream
-from tests.api_ownership_helpers import artifact_client_id
+from tests.api_ownership_helpers import artifact_client_id, task_owner
 from tests.test_api_advisor import _parse_sse
 
 # Reuse the IPS fake-workflow fixture pattern (imported fixtures register in
@@ -108,6 +108,8 @@ def test_running_record_replays_with_trailing_error(client):
         session.add(
             TaskRecord(
                 task_id="stuck1",
+                organization_id="local",
+                client_id=artifact_client_id(),
                 meta_json=json.dumps(
                     {"organization_id": "local", "client_id": artifact_client_id()}
                 ),
@@ -145,7 +147,7 @@ def test_reconnecting_consumer_gets_full_stream(client):
     registry = TaskRegistry()
 
     async def scenario():
-        task = registry.create("ips", client_name="John Doe")
+        task = registry.create("ips", client_name="John Doe", **task_owner())
         await task.publish(
             {"type": "node", "node": "generate_cme", "label": "生成 CME"}
         )
@@ -190,7 +192,7 @@ def test_reconnect_after_completion_replays_full_sequence(client):
     registry = TaskRegistry()
 
     async def scenario():
-        task = registry.create("optimize", method="resampled")
+        task = registry.create("optimize", method="resampled", **task_owner())
         live = task_events_stream(registry, task.task_id)  # still running
         await task.publish({"type": "node", "node": "fetch", "label": "获取行情数据"})
         await task.publish({"type": "node", "node": "solve", "label": "求解组合"})
@@ -216,7 +218,7 @@ def test_seqless_events_pass_through_untouched(client):
     registry = TaskRegistry()
 
     async def scenario():
-        task = registry.create("ips", client_name="John Doe")
+        task = registry.create("ips", client_name="John Doe", **task_owner())
         # Simulate a pre-seq persisted row.
         with Session(db.engine) as session:
             record = session.get(TaskRecord, task.task_id)

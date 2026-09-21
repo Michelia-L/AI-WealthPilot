@@ -69,10 +69,27 @@ class TaskRegistry:
         task = BackgroundTask(task_id=uuid.uuid4().hex[:12], kind=kind, meta=meta)
         try:
             with Session(db.engine) as session:
+                organization_id = meta.get("organization_id")
+                client_id = meta.get("client_id")
+                created_by = meta.get("created_by")
+                if not organization_id or not created_by:
+                    raise ValueError("Task ownership required")
+                if (
+                    session.get(db.OrganizationRecord, organization_id) is None
+                    or session.get(db.UserRecord, created_by) is None
+                ):
+                    raise ValueError("Invalid task owner")
+                if client_id is not None:
+                    client = session.get(db.ClientRecord, client_id)
+                    if client is None or client.organization_id != organization_id:
+                        raise ValueError("Invalid task client")
                 session.add(
                     db.TaskRecord(
                         task_id=task.task_id,
                         kind=kind,
+                        organization_id=organization_id,
+                        client_id=client_id,
+                        created_by=created_by,
                         status="running",
                         meta_json=json.dumps(meta, ensure_ascii=False, default=str),
                     )

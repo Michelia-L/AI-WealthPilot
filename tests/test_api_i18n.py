@@ -31,7 +31,7 @@ def _write_doc_without_saa(ips_dir, doc_id: str) -> None:
         "ips": {"client_name": "En Client", "version": "1.0"},
         "audit_trail": {},
         "metadata": {
-            "client_id": artifact_client_id(),
+            "client_id": artifact_client_id(doc_id),
             "client_name": "En Client",
             "saved_at": "2026-06-01T09:30:00",
         },
@@ -110,7 +110,7 @@ def test_client_fixture_sends_zh(client):
 def test_report_404_english(bare_client):
     resp = bare_client.get("/api/advisor/reports/20990101_000000_000000")
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "Report not found"
+    assert resp.json()["detail"] == "Report not found."
 
 
 def test_ips_doc_404_english(bare_client):
@@ -248,7 +248,7 @@ def test_ips_sse_error_message_english(bare_client, demo_on, monkeypatch):
     def _boom(**kwargs):
         raise RuntimeError("disk full")
 
-    monkeypatch.setattr("src.agents.demo_mode.ips_storage.save_ips", _boom)
+    monkeypatch.setattr("api.artifacts.ips_storage.save_ips", _boom)
     profile_id = _create_profile(bare_client)
     task_id = bare_client.post(
         "/api/ips/generate", json={"profile_id": profile_id}

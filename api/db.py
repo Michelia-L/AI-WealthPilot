@@ -43,7 +43,9 @@ def get_db_url() -> str:
 def make_engine(url: Optional[str] = None):
     # check_same_thread=False: FastAPI serves requests from a threadpool.
     db_engine = create_engine(
-        url or get_db_url(), connect_args={"check_same_thread": False}
+        url or get_db_url(),
+        connect_args={"check_same_thread": False},
+        hide_parameters=True,
     )
 
     @event.listens_for(db_engine, "connect")
@@ -183,8 +185,22 @@ class TaskRecord(SQLModel, table=True):
     """
 
     __tablename__ = "background_tasks"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["organization_id", "client_id"], ["clients.organization_id", "clients.id"]
+        ),
+        CheckConstraint(
+            "organization_id IS NOT NULL OR (client_id IS NULL AND created_by IS NULL)"
+        ),
+    )
 
     task_id: str = Field(primary_key=True)
+    # Null only for quarantined legacy rows; new tasks require explicit scope.
+    organization_id: Optional[str] = Field(
+        default=None, foreign_key="organizations.id", index=True
+    )
+    client_id: Optional[str] = Field(default=None, index=True)
+    created_by: Optional[str] = Field(default=None, foreign_key="users.id")
     kind: str = Field(index=True)  # "ips" / "optimize"
     status: str = Field(default="running", index=True)  # running/completed/failed
     meta_json: str = "{}"
@@ -197,18 +213,54 @@ class AppSettingRecord(SQLModel, table=True):
     """One app-setting row: key-value store (LLM config, feature flags…)."""
 
     __tablename__ = "app_settings"
+    __table_args__ = (CheckConstraint("scope = 'deployment'"),)
 
     key: str = Field(primary_key=True)
+    scope: str = "deployment"
     value: str = ""
     updated_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+
+class ArtifactRecord(SQLModel, table=True):
+    """Authoritative ownership index for JSON artifacts; payload stays in src storage."""
+
+    __tablename__ = "artifacts"
+    __table_args__ = (
+        CheckConstraint("kind IN ('ips', 'report')"),
+        UniqueConstraint("kind", "filename"),
+        ForeignKeyConstraint(
+            ["organization_id", "client_id"], ["clients.organization_id", "clients.id"]
+        ),
+    )
+
+    kind: str = Field(primary_key=True)
+    resource_id: str = Field(primary_key=True)
+    filename: str
+    organization_id: str = Field(foreign_key="organizations.id", index=True)
+    client_id: str = Field(index=True)
+    created_by: Optional[str] = Field(default=None, foreign_key="users.id")
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 
 class HoldingSnapshotRecord(SQLModel, table=True):
     """Append-only, complete valuations for an IPS; same-day corrections append."""
 
     __tablename__ = "holding_snapshots"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["organization_id", "client_id"], ["clients.organization_id", "clients.id"]
+        ),
+        CheckConstraint(
+            "(organization_id IS NULL AND client_id IS NULL AND created_by IS NULL) OR (organization_id IS NOT NULL AND client_id IS NOT NULL)"
+        ),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    organization_id: Optional[str] = Field(
+        default=None, foreign_key="organizations.id", index=True
+    )
+    client_id: Optional[str] = Field(default=None, index=True)
+    created_by: Optional[str] = Field(default=None, foreign_key="users.id")
     document_id: str = Field(index=True)
     as_of: str = Field(index=True)
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
@@ -216,8 +268,9 @@ class HoldingSnapshotRecord(SQLModel, table=True):
 
 
 def init_db() -> None:
-    """Create tables and atomically migrate legacy SQLite profile ownership."""
+    """Create tables and atomically migrate profile and resource ownership."""
     from api.migrate_ownership import migrate_ownership
+    from api.migrate_resources import migrate_resource_schema, migrate_resources
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with engine.connect() as connection:
@@ -230,6 +283,8 @@ def init_db() -> None:
             # SQLite needs this composite parent key for assignment tenant FKs.
             CLIENT_ORGANIZATION_INDEX.create(connection, checkfirst=True)
             migrate_ownership(connection)
+            migrate_resource_schema(connection)
+            migrate_resources(connection)
             connection.commit()
         except Exception:
             connection.rollback()

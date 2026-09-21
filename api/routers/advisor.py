@@ -25,6 +25,7 @@ from fastapi.responses import Response, StreamingResponse
 from sqlmodel import Session
 
 from api.access import Access, get_access, staff_access
+from api.artifacts import register_artifact
 from api.db import ProfileRecord, get_session
 from api.i18n import get_request_locale, msg
 from api.profile_convert import profile_from_data
@@ -150,14 +151,6 @@ def stream_report(
 # ---------------------------------------------------------------------------
 
 
-def _find_report_file(report_id: str):
-    """Locate a report file by id; glob keeps lookups inside REPORTS_DIR."""
-    if not report_id.replace("_", "").isdigit():
-        return None
-    matches = list(report_storage.REPORTS_DIR.glob(f"report_*_{report_id}.json"))
-    return matches[0] if matches else None
-
-
 @router.post(
     "/reports",
     response_model=ReportSummary,
@@ -177,6 +170,16 @@ def save_report(
         completion_tokens=payload.completion_tokens,
         notes=payload.notes,
     )
+    register_artifact(
+        access.session,
+        kind="report",
+        resource_id=stored.report_id,
+        filename=Path(stored.filepath).name,
+        organization_id=access.organization_id,
+        client_id=record.client_id,
+        created_by=access.principal.user_id,
+    )
+    access.session.commit()
     return ReportSummary(
         report_id=stored.report_id,
         client_name=stored.client_name,
@@ -199,10 +202,7 @@ def list_reports(
     # Never expose internal filepaths in the API surface.
     reports = [
         ReportSummary(**{k: v for k, v in r.items() if k != "filepath"})
-        for r in report_storage.list_reports(
-            client_name=client_name,
-            allowed_client_ids=set(access.session.exec(access.client_ids()).all()),
-        )
+        for r in access.reports(client_name=client_name)
     ]
     return ReportListResponse(reports=reports)
 
@@ -215,15 +215,7 @@ def list_reports(
 def get_report(
     report_id: str, request: Request, access: Access = Depends(get_access)
 ) -> ReportDetailResponse:
-    filepath = _find_report_file(report_id)
-    if filepath is None or not access.owns(
-        report_storage.load_report(filepath).client_id
-    ):
-        raise HTTPException(
-            status_code=404,
-            detail=msg("common.report_not_found", get_request_locale(request)),
-        )
-    report = report_storage.load_report(filepath)
+    report = access.report(report_id)
     return ReportDetailResponse(
         report_id=report.report_id,
         client_name=report.client_name,
@@ -246,11 +238,7 @@ def get_report(
 def delete_report(
     report_id: str, request: Request, access: Access = Depends(get_access)
 ) -> None:
-    filepath = _find_report_file(report_id)
-    if filepath is None or not access.owns(
-        report_storage.load_report(filepath).client_id
-    ):
-        access.deny(404, "report_not_found")
+    filepath = access.report_path(report_id)
     if not report_storage.delete_report(filepath):
         raise HTTPException(
             status_code=404,
@@ -289,14 +277,7 @@ def get_report_pdf(
     Content-Disposition.
     """
     locale = get_request_locale(request)
-    filepath = _find_report_file(report_id)
-    if filepath is None or not access.owns(
-        report_storage.load_report(filepath).client_id
-    ):
-        raise HTTPException(
-            status_code=404, detail=msg("common.report_not_found", locale)
-        )
-    report = report_storage.load_report(filepath)
+    report = access.report(report_id)
     with tempfile.TemporaryDirectory() as tmpdir:
         pdf_path = report_storage.export_report_pdf(
             report, Path(tmpdir) / "report.pdf", locale=locale
@@ -337,14 +318,7 @@ def export_report_file(
                 formats=" / ".join(_EXPORT_FORMATS),
             ),
         )
-    filepath = _find_report_file(report_id)
-    if filepath is None or not access.owns(
-        report_storage.load_report(filepath).client_id
-    ):
-        raise HTTPException(
-            status_code=404, detail=msg("common.report_not_found", locale)
-        )
-    report = report_storage.load_report(filepath)
+    report = access.report(report_id)
 
     base = (
         f"report_{sanitize_filename(report.client_name) or 'client'}_{report.report_id}"

@@ -3,7 +3,7 @@
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from api.db import HoldingSnapshotRecord
+from api.db import ArtifactRecord, HoldingSnapshotRecord
 from src.portfolio.actual_holdings import compare_snapshots
 
 
@@ -17,13 +17,32 @@ def serialize(record: HoldingSnapshotRecord) -> dict:
     }
 
 
-def snapshot_revision(session: Session) -> int:
+def _scope(organization_id: str):
+    return (
+        HoldingSnapshotRecord.organization_id == organization_id,
+        select(ArtifactRecord.resource_id)
+        .where(
+            ArtifactRecord.kind == "ips",
+            ArtifactRecord.organization_id == organization_id,
+            ArtifactRecord.resource_id == HoldingSnapshotRecord.document_id,
+            ArtifactRecord.client_id == HoldingSnapshotRecord.client_id,
+        )
+        .exists(),
+    )
+
+
+def snapshot_revision(session: Session, *, organization_id: str) -> int:
     """An indexed scalar lookup; the table is append-only, including backfills."""
-    return session.exec(select(func.max(HoldingSnapshotRecord.id))).one() or 0
+    return (
+        session.exec(
+            select(func.max(HoldingSnapshotRecord.id)).where(*_scope(organization_id))
+        ).one()
+        or 0
+    )
 
 
 def latest_snapshots(
-    session: Session, document_ids: list[str] | None = None
+    session: Session, document_ids: list[str], *, organization_id: str
 ) -> dict[str, dict]:
     # Rank IDs in SQL and load JSON only for the winning row per document.
     ranked = select(
@@ -38,8 +57,9 @@ def latest_snapshots(
         )
         .label("position"),
     )
-    if document_ids is not None:
-        ranked = ranked.where(HoldingSnapshotRecord.document_id.in_(document_ids))
+    ranked = ranked.where(
+        *_scope(organization_id), HoldingSnapshotRecord.document_id.in_(document_ids)
+    )
     ranked = ranked.subquery()
     records = session.exec(
         select(HoldingSnapshotRecord)
@@ -49,20 +69,28 @@ def latest_snapshots(
     return {record.document_id: serialize(record) for record in records}
 
 
-def latest_snapshot(session: Session, document_id: str) -> dict | None:
+def latest_snapshot(
+    session: Session, document_id: str, *, organization_id: str
+) -> dict | None:
     record = session.exec(
         select(HoldingSnapshotRecord)
-        .where(HoldingSnapshotRecord.document_id == document_id)
+        .where(
+            HoldingSnapshotRecord.document_id == document_id, *_scope(organization_id)
+        )
         .order_by(HoldingSnapshotRecord.as_of.desc(), HoldingSnapshotRecord.id.desc())
         .limit(1)
     ).first()
     return serialize(record) if record else None
 
 
-def snapshot_history(session: Session, document_id: str) -> list[dict]:
+def snapshot_history(
+    session: Session, document_id: str, *, organization_id: str
+) -> list[dict]:
     records = session.exec(
         select(HoldingSnapshotRecord)
-        .where(HoldingSnapshotRecord.document_id == document_id)
+        .where(
+            HoldingSnapshotRecord.document_id == document_id, *_scope(organization_id)
+        )
         .order_by(HoldingSnapshotRecord.as_of, HoldingSnapshotRecord.id)
     ).all()
     snapshots = [serialize(r) for r in records]
