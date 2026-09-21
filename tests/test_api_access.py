@@ -658,7 +658,6 @@ def test_fleet_reuses_validated_ips_payload(workspace, monkeypatch):
     reads = []
 
     def load_once(path):
-        assert path not in reads, "Fleet reopened the validated IPS"
         reads.append(path)
         return original(path)
 
@@ -667,4 +666,5 @@ def test_fleet_reuses_validated_ips_payload(workspace, monkeypatch):
         "/api/monitoring/status?refresh=true", headers=headers("advisor")
     )
     assert response.status_code == 200
+    assert len(response.json()["items"]) == 1
     assert len(reads) == 1
