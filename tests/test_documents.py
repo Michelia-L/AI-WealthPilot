@@ -463,9 +463,7 @@ def test_first_source_adoption_unique_race_returns_conflict(workspace, monkeypat
         raise IntegrityError("insert", {}, RuntimeError("unique collision"))
 
     monkeypatch.setattr(documents, "create_draft", collision)
-    response = client.post(
-        f"/api/ips/{source}/documents", headers=headers("advisor")
-    )
+    response = client.post(f"/api/ips/{source}/documents", headers=headers("advisor"))
     assert response.status_code == 409
 
 
