@@ -1,6 +1,6 @@
 """Client Portal: identity-derived scope and explicitly allowlisted DTOs."""
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import select
 
 from api import documents
@@ -197,14 +197,25 @@ def report(report_id: str, access: ClientAccess = Depends(client_access)):
 def acknowledge(report_id: str, access: ClientAccess = Depends(client_access)):
     record = access.report(report_id)
     if record.status == "published":
-        documents.change(
-            access.session,
-            record,
-            "published",
-            access.locale,
-            status="acknowledged",
-            acknowledged_by=access.principal.user_id,
-            acknowledged_at=documents.now(),
-        )
-        access.session.commit()
+        try:
+            documents.change(
+                access.session,
+                record,
+                "published",
+                access.locale,
+                status="acknowledged",
+                acknowledged_by=access.principal.user_id,
+                acknowledged_at=documents.now(),
+            )
+            access.session.commit()
+        except HTTPException as exc:
+            if exc.status_code != 409:
+                raise
+            access.session.rollback()
+            # A concurrent acknowledgement may have won after this request
+            # loaded the published row. Treat that state as the same idempotent
+            # success instead of exposing the internal compare-and-set race.
+            record = access.report(report_id)
+            if record.status != "acknowledged":
+                raise
     return report_response(record)
