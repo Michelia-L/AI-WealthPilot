@@ -161,6 +161,8 @@ def approve(document_id: str, access: Access = Depends(staff_access)):
 )
 def publish(document_id: str, access: Access = Depends(staff_access)):
     record = get_document(access, document_id)
+    if record.status == "approved":
+        documents.validate_publishable(record, access.locale)
     documents.change(
         access.session,
         record,
