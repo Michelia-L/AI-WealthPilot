@@ -40,9 +40,12 @@ language reviewed by the advisor. There is no Client Portal UI in this change.
 raw artifact files. It includes organization and Client UUIDs, a stable
 `document_id` for the version series, a unique version `id`, integer `version`,
 status, creator, reviewer, approver, publisher, acknowledging user and timestamps.
-The route `{id}` is the version ID. Composite ownership foreign keys and unique
-`(document_id, version)` constraints apply. Back up the database to retain
-published content and its approval history.
+The route `{id}` is the version ID. Composite ownership foreign keys and unique `(document_id, version)` constraints
+apply. Source-backed versions also enforce unique `(source_artifact_id, version)`,
+so concurrent adoption cannot split one IPS into multiple logical series. Source
+IDs are indexed for reimport lookup. Published rows require both a publication
+timestamp and publisher identity. Back up the database to retain published
+content and its approval history.
 
 | Operation | Permission / transition |
 | --- | --- |
@@ -61,7 +64,9 @@ approve. An admin may also author a document; this implementation does not impos
 a separate-author rule. Authorization reads current membership and assignment on
 each request. Invalid transitions and edits to submitted versions return 409.
 Conditional SQL updates prevent a stale draft edit from replacing submitted
-content. Concurrent revision number conflicts return 409 for retry.
+content. Concurrent revision/adoption conflicts return 409 for retry. Concurrent
+client acknowledgements are idempotent: once either request records the
+acknowledgement, both observe the acknowledged version.
 
 Published/acknowledged versions remain visible when a new draft is created.
 Content is never overwritten in place after submission. Client reads use the
@@ -71,10 +76,14 @@ execution or acceptance of guaranteed results.
 
 ## IPS integration and existing data
 
-New live and demo IPS generation creates a publication draft in the same database
-transaction as artifact registration, before emitting the completed task event.
-The projection selects narrative sections and allocation targets; generated
-machine review results are not human approval. The raw IPS and audit trail remain
+New live and demo IPS generation validates the publication projection before
+writing the raw artifact, then creates a publication draft in the same database
+transaction as artifact registration before emitting the completed task event.
+If that transaction fails, the newly written task artifact is removed so startup
+migration cannot resurrect a failed generation. The projection selects narrative
+sections and allocation targets; generated machine review results are not human
+approval. IPS drafts may be incomplete while being prepared, but publication
+requires a non-empty, normalized target allocation. The raw IPS and audit trail remain
 available to authorized staff for research.
 
 For an existing indexed IPS, `POST /api/ips/{artifact_id}/documents` creates a draft
