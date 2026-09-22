@@ -459,7 +459,7 @@ def test_first_source_adoption_unique_race_returns_conflict(workspace, monkeypat
     client, _, _, _, artifacts, headers = workspace
     source = artifacts["own"][0]
 
-    def collision(**kwargs):
+    def collision(*args, **kwargs):
         raise IntegrityError("insert", {}, RuntimeError("unique collision"))
 
     monkeypatch.setattr(documents, "create_draft", collision)
