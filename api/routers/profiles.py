@@ -13,7 +13,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import Session, select
 
-from api.access import Access, get_access
+from api.access import Access, get_access, staff_access
 from api.db import ProfileRecord, get_session
 from api.i18n import get_request_locale, msg
 from api.migrate_profiles import import_json_profiles, import_uploaded_profiles
@@ -41,7 +41,7 @@ from src.agents.profiler import (
 )
 
 router = APIRouter(
-    prefix="/profiles", tags=["profiles"], dependencies=[Depends(get_access)]
+    prefix="/profiles", tags=["profiles"], dependencies=[Depends(staff_access)]
 )
 
 
@@ -87,7 +87,7 @@ def _build_track(questions: dict, locale: str) -> list[QuestionnaireQuestion]:
 @router.get(
     "",
     response_model=ProfileListResponse,
-    openapi_extra={"x-access-scope": "client-scoped"},
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 def list_profiles(
     session: Session = Depends(get_session), access: Access = Depends(get_access)
@@ -148,7 +148,7 @@ def create_profile(
 @router.get(
     "/questionnaire",
     response_model=QuestionnaireResponse,
-    openapi_extra={"x-access-scope": "authenticated"},
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 def get_questionnaire(request: Request) -> QuestionnaireResponse:
     """9-question dual-track risk questionnaire straight from src/ profiler.
@@ -239,7 +239,7 @@ def compare_profile_set(
 @router.get(
     "/{profile_id}",
     response_model=ProfileDetailResponse,
-    openapi_extra={"x-access-scope": "client-scoped"},
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 def get_profile(
     profile_id: int,
@@ -253,7 +253,7 @@ def get_profile(
 @router.put(
     "/{profile_id}",
     response_model=ProfileDetailResponse,
-    openapi_extra={"x-access-scope": "client-scoped"},
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 def update_profile(
     profile_id: int,

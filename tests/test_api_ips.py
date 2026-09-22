@@ -89,6 +89,11 @@ def test_generate_streams_progress_and_saves_document(client, fake_workflow):
     assert listing[0]["client_name"] == "John Doe"
     assert listing[0]["profile_id"] == profile_id
     assert listing[0]["status"] == "approved"
+    drafts = client.get("/api/documents").json()["documents"]
+    assert len(drafts) == 1
+    assert drafts[0]["source_artifact_id"] == document_id
+    assert drafts[0]["status"] == "draft"
+    assert drafts[0]["approved_by"] is None
 
     detail = client.get(f"/api/ips/{document_id}")
     assert detail.status_code == 200
@@ -208,3 +213,27 @@ def test_token_budget_exceeded_emits_localized_error(client, monkeypatch):
     assert "token 预算" in events[-1]["message"]
     assert "12345" in events[-1]["message"]
     assert "10000" in events[-1]["message"]
+
+
+def test_invalid_publication_content_does_not_leak_to_sse(
+    client, fake_workflow, monkeypatch
+):
+    monkeypatch.setattr(
+        "src.agents.ips_workflow.compile_ips_workflow",
+        lambda **kw: FakeWorkflowApp(
+            final_ips={
+                "client_name": "John Doe",
+                "executive_summary": {"private": "SYNTHETIC_SENSITIVE_TEXT"},
+            }
+        ),
+    )
+    profile_id = _create_profile(client)
+    task_id = client.post("/api/ips/generate", json={"profile_id": profile_id}).json()[
+        "task_id"
+    ]
+    response = client.get(f"/api/ips/tasks/{task_id}/events")
+    events = _parse_sse(response.text)
+    assert events[-1]["type"] == "error"
+    assert "SYNTHETIC_SENSITIVE_TEXT" not in response.text
+    assert client.get("/api/documents").json() == {"documents": []}
+    assert client.get("/api/ips").json() == {"documents": []}

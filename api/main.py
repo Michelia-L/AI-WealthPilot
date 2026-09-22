@@ -31,8 +31,10 @@ from api.routers import (
     advisor,
     auth,
     cme,
+    documents,
     ips,
     market,
+    me,
     monitoring,
     portfolio,
     profiles,
@@ -170,18 +172,27 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):
-        if request.url.path.startswith(("/api/auth/", "/api/settings/")):
+        if request.url.path.startswith(
+            ("/api/auth/", "/api/settings/", "/api/me", "/api/documents")
+        ):
             # FastAPI's default 422 includes submitted values, including passwords.
             return JSONResponse(
                 status_code=422,
                 content={
-                    "detail": msg("auth.invalid_request", get_request_locale(request))
+                    "detail": msg(
+                        "request.invalid"
+                        if request.url.path.startswith(("/api/me", "/api/documents"))
+                        else "auth.invalid_request",
+                        get_request_locale(request),
+                    )
                 },
                 headers={"Cache-Control": "no-store"},
             )
         return await request_validation_exception_handler(request, exc)
 
     app.include_router(auth.router, prefix="/api")
+    app.include_router(me.router, prefix="/api")
+    app.include_router(documents.router, prefix="/api")
     app.include_router(
         market.router, prefix="/api", dependencies=[Depends(get_current_principal)]
     )

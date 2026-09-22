@@ -6,9 +6,11 @@ confer ownership. Domain/standalone file writers remain usable without an API DB
 
 from pathlib import Path
 
+from pydantic import ValidationError
 from sqlmodel import Session
 
 from api import db
+from api.i18n import msg
 from src.agents import ips_storage, report_storage
 
 
@@ -68,14 +70,14 @@ def register_artifact(
     return record
 
 
-def save_task_ips(task, **kwargs) -> Path:
+def save_task_ips(task, *, locale: str = "en", **kwargs) -> Path:
     """Persist the payload and its ownership before publishing a completion event."""
     with Session(db.engine) as session:
         owner = session.get(db.TaskRecord, task.task_id)
         if owner is None or not owner.organization_id or not owner.client_id:
             raise ValueError("IPS task requires client ownership")
         filepath = ips_storage.save_ips(**kwargs, client_id=owner.client_id)
-        register_artifact(
+        artifact = register_artifact(
             session,
             kind="ips",
             resource_id=filepath.stem,
@@ -84,6 +86,16 @@ def save_task_ips(task, **kwargs) -> Path:
             client_id=owner.client_id,
             created_by=owner.created_by,
         )
+        from api.documents import draft_from_ips
+
+        try:
+            draft_from_ips(
+                session, artifact, kwargs["ips_dict"], owner.created_by, locale
+            )
+        except (ValidationError, KeyError, TypeError, AttributeError):
+            # Generation failures go to SSE; never echo source content from a
+            # validation exception into its user-visible error message.
+            raise ValueError(msg("documents.invalid_source", locale)) from None
         session.commit()
     return filepath
 

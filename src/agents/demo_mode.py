@@ -706,6 +706,7 @@ async def run_demo_ips_task(
 
         filepath = save_task_ips(
             task,
+            locale=locale,
             ips_dict=ips_dict,
             audit_trail_dict=audit_trail,
             client_name=client_name,

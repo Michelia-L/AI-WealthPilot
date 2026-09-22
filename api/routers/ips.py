@@ -21,10 +21,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
-from api.access import Access, get_access
+from api.access import Access, get_access, staff_access
 from api.db import get_session
 from api.i18n import get_request_locale, msg
 from api.schemas import (
+    DocumentResponse,
     IpsDetailResponse,
     IpsDocumentSummary,
     IpsGenerateRequest,
@@ -40,7 +41,7 @@ from src.agents import ips_storage, ips_workflow
 from src.agents.advisor import is_api_configured
 from src.agents.demo_mode import is_demo_mode, run_demo_ips_task
 
-router = APIRouter(prefix="/ips", tags=["ips"], dependencies=[Depends(get_access)])
+router = APIRouter(prefix="/ips", tags=["ips"], dependencies=[Depends(staff_access)])
 
 # Workflow nodes carrying a bilingual progress label (SSE timeline in the
 # UI); the rendered text lives in api.i18n under these message keys.
@@ -118,6 +119,7 @@ async def _run_ips_task(
 
         filepath = save_task_ips(
             task,
+            locale=locale,
             ips_dict=state["final_ips"],
             audit_trail_dict=state.get("audit_trail") or {},
             client_name=task.meta["client_name"],
@@ -214,10 +216,42 @@ async def task_events(
 # ---------------------------------------------------------------------------
 
 
+@router.post(
+    "/{document_id}/documents",
+    response_model=DocumentResponse,
+    status_code=201,
+    openapi_extra={"x-access-scope": "advisor-scoped"},
+)
+def create_publication_draft(
+    document_id: str, access: Access = Depends(staff_access)
+) -> DocumentResponse:
+    """Explicitly adopt a legacy IPS into the publication workflow."""
+    from pydantic import ValidationError
+
+    from api.documents import document_response, draft_from_ips
+
+    owner = access.artifact(document_id, "ips")
+    payload = access.ips(document_id)
+    try:
+        record = draft_from_ips(
+            access.session,
+            owner,
+            payload.get("ips", {}),
+            access.principal.user_id,
+            access.locale,
+        )
+    except (ValidationError, KeyError, TypeError, AttributeError):
+        raise HTTPException(
+            422, msg("documents.invalid_source", access.locale)
+        ) from None
+    access.session.commit()
+    return document_response(record)
+
+
 @router.get(
     "",
     response_model=IpsListResponse,
-    openapi_extra={"x-access-scope": "client-scoped"},
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 def list_ips(access: Access = Depends(get_access)) -> IpsListResponse:
     documents = [
@@ -239,7 +273,7 @@ def list_ips(access: Access = Depends(get_access)) -> IpsListResponse:
 @router.get(
     "/{document_id}",
     response_model=IpsDetailResponse,
-    openapi_extra={"x-access-scope": "client-scoped"},
+    openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 def get_ips(
     document_id: str, request: Request, access: Access = Depends(get_access)
@@ -264,7 +298,7 @@ def get_ips(
     )
 
 
-@router.get("/{document_id}/pdf", openapi_extra={"x-access-scope": "client-scoped"})
+@router.get("/{document_id}/pdf", openapi_extra={"x-access-scope": "advisor-scoped"})
 def get_ips_pdf(
     document_id: str, request: Request, access: Access = Depends(get_access)
 ) -> Response:
@@ -294,7 +328,7 @@ def get_ips_pdf(
     )
 
 
-@router.get("/{document_id}/export", openapi_extra={"x-access-scope": "client-scoped"})
+@router.get("/{document_id}/export", openapi_extra={"x-access-scope": "advisor-scoped"})
 def export_ips_markdown(
     document_id: str, request: Request, access: Access = Depends(get_access)
 ) -> Response:

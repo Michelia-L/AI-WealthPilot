@@ -30,6 +30,52 @@ def get_request_locale(request: Request) -> str:
 
 
 _MESSAGES: dict[str, dict[str, dict[str, str]]] = {
+    "request": {
+        "invalid": {"en": "Invalid request.", "zh": "请求格式无效。"},
+    },
+    "client": {
+        "ambiguous": {
+            "en": "More than one client is linked to this account. Contact your advisor to resolve the account link.",
+            "zh": "此账户关联了多个客户，请联系顾问确认账户关联。",
+        },
+        "performance_unavailable": {
+            "en": "Actual investment performance is not available. Published allocations are suggested targets, not executed holdings.",
+            "zh": "暂无实际投资收益数据。已发布的配置是建议目标，不代表已执行的持仓。",
+        },
+        "progress_unavailable": {
+            "en": "Goal progress is not available because contributions and balances are not tracked per goal.",
+            "zh": "尚未按目标记录投入和余额，因此暂无目标完成进度。",
+        },
+        "risk_unassessed": {
+            "en": "Your risk assessment is incomplete. Discuss your capacity for loss and comfort with market fluctuations with your advisor.",
+            "zh": "您的风险评估尚未完成，请与顾问讨论承受损失的能力及对市场波动的接受程度。",
+        },
+        "risk_explanation": {
+            "en": "Your assessed risk level is {level}. It uses the lower of your financial capacity to absorb losses and your willingness to accept market fluctuations. Discuss changes in your circumstances with your advisor.",
+            "zh": "您评估的风险等级为{level}。该等级取承受损失的财务能力与接受市场波动的意愿中较低的一项。情况变化时，请与顾问讨论。",
+        },
+    },
+    "documents": {
+        "conflict": {
+            "en": "The document cannot be changed in its current state. Refresh it or create a new revision.",
+            "zh": "文档当前状态不允许此操作，请刷新或创建新版本。",
+        },
+        "not_found": {"en": "Document not found.", "zh": "未找到文档。"},
+        "invalid_source": {
+            "en": "The source document cannot be prepared for publication.",
+            "zh": "源文档无法转换为待发布内容。",
+        },
+        "ips_title": {"en": "Investment Policy Statement", "zh": "投资政策声明"},
+        "return_objective": {"en": "Return objectives", "zh": "收益目标"},
+        "time_horizon": {"en": "Time horizon", "zh": "投资期限"},
+        "liquidity": {"en": "Liquidity", "zh": "流动性"},
+        "tax": {"en": "Tax considerations", "zh": "税务考虑"},
+        "legal": {"en": "Legal considerations", "zh": "法律考虑"},
+        "unique_circumstances": {"en": "Personal circumstances", "zh": "特殊情况"},
+        "monitoring": {"en": "Monitoring", "zh": "监控与评估"},
+        "fee_schedule": {"en": "Fees", "zh": "费用"},
+        "currency_policy": {"en": "Currency policy", "zh": "币种政策"},
+    },
     "authorization": {
         "profile_not_found": {"en": "Profile not found.", "zh": "未找到客户画像。"},
         "ips_not_found": {"en": "IPS document not found.", "zh": "未找到 IPS 文档。"},

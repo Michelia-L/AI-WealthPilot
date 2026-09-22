@@ -10,6 +10,7 @@ Authentication and role checks are described in [API access](api-access.md). Thi
 | Membership / advisor assignment | Organization | Organization/user membership and organization/client assignment constraints |
 | Client profile | Client | `client_profiles.client_id → clients.organization_id`; API queries use the shared authorized-client subquery |
 | IPS, embedded audit trail, AI-generated IPS content | Client | JSON payload plus authoritative `artifacts` index: kind, ID, filename, organization, Client UUID and nullable creator |
+| Published document versions | Client | SQLite `document_versions` stores immutable submitted content, version identity and human workflow history; only published/acknowledged versions appear through `/me/reports` ([publication lifecycle](client-publication.md)) |
 | Saved advisor report / generated deliverable | Client | Same index with kind `report`; ownership is queried before opening payload files, including exports/deletes |
 | Background task and persisted SSE events | Client, or user within an organization | Indexed `background_tasks.organization_id`, `client_id`, `created_by`; profile-bound tasks follow Client access, otherwise only the creator can replay them in the selected organization |
 | Portfolio recommendation / optimization | Request, or task scope | Synchronous results are not persisted separately. Async optimization results live in their scoped task event log; saved IPS allocations inherit IPS ownership |

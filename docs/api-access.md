@@ -4,9 +4,9 @@ All business API requests require an active bearer session. OpenAPI records ever
 
 ## Workspace selection and roles
 
-Send `X-Organization-ID` with the session. The API infers the organization only when the caller has exactly one membership. Missing membership, an unknown scope, or ambiguous selection returns generic 403. A header selects a scope; it cannot grant membership or a role. Missing, invalid, expired, or revoked sessions return 401 with `WWW-Authenticate: Bearer`.
+For workstation routes, send `X-Organization-ID` with the session. Client Portal `/api/me/*` instead derives a unique linked Client from the session; see [Client API and publication](client-publication.md). The API infers the organization only when the caller has exactly one membership. Missing membership, an unknown scope, or ambiguous selection returns generic 403. A header selects a scope; it cannot grant membership or a role. Missing, invalid, expired, or revoked sessions return 401 with `WWW-Authenticate: Bearer`.
 
-Within the selected organization, clients access their own linked Client, advisors access explicitly assigned Clients, and admins access all Clients in that organization. Object lookups return the same localized 404 for absent and inaccessible objects. Lists filter by those rules before applying storage limits. All business responses use `Cache-Control: no-store`.
+On workstation routes, advisors access explicitly assigned Clients and admins access all Clients in the selected organization. Client Portal routes independently resolve the caller’s own linked Client. Object lookups return the same localized 404 for absent and inaccessible objects. Lists filter by those rules before applying storage limits. All business responses use `Cache-Control: no-store`.
 
 ## Route audit
 
@@ -17,12 +17,12 @@ Paths below are relative to `/api`. “Staff” means advisor or admin in the se
 | `GET /health`; `POST /auth/login`, `/auth/demo` | public | Health metadata or credential/demo validation only |
 | `GET /auth/me`, `/auth/organizations`; `POST /auth/logout` | authenticated | Current session or its membership list; logout revokes that session |
 | `GET /market/*` | shared | Any authenticated identity; shared market data, no customer lookup |
-| `GET /profiles/questionnaire` | authenticated | Membership required; shared questionnaire |
-| `GET /profiles`, `/profiles/{id}`; `PUT /profiles/{id}` | client-scoped | Own, assigned, or same-organization profiles |
+| `GET /profiles/questionnaire` | advisor-scoped | Staff; shared questionnaire |
+| `GET /profiles`, `/profiles/{id}`; `PUT /profiles/{id}` | advisor-scoped | Staff; assigned or same-organization profiles |
 | `POST /profiles`; `GET /profiles/compare`; `DELETE /profiles/{id}` | advisor-scoped | Staff; every compared/deleted profile checked. New profile belongs to the selected organization; an advisor creator receives an assignment to that new Client |
 | `POST /profiles/import/upload` | admin-scoped | Import and deduplication confined to selected organization |
 | `POST /profiles/import` | admin-scoped | Local organization admin, excluding demo identities; reads server-local legacy files |
-| `GET /ips`, `/ips/{id}`, `/ips/{id}/pdf`, `/ips/{id}/export` | client-scoped | SQL artifact ownership must be accessible before reading the payload |
+| `GET /ips`, `/ips/{id}`, `/ips/{id}/pdf`, `/ips/{id}/export` | advisor-scoped | Staff; SQL artifact ownership checked before reading raw payload or audit trail |
 | `POST /ips/generate`; `GET /ips/tasks/{id}/events` | advisor-scoped | Authorized profile before generation; persisted task ownership before live/replayed SSE |
 | All `/advisor/*` | advisor-scoped | Staff; stream/save check profile, and report list/read/delete/export/PDF check indexed organization and Client ID |
 | All `/monitoring/*` | advisor-scoped | Staff; IPS ownership before holdings, analysis, backtest, or advice. Optional advice profile is checked too. Fleet inputs are filtered and cache entries distinguish caller and organization |
@@ -30,6 +30,8 @@ Paths below are relative to `/api`. “Staff” means advisor or admin in the se
 | All `/retirement/*` | advisor-scoped | Staff; supplied profile checked before CME suggestion. Simulation uses submitted inputs only |
 | All `/cme/*` | advisor-scoped | Staff; shared assumptions and cache refresh, no customer lookup |
 | All `/settings/*` | admin-scoped | Deployment-global configuration is limited to local organization admins. Demo organization admins can read a synthetic settings status, but cannot change settings or probe model providers |
+
+Client-facing reads and acknowledgements use `/me/*`; staff publication operations use `/documents/*` and `/ips/{id}/documents`. Their contracts and transitions are documented in [Client API and publication](client-publication.md).
 
 ## Stable artifacts and upgrade behavior
 
