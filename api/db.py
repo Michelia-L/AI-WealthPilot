@@ -248,6 +248,7 @@ class DocumentRecord(SQLModel, table=True):
     __tablename__ = "document_versions"
     __table_args__ = (
         UniqueConstraint("document_id", "version"),
+        UniqueConstraint("source_artifact_id", "version"),
         CheckConstraint("version > 0"),
         CheckConstraint("type IN ('ips', 'portfolio_review', 'retirement_report')"),
         CheckConstraint(
@@ -258,7 +259,8 @@ class DocumentRecord(SQLModel, table=True):
             "(reviewed_by IS NOT NULL AND approved_by IS NOT NULL AND approved_at IS NOT NULL)"
         ),
         CheckConstraint(
-            "status NOT IN ('published', 'acknowledged') OR published_at IS NOT NULL"
+            "status NOT IN ('published', 'acknowledged') OR "
+            "(published_at IS NOT NULL AND published_by IS NOT NULL)"
         ),
         CheckConstraint(
             "status != 'acknowledged' OR "
@@ -286,7 +288,7 @@ class DocumentRecord(SQLModel, table=True):
     approved_at: Optional[str] = None
     published_at: Optional[str] = None
     acknowledged_at: Optional[str] = None
-    source_artifact_id: Optional[str] = None
+    source_artifact_id: Optional[str] = Field(default=None, index=True)
     content: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False), repr=False)
 
 
