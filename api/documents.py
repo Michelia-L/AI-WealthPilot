@@ -106,20 +106,34 @@ def draft_from_ips(
             DocumentRecord.type == "ips",
             DocumentRecord.source_artifact_id == owner.resource_id,
         )
-        .order_by(DocumentRecord.version.desc())
+        .order_by(DocumentRecord.version.desc(), DocumentRecord.id)
         .limit(1)
     ).first()
     if previous is not None:
         return revise(session, previous, created_by, content, locale)
-    return create_draft(
-        session,
-        organization_id=owner.organization_id,
-        client_id=owner.client_id,
-        created_by=created_by,
-        type="ips",
-        content=content,
-        source_artifact_id=owner.resource_id,
-    )
+    try:
+        return create_draft(
+            session,
+            organization_id=owner.organization_id,
+            client_id=owner.client_id,
+            created_by=created_by,
+            type="ips",
+            content=content,
+            source_artifact_id=owner.resource_id,
+        )
+    except IntegrityError:
+        session.rollback()
+        # Another request may have created version 1 for this source after
+        # the lookup. The source/version unique constraint prevents a split
+        # logical document chain; callers can retry against the winning series.
+        raise conflict(locale) from None
+
+
+def validate_publishable(record: DocumentRecord, locale: str) -> None:
+    """Enforce type-specific completeness at the publication boundary."""
+    content = ClientDocumentContent.model_validate(record.content)
+    if record.type == "ips" and not content.allocation:
+        raise HTTPException(422, msg("documents.ips_allocation_required", locale))
 
 
 def revise(
