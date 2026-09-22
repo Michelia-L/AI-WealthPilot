@@ -118,6 +118,37 @@ def test_full_lifecycle_and_acknowledgement(workspace):
     assert staff["published_at"] == published["published_at"]
 
 
+def test_concurrent_acknowledgement_is_idempotent(workspace, monkeypatch):
+    client, _, _, _, _, headers = workspace
+    draft = create(workspace)
+    published = publish(workspace, draft)
+    original_change = documents.change
+
+    def concurrent_winner(session, record, expected_status, locale, **values):
+        if expected_status == "published":
+            original_change(
+                session,
+                record,
+                "published",
+                locale,
+                status="acknowledged",
+                acknowledged_by="client",
+                acknowledged_at=documents.now(),
+            )
+            session.commit()
+            raise documents.conflict(locale)
+        return original_change(session, record, expected_status, locale, **values)
+
+    monkeypatch.setattr(documents, "change", concurrent_winner)
+    response = client.post(
+        f"/api/me/reports/{published['id']}/acknowledge",
+        headers=headers("client"),
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "acknowledged"
+    assert response.json()["acknowledged_at"] is not None
+
+
 def test_only_admin_can_approve_and_only_scoped_staff_can_work(workspace):
     client, _, _, _, _, headers = workspace
     draft = create(workspace)
@@ -281,6 +312,33 @@ def test_legacy_ips_projection_and_source_file_changes(workspace):
     )
 
 
+def test_incomplete_ips_cannot_replace_published_portfolio(workspace):
+    client, _, _, profiles, _, headers = workspace
+    current = create(workspace)
+    publish(workspace, current)
+
+    response = client.post(
+        "/api/documents",
+        json={
+            "profile_id": profiles["own"],
+            "type": "ips",
+            "content": {"title": "Incomplete IPS"},
+        },
+        headers=headers("admin"),
+    )
+    assert response.status_code == 201
+    incomplete = response.json()
+    assert transition(workspace, incomplete, "submit").status_code == 200
+    assert transition(workspace, incomplete, "approve", "admin").status_code == 200
+    blocked = transition(workspace, incomplete, "publish")
+    assert blocked.status_code == 422
+    assert "target allocation" in blocked.json()["detail"]
+    assert (
+        client.get("/api/me/portfolio", headers=headers("client")).json()["report_id"]
+        == current["id"]
+    )
+
+
 @pytest.mark.parametrize("type", ["portfolio_review", "retirement_report"])
 def test_other_deliverable_types_share_lifecycle(workspace, type):
     draft = create(workspace, type=type)
@@ -353,6 +411,17 @@ def test_document_database_constraints_and_restart(workspace):
         session.add(db.DocumentRecord(**{**record.model_dump(), "id": "duplicate"}))
         with pytest.raises(IntegrityError):
             session.commit()
+        session.rollback()
+        malformed = {
+            **record.model_dump(),
+            "id": "missing-publisher",
+            "document_id": "missing-publisher-series",
+            "published_by": None,
+            "source_artifact_id": None,
+        }
+        session.add(db.DocumentRecord(**malformed))
+        with pytest.raises(IntegrityError):
+            session.commit()
 
 
 def test_reimporting_an_ips_creates_a_revision_not_an_overwrite(workspace):
@@ -366,6 +435,38 @@ def test_reimporting_an_ips_creates_a_revision_not_an_overwrite(workspace):
     assert second["approved_by"] is None
     reports = client.get("/api/me/reports", headers=headers("client")).json()["reports"]
     assert [report["id"] for report in reports] == [first["id"]]
+
+
+def test_source_artifact_cannot_split_into_multiple_document_series(workspace):
+    client, _, _, _, artifacts, headers = workspace
+    source = artifacts["own"][0]
+    first = client.post(
+        f"/api/ips/{source}/documents", headers=headers("advisor")
+    ).json()
+    with Session(db.engine) as session:
+        record = session.get(db.DocumentRecord, first["id"])
+        duplicate = {
+            **record.model_dump(),
+            "id": "split-series-version",
+            "document_id": "different-logical-series",
+        }
+        session.add(db.DocumentRecord(**duplicate))
+        with pytest.raises(IntegrityError):
+            session.commit()
+
+
+def test_first_source_adoption_unique_race_returns_conflict(workspace, monkeypatch):
+    client, _, _, _, artifacts, headers = workspace
+    source = artifacts["own"][0]
+
+    def collision(**kwargs):
+        raise IntegrityError("insert", {}, RuntimeError("unique collision"))
+
+    monkeypatch.setattr(documents, "create_draft", collision)
+    response = client.post(
+        f"/api/ips/{source}/documents", headers=headers("advisor")
+    )
+    assert response.status_code == 409
 
 
 def test_ips_adoption_rejects_invalid_content_without_echo(workspace):
