@@ -10,6 +10,8 @@ import json
 
 import pytest
 
+from api import db
+from src.agents import ips_storage
 from src.agents.ips_workflow import TokenBudgetExceeded
 from tests.test_api_advisor import _parse_sse
 from tests.test_api_profiles import sample_payload
@@ -236,4 +238,10 @@ def test_invalid_publication_content_does_not_leak_to_sse(
     assert events[-1]["type"] == "error"
     assert "SYNTHETIC_SENSITIVE_TEXT" not in response.text
     assert client.get("/api/documents").json() == {"documents": []}
+    assert client.get("/api/ips").json() == {"documents": []}
+    assert list(ips_storage.IPS_DIR.glob("ips_*.json")) == []
+
+    # Startup scans unindexed raw artifacts. A failed generation must not leave
+    # a file that can become visible after that recovery pass.
+    db.init_db()
     assert client.get("/api/ips").json() == {"documents": []}
