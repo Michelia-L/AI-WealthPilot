@@ -12,6 +12,7 @@ from sqlmodel import Session
 from api import db
 from api.i18n import msg
 from src.agents import ips_storage, report_storage
+from src.agents.ips_models import IPSDocument
 
 
 def artifact_path(record: db.ArtifactRecord) -> Path:
@@ -78,13 +79,18 @@ def save_task_ips(task, *, locale: str = "en", **kwargs) -> Path:
             raise ValueError("IPS task requires client ownership")
         from api.documents import draft_from_ips, ips_content
 
+        can_create_draft = True
         try:
-            # Validate the client-facing projection before writing a recoverable
-            # raw artifact. Otherwise startup migration could later index a file
-            # from a task that had already reported generation failure.
             ips_content(kwargs["ips_dict"], locale)
         except (ValidationError, KeyError, TypeError, AttributeError):
-            raise ValueError(msg("documents.invalid_source", locale)) from None
+            # A domain-valid IPS may need human correction (for example, its
+            # weights do not sum to one). Preserve that staff artifact and its
+            # audit trail without creating an invalid publication draft.
+            try:
+                IPSDocument.model_validate(kwargs["ips_dict"])
+            except ValidationError:
+                raise ValueError(msg("documents.invalid_source", locale)) from None
+            can_create_draft = False
 
         filepath = ips_storage.save_ips(**kwargs, client_id=owner.client_id)
         try:
@@ -97,9 +103,10 @@ def save_task_ips(task, *, locale: str = "en", **kwargs) -> Path:
                 client_id=owner.client_id,
                 created_by=owner.created_by,
             )
-            draft_from_ips(
-                session, artifact, kwargs["ips_dict"], owner.created_by, locale
-            )
+            if can_create_draft:
+                draft_from_ips(
+                    session, artifact, kwargs["ips_dict"], owner.created_by, locale
+                )
             session.commit()
         except Exception:
             # SQL rollback cannot remove a filesystem write. Remove this task's

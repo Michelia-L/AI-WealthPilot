@@ -77,8 +77,14 @@ execution or acceptance of guaranteed results.
 ## IPS integration and existing data
 
 New live and demo IPS generation validates the publication projection before
-writing the raw artifact, then creates a publication draft in the same database
-transaction as artifact registration before emitting the completed task event.
+writing the raw artifact. When the projection is valid, it creates a publication
+draft in the same database transaction as artifact registration before emitting
+the completed task event. If the projection is invalid but the source satisfies
+the IPS domain schema, generation preserves the staff-only raw IPS and audit trail
+without creating a publication draft. This includes results escalated to human
+review with unnormalized allocation weights. Staff can read and export the source,
+then prepare corrected client-facing content through `POST /api/documents`.
+Malformed sources that fail both schemas still fail generation without saving.
 If that transaction fails, the newly written task artifact is removed so startup
 migration cannot resurrect a failed generation. The projection selects narrative
 sections and allocation targets; generated machine review results are not human

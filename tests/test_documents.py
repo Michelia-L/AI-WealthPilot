@@ -9,6 +9,7 @@ from sqlmodel import Session
 
 from api import db, documents
 from api.authorization import unassign_advisor
+from api.routers import documents as document_routes
 from api.schemas import ClientDocumentContent
 from src.agents import ips_storage
 from tests.test_api_access import workspace as access_workspace
@@ -290,6 +291,9 @@ def test_legacy_ips_projection_and_source_file_changes(workspace):
     path = ips_storage.IPS_DIR / f"{source}.json"
     raw = json.loads(path.read_text())
     raw["ips"]["executive_summary"] = "Original summary"
+    raw["ips"]["investment_guidelines"] = {
+        "strategic_allocation": [{"asset_class": "Bonds", "target_weight": 1.0}]
+    }
     raw["ips"]["optimizer_config"] = "SYNTHETIC_INTERNAL"
     raw["audit_trail"] = {"final_status": "approved", "trace": "SYNTHETIC_INTERNAL"}
     path.write_text(json.dumps(raw))
@@ -389,6 +393,53 @@ def test_stale_edit_cannot_overwrite_submitted_content(workspace):
         assert exc.value.status_code == 409
 
 
+def test_concurrent_approval_cannot_skip_publication_validation(workspace, monkeypatch):
+    client, _, _, profiles, _, headers = workspace
+    draft = client.post(
+        "/api/documents",
+        json={
+            "profile_id": profiles["own"],
+            "type": "ips",
+            "content": {"title": "Incomplete IPS"},
+        },
+        headers=headers("advisor"),
+    ).json()
+    assert transition(workspace, draft, "submit").status_code == 200
+    original_get = document_routes.get_document
+
+    def approve_after_read(access, document_id):
+        record = original_get(access, document_id)
+        assert record.status == "in_review"
+        # A second transaction commits approval after publication read the row.
+        with Session(db.engine) as concurrent:
+            current = concurrent.get(db.DocumentRecord, document_id)
+            documents.change(
+                concurrent,
+                current,
+                "in_review",
+                "en",
+                status="approved",
+                reviewed_by="admin",
+                approved_by="admin",
+                approved_at=documents.now(),
+            )
+            concurrent.commit()
+        return record
+
+    with monkeypatch.context() as patch:
+        patch.setattr(document_routes, "get_document", approve_after_read)
+        assert transition(workspace, draft, "publish").status_code == 409
+
+    assert transition(workspace, draft, "publish").status_code == 422
+    assert client.get("/api/me/reports", headers=headers("client")).json() == {
+        "reports": []
+    }
+    assert (
+        client.get("/api/me/portfolio", headers=headers("client")).json()["status"]
+        == "unavailable"
+    )
+
+
 def test_document_database_constraints_and_restart(workspace):
     _, _, clients, _, _, _ = workspace
     draft = create(workspace)
@@ -426,6 +477,12 @@ def test_document_database_constraints_and_restart(workspace):
 
 def test_reimporting_an_ips_creates_a_revision_not_an_overwrite(workspace):
     client, _, _, _, artifacts, headers = workspace
+    path = ips_storage.IPS_DIR / f"{artifacts['own'][0]}.json"
+    raw = json.loads(path.read_text())
+    raw["ips"]["investment_guidelines"] = {
+        "strategic_allocation": [{"asset_class": "Bonds", "target_weight": 1.0}]
+    }
+    path.write_text(json.dumps(raw))
     url = f"/api/ips/{artifacts['own'][0]}/documents"
     first = client.post(url, headers=headers("advisor")).json()
     publish(workspace, first)
