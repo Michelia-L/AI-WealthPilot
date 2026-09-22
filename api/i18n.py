@@ -65,6 +65,10 @@ _MESSAGES: dict[str, dict[str, dict[str, str]]] = {
             "en": "The source document cannot be prepared for publication.",
             "zh": "源文档无法转换为待发布内容。",
         },
+        "ips_allocation_required": {
+            "en": "An IPS must include a complete target allocation before publication.",
+            "zh": "IPS 发布前必须包含完整的目标资产配置。",
+        },
         "ips_title": {"en": "Investment Policy Statement", "zh": "投资政策声明"},
         "return_objective": {"en": "Return objectives", "zh": "收益目标"},
         "time_horizon": {"en": "Time horizon", "zh": "投资期限"},
