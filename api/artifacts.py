@@ -76,27 +76,37 @@ def save_task_ips(task, *, locale: str = "en", **kwargs) -> Path:
         owner = session.get(db.TaskRecord, task.task_id)
         if owner is None or not owner.organization_id or not owner.client_id:
             raise ValueError("IPS task requires client ownership")
-        filepath = ips_storage.save_ips(**kwargs, client_id=owner.client_id)
-        artifact = register_artifact(
-            session,
-            kind="ips",
-            resource_id=filepath.stem,
-            filename=filepath.name,
-            organization_id=owner.organization_id,
-            client_id=owner.client_id,
-            created_by=owner.created_by,
-        )
-        from api.documents import draft_from_ips
+        from api.documents import draft_from_ips, ips_content
 
         try:
+            # Validate the client-facing projection before writing a recoverable
+            # raw artifact. Otherwise startup migration could later index a file
+            # from a task that had already reported generation failure.
+            ips_content(kwargs["ips_dict"], locale)
+        except (ValidationError, KeyError, TypeError, AttributeError):
+            raise ValueError(msg("documents.invalid_source", locale)) from None
+
+        filepath = ips_storage.save_ips(**kwargs, client_id=owner.client_id)
+        try:
+            artifact = register_artifact(
+                session,
+                kind="ips",
+                resource_id=filepath.stem,
+                filename=filepath.name,
+                organization_id=owner.organization_id,
+                client_id=owner.client_id,
+                created_by=owner.created_by,
+            )
             draft_from_ips(
                 session, artifact, kwargs["ips_dict"], owner.created_by, locale
             )
-        except (ValidationError, KeyError, TypeError, AttributeError):
-            # Generation failures go to SSE; never echo source content from a
-            # validation exception into its user-visible error message.
-            raise ValueError(msg("documents.invalid_source", locale)) from None
-        session.commit()
+            session.commit()
+        except Exception:
+            # SQL rollback cannot remove a filesystem write. Remove this task's
+            # unique file so a failed transaction cannot be resurrected by the
+            # startup artifact migration.
+            filepath.unlink(missing_ok=True)
+            raise
     return filepath
 
 
