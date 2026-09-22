@@ -242,6 +242,56 @@ class ArtifactRecord(SQLModel, table=True):
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 
+class DocumentRecord(SQLModel, table=True):
+    """One version of a client deliverable; content freezes on submission."""
+
+    __tablename__ = "document_versions"
+    __table_args__ = (
+        UniqueConstraint("document_id", "version"),
+        UniqueConstraint("source_artifact_id", "version"),
+        CheckConstraint("version > 0"),
+        CheckConstraint("type IN ('ips', 'portfolio_review', 'retirement_report')"),
+        CheckConstraint(
+            "status IN ('draft', 'in_review', 'approved', 'published', 'acknowledged')"
+        ),
+        CheckConstraint(
+            "status NOT IN ('approved', 'published', 'acknowledged') OR "
+            "(reviewed_by IS NOT NULL AND approved_by IS NOT NULL AND approved_at IS NOT NULL)"
+        ),
+        CheckConstraint(
+            "status NOT IN ('published', 'acknowledged') OR "
+            "(published_at IS NOT NULL AND published_by IS NOT NULL)"
+        ),
+        CheckConstraint(
+            "status != 'acknowledged' OR "
+            "(acknowledged_at IS NOT NULL AND acknowledged_by IS NOT NULL)"
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "client_id"], ["clients.organization_id", "clients.id"]
+        ),
+    )
+
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    document_id: str = Field(default_factory=lambda: str(uuid4()), index=True)
+    version: int = 1
+    organization_id: str = Field(foreign_key="organizations.id", index=True)
+    client_id: str = Field(index=True)
+    type: str
+    status: str = Field(default="draft", index=True)
+    created_by: str = Field(foreign_key="users.id")
+    reviewed_by: Optional[str] = Field(default=None, foreign_key="users.id")
+    approved_by: Optional[str] = Field(default=None, foreign_key="users.id")
+    published_by: Optional[str] = Field(default=None, foreign_key="users.id")
+    acknowledged_by: Optional[str] = Field(default=None, foreign_key="users.id")
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    submitted_at: Optional[str] = None
+    approved_at: Optional[str] = None
+    published_at: Optional[str] = None
+    acknowledged_at: Optional[str] = None
+    source_artifact_id: Optional[str] = Field(default=None, index=True)
+    content: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False), repr=False)
+
+
 class HoldingSnapshotRecord(SQLModel, table=True):
     """Append-only, complete valuations for an IPS; same-day corrections append."""
 

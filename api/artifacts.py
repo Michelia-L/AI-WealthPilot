@@ -6,10 +6,13 @@ confer ownership. Domain/standalone file writers remain usable without an API DB
 
 from pathlib import Path
 
+from pydantic import ValidationError
 from sqlmodel import Session
 
 from api import db
+from api.i18n import msg
 from src.agents import ips_storage, report_storage
+from src.agents.ips_models import IPSDocument
 
 
 def artifact_path(record: db.ArtifactRecord) -> Path:
@@ -68,23 +71,49 @@ def register_artifact(
     return record
 
 
-def save_task_ips(task, **kwargs) -> Path:
+def save_task_ips(task, *, locale: str = "en", **kwargs) -> Path:
     """Persist the payload and its ownership before publishing a completion event."""
     with Session(db.engine) as session:
         owner = session.get(db.TaskRecord, task.task_id)
         if owner is None or not owner.organization_id or not owner.client_id:
             raise ValueError("IPS task requires client ownership")
+        from api.documents import draft_from_ips, ips_content
+
+        can_create_draft = True
+        try:
+            ips_content(kwargs["ips_dict"], locale)
+        except (ValidationError, KeyError, TypeError, AttributeError):
+            # A domain-valid IPS may need human correction (for example, its
+            # weights do not sum to one). Preserve that staff artifact and its
+            # audit trail without creating an invalid publication draft.
+            try:
+                IPSDocument.model_validate(kwargs["ips_dict"])
+            except ValidationError:
+                raise ValueError(msg("documents.invalid_source", locale)) from None
+            can_create_draft = False
+
         filepath = ips_storage.save_ips(**kwargs, client_id=owner.client_id)
-        register_artifact(
-            session,
-            kind="ips",
-            resource_id=filepath.stem,
-            filename=filepath.name,
-            organization_id=owner.organization_id,
-            client_id=owner.client_id,
-            created_by=owner.created_by,
-        )
-        session.commit()
+        try:
+            artifact = register_artifact(
+                session,
+                kind="ips",
+                resource_id=filepath.stem,
+                filename=filepath.name,
+                organization_id=owner.organization_id,
+                client_id=owner.client_id,
+                created_by=owner.created_by,
+            )
+            if can_create_draft:
+                draft_from_ips(
+                    session, artifact, kwargs["ips_dict"], owner.created_by, locale
+                )
+            session.commit()
+        except Exception:
+            # SQL rollback cannot remove a filesystem write. Remove this task's
+            # unique file so a failed transaction cannot be resurrected by the
+            # startup artifact migration.
+            filepath.unlink(missing_ok=True)
+            raise
     return filepath
 
 

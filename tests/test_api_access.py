@@ -120,7 +120,7 @@ def workspace(anonymous_client):
 )
 def test_profile_and_ips_matrix(workspace, user, key, allowed):
     client, _, _, profiles, artifacts, headers = workspace
-    expected = 200 if allowed else 404
+    expected = 403 if user == "client" else (200 if allowed else 404)
     profile_id = profiles[key]
     document_id, _ = artifacts[key]
     for url in (f"/api/profiles/{profile_id}", f"/api/ips/{document_id}"):
@@ -135,7 +135,9 @@ def test_profile_and_ips_matrix(workspace, user, key, allowed):
 
 def test_lists_filter_before_exposing_objects(workspace):
     client, _, _, profiles, artifacts, headers = workspace
-    for user, expected in (("client", {"own"}), ("advisor", {"own"})):
+    for url in ("/api/profiles", "/api/ips"):
+        assert client.get(url, headers=headers("client")).status_code == 403
+    for user, expected in (("advisor", {"own"}),):
         h = headers(user)
         assert {
             p["id"] for p in client.get("/api/profiles", headers=h).json()["profiles"]
@@ -521,7 +523,7 @@ def test_explicit_legacy_adoption_respects_client_scope(workspace):
     path = ips_storage.save_ips({"client_name": "Legacy"}, {}, "Legacy")
     report = report_storage.save_report("Legacy", "Legacy", "fixture")
     assert (
-        client.get(f"/api/ips/{path.stem}", headers=headers("client")).status_code
+        client.get(f"/api/ips/{path.stem}", headers=headers("advisor")).status_code
         == 404
     )
     with db.engine.begin() as connection:
@@ -543,7 +545,7 @@ def test_explicit_legacy_adoption_respects_client_scope(workspace):
             ],
         )
     assert (
-        client.get(f"/api/ips/{path.stem}", headers=headers("client")).status_code
+        client.get(f"/api/ips/{path.stem}", headers=headers("advisor")).status_code
         == 200
     )
     assert (

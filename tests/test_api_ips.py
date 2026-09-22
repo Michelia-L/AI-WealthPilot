@@ -10,9 +10,17 @@ import json
 
 import pytest
 
-from src.agents.ips_workflow import TokenBudgetExceeded
+from api import db
+from src.agents import ips_storage
+from src.agents.ips_models import IPSDocument
+from src.agents.ips_workflow import IPSWorkflowState, TokenBudgetExceeded, finalize_node
+from tests.test_api_access import workspace as access_workspace
 from tests.test_api_advisor import _parse_sse
 from tests.test_api_profiles import sample_payload
+from tests.test_ips_workflow import minimal_ips_dict as ips_fixture
+
+workspace = access_workspace
+minimal_ips_dict = ips_fixture
 
 
 class FakeWorkflowApp:
@@ -89,6 +97,11 @@ def test_generate_streams_progress_and_saves_document(client, fake_workflow):
     assert listing[0]["client_name"] == "John Doe"
     assert listing[0]["profile_id"] == profile_id
     assert listing[0]["status"] == "approved"
+    drafts = client.get("/api/documents").json()["documents"]
+    assert len(drafts) == 1
+    assert drafts[0]["source_artifact_id"] == document_id
+    assert drafts[0]["status"] == "draft"
+    assert drafts[0]["approved_by"] is None
 
     detail = client.get(f"/api/ips/{document_id}")
     assert detail.status_code == 200
@@ -208,3 +221,104 @@ def test_token_budget_exceeded_emits_localized_error(client, monkeypatch):
     assert "token 预算" in events[-1]["message"]
     assert "12345" in events[-1]["message"]
     assert "10000" in events[-1]["message"]
+
+
+def test_invalid_publication_content_does_not_leak_to_sse(
+    client, fake_workflow, monkeypatch
+):
+    monkeypatch.setattr(
+        "src.agents.ips_workflow.compile_ips_workflow",
+        lambda **kw: FakeWorkflowApp(
+            final_ips={
+                "client_name": "John Doe",
+                "executive_summary": {"private": "SYNTHETIC_SENSITIVE_TEXT"},
+            }
+        ),
+    )
+    profile_id = _create_profile(client)
+    task_id = client.post("/api/ips/generate", json={"profile_id": profile_id}).json()[
+        "task_id"
+    ]
+    response = client.get(f"/api/ips/tasks/{task_id}/events")
+    events = _parse_sse(response.text)
+    assert events[-1]["type"] == "error"
+    assert "SYNTHETIC_SENSITIVE_TEXT" not in response.text
+    assert client.get("/api/documents").json() == {"documents": []}
+    assert client.get("/api/ips").json() == {"documents": []}
+    assert list(ips_storage.IPS_DIR.glob("ips_*.json")) == []
+
+    # Startup scans unindexed raw artifacts. A failed generation must not leave
+    # a file that can become visible after that recovery pass.
+    db.init_db()
+    assert client.get("/api/ips").json() == {"documents": []}
+
+
+@pytest.mark.parametrize("bond_weight", [0.399, 0.3])
+def test_human_review_retains_unpublishable_ips(
+    workspace, fake_workflow, minimal_ips_dict, monkeypatch, bond_weight
+):
+    client, _, _, profiles, _, headers = workspace
+    raw = minimal_ips_dict
+    allocation = raw["investment_guidelines"]["strategic_allocation"]
+    allocation[1]["target_weight"] = bond_weight
+    allocation[1]["min_weight"] = 0.0
+    raw["executive_summary"] = "SYNTHETIC_REVIEW_ONLY"
+    raw = IPSDocument.model_validate(raw).model_dump()
+
+    class EscalatedWorkflowApp:
+        async def astream(self, *args, **kwargs):
+            yield {"finalize": await finalize_node(IPSWorkflowState(ips_draft=raw))}
+
+    monkeypatch.setattr(
+        "src.agents.ips_workflow.compile_ips_workflow",
+        lambda **kw: EscalatedWorkflowApp(),
+    )
+    staff = headers("advisor")
+    task_id = client.post(
+        "/api/ips/generate", json={"profile_id": profiles["own"]}, headers=staff
+    ).json()["task_id"]
+    response = client.get(f"/api/ips/tasks/{task_id}/events", headers=staff)
+    done = _parse_sse(response.text)[-1]
+    assert done["type"] == "done" and done["success"] is True
+    assert done["status"] == "completed_escalated_to_human"
+    assert "SYNTHETIC_REVIEW_ONLY" not in response.text
+    url = f"/api/ips/{done['document_id']}"
+    response = client.get(url, headers=staff)
+    assert response.status_code == 200
+    detail = response.json()
+    assert detail["status"] == "escalated_to_human"
+    assert "SYNTHETIC_REVIEW_ONLY" in detail["markdown"]
+    saved = ips_storage.load_ips(ips_storage.IPS_DIR / f"{done['document_id']}.json")
+    assert saved["ips"] == raw
+    assert saved["audit_trail"]["final_status"] == "escalated_to_human"
+    assert client.get(url + "/export", headers=staff).status_code == 200
+    assert client.get(url, headers=headers("client")).status_code == 403
+    assert client.get("/api/documents", headers=staff).json() == {"documents": []}
+    assert client.get("/api/me/reports", headers=headers("client")).json() == {
+        "reports": []
+    }
+    adoption = client.post(url + "/documents", headers=staff)
+    assert adoption.status_code == 422
+    assert "SYNTHETIC_REVIEW_ONLY" not in adoption.text
+    db.init_db()
+    assert client.get(url, headers=staff).json() == detail
+
+
+def test_publication_database_failure_removes_task_artifact(
+    client, fake_workflow, monkeypatch
+):
+    def fail_draft(*args, **kwargs):
+        raise RuntimeError("Synthetic database failure")
+
+    monkeypatch.setattr("api.documents.create_draft", fail_draft)
+    profile_id = _create_profile(client)
+    task_id = client.post("/api/ips/generate", json={"profile_id": profile_id}).json()[
+        "task_id"
+    ]
+    events = _parse_sse(client.get(f"/api/ips/tasks/{task_id}/events").text)
+    assert events[-1]["type"] == "error"
+    assert client.get("/api/documents").json() == {"documents": []}
+    assert client.get("/api/ips").json() == {"documents": []}
+    assert list(ips_storage.IPS_DIR.glob("*.json")) == []
+    db.init_db()
+    assert client.get("/api/ips").json() == {"documents": []}

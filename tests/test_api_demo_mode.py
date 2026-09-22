@@ -223,6 +223,16 @@ def test_ips_generate_demo_replays_fixture(client, demo_on, ips_dir, monkeypatch
     assert listing[0]["client_name"] == "王小明"
     assert listing[0]["profile_id"] == profile_id
     assert record["metadata"]["profile_id"] == profile_id
+    drafts = client.get("/api/documents").json()["documents"]
+    assert len(drafts) == 1
+    assert drafts[0]["source_artifact_id"] == document_id
+    assert drafts[0]["status"] == "draft"
+    assert drafts[0]["approved_by"] is None
+    assert drafts[0]["content"]["title"] == "投资政策声明"
+    assert drafts[0]["content"]["allocation"] == [
+        {"asset_class": item["asset_class"], "weight": item["target_weight"]}
+        for item in saa
+    ]
 
 
 def test_ips_generate_demo_error_path(client, demo_on, monkeypatch):
@@ -901,7 +911,9 @@ def test_ips_generate_demo_personalizes_document(client, demo_on, ips_dir, monke
     assert "教育金（12 年 90 万元）" in summary
     assert "退休（23 年 350 万元）" in summary
 
-    blob = json.dumps(record, ensure_ascii=False)
+    # Check only the personalized IPS payload. Record metadata contains dynamic
+    # timestamps whose numeric substrings can coincidentally match stale values.
+    blob = json.dumps(ips, ensure_ascii=False)
     for stale in ZH_STALE + [
         "2026-07-20",
         "约 21 万",

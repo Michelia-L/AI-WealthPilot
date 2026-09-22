@@ -1309,3 +1309,156 @@ class OrganizationSummary(BaseModel):
 
 class OrganizationsResponse(BaseModel):
     organizations: list[OrganizationSummary]
+
+
+# Client Portal contracts deliberately do not inherit workstation DTOs.
+class ClientDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+
+
+class ClientIdentityResponse(ClientDTO):
+    user_id: str
+    email: str
+    role: Literal["client"] = "client"
+    is_demo: bool
+
+
+class ClientProfileResponse(ClientDTO):
+    name: str
+    age: int
+    marital_status: str
+    dependents: int
+    investable_assets: float
+    total_liabilities: float
+    net_worth: float
+    time_horizon_years: int
+    updated_at: str
+
+
+class ClientAllocation(ClientDTO):
+    asset_class: str = Field(min_length=1, max_length=200)
+    weight: float = Field(ge=0, le=1)
+
+
+class ClientPortfolioResponse(ClientDTO):
+    status: Literal["published_plan", "unavailable"]
+    report_id: str | None = None
+    allocation: list[ClientAllocation] = Field(default_factory=list)
+    recommendation: str | None = None
+    # Actual performance is not persisted by the current system. A projection
+    # or a backtest must never silently become the client's realized return.
+    performance: None = None
+    performance_explanation: str
+
+
+class ClientGoal(ClientDTO):
+    name: str
+    target_amount: float
+    years: int
+    priority: str
+    progress: None = None
+
+
+class ClientGoalsResponse(ClientDTO):
+    goals: list[ClientGoal]
+    progress_explanation: str
+
+
+class ClientRiskProfileResponse(ClientDTO):
+    assessed: bool
+    level: str | None = None
+    explanation: str
+
+
+class ClientAdvisor(ClientDTO):
+    email: str
+
+
+class ClientAdvisorResponse(ClientDTO):
+    advisors: list[ClientAdvisor]
+
+
+DocumentType = Literal["ips", "portfolio_review", "retirement_report"]
+DocumentStatus = Literal["draft", "in_review", "approved", "published", "acknowledged"]
+
+
+class ClientDocumentSection(ClientDTO):
+    heading: str = Field(min_length=1, max_length=200)
+    text: str = Field(max_length=20000)
+
+
+class ClientDocumentContent(ClientDTO):
+    """The entire publishable payload, explicitly reviewed before publication."""
+
+    title: str = Field(min_length=1, max_length=200)
+    summary: str = Field(default="", max_length=20000)
+    recommendation: str = Field(default="", max_length=20000)
+    risk_explanation: str = Field(default="", max_length=20000)
+    risk_disclosure: str = Field(default="", max_length=20000)
+    allocation: list[ClientAllocation] = Field(default_factory=list, max_length=100)
+    sections: list[ClientDocumentSection] = Field(default_factory=list, max_length=30)
+
+    @model_validator(mode="after")
+    def validate_allocation(self):
+        if self.allocation:
+            if abs(sum(item.weight for item in self.allocation) - 1) > 1e-6:
+                raise ValueError("Allocation weights must sum to one")
+            names = [item.asset_class for item in self.allocation]
+            if len(set(names)) != len(names):
+                raise ValueError("Allocation asset classes must be unique")
+        return self
+
+
+class DocumentCreateRequest(ClientDTO):
+    profile_id: int = Field(gt=0)
+    type: DocumentType
+    content: ClientDocumentContent
+
+
+class DocumentRevisionRequest(ClientDTO):
+    content: ClientDocumentContent | None = None
+
+
+class DocumentResponse(ClientDTO):
+    id: str
+    document_id: str
+    version: int
+    organization_id: str
+    client_id: str
+    type: DocumentType
+    status: DocumentStatus
+    created_by: str
+    reviewed_by: str | None
+    approved_by: str | None
+    published_by: str | None
+    acknowledged_by: str | None
+    created_at: str
+    submitted_at: str | None
+    approved_at: str | None
+    published_at: str | None
+    acknowledged_at: str | None
+    source_artifact_id: str | None
+    content: ClientDocumentContent
+
+
+class DocumentListResponse(ClientDTO):
+    documents: list[DocumentResponse]
+
+
+class ClientReportSummary(ClientDTO):
+    id: str
+    document_id: str
+    type: DocumentType
+    version: int
+    title: str
+    status: Literal["published", "acknowledged"]
+    published_at: str
+    acknowledged_at: str | None
+
+
+class ClientReportResponse(ClientReportSummary):
+    content: ClientDocumentContent
+
+
+class ClientReportsResponse(ClientDTO):
+    reports: list[ClientReportSummary]
