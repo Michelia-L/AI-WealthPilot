@@ -29,6 +29,7 @@ from api.ownership import create_scoped_profile, ensure_demo_organization
 from api.profile_convert import tolerance_level
 from api.routers import (
     advisor,
+    assistants,
     auth,
     cme,
     documents,
@@ -173,7 +174,13 @@ def create_app() -> FastAPI:
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):
         if request.url.path.startswith(
-            ("/api/auth/", "/api/settings/", "/api/me", "/api/documents")
+            (
+                "/api/auth/",
+                "/api/settings/",
+                "/api/me",
+                "/api/documents",
+                "/api/advisor/copilot",
+            )
         ):
             # FastAPI's default 422 includes submitted values, including passwords.
             return JSONResponse(
@@ -181,7 +188,9 @@ def create_app() -> FastAPI:
                 content={
                     "detail": msg(
                         "request.invalid"
-                        if request.url.path.startswith(("/api/me", "/api/documents"))
+                        if request.url.path.startswith(
+                            ("/api/me", "/api/documents", "/api/advisor/copilot")
+                        )
                         else "auth.invalid_request",
                         get_request_locale(request),
                     )
@@ -191,6 +200,7 @@ def create_app() -> FastAPI:
         return await request_validation_exception_handler(request, exc)
 
     app.include_router(auth.router, prefix="/api")
+    app.include_router(assistants.router, prefix="/api")
     app.include_router(me.router, prefix="/api")
     app.include_router(documents.router, prefix="/api")
     app.include_router(

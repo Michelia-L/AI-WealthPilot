@@ -30,6 +30,24 @@ def get_request_locale(request: Request) -> str:
 
 
 _MESSAGES: dict[str, dict[str, dict[str, str]]] = {
+    "assistant": {
+        "unavailable": {
+            "en": "The assistant is not available. Please contact your advisor or administrator.",
+            "zh": "助手暂不可用，请联系您的顾问或管理员。",
+        },
+        "failed": {
+            "en": "The assistant could not complete this request. Please try again later.",
+            "zh": "助手未能完成本次请求，请稍后重试。",
+        },
+        "demo_client": {
+            "en": "Demo response: your assistant can explain your own profile, goals and published plans. Target allocations are suggestions, not executed holdings. Actual returns and goal progress may be unavailable.",
+            "zh": "演示回答：助手可解读您自己的画像、目标和已发布计划。目标配置是建议，不代表已执行持仓；实际收益和目标进度可能暂无数据。",
+        },
+        "demo_advisor": {
+            "en": "Demo response: the copilot can read authorized client profiles, IPS artifacts and advisory reports for review. Publication requires the separate human approval workflow.",
+            "zh": "演示回答：顾问助手可读取授权客户的画像、IPS 和顾问报告以供复核。发布仍需单独的人工审批流程。",
+        },
+    },
     "request": {
         "invalid": {"en": "Invalid request.", "zh": "请求格式无效。"},
     },
