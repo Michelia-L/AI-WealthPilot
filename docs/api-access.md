@@ -33,6 +33,10 @@ Paths below are relative to `/api`. “Staff” means advisor or admin in the se
 
 Client-facing reads and acknowledgements use `/me/*`; staff publication operations use `/documents/*` and `/ips/{id}/documents`. Their contracts and transitions are documented in [Client API and publication](client-publication.md).
 
+`POST /me/assistant` and `POST /advisor/copilot` have separate personas and tool
+registries. Each tool call rechecks the current session and object permissions;
+see [agent permission boundaries](agent-permissions.md).
+
 ## Stable artifacts and upgrade behavior
 
 New IPS documents and advisor reports store the originating Client UUID and an authoritative SQL ownership index. Report saves require `profile_id`; the server resolves and stamps the Client and current profile name. Submitted client names or extra ownership fields do not determine access. New task records store organization, creator, and optional Client UUID; task kind must match the events endpoint.

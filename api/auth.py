@@ -228,10 +228,16 @@ def get_current_session(
 ) -> AuthSessionRecord:
     if credentials is None or len(credentials.credentials) != 43:
         raise authentication_error(locale)
-    record = session.get(
-        AuthSessionRecord,
-        hashlib.sha256(credentials.credentials.encode()).hexdigest(),
+    return resolve_session(
+        session, hashlib.sha256(credentials.credentials.encode()).hexdigest(), locale
     )
+
+
+def resolve_session(
+    session: Session, token_hash: str, locale: str
+) -> AuthSessionRecord:
+    """Recheck a server-held session handle, including during agent tool calls."""
+    record = session.get(AuthSessionRecord, token_hash)
     if record is None or record.expires_at <= int(time.time()):
         raise authentication_error(locale)
     user = session.get(UserRecord, record.user_id)

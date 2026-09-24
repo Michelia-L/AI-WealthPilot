@@ -1462,3 +1462,35 @@ class ClientReportResponse(ClientReportSummary):
 
 class ClientReportsResponse(ClientDTO):
     reports: list[ClientReportSummary]
+
+
+class AssistantRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    message: str = Field(min_length=1, max_length=8000, repr=False)
+
+
+class ClientAssistantResponse(ClientDTO):
+    answer: str
+    demo: bool = False
+
+
+class AdvisorCopilotResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    answer: str
+    demo: bool = False
+
+
+class AgentNoArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, hide_input_in_errors=True)
+
+
+class AgentReportArguments(AgentNoArguments):
+    report_id: str = Field(min_length=1, max_length=200)
+
+
+class AgentProfileArguments(AgentNoArguments):
+    profile_id: int = Field(gt=0)
+
+
+class AgentIpsArguments(AgentNoArguments):
+    document_id: str = Field(min_length=1, max_length=200)
