@@ -1,17 +1,22 @@
 """Shared, stateless assistant loop; data authorization belongs to tool execution."""
 
 import json
+import time
 from typing import Literal, Protocol
+from urllib.parse import urlsplit
 
+import httpx
 from openai import OpenAI
 
 from src.agents.llm_config import get_llm_config
-from src.config import LLM_MAX_RETRIES, LLM_REQUEST_TIMEOUT
 
 Persona = Literal["client", "advisor"]
 MAX_ROUNDS = 6
 MAX_TOOL_CALLS = 12
 MAX_CONTEXT_CHARS = 120_000
+MAX_ANSWER_CHARS = 20_000
+REQUEST_TIMEOUT = 30.0
+RUN_BUDGET_SECONDS = 90.0
 
 PERSONAS = {
     "client": (
@@ -73,27 +78,53 @@ def run_assistant(message: str, tools: AgentTools, locale: str) -> str:
     definitions = tools.definitions()
     calls_used = 0
     context_chars = 0
+    # DeepSeek defaults to thinking. These interactive, read-only assistants
+    # explicitly disable it rather than sharing a small answer budget with CoT.
+    model_name = cfg.model.lower().rsplit("/", 1)[-1]
+    deepseek = urlsplit(
+        cfg.base_url
+    ).hostname == "api.deepseek.com" or model_name.startswith("deepseek-")
+    generation = (
+        {"max_tokens": 4096, "extra_body": {"thinking": {"type": "disabled"}}}
+        if deepseek
+        else {"max_tokens": 16_384}
+    )
+    deadline = time.monotonic() + RUN_BUDGET_SECONDS
+
+    def remaining() -> float:
+        seconds = deadline - time.monotonic()
+        if seconds <= 0:
+            raise AssistantFailed
+        return min(REQUEST_TIMEOUT, seconds)
+
     # No global conversation cache or caller-supplied system/tool messages.
     with OpenAI(
         api_key=cfg.api_key,
         base_url=cfg.base_url,
-        timeout=LLM_REQUEST_TIMEOUT,
-        max_retries=LLM_MAX_RETRIES,
+        timeout=httpx.Timeout(REQUEST_TIMEOUT, connect=5.0, pool=5.0),
+        max_retries=0,
     ) as client:
         for _ in range(MAX_ROUNDS):
             tools.authorize()
             try:
+                seconds = remaining()
                 response = client.chat.completions.create(
                     model=cfg.model,
                     messages=messages,
                     tools=definitions,
-                    max_tokens=2000,
+                    **generation,
+                    timeout=httpx.Timeout(
+                        seconds, connect=min(5.0, seconds), pool=min(5.0, seconds)
+                    ),
                     stream=False,
                 )
+                remaining()
                 choice = response.choices[0]
                 reply = choice.message
                 calls = reply.tool_calls or []
                 if calls:
+                    if choice.finish_reason != "tool_calls":
+                        raise AssistantFailed
                     calls_used += len(calls)
                     if calls_used > MAX_TOOL_CALLS:
                         raise AssistantFailed
@@ -135,16 +166,18 @@ def run_assistant(message: str, tools: AgentTools, locale: str) -> str:
                         choice.finish_reason != "stop"
                         or not isinstance(answer, str)
                         or not answer.strip()
-                        or len(answer) > 20000
+                        or len(answer) > MAX_ANSWER_CHARS
                     ):
                         raise AssistantFailed
             except Exception:
                 raise AssistantFailed from None
             if not calls:
                 tools.authorize()
+                remaining()
                 return answer
             messages.append(assistant_message)
             for call in projected_calls:
+                remaining()
                 result = tools.invoke(
                     call["function"]["name"], call["function"]["arguments"]
                 )

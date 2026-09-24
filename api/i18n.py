@@ -31,6 +31,14 @@ def get_request_locale(request: Request) -> str:
 
 _MESSAGES: dict[str, dict[str, dict[str, str]]] = {
     "assistant": {
+        "rate_limited": {
+            "en": "Too many assistant requests. Please try again later.",
+            "zh": "助手请求过于频繁，请稍后重试。",
+        },
+        "busy": {
+            "en": "The assistant is busy. Please try again shortly.",
+            "zh": "助手正忙，请稍后重试。",
+        },
         "unavailable": {
             "en": "The assistant is not available. Please contact your advisor or administrator.",
             "zh": "助手暂不可用，请联系您的顾问或管理员。",

@@ -182,6 +182,16 @@ class AuthorizedAgentTools:
         with self.access():
             pass
 
+    def admission_identity(self) -> tuple[str, str]:
+        """Resolve quota keys through the same authorization as tool execution."""
+        with self.access() as access:
+            organization_id = (
+                access.client.organization_id
+                if isinstance(access, ClientAccess)
+                else access.organization_id
+            )
+            return access.principal.user_id, organization_id
+
     def permitted(self, tool: ToolDefinition, access: Access | ClientAccess) -> bool:
         role = "client" if isinstance(access, ClientAccess) else access.role
         scope = "own" if isinstance(access, ClientAccess) else "assigned"

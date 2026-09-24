@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from api.agent_tools import AuthorizedAgentTools
+from api.assistant_limits import AssistantBusy, AssistantLimited, assistant_admission
 from api.auth import get_current_session
 from api.db import AuthSessionRecord
 from api.i18n import get_request_locale, msg
@@ -35,8 +36,19 @@ def answer(
             )
             tools.authorize()
             return {"answer": msg(f"assistant.demo_{persona}", locale), "demo": True}
-        content = run_assistant(payload.message, tools, locale)
+        with assistant_admission.admit(*tools.admission_identity()):
+            content = run_assistant(payload.message, tools, locale)
         return {"answer": content, "demo": False}
+    except AssistantLimited as exc:
+        raise HTTPException(
+            429,
+            msg("assistant.rate_limited", locale),
+            headers={"Retry-After": str(exc.retry_after)},
+        ) from None
+    except AssistantBusy:
+        raise HTTPException(
+            503, msg("assistant.busy", locale), headers={"Retry-After": "1"}
+        ) from None
     except HTTPException:
         raise
     except AssistantUnavailable:

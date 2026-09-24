@@ -12,6 +12,7 @@ from starlette.requests import Request
 
 from api import db
 from api.agent_tools import AuthorizedAgentTools
+from api.assistant_limits import AssistantAdmission
 from api.authorization import unassign_advisor
 from api.ownership import create_client, set_membership
 from src.agents import assistant
@@ -20,6 +21,13 @@ from tests.test_api_access import workspace as access_workspace
 from tests.test_documents import create, publish
 
 workspace = access_workspace
+
+
+@pytest.fixture(autouse=True)
+def admission(monkeypatch):
+    limiter = AssistantAdmission()
+    monkeypatch.setattr("api.routers.assistants.assistant_admission", limiter)
+    return limiter
 
 
 def tools_for(workspace, user="client", persona="client", org="a"):
@@ -47,11 +55,11 @@ def tool_call(name, args=None):
     )
 
 
-def completion(answer="Synthetic answer", calls=None, finish="stop"):
+def completion(answer="Synthetic answer", calls=None, finish=None):
     return SimpleNamespace(
         choices=[
             SimpleNamespace(
-                finish_reason=finish,
+                finish_reason=finish or ("tool_calls" if calls else "stop"),
                 message=SimpleNamespace(
                     content=answer,
                     tool_calls=calls,
@@ -69,6 +77,7 @@ def provider(monkeypatch):
             self.steps = []
             self.requests = []
             self.closed = False
+            self.options = {}
             self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
 
         def __enter__(self):
@@ -83,7 +92,12 @@ def provider(monkeypatch):
             return step() if callable(step) else step
 
     fake = Provider()
-    monkeypatch.setattr(assistant, "OpenAI", lambda **kw: fake)
+
+    def factory(**kwargs):
+        fake.options = kwargs
+        return fake
+
+    monkeypatch.setattr(assistant, "OpenAI", factory)
     monkeypatch.setattr(
         assistant,
         "get_llm_config",
@@ -536,3 +550,236 @@ def test_oversized_or_non_string_tool_arguments_fail(workspace, args):
     with pytest.raises(HTTPException) as exc:
         tools_for(workspace).invoke("read_own_profile", args)
     assert exc.value.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "finish",
+    ["length", "content_filter", "insufficient_system_resource", "aborted", "stop"],
+)
+def test_interrupted_tool_calls_never_execute(workspace, provider, monkeypatch, finish):
+    invoked = []
+    monkeypatch.setattr(
+        AuthorizedAgentTools, "invoke", lambda *args: invoked.append(args)
+    )
+    provider.steps = [completion(calls=[tool_call("read_own_profile")], finish=finish)]
+    response = post(workspace)
+    assert response.status_code == 502
+    assert invoked == []
+    assert len(provider.requests) == 1
+    assert provider.closed
+    assert "SYNTHETIC_PRIVATE_TRACE" not in response.text
+
+
+@pytest.mark.parametrize(
+    "base_url,model,deepseek",
+    [
+        ("https://api.deepseek.com/v1", "deepseek-v4-pro", True),
+        ("https://api.deepseek.com", "deepseek-flash", True),
+        ("https://gateway.invalid/v1", "deepseek/deepseek-v4-pro", True),
+        ("https://compatible.invalid/v1", "synthetic-model", False),
+    ],
+)
+def test_interactive_generation_policy(
+    workspace, provider, monkeypatch, base_url, model, deepseek
+):
+    monkeypatch.setattr(
+        assistant,
+        "get_llm_config",
+        lambda: LlmConfig(base_url, "synthetic-key", model, True, "db"),
+    )
+    provider.steps = [completion(calls=[tool_call("read_own_profile")]), completion()]
+    assert post(workspace).status_code == 200
+    for request in provider.requests:
+        if deepseek:
+            assert request["extra_body"] == {"thinking": {"type": "disabled"}}
+            assert request["max_tokens"] == 4096
+        else:
+            assert "extra_body" not in request
+            assert request["max_tokens"] == 16384
+        assert 0 < request["timeout"].read <= 30
+        assert request["timeout"].connect <= 5
+    assert provider.options["max_retries"] == 0
+    assert provider.options["timeout"].read == 30
+
+
+def test_visible_answer_has_separate_limit(workspace, provider):
+    provider.steps = [completion("x" * (assistant.MAX_ANSWER_CHARS + 1))]
+    assert post(workspace).status_code == 502
+
+
+@pytest.mark.parametrize("tool_response", [False, True])
+def test_run_deadline_rejects_late_responses(
+    workspace, provider, monkeypatch, tool_response
+):
+    now = [100.0]
+    monkeypatch.setattr(assistant.time, "monotonic", lambda: now[0])
+    invoked = []
+    monkeypatch.setattr(
+        AuthorizedAgentTools, "invoke", lambda *args: invoked.append(args)
+    )
+
+    def late():
+        now[0] += assistant.RUN_BUDGET_SECONDS + 1
+        return completion(
+            calls=[tool_call("read_own_profile")] if tool_response else None
+        )
+
+    provider.steps = [late]
+    assert post(workspace).status_code == 502
+    assert invoked == []
+    assert provider.closed
+
+
+def test_user_quota_survives_new_session_and_forged_workspace(
+    workspace, provider, admission
+):
+    from api.auth import issue_session
+
+    provider.steps = [completion()] * admission.USER_REQUESTS
+    for _ in range(admission.USER_REQUESTS):
+        assert post(workspace).status_code == 200
+    with Session(db.engine) as session:
+        token = issue_session(
+            session, session.get(db.UserRecord, "client")
+        ).access_token
+    response = workspace[0].post(
+        "/api/me/assistant",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "X-Organization-ID": "b",
+            "X-Locale": "zh",
+        },
+        json={"message": "Explain my plan"},
+    )
+    assert response.status_code == 429
+    assert response.json()["detail"] == "助手请求过于频繁，请稍后重试。"
+    assert 1 <= int(response.headers["retry-after"]) <= 60
+    assert response.headers["cache-control"] == "no-store"
+    assert len(provider.requests) == admission.USER_REQUESTS
+
+
+def test_org_quota_is_shared_by_client_and_advisor_endpoints(
+    workspace, provider, admission
+):
+    admission.ORG_REQUESTS = 2
+    provider.steps = [completion()] * 3
+    assert post(workspace).status_code == 200
+    assert post(workspace, "advisor").status_code == 200
+    assert post(workspace, user="other_client").status_code == 429
+    response = workspace[0].post(
+        "/api/advisor/copilot",
+        headers=workspace[-1]("foreign_admin", "b"),
+        json={"message": "Review my clients"},
+    )
+    assert response.status_code == 200
+    assert len(provider.requests) == 3
+
+
+def test_busy_request_does_not_wait_for_provider(workspace, provider):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    entered, release = Event(), Event()
+
+    def blocked():
+        entered.set()
+        assert release.wait(10)
+        return completion()
+
+    provider.steps = [blocked, completion()]
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(post, workspace)
+        try:
+            assert entered.wait(5)
+            response = pool.submit(post, workspace).result(timeout=5)
+            assert response.status_code == 503
+            assert response.headers["retry-after"] == "1"
+            assert workspace[0].get("/api/health").status_code == 200
+            assert len(provider.requests) == 1
+        finally:
+            release.set()
+        assert first.result(timeout=5).status_code == 200
+    assert post(workspace).status_code == 200
+
+
+def test_failed_provider_releases_capacity_but_counts_request(
+    workspace, provider, admission
+):
+    def fail():
+        raise RuntimeError("SYNTHETIC_PROVIDER_SECRET")
+
+    admission.USER_REQUESTS = 2
+    provider.steps = [fail, completion()]
+    assert post(workspace).status_code == 502
+    assert post(workspace).status_code == 200
+    assert post(workspace).status_code == 429
+
+
+def test_remaining_budget_reduces_next_provider_timeout(
+    workspace, provider, monkeypatch
+):
+    now = [100.0]
+    monkeypatch.setattr(assistant.time, "monotonic", lambda: now[0])
+
+    def slow_tool_choice():
+        now[0] += 88
+        return completion(calls=[tool_call("read_own_profile")])
+
+    provider.steps = [slow_tool_choice, completion()]
+    assert post(workspace).status_code == 200
+    assert provider.requests[0]["timeout"].read == 30
+    assert provider.requests[1]["timeout"].read == 2
+    assert provider.requests[1]["timeout"].connect == 2
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_real_sdk_sends_deepseek_toggle_and_does_not_retry(
+    workspace, monkeypatch, failure
+):
+    import httpx
+    from openai import OpenAI
+
+    requests = []
+
+    def transport(request):
+        requests.append(json.loads(request.content))
+        assert request.extensions["timeout"]["read"] <= 30
+        if failure:
+            return httpx.Response(503, json={"error": {"message": "SYNTHETIC_SECRET"}})
+        return httpx.Response(
+            200,
+            json={
+                "id": "synthetic",
+                "created": 0,
+                "model": "deepseek-v4-pro",
+                "object": "chat.completion",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "Synthetic answer"},
+                    }
+                ],
+            },
+        )
+
+    monkeypatch.setattr(
+        assistant,
+        "get_llm_config",
+        lambda: LlmConfig(
+            "https://api.deepseek.com", "synthetic", "deepseek-v4-pro", True, "db"
+        ),
+    )
+    monkeypatch.setattr(
+        assistant,
+        "OpenAI",
+        lambda **kwargs: OpenAI(
+            **kwargs, http_client=httpx.Client(transport=httpx.MockTransport(transport))
+        ),
+    )
+    response = post(workspace)
+    assert response.status_code == (502 if failure else 200)
+    assert "SYNTHETIC_SECRET" not in response.text
+    assert len(requests) == 1
+    assert requests[0]["thinking"] == {"type": "disabled"}
+    assert requests[0]["max_tokens"] == 4096

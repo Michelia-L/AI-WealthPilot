@@ -57,11 +57,57 @@ share `api/client_views.py` with the Client API and omit advisor notes, draft co
 machine reviews, approval actors and model configuration.
 
 The loop permits at most 6 model requests and 12 tool calls, with a 120,000-character
-aggregate internal-context limit and 2,000 output tokens per model request. Existing
-provider timeout/retry settings apply. Budget exhaustion, malformed/truncated
-provider responses and provider failures return a generic localized 502. Missing
+aggregate internal-context limit and a separate 20,000-character final-answer limit.
+For the official DeepSeek endpoint or a model whose final path segment starts with
+`deepseek-`, each request explicitly sends `thinking: {type: disabled}` through
+the SDK's `extra_body` and uses 4,096 output tokens. DeepSeek enables thinking by
+default, so a small shared reasoning/answer budget can end before an answer or tool
+call completes; see the official [thinking-mode controls](https://api-docs.deepseek.com/guides/thinking_mode/).
+Other compatible models receive a 16,384-token output budget without DeepSeek-specific
+parameters. Gateways using DeepSeek model names must support its thinking toggle.
+These assistant settings do not change the long-form report/IPS generation policy.
+
+Only `finish_reason=tool_calls` permits tool execution, and only `stop` permits a
+final answer. A response containing tool calls alongside `length`, `content_filter`,
+`insufficient_system_resource`, `aborted` or any other reason executes no tools;
+see the official [completion termination states](https://api-docs.deepseek.com/api/create-chat-completion/).
+Budget exhaustion, malformed/truncated provider responses and provider failures
+return a generic localized 502. Missing
 configuration returns 503. Authorization failures retain 401/403/404/409 semantics;
 missing and inaccessible resources share 404. Responses use `Cache-Control: no-store`.
+
+## Request admission and time budgets
+
+Both live endpoints share process-wide admission in `api/assistant_limits.py`:
+
+| Boundary | Limit |
+| --- | --- |
+| Authenticated user | 6 admitted requests per rolling 60 seconds; 1 active run |
+| Authorized organization | 30 admitted requests per rolling 60 seconds; 2 active runs |
+| API process | 4 active assistant runs, enforced by a nonblocking semaphore |
+
+Rate exhaustion returns localized 429 with `Retry-After`. Busy capacity returns
+localized 503 with `Retry-After: 1`. Admission never waits for a slot while holding
+a FastAPI worker. User keys persist across sessions and both personas; organization
+keys come from authorization, never directly from a caller header. Failed admitted
+requests consume rate quota; every exit releases concurrency, including provider
+errors and authorization revocation. Expired quota keys are removed. Demo responses
+do not consume LLM admission because they make no provider request.
+
+Assistant calls use zero SDK retries and a 30-second HTTP I/O timeout, with
+5-second connect/pool timeouts. A 90-second elapsed run budget is checked before
+provider/tool calls and after provider responses; each request timeout is reduced
+to the remaining budget. Late answers and tool calls are rejected. HTTP timeouts
+measure I/O inactivity, so this is not a hard cancellation deadline for an active
+response that keeps sending bytes. The semaphore remains held until the call exits.
+
+Limits are in memory within one API process, matching the supplied single-worker
+Docker command. Restarts reset them; multiple workers or replicas multiply them.
+Deployments using multiple processes must enforce shared user/organization quotas
+and overall provider concurrency at a gateway or shared admission service. This
+guard covers these two assistant endpoints, not other LLM workflows.
+
+## Private context and demo behavior
 
 Only the final text and demo flag are returned. Reasoning fields, raw tool calls,
 tool results, provider metadata and exception payloads are not response fields or
@@ -81,5 +127,8 @@ This is not a claim about live model quality or global network isolation.
 model responses: unauthorized and invented tools, forged identities/history,
 cross-client and cross-tenant reads, unpublished reports, injected document text,
 mid-run logout/deactivation/reassignment, context isolation, error redaction,
-localization and demo behavior. Existing Client API and session tests cover the
+localization, truncated tool-call rejection, DeepSeek SDK request serialization,
+zero retries, run budgets, shared quotas, concurrent rejection and demo behavior.
+`tests/test_assistant_limits.py` covers simultaneous admissions, quota expiry and
+slot cleanup. Existing Client API and session tests cover the
 shared projection and authentication helpers.
