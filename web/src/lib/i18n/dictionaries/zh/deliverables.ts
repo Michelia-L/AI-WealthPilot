@@ -24,4 +24,10 @@ export const deliverables = {
   refreshing: "刷新中…",
   countLabel: (n: number) => `${n} 份`,
   backToCenter: "返回交付物中心",
+  deleteTitle: "删除已存储文档？",
+  deleteDescription: (name: string) =>
+    `确定永久删除 ${name} 的这份已存储文档？此操作无法撤销。审核发布流程中的文档版本及客户确认记录会保留。`,
+  deleteLabel: (name: string) => `删除 ${name} 的文档`,
+  deleting: "删除中…",
+  deleteFailed: "无法删除文档，请重试。",
 };

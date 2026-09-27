@@ -19,6 +19,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
 from api.access import Access, get_access, staff_access
@@ -296,6 +297,25 @@ def get_ips(
         revision_rounds=audit.get("total_rounds", 0),
         saved_at=meta.get("saved_at", ""),
     )
+
+
+@router.delete(
+    "/{document_id}",
+    status_code=204,
+    openapi_extra={"x-access-scope": "advisor-scoped"},
+)
+def delete_ips(document_id: str, access: Access = Depends(staff_access)) -> None:
+    """Delete a staff artifact; publication versions retain their own snapshots."""
+    from api.artifacts import delete_ips_artifact
+
+    owner = access.artifact(document_id, "ips")
+    access.ips(document_id)  # Validate the file and its ownership before deletion.
+    try:
+        delete_ips_artifact(access.session, owner)
+    except FileNotFoundError:
+        access.deny(404, "ips_not_found")
+    except (OSError, SQLAlchemyError):
+        raise HTTPException(500, msg("ips.delete_failed", access.locale)) from None
 
 
 @router.get("/{document_id}/pdf", openapi_extra={"x-access-scope": "advisor-scoped"})

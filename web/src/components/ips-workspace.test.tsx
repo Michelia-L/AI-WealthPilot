@@ -1,13 +1,14 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdvisorStatusResponse, ProfileSummary } from "@/lib/api";
 import { common } from "@/lib/i18n/dictionaries/en/common";
 import { ips } from "@/lib/i18n/dictionaries/en/ips";
+import { deliverables } from "@/lib/i18n/dictionaries/en/deliverables";
 import IpsWorkspace from "./ips-workspace";
 
 // Real English dictionary for copy; heavy/irrelevant children stubbed out.
 vi.mock("@/components/locale-context", () => ({
-  useT: () => ({ ips, common }),
+  useT: () => ({ ips, common, deliverables }),
   useLocale: () => ({ locale: "en" }),
 }));
 vi.mock("@/components/client-context", () => ({
@@ -195,6 +196,28 @@ describe("IpsWorkspace guards", () => {
 });
 
 describe("IpsWorkspace document library", () => {
+  it("removes a deleted document from the library, viewer and completion banner", async () => {
+    mockGenerateFlow([
+      { type: "node", node: "finalize", label: "Finalizing" },
+      { type: "done", document_id: "ips_abc", status: "approved" },
+    ]);
+    render(
+      <IpsWorkspace profiles={PROFILES} status={STATUS} initialDocuments={[{
+        document_id: "ips_abc", client_name: "Jane Doe", version: "1.0",
+        risk_level: "", status: "approved", revision_rounds: 0, saved_at: "",
+      }]} />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Generate IPS" }));
+    fireEvent.click(await screen.findByRole("button", { name: "View Now" }));
+    expect(await screen.findByTestId("markdown")).toBeInTheDocument();
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete document for Jane Doe" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(screen.queryByTestId("markdown")).not.toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "View Now" })).not.toBeInTheDocument();
+    expect(screen.getByText("No IPS documents yet")).toBeInTheDocument();
+  });
+
   it("renders the PDF download as a single named link (no nested button)", () => {
     // a11y (#46): the download used to be <a> wrapping <button> — nested
     // interactive elements are invalid HTML and confuse AT/keyboard users.

@@ -9,6 +9,7 @@ import type {
 } from "@/lib/api";
 import { fmtLocal } from "@/lib/format";
 import Markdown from "@/components/markdown";
+import DeleteDeliverableButton from "@/components/delete-deliverable-button";
 import { useClient } from "@/components/client-context";
 import { useLocale, useT } from "@/components/locale-context";
 import Button, { ButtonAnchor } from "@/components/ui/button";
@@ -42,6 +43,8 @@ export default function IpsWorkspace({
   const { locale } = useLocale();
   const [selectedId, setSelectedId] = useState<number | null>(profiles?.[0]?.id ?? null);
   const [maxRevisions, setMaxRevisions] = useState(3);
+  const [deletedIds, setDeletedIds] = useState<string[]>([]);
+  const documents = initialDocuments.filter((d) => !deletedIds.includes(d.document_id));
   const [viewing, setViewing] = useState<{
     documentId: string;
     title: string;
@@ -207,7 +210,7 @@ export default function IpsWorkspace({
             )}
           </ol>
 
-          {doneInfo && (
+          {doneInfo && !deletedIds.includes(doneInfo.document_id) && (
             <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-3 rounded-xl border border-jade-500/25 bg-jade-500/[0.07] px-4 py-3">
               <Icon name="check" size={15} className="shrink-0 text-jade-400" />
               <p className="text-sm text-jade-300">
@@ -284,7 +287,7 @@ export default function IpsWorkspace({
           <h2 className="font-display text-xl text-mist-100">{t.ips.libraryTitle}</h2>
           <span className="text-xs text-mist-500">{t.ips.libraryHint}</span>
         </div>
-        {initialDocuments.length === 0 ? (
+        {documents.length === 0 ? (
           <Panel pad={false}>
             <EmptyState
               icon="scroll"
@@ -307,7 +310,7 @@ export default function IpsWorkspace({
                 </tr>
               </THead>
               <tbody>
-                {initialDocuments.map((d) => (
+                {documents.map((d) => (
                   <TR key={d.document_id}>
                     <TD className="font-medium text-mist-100">{d.client_name}</TD>
                     <TD className="font-mono text-xs">{d.version}</TD>
@@ -345,6 +348,15 @@ export default function IpsWorkspace({
                         >
                           {t.ips.downloadPdf}
                         </ButtonAnchor>
+                        <DeleteDeliverableButton
+                          kind="ips"
+                          id={d.document_id}
+                          clientName={d.client_name}
+                          onDeleted={() => {
+                            setDeletedIds((ids) => [...ids, d.document_id]);
+                            setViewing((current) => current?.documentId === d.document_id ? null : current);
+                          }}
+                        />
                       </div>
                     </TD>
                   </TR>

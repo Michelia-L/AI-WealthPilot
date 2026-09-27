@@ -7,6 +7,7 @@ confer ownership. Domain/standalone file writers remain usable without an API DB
 from pathlib import Path
 
 from pydantic import ValidationError
+from sqlalchemy import Connection, select
 from sqlmodel import Session
 
 from api import db
@@ -69,6 +70,66 @@ def register_artifact(
     session.add(record)
     session.flush()
     return record
+
+
+def delete_ips_artifact(session: Session, owner: db.ArtifactRecord) -> None:
+    """Stage a reversible file removal and commit its ownership deletion.
+
+    The SQL write lock serializes deletion with startup recovery. A hidden
+    tombstone stays on the same filesystem and outside JSON indexing scans.
+    """
+    if owner.kind != "ips":
+        raise ValueError("Expected an IPS artifact")
+    path = artifact_path(owner)
+    tombstone = path.with_name(f".{path.name}.deleting")
+    staged = False
+    try:
+        session.delete(owner)
+        session.flush()  # Acquire the SQLite write lock before touching files.
+        if tombstone.exists() or tombstone.is_symlink():
+            raise OSError("IPS deletion recovery is required")
+        path.rename(tombstone)
+        staged = True
+        session.commit()
+    except Exception:
+        try:
+            if staged:
+                tombstone.rename(path)
+        finally:
+            session.rollback()
+        raise
+
+    # The deletion is committed. A cleanup failure must not restore the source
+    # or turn a successful delete into an error; startup retries this unlink.
+    try:
+        tombstone.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def recover_ips_deletions(connection: Connection) -> None:
+    """Reconcile interrupted deletes before indexing, under BEGIN IMMEDIATE."""
+    for tombstone in sorted(ips_storage.IPS_DIR.glob(".*.json.deleting")):
+        if tombstone.is_symlink() or not tombstone.is_file():
+            continue
+        filename = tombstone.name[1 : -len(".deleting")]
+        path = tombstone.with_name(filename)
+        indexed_filename = connection.execute(
+            select(db.ArtifactRecord.filename).where(
+                db.ArtifactRecord.kind == "ips",
+                db.ArtifactRecord.resource_id == path.stem,
+            )
+        ).scalar_one_or_none()
+        if indexed_filename is None:
+            # The SQL delete committed: do not let migration resurrect it.
+            tombstone.unlink()
+        elif indexed_filename == filename:
+            if path.exists() or path.is_symlink():
+                raise RuntimeError("IPS deletion recovery found an existing source")
+            # The process exited before commit; SQLite retained the owner.
+            tombstone.rename(path)
+        else:
+            raise RuntimeError("IPS deletion recovery found a conflicting index")
 
 
 def save_task_ips(task, *, locale: str = "en", **kwargs) -> Path:
