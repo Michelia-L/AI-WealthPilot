@@ -4,9 +4,11 @@ import json
 from pathlib import Path
 
 import pytest
+from sqlalchemy.exc import OperationalError
 from sqlmodel import Session
 
 from api import db
+from api.artifacts import delete_ips_artifact
 from api.i18n import msg
 from src.agents import ips_storage
 from tests.test_api_access import workspace as access_workspace
@@ -63,10 +65,10 @@ def test_delete_failure_is_localized_and_preserves_index(
     path = ips_storage.IPS_DIR / f"{document_id}.json"
     original = path.read_bytes()
 
-    def fail_unlink(self, *args, **kwargs):
+    def fail_rename(self, *args, **kwargs):
         raise PermissionError("PRIVATE_FILESYSTEM_DETAIL")
 
-    monkeypatch.setattr(Path, "unlink", fail_unlink)
+    monkeypatch.setattr(Path, "rename", fail_rename)
     response = client.delete(
         f"/api/ips/{document_id}",
         headers={**headers("advisor"), "X-Locale": locale},
@@ -77,6 +79,156 @@ def test_delete_failure_is_localized_and_preserves_index(
     assert path.read_bytes() == original
     with Session(db.engine) as session:
         assert session.get(db.ArtifactRecord, ("ips", document_id)) is not None
+
+
+@pytest.mark.parametrize("locale", ["en", "zh"])
+def test_commit_failure_restores_source_and_index(workspace, monkeypatch, locale):
+    client, _, _, _, artifacts, headers = workspace
+    document_id = artifacts["own"][0]
+    path = ips_storage.IPS_DIR / f"{document_id}.json"
+    tombstone = path.with_name(f".{path.name}.deleting")
+    original = path.read_bytes()
+
+    def fail_commit(self):
+        assert not path.exists()
+        assert tombstone.read_bytes() == original
+        raise OperationalError("DELETE", {}, RuntimeError("PRIVATE_DB_DETAIL"))
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Session, "commit", fail_commit)
+        response = client.delete(
+            f"/api/ips/{document_id}",
+            headers={**headers("advisor"), "X-Locale": locale},
+        )
+    assert response.status_code == 500
+    assert response.json()["detail"] == msg("ips.delete_failed", locale)
+    assert "PRIVATE_DB_DETAIL" not in response.text
+    assert path.read_bytes() == original
+    assert not tombstone.exists()
+    with Session(db.engine) as session:
+        assert session.get(db.ArtifactRecord, ("ips", document_id)) is not None
+    assert (
+        client.get(f"/api/ips/{document_id}", headers=headers("advisor")).status_code
+        == 200
+    )
+    # The rollback leaves a usable document, including a subsequent delete.
+    assert (
+        client.delete(f"/api/ips/{document_id}", headers=headers("advisor")).status_code
+        == 204
+    )
+
+
+@pytest.mark.parametrize("committed", [False, True])
+def test_startup_recovers_interrupted_deletion(workspace, monkeypatch, committed):
+    client, _, _, _, artifacts, headers = workspace
+    document_id = artifacts["own"][0]
+    path = ips_storage.IPS_DIR / f"{document_id}.json"
+    tombstone = path.with_name(f".{path.name}.deleting")
+    original = path.read_bytes()
+    commit = Session.commit
+
+    def interrupt(self):
+        assert tombstone.read_bytes() == original
+        if committed:
+            commit(self)
+        # Bypass the normal exception/rollback handler, like process exit.
+        raise SystemExit("Injected interruption")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Session, "commit", interrupt)
+        with pytest.raises(SystemExit), Session(db.engine) as session:
+            owner = session.get(db.ArtifactRecord, ("ips", document_id))
+            delete_ips_artifact(session, owner)
+    assert not path.exists()
+    assert tombstone.exists()
+    db.init_db()
+    db.init_db()  # Recovery is idempotent.
+    assert not tombstone.exists()
+    with Session(db.engine) as session:
+        assert (
+            session.get(db.ArtifactRecord, ("ips", document_id)) is None
+        ) == committed
+    if not committed:
+        assert path.read_bytes() == original
+    else:
+        assert not path.exists()
+    expected = 404 if committed else 200
+    assert (
+        client.get(f"/api/ips/{document_id}", headers=headers("advisor")).status_code
+        == expected
+    )
+
+
+def test_committed_delete_defers_failed_tombstone_cleanup(workspace, monkeypatch):
+    client, _, _, _, artifacts, headers = workspace
+    document_id = artifacts["own"][0]
+    path = ips_storage.IPS_DIR / f"{document_id}.json"
+    tombstone = path.with_name(f".{path.name}.deleting")
+
+    def fail_unlink(self, *args, **kwargs):
+        raise PermissionError("Injected cleanup failure")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "unlink", fail_unlink)
+        response = client.delete(f"/api/ips/{document_id}", headers=headers("advisor"))
+    assert response.status_code == 204
+    assert not path.exists()
+    assert tombstone.exists()
+    with Session(db.engine) as session:
+        assert session.get(db.ArtifactRecord, ("ips", document_id)) is None
+    db.init_db()
+    assert not tombstone.exists()
+    assert (
+        client.get(f"/api/ips/{document_id}", headers=headers("advisor")).status_code
+        == 404
+    )
+
+
+def test_startup_retries_a_failed_rollback_restore(workspace, monkeypatch):
+    client, _, _, _, artifacts, headers = workspace
+    document_id = artifacts["own"][0]
+    path = ips_storage.IPS_DIR / f"{document_id}.json"
+    tombstone = path.with_name(f".{path.name}.deleting")
+    original = path.read_bytes()
+    rename = Path.rename
+
+    def fail_commit(self):
+        raise OperationalError("DELETE", {}, RuntimeError("Injected commit failure"))
+
+    def fail_restore(self, target):
+        if self == tombstone:
+            raise PermissionError("Injected restore failure")
+        return rename(self, target)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Session, "commit", fail_commit)
+        patch.setattr(Path, "rename", fail_restore)
+        response = client.delete(f"/api/ips/{document_id}", headers=headers("advisor"))
+    assert response.status_code == 500
+    assert not path.exists()
+    assert tombstone.read_bytes() == original
+    with Session(db.engine) as session:
+        assert session.get(db.ArtifactRecord, ("ips", document_id)) is not None
+    db.init_db()
+    assert path.read_bytes() == original
+    assert not tombstone.exists()
+    assert (
+        client.get(f"/api/ips/{document_id}", headers=headers("advisor")).status_code
+        == 200
+    )
+
+
+def test_startup_never_overwrites_existing_source(workspace):
+    _, _, _, _, artifacts, _ = workspace
+    path = ips_storage.IPS_DIR / f"{artifacts['own'][0]}.json"
+    tombstone = path.with_name(f".{path.name}.deleting")
+    original = path.read_bytes()
+    path.rename(tombstone)
+    path.write_text("Replacement source")
+    with pytest.raises(RuntimeError, match="existing source"):
+        db.init_db()
+    assert tombstone.read_bytes() == original
+    assert path.read_text() == "Replacement source"
 
 
 @pytest.mark.parametrize("replacement", ["conflicting_owner", "symlink"])

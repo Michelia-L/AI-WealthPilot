@@ -319,6 +319,7 @@ class HoldingSnapshotRecord(SQLModel, table=True):
 
 def init_db() -> None:
     """Create tables and atomically migrate profile and resource ownership."""
+    from api.artifacts import recover_ips_deletions
     from api.migrate_ownership import migrate_ownership
     from api.migrate_resources import migrate_resource_schema, migrate_resources
 
@@ -334,6 +335,7 @@ def init_db() -> None:
             CLIENT_ORGANIZATION_INDEX.create(connection, checkfirst=True)
             migrate_ownership(connection)
             migrate_resource_schema(connection)
+            recover_ips_deletions(connection)
             migrate_resources(connection)
             connection.commit()
         except Exception:
