@@ -24,7 +24,7 @@ openai==3.19.2
 # Agent Orchestration — IPS Generator (LangGraph + PydanticAI)
 langgraph==1.2.12
 langgraph-checkpoint==4.2.0
-pydantic-ai==2.43.0
+pydantic-ai==2.49.0
 pydantic==2.13.5
 
 # Utilities
