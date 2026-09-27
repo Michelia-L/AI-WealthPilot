@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getAdvisorReports, getIpsDocuments, getProfiles } from "@/lib/api/server";
 import { fmtLocal } from "@/lib/format";
 import DeliverablesControls from "@/components/deliverables-controls";
+import DeleteDeliverableButton from "@/components/delete-deliverable-button";
 import { ApiOffline } from "@/components/api-offline";
 import { dictionaries, getDict, getLocale } from "@/lib/i18n/server";
 import { altLocale } from "@/lib/i18n/locale";
@@ -190,6 +191,7 @@ export default async function DeliverablesPage({ searchParams }: PageProps) {
                           {d.label}
                         </ButtonLink>
                       ))}
+                      <DeleteDeliverableButton kind={r.kind} id={r.id} clientName={r.client} />
                     </div>
                   </TD>
                 </TR>

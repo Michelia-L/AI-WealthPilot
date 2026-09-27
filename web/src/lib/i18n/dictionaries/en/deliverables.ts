@@ -26,4 +26,10 @@ export const deliverables = {
   refreshing: "Refreshing…",
   countLabel: (n: number) => `${n} ${n === 1 ? "item" : "items"}`,
   backToCenter: "Back to Deliverables",
+  deleteTitle: "Delete stored document?",
+  deleteDescription: (name: string) =>
+    `Permanently delete the stored document for ${name}? This cannot be undone. Versions in the review and publication workflow, including client acknowledgements, are retained.`,
+  deleteLabel: (name: string) => `Delete document for ${name}`,
+  deleting: "Deleting…",
+  deleteFailed: "Could not delete the document. Please try again.",
 };

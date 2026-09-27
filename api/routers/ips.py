@@ -298,6 +298,27 @@ def get_ips(
     )
 
 
+@router.delete(
+    "/{document_id}",
+    status_code=204,
+    openapi_extra={"x-access-scope": "advisor-scoped"},
+)
+def delete_ips(document_id: str, access: Access = Depends(staff_access)) -> None:
+    """Delete a staff artifact; publication versions retain their own snapshots."""
+    from api.artifacts import artifact_path
+
+    owner = access.artifact(document_id, "ips")
+    access.ips(document_id)  # Validate the file and its ownership before deletion.
+    try:
+        artifact_path(owner).unlink()
+    except FileNotFoundError:
+        access.deny(404, "ips_not_found")
+    except OSError:
+        raise HTTPException(500, msg("ips.delete_failed", access.locale)) from None
+    access.session.delete(owner)
+    access.session.commit()
+
+
 @router.get("/{document_id}/pdf", openapi_extra={"x-access-scope": "advisor-scoped"})
 def get_ips_pdf(
     document_id: str, request: Request, access: Access = Depends(get_access)

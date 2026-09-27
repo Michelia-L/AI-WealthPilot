@@ -214,6 +214,10 @@ _MESSAGES: dict[str, dict[str, dict[str, str]]] = {
         },
     },
     "ips": {
+        "delete_failed": {
+            "en": "Could not delete the IPS document. Please try again later.",
+            "zh": "无法删除 IPS 文档，请稍后重试。",
+        },
         "workflow_no_ips": {
             "zh": "工作流未产出 IPS（可能被升级人工处理）",
             "en": "The workflow produced no IPS (it may have been escalated for manual handling)",
