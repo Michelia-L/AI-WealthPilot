@@ -1,4 +1,14 @@
 export const nav = {
+  console: "顾问工作台",
+  clientsGroup: "客户管理",
+  portfolioGroup: "投资组合",
+  advisoryGroup: "顾问服务",
+  monitoringGroup: "监控",
+  researchGroup: "研究",
+  systemGroup: "系统",
+  openMenu: "打开菜单",
+  closeMenu: "关闭菜单",
+
   overview: "总览",
   market: "市场",
   optimizer: "组合优化",

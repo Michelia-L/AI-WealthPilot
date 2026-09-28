@@ -392,7 +392,7 @@ export default async function OverviewPage() {
       {/* 页首 */}
       <header className="animate-fade-up">
         <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-gold-500/25 bg-gold-500/[0.07] px-3 py-1 text-[10px] font-medium tracking-[0.22em] text-gold-400 uppercase">
-          Private Wealth Workstation
+          {t.nav.console}
         </div>
         <h1 className="font-display text-4xl leading-tight text-mist-100 md:text-5xl">
           {t.overview.title}

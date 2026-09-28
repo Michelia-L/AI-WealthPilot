@@ -1,3 +1,4 @@
+import ClientWorkspace from "@/components/client-workspace";
 import type { Metadata } from "next";
 import { getAdvisorStatus, getIpsDocuments, getProfiles } from "@/lib/api/server";
 import { altLocale } from "@/lib/i18n/locale";
@@ -33,11 +34,13 @@ export default async function IpsPage() {
         description={t.ips.description}
       />
 
-      <IpsWorkspace
-        profiles={profiles?.profiles ?? null}
-        status={status}
-        initialDocuments={documents?.documents ?? []}
-      />
+      <ClientWorkspace>
+        <IpsWorkspace
+          profiles={profiles?.profiles ?? null}
+          status={status}
+          initialDocuments={documents?.documents ?? []}
+        />
+      </ClientWorkspace>
     </div>
   );
 }

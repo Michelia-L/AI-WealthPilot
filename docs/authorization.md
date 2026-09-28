@@ -85,3 +85,34 @@ ruff format --check
 ```
 
 The tests cover the client/advisor/admin access matrix, multiple memberships, role and assignment changes, assignment service permissions and rollback, database tenant constraints, upgrading a #73 database, and test-only routes using real bearer sessions. The HTTP integration checks anonymous access, forged user/role headers, indistinguishable missing/forbidden responses, Chinese localization, and logout revocation.
+
+## Advisor Console client context (#81)
+
+The existing Web application is the Advisor Console. Its navigation groups the
+implemented client, portfolio, advisory, monitoring, research, and system pages.
+Goals, portfolio analysis, rebalancing, and CME remain within their existing
+workspaces; this change does not add separate product surfaces for them.
+
+The layout resolves the selected organization membership on the server. Advisor
+and admin memberships can enter the console; client memberships receive an
+access message and workspace/sign-out controls. The settings page and navigation
+follow the existing deployment policy: the local organization's admin can manage
+settings, and the demo admin can view demo settings. The API remains the authority
+for every request, including direct URLs and assignment changes.
+
+The current-client selector uses only the authorized `/api/profiles` response.
+It stores a profile ID in tab-local session storage, scoped by authenticated user
+and organization, and resolves the displayed name from that response. Old
+unscoped local-storage values are ignored. Deleted, unavailable, or revoked
+profiles cannot supply an active selection. Opening an authorized profile detail
+sets that client for subsequent navigation; switching the sidebar from a profile
+detail opens the newly selected profile.
+
+AI Advisor and IPS require an explicit client selection and follow subsequent
+sidebar changes. Optimizer and retirement retain their manual-analysis paths.
+Changing clients resets the client workspace's form/result state and disconnects
+its streams. IPS and optimizer resume handles use the same user/organization/client
+scope, so returning to the original client can resume its unfinished background
+task without attaching it to another client's workspace. Completed/unsaved results
+are not retained across client changes. Session transitions clear tab selections
+and task handles; they do not cancel server-side background tasks.

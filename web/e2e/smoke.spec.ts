@@ -6,7 +6,7 @@ import { expect, test } from "./fixtures";
  * is that pages never crash.
  */
 const ROUTES: { path: string; heading: string | RegExp }[] = [
-  { path: "/", heading: /Private Wealth Workstation/i },
+  { path: "/", heading: /Advisor Console/i },
   { path: "/market", heading: "Market Dashboard" },
   { path: "/optimizer", heading: "Portfolio Optimizer" },
   { path: "/retirement", heading: "Retirement Planner" },

@@ -1,4 +1,7 @@
 export const auth = {
+  advisorOnly: "顾问工作台仅向顾问和管理员开放。请切换至有权限的工作区或退出登录。",
+  adminOnly: "系统设置仅向部署工作区的管理员开放。",
+
   "title": "登录 AI WealthPilot",
   "email": "邮箱",
   "password": "密码",

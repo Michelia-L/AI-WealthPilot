@@ -9,6 +9,7 @@ import {
   loadActiveTask,
   saveActiveTask,
 } from "@/lib/task-resume";
+import { useClient } from "@/components/client-context";
 import { useT } from "@/components/locale-context";
 
 export interface ProgressStep {
@@ -42,6 +43,7 @@ export function useIpsGeneration({
 }) {
   const router = useRouter();
   const t = useT();
+  const { taskScope } = useClient();
   const [running, setRunning] = useState(false);
   const [steps, setSteps] = useState<ProgressStep[]>([]);
   const [doneInfo, setDoneInfo] = useState<DoneInfo | null>(null);
@@ -61,10 +63,10 @@ export function useIpsGeneration({
         status: String(event.status ?? ""),
         revision_count: Number(event.revision_count ?? 0),
       });
-      clearActiveTask("ips");
+      clearActiveTask("ips", taskScope);
     } else if (event.type === "error") {
       setError(String(event.message ?? t.ips.generateFailed));
-      clearActiveTask("ips");
+      clearActiveTask("ips", taskScope);
     }
   }
 
@@ -77,7 +79,7 @@ export function useIpsGeneration({
     const eventsRes = await fetch(`/api/ips/tasks/${taskId}/events`, { signal });
     if (!eventsRes.ok || !eventsRes.body) {
       if (eventsRes.status === 404) {
-        clearActiveTask("ips");
+        clearActiveTask("ips", taskScope);
         throw new TaskGoneError();
       }
       const err = await eventsRes.json().catch(() => null);
@@ -97,7 +99,7 @@ export function useIpsGeneration({
 
   // 挂载时恢复未完成的任务（切页返回的场景）：重连事件流重建进度时间线。
   useEffect(() => {
-    const taskId = loadActiveTask("ips");
+    const taskId = loadActiveTask("ips", taskScope);
     if (!taskId) return;
     const controller = new AbortController();
     streamAbort.current = controller;
@@ -139,7 +141,7 @@ export function useIpsGeneration({
         throw new Error(typeof data.detail === "string" ? data.detail : t.ips.createTaskFailed(res.status));
       }
 
-      saveActiveTask("ips", String(data.task_id));
+      saveActiveTask("ips", String(data.task_id), taskScope);
       await streamTaskEvents(String(data.task_id), controller.signal);
       router.refresh();
     } catch (e) {

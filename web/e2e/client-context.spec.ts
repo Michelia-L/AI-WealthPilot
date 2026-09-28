@@ -23,10 +23,9 @@ test.beforeAll(async ({ request, baseURL }) => {
 });
 
 test("retirement follows persisted and sidebar clients while preserving manual mode", async ({ page }) => {
-  await page.addInitScript(({ id, name }) => {
-    localStorage.setItem("wealthpilot.activeClient", JSON.stringify({ id, name }));
-  }, { id: clients[0].id, name });
   await page.goto("/retirement");
+  await page.getByRole("combobox", { name: "Current client", exact: true }).selectOption(String(clients[0].id));
+  await page.reload();
   const picker = page.getByRole("combobox", { name: "Client", exact: true });
   await expect(picker).toHaveValue(String(clients[0].id));
   await expect(page.getByRole("spinbutton", { name: "Current Savings" })).toHaveValue("410000");
@@ -58,10 +57,9 @@ test("monitoring filters generated IPS documents by client ID despite duplicate 
     documentIds.push(done.document_id);
   }
 
-  await page.addInitScript(({ id, name }) => {
-    localStorage.setItem("wealthpilot.activeClient", JSON.stringify({ id, name }));
-  }, { id: clients[0].id, name });
-  await page.goto("/monitoring");
+  await page.goto("/profiles");
+  await page.getByRole("combobox", { name: "Current client", exact: true }).selectOption(String(clients[0].id));
+  await page.locator("aside").getByRole("link", { name: /Monitor/ }).click();
   const picker = page.getByRole("combobox", { name: "Select an IPS document (source of SAA targets)" });
   await expect(picker.locator(`option[value="${documentIds[0]}"]`)).toHaveCount(1);
   await expect(picker.locator(`option[value="${documentIds[1]}"]`)).toHaveCount(0);
@@ -73,4 +71,56 @@ test("monitoring filters generated IPS documents by client ID despite duplicate 
   await expect(picker).toHaveValue(documentIds[1]);
   await page.getByRole("button", { name: "中文", exact: true }).first().click();
   await expect(page.getByRole("combobox", { name: "按客户筛选" })).toHaveValue("all");
+});
+
+test("advisor and IPS follow sidebar changes, profile links and reloads", async ({ page }) => {
+  await page.goto("/advisor");
+  const sidebar = page.getByRole("combobox", { name: "Current client", exact: true });
+  const advisor = page.getByRole("combobox", { name: "Client", exact: true });
+  await expect(page.getByRole("button", { name: "Generate Proposal" })).toBeDisabled();
+  await advisor.selectOption(String(clients[0].id));
+  await expect(sidebar).toHaveValue(String(clients[0].id));
+  await sidebar.selectOption(String(clients[1].id));
+  await expect(advisor).toHaveValue(String(clients[1].id));
+  await page.locator("aside").getByRole("link", { name: /IPS/ }).click();
+  const ips = page.getByRole("combobox", { name: "Profile", exact: true });
+  await expect(ips).toHaveValue(String(clients[1].id));
+  await sidebar.selectOption(String(clients[0].id));
+  await expect(ips).toHaveValue(String(clients[0].id));
+  await page.reload();
+  await expect(ips).toHaveValue(String(clients[0].id));
+  await page.goto(`/profiles/${clients[1].id}`);
+  await expect(sidebar).toHaveValue(String(clients[1].id));
+  await sidebar.selectOption(String(clients[0].id));
+  await expect(page).toHaveURL(new RegExp(`/profiles/${clients[0].id}$`));
+  await page.locator("aside").getByRole("link", { name: /Optimizer/ }).click();
+  await expect(sidebar).toHaveValue(String(clients[0].id));
+  await expect(page.getByRole("status")).toContainText(name);
+  await page.getByRole("button", { name: "中文", exact: true }).first().click();
+  await expect(page.getByRole("combobox", { name: "当前客户", exact: true })).toHaveValue(String(clients[0].id));
+});
+
+test("IPS resumes only the selected client's saved task", async ({ page, request }) => {
+  test.setTimeout(60_000);
+  const created = await request.post("/api/ips/generate", { data: { profile_id: clients[0].id } });
+  expect(created.status()).toBe(202);
+  const { task_id: taskId } = await created.json();
+  await page.goto("/profiles");
+  await page.getByRole("combobox", { name: "Current client", exact: true }).selectOption(String(clients[1].id));
+  await page.evaluate(({ taskId, id }) => {
+    const clientKey = Object.keys(sessionStorage).find((key) => key.startsWith("wealthpilot.activeClient:"))!;
+    const scope = clientKey.slice("wealthpilot.activeClient:".length);
+    sessionStorage.setItem(`wealthpilot:active-task:ips:${scope}:${id}`, taskId);
+  }, { taskId, id: clients[0].id });
+  const taskRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes(`/api/ips/tasks/${taskId}/events`)) taskRequests.push(request.url());
+  });
+  await page.locator("aside").getByRole("link", { name: /IPS/ }).click();
+  await expect(page.getByRole("combobox", { name: "Profile", exact: true })).toHaveValue(String(clients[1].id));
+  await expect(page.getByRole("button", { name: "Generate IPS", exact: true })).toBeEnabled();
+  expect(taskRequests).toHaveLength(0);
+  await page.getByRole("combobox", { name: "Current client", exact: true }).selectOption(String(clients[0].id));
+  await expect(page.getByText(/IPS generated and archived/).first()).toBeVisible({ timeout: 30_000 });
+  expect(taskRequests).toHaveLength(1);
 });

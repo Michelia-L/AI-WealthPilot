@@ -16,29 +16,29 @@ export class TaskGoneError extends Error {
   }
 }
 
-function storageKey(kind: TaskKind): string {
-  return `wealthpilot:active-task:${kind}`;
+function storageKey(kind: TaskKind, scope?: string): string {
+  return `wealthpilot:active-task:${kind}${scope ? `:${scope}` : ""}`;
 }
 
-export function saveActiveTask(kind: TaskKind, taskId: string): void {
+export function saveActiveTask(kind: TaskKind, taskId: string, scope?: string): void {
   try {
-    sessionStorage.setItem(storageKey(kind), taskId);
+    sessionStorage.setItem(storageKey(kind, scope), taskId);
   } catch {
     // sessionStorage unavailable — resume is best-effort
   }
 }
 
-export function loadActiveTask(kind: TaskKind): string | null {
+export function loadActiveTask(kind: TaskKind, scope?: string): string | null {
   try {
-    return sessionStorage.getItem(storageKey(kind));
+    return sessionStorage.getItem(storageKey(kind, scope));
   } catch {
     return null;
   }
 }
 
-export function clearActiveTask(kind: TaskKind): void {
+export function clearActiveTask(kind: TaskKind, scope?: string): void {
   try {
-    sessionStorage.removeItem(storageKey(kind));
+    sessionStorage.removeItem(storageKey(kind, scope));
   } catch {
     // ignore
   }

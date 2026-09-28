@@ -1,3 +1,4 @@
+import { clientSelector } from "@/lib/i18n/dictionaries/en/clientSelector";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdvisorStatusResponse, ProfileSummary } from "@/lib/api";
@@ -8,11 +9,11 @@ import IpsWorkspace from "./ips-workspace";
 
 // Real English dictionary for copy; heavy/irrelevant children stubbed out.
 vi.mock("@/components/locale-context", () => ({
-  useT: () => ({ ips, common, deliverables }),
+  useT: () => ({ clientSelector, ips, common, deliverables }),
   useLocale: () => ({ locale: "en" }),
 }));
 vi.mock("@/components/client-context", () => ({
-  useClient: () => ({ clientId: null, clientName: null, select: vi.fn() }),
+  useClient: () => ({ clientId: 1, clientName: "Jane Doe", select: vi.fn() }),
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),

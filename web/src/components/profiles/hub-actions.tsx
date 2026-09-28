@@ -18,7 +18,7 @@ export default function HubActions({
 }) {
   const router = useRouter();
   const t = useT();
-  const { clientId, select, clear } = useClient();
+  const { clientId, select } = useClient();
   const isCurrent = clientId === id;
 
   return (
@@ -26,7 +26,8 @@ export default function HubActions({
       <Button
         variant={isCurrent ? "secondary" : "ghost"}
         icon={isCurrent ? "check" : "users"}
-        onClick={() => (isCurrent ? clear() : select(id, name))}
+        disabled={isCurrent}
+        onClick={() => select(id, name)}
       >
         {isCurrent
           ? t.profileDetail.currentClient

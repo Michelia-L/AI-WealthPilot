@@ -1,4 +1,4 @@
-import { getWorkspaceSession } from "@/lib/session";
+import { getWorkspaceSession, workspaceRole, canManageSettings } from "@/lib/session";
 import WorkspaceSessionControl from "@/components/workspace-session";
 import type { Metadata } from "next";
 import { Fraunces, Geist, Geist_Mono, IBM_Plex_Mono } from "next/font/google";
@@ -48,9 +48,12 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const [profilesData, locale, session] = await Promise.all([
-    getProfiles(), getLocale(), getWorkspaceSession(),
-  ]);
+  const [locale, session] = await Promise.all([getLocale(), getWorkspaceSession()]);
+  const role = workspaceRole(session);
+  const isAdvisor = role === "advisor" || role === "admin";
+  const profilesData = isAdvisor ? await getProfiles() : null;
+  const profiles = profilesData?.profiles ?? [];
+  const t = await getDict();
 
   return (
     <html
@@ -58,26 +61,33 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
-        <ClientProvider>
+        <ClientProvider profiles={profiles} scope={session ? `${session.userId}:${session.organizationId}` : "signed-out"}>
           <LocaleProvider locale={locale}>
             {!session?.organizationId ? (
               <WorkspaceSessionControl session={session} gate />
+            ) : !isAdvisor ? (
+              <div className="mx-auto my-24 max-w-lg space-y-5 px-5">
+                <h1 className="font-display text-2xl">{t.nav.console}</h1>
+                <p role="alert">{t.auth.advisorOnly}</p>
+                <WorkspaceSessionControl session={session} />
+              </div>
             ) : (
-            <AppShell
-              sessionControls={<WorkspaceSessionControl session={session} />}
-              profiles={profilesData?.profiles ?? []}
-              healthBadge={
-                <Suspense
-                  fallback={
-                    <span className="inline-block h-6 w-24 animate-pulse rounded-full bg-ink-800" />
-                  }
-                >
-                  <HealthBadge />
-                </Suspense>
-              }
-            >
-              {children}
-            </AppShell>
+              <AppShell
+                canManageSettings={canManageSettings(session)}
+                sessionControls={<WorkspaceSessionControl session={session} />}
+                profiles={profiles}
+                healthBadge={
+                  <Suspense
+                    fallback={
+                      <span className="inline-block h-6 w-24 animate-pulse rounded-full bg-ink-800" />
+                    }
+                  >
+                    <HealthBadge />
+                  </Suspense>
+                }
+              >
+                {children}
+              </AppShell>
             )}
           </LocaleProvider>
         </ClientProvider>

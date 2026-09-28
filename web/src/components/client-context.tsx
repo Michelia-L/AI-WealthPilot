@@ -1,97 +1,84 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useSyncExternalStore,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
+import type { ProfileSummary } from "@/lib/api";
 
 interface ClientContextValue {
   clientId: number | null;
   clientName: string | null;
+  ready: boolean;
+  taskScope: string;
   select: (id: number, name: string) => void;
   clear: () => void;
 }
 
 const ClientContext = createContext<ClientContextValue | null>(null);
-const STORAGE_KEY = "wealthpilot.activeClient";
+const subscribeReady = () => () => {};
 
-interface ActiveClient {
-  id: number;
-  name: string;
-}
-
-/*
- * localStorage 作为外部 store，经 useSyncExternalStore 订阅：
- * SSR 与首帧水合返回 null（与服务端一致），水合后读取本地持久值。
- */
-const listeners = new Set<() => void>();
-let snapshot: ActiveClient | null | undefined; // undefined = 尚未读取
-
-function getSnapshot(): ActiveClient | null {
-  if (snapshot !== undefined) return snapshot;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    snapshot = raw ? (JSON.parse(raw) as ActiveClient) : null;
-  } catch {
-    snapshot = null;
-  }
-  return snapshot;
-}
-
-const getServerSnapshot = (): ActiveClient | null => null;
-
-function subscribe(callback: () => void): () => void {
-  listeners.add(callback);
-  return () => {
-    listeners.delete(callback);
+/** Store only an ID, scoped to the signed-in user and workspace in this tab. */
+function createStore(scope: string) {
+  const key = `wealthpilot.activeClient:${scope}`;
+  const listeners = new Set<() => void>();
+  let snapshot: number | null | undefined;
+  return {
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
+    getSnapshot() {
+      if (snapshot !== undefined) return snapshot;
+      try {
+        const value = Number(sessionStorage.getItem(key));
+        snapshot = Number.isSafeInteger(value) && value > 0 ? value : null;
+      } catch { snapshot = null; }
+      return snapshot;
+    },
+    write(id: number | null) {
+      snapshot = id;
+      try {
+        if (id === null) sessionStorage.removeItem(key);
+        else sessionStorage.setItem(key, String(id));
+      } catch { /* Keep selection in memory when storage is unavailable. */ }
+      listeners.forEach((listener) => listener());
+    },
   };
 }
 
-function write(next: ActiveClient | null) {
-  snapshot = next;
-  try {
-    if (next) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
+const serverSnapshot = () => null;
+
+export function ClientProvider({ children, profiles, scope }: {
+  children: React.ReactNode;
+  profiles: ProfileSummary[];
+  scope: string;
+}) {
+  const store = useMemo(() => createStore(scope), [scope]);
+  const storedId = useSyncExternalStore(store.subscribe, store.getSnapshot, serverSnapshot);
+  const ready = useSyncExternalStore(subscribeReady, () => true, () => false);
+  const pathname = usePathname();
+  const routeId = pathname.match(/^\/profiles\/(\d+)\/?$/)?.[1];
+  // A profile deep link is authoritative. Never expose stale or foreign IDs/names.
+  const id = routeId ? Number(routeId) : storedId;
+  const active = profiles.find((profile) => profile.id === id);
+  useEffect(() => {
+    if (!ready) return;
+    if (routeId || (storedId !== null && !profiles.some((p) => p.id === storedId))) {
+      store.write(active?.id ?? null);
     }
-  } catch {
-    /* 持久化失败时仅保留内存态 */
-  }
-  listeners.forEach((l) => l());
-}
-
-/**
- * 全局客户上下文 —— 顾问工作站的"当前服务对象"。
- * 选择持久化到 localStorage，advisor / ips 等页面读取作为默认选中。
- */
-export function ClientProvider({ children }: { children: React.ReactNode }) {
-  const active = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-
-  const select = useCallback((id: number, name: string) => {
-    write({ id, name });
-  }, []);
-
-  const clear = useCallback(() => {
-    write(null);
-  }, []);
-
-  const value = useMemo<ClientContextValue>(
-    () => ({
-      clientId: active?.id ?? null,
-      clientName: active?.name ?? null,
-      select,
-      clear,
-    }),
-    [active, select, clear]
-  );
-
-  return (
-    <ClientContext.Provider value={value}>{children}</ClientContext.Provider>
-  );
+  }, [ready, routeId, storedId, profiles, active?.id, store]);
+  const select = useCallback((id: number) => {
+    if (profiles.some((profile) => profile.id === id)) store.write(id);
+  }, [profiles, store]);
+  const clear = useCallback(() => store.write(null), [store]);
+  const value = useMemo<ClientContextValue>(() => ({
+    clientId: active?.id ?? null,
+    clientName: active?.name ?? null,
+    ready,
+    taskScope: `${scope}:${active?.id ?? "manual"}`,
+    select,
+    clear,
+  }), [active, ready, scope, select, clear]);
+  return <ClientContext.Provider value={value}>{children}</ClientContext.Provider>;
 }
 
 export function useClient(): ClientContextValue {

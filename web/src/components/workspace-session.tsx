@@ -29,6 +29,9 @@ export default function WorkspaceSessionControl({
       if (!res.ok) throw new Error();
       try {
         localStorage.removeItem("wealthpilot.activeClient");
+        for (const key of Object.keys(sessionStorage)) {
+          if (key.startsWith("wealthpilot.activeClient:") || key.startsWith("wealthpilot:active-task:")) sessionStorage.removeItem(key);
+        }
       } catch { /* Storage may be disabled; the session still changed. */ }
       window.location.reload();
     } catch {

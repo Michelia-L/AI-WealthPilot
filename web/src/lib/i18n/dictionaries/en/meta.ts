@@ -1,5 +1,5 @@
 export const meta = {
-  title: "AI WealthPilot · Private Wealth Workstation",
+  title: "AI WealthPilot · Advisor Console",
   description:
-    "AI-assisted private wealth workstation — quantitative portfolio engine, capital market expectations and advisor agents.",
+    "AI-assisted advisor console — quantitative portfolio engine, capital market expectations and advisor agents.",
 };

@@ -1,3 +1,4 @@
+import { canManageSettings, getWorkspaceSession } from "@/lib/session";
 import type { Metadata } from "next";
 import { getLlmSettings } from "@/lib/api/server";
 import { altLocale } from "@/lib/i18n/locale";
@@ -17,6 +18,10 @@ export async function generateMetadata(): Promise<Metadata> {
  * save mutations through the same-origin proxy.
  */
 export default async function SettingsPage() {
+  if (!canManageSettings(await getWorkspaceSession())) {
+    const t = await getDict();
+    return <p role="alert" className="p-10 text-mist-300">{t.auth.adminOnly}</p>;
+  }
   const [settings, locale] = await Promise.all([getLlmSettings(), getLocale()]);
   const t = dictionaries[locale];
   const alt = dictionaries[altLocale(locale)];

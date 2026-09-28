@@ -41,7 +41,7 @@ export default function IpsWorkspace({
   const { clientId, select } = useClient();
   const t = useT();
   const { locale } = useLocale();
-  const [selectedId, setSelectedId] = useState<number | null>(profiles?.[0]?.id ?? null);
+  const selectedId = profiles?.some((p) => p.id === clientId) ? clientId : null;
   const [maxRevisions, setMaxRevisions] = useState(3);
   const [deletedIds, setDeletedIds] = useState<string[]>([]);
   const documents = initialDocuments.filter((d) => !deletedIds.includes(d.document_id));
@@ -57,20 +57,7 @@ export default function IpsWorkspace({
   const configured = status?.configured ?? false;
   const demo = status?.demo ?? false;
 
-  // 全局客户上下文仅应用一次作为默认选中（render 期条件调整，React 官方模式）；
-  // 此后以本页选择为准并回写上下文。
-  const [appliedGlobalDefault, setAppliedGlobalDefault] = useState(false);
-  if (
-    !appliedGlobalDefault &&
-    clientId !== null &&
-    profiles?.some((p) => p.id === clientId)
-  ) {
-    setAppliedGlobalDefault(true);
-    setSelectedId(clientId);
-  }
-
   function handleSelectProfile(id: number) {
-    setSelectedId(id);
     const p = profiles?.find((profile) => profile.id === id);
     if (p) select(p.id, p.name);
   }
@@ -148,6 +135,7 @@ export default function IpsWorkspace({
                 onChange={(e) => handleSelectProfile(Number(e.target.value))}
                 disabled={running}
               >
+                <option value="" disabled>{t.clientSelector.empty}</option>
                 {profiles.map((p) => (
                   <option key={p.id} value={p.id}>
                     {t.ips.profileOption(p.name, p.age, p.risk_level ? riskLabel(p.risk_level) : null)}

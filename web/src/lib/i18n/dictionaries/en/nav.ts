@@ -1,4 +1,14 @@
 export const nav = {
+  console: "Advisor Console",
+  clientsGroup: "Clients",
+  portfolioGroup: "Portfolio",
+  advisoryGroup: "Advisory",
+  monitoringGroup: "Monitoring",
+  researchGroup: "Research",
+  systemGroup: "System",
+  openMenu: "Open menu",
+  closeMenu: "Close menu",
+
   overview: "Overview",
   market: "Market",
   optimizer: "Optimizer",

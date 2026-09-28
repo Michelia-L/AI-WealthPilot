@@ -4,6 +4,7 @@ import { expect, test } from "./fixtures";
 async function generateIps(page: Page, request: APIRequestContext) {
   await page.goto("/ips");
   const picker = page.getByRole("combobox", { name: "Profile" });
+  await picker.selectOption({ index: 1 });
   const profileId = Number(await picker.inputValue());
   const name = ((await picker.locator("option:checked").textContent()) ?? "").split(" (")[0].trim();
   const created = await request.post("/api/ips/generate", { data: { profile_id: profileId } });

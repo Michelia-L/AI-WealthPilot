@@ -1,3 +1,4 @@
+import ClientWorkspace from "@/components/client-workspace";
 import type { Metadata } from "next";
 import RetirementWorkspace from "@/components/retirement-workspace";
 import { SectionHeader } from "@/components/ui";
@@ -32,7 +33,9 @@ export default async function RetirementPage() {
       />
 
       <div className="mt-10">
-        <RetirementWorkspace profiles={profiles?.profiles ?? null} />
+        <ClientWorkspace manual>
+          <RetirementWorkspace profiles={profiles?.profiles ?? null} />
+        </ClientWorkspace>
       </div>
     </div>
   );
