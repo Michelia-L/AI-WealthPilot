@@ -44,7 +44,7 @@ export default function RetirementWorkspace({
 }) {
   const t = useT();
   const { locale } = useLocale();
-  const { clientId, select } = useClient();
+  const { clientId, select, clear } = useClient();
   const [form, setForm] = useState<RetirementRequest>({
     current_age: 30,
     retirement_age: 60,
@@ -66,24 +66,22 @@ export default function RetirementWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RetirementResponse | null>(null);
   const [suggestion, setSuggestion] = useState<CmeSuggestion | null>(null);
-  // Manual mode is local to this client; a global client change resumes following it.
-  const [selection, setSelection] = useState({ clientId, manual: false });
-  if (selection.clientId !== clientId) {
-    setSelection({ clientId, manual: false });
+  const selectedId = profiles?.some((p) => p.id === clientId) ? clientId : null;
+  const [previousClient, setPreviousClient] = useState(selectedId);
+  if (previousClient !== selectedId) {
+    setPreviousClient(selectedId);
     setSuggestion(null);
     setResult(null);
     setError(null);
   }
-  const selectedId = !selection.manual && profiles?.some((p) => p.id === clientId)
-    ? clientId
-    : null;
 
   // Hydration and sidebar changes both reach this effect. Cleanup also prevents
   // a slower previous client's response from overwriting the new client's form.
   useEffect(() => {
+    if (selectedId === null) return;
     const controller = new AbortController();
     const { signal } = controller;
-    const qs = selectedId !== null ? `?profile_id=${selectedId}` : "";
+    const qs = `?profile_id=${selectedId}`;
     fetch(`/api/retirement/cme-suggestion${qs}`, { signal })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -125,16 +123,9 @@ export default function RetirementWorkspace({
   function selectClient(id: number) {
     const p = profiles?.find((pr) => pr.id === id);
     if (!p) return;
-    setSelection({ clientId: id, manual: false });
     setSuggestion(null);
     setResult(null);
     select(p.id, p.name);
-  }
-
-  function selectManual() {
-    setSelection({ clientId, manual: true });
-    setSuggestion(null);
-    setResult(null);
   }
 
   // Slider ranges: expected_return 0.02–0.15, volatility 0.05–0.30
@@ -162,6 +153,7 @@ export default function RetirementWorkspace({
   });
 
   async function run() {
+    if (selectedId === null) return;
     setLoading(true);
     setError(null);
     try {
@@ -212,11 +204,11 @@ export default function RetirementWorkspace({
                   value={selectedId ?? ""}
                   onChange={(e) => {
                     const v = e.target.value;
-                    if (v === "") selectManual();
+                    if (v === "") clear();
                     else selectClient(Number(v));
                   }}
                 >
-                  <option value="">{t.retirement.clientManual}</option>
+                  <option value="">{t.clientSelector.empty}</option>
                   {profiles.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
@@ -356,7 +348,7 @@ export default function RetirementWorkspace({
               variant="primary"
               icon="sparkle"
               onClick={run}
-              disabled={loading || !agesValid}
+              disabled={selectedId === null || loading || !agesValid}
             >
               {loading ? t.retirement.running : t.retirement.run}
             </Button>

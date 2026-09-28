@@ -44,7 +44,7 @@ export default function IpsWorkspace({
   const selectedId = profiles?.some((p) => p.id === clientId) ? clientId : null;
   const [maxRevisions, setMaxRevisions] = useState(3);
   const [deletedIds, setDeletedIds] = useState<string[]>([]);
-  const documents = initialDocuments.filter((d) => !deletedIds.includes(d.document_id));
+  const documents = initialDocuments.filter((d) => selectedId !== null && d.profile_id === selectedId && !deletedIds.includes(d.document_id));
   const [viewing, setViewing] = useState<{
     documentId: string;
     title: string;

@@ -152,10 +152,22 @@ class Access:
         reports = []
         if limit <= 0:
             return reports
-        for _, payload in self.iter_artifacts("report"):
+        profile_ids = dict(
+            self.session.exec(
+                select(ProfileRecord.client_id, ProfileRecord.id).where(
+                    ProfileRecord.client_id.in_(self.client_ids())
+                )
+            ).all()
+        )
+        for owner, payload in self.iter_artifacts("report"):
             if client_name and payload.client_name != client_name:
                 continue
-            reports.append(summarize_report(payload))
+            reports.append(
+                {
+                    **summarize_report(payload),
+                    "profile_id": profile_ids.get(owner.client_id),
+                }
+            )
             if len(reports) >= limit:
                 break
         return reports

@@ -64,6 +64,7 @@ export default function AdvisorWorkspace({
   const abortRef = useRef<AbortController | null>(null);
 
   const selectedId = profiles?.some((p) => p.id === clientId) ? clientId : null;
+  const reports = initialReports.filter((r) => selectedId !== null && r.profile_id === selectedId);
   useEffect(() => () => abortRef.current?.abort(), []);
 
   function handleSelect(id: number) {
@@ -393,7 +394,7 @@ export default function AdvisorWorkspace({
             {alt.advisor.libraryTitle}
           </span>
         </div>
-        {initialReports.length === 0 ? (
+        {reports.length === 0 ? (
           <Panel>
             <EmptyState
               icon="sparkle"
@@ -414,7 +415,7 @@ export default function AdvisorWorkspace({
                 </tr>
               </THead>
               <tbody>
-                {initialReports.map((r) => (
+                {reports.map((r) => (
                   <TR key={r.report_id}>
                     <TD>
                       <span className="font-medium text-mist-100">{r.client_name}</span>

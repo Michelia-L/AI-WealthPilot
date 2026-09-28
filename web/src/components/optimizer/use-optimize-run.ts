@@ -30,7 +30,7 @@ export function useOptimizeRun({
   method: OptimizeMethod;
 }) {
   const t = useT();
-  const { taskScope } = useClient();
+  const { taskScope, clientId } = useClient();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +86,7 @@ export function useOptimizeRun({
 
   // 挂载时恢复未完成的任务（切页返回的场景）：重连事件流重建进度与结果。
   useEffect(() => {
+    if (clientId === null) return;
     const taskId = loadActiveTask("portfolio", taskScope);
     if (!taskId) return;
     const controller = new AbortController();
@@ -110,7 +111,7 @@ export function useOptimizeRun({
       }
     })();
     return () => controller.abort();
-  }, [streamTaskEvents, taskScope]);
+  }, [streamTaskEvents, taskScope, clientId]);
 
   // 卸载时断开事件流（任务在服务端继续，句柄保留供重连）
   useEffect(() => () => streamAbort.current?.abort(), []);
@@ -139,6 +140,7 @@ export function useOptimizeRun({
   }
 
   async function run() {
+    if (clientId === null) return;
     const controller = new AbortController();
     streamAbort.current?.abort();
     streamAbort.current = controller;

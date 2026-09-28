@@ -49,7 +49,7 @@ export default async function OptimizerPage({ searchParams }: PageProps) {
       />
 
       {assetClasses ? (
-        <ClientWorkspace manual>
+        <ClientWorkspace>
           <OptimizerWorkspace
             assetClasses={assetClasses.asset_classes}
             initialAssets={

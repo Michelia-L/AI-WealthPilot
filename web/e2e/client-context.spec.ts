@@ -22,7 +22,7 @@ test.beforeAll(async ({ request, baseURL }) => {
   }
 });
 
-test("retirement follows persisted and sidebar clients while preserving manual mode", async ({ page }) => {
+test("retirement requires a client and follows the shared selection", async ({ page }) => {
   await page.goto("/retirement");
   await page.getByRole("combobox", { name: "Current client", exact: true }).selectOption(String(clients[0].id));
   await page.reload();
@@ -31,7 +31,8 @@ test("retirement follows persisted and sidebar clients while preserving manual m
   await expect(page.getByRole("spinbutton", { name: "Current Savings" })).toHaveValue("410000");
 
   await picker.selectOption("");
-  await page.getByRole("spinbutton", { name: "Current Savings" }).fill("123456");
+  await expect(page.getByRole("button", { name: "Run Simulation" })).toBeDisabled();
+  await expect(page.getByRole("combobox", { name: "Current client", exact: true })).toHaveValue("");
   await expect(picker).toHaveValue("");
   await page.locator("aside select").selectOption(String(clients[1].id));
   await expect(picker).toHaveValue(String(clients[1].id));
@@ -71,6 +72,19 @@ test("monitoring filters generated IPS documents by client ID despite duplicate 
   await expect(picker).toHaveValue(documentIds[1]);
   await page.getByRole("button", { name: "中文", exact: true }).first().click();
   await expect(page.getByRole("combobox", { name: "按客户筛选" })).toHaveValue("all");
+  await page.getByRole("button", { name: "EN", exact: true }).first().click();
+  await page.goto("/ips");
+  const sidebar = page.getByRole("combobox", { name: "Current client", exact: true });
+  const firstDocument = page.getByRole("row").filter({ has: page.locator(`a[href="/api/ips/${documentIds[0]}/pdf"]`) });
+  const secondDocument = page.getByRole("row").filter({ has: page.locator(`a[href="/api/ips/${documentIds[1]}/pdf"]`) });
+  await expect(firstDocument).toHaveCount(1);
+  await expect(secondDocument).toHaveCount(0);
+  await sidebar.selectOption(String(clients[1].id));
+  await expect(firstDocument).toHaveCount(0);
+  await expect(secondDocument).toHaveCount(1);
+  await sidebar.selectOption("");
+  await expect(firstDocument).toHaveCount(0);
+  await expect(secondDocument).toHaveCount(0);
 });
 
 test("advisor and IPS follow sidebar changes, profile links and reloads", async ({ page }) => {
@@ -96,6 +110,14 @@ test("advisor and IPS follow sidebar changes, profile links and reloads", async 
   await page.locator("aside").getByRole("link", { name: /Optimizer/ }).click();
   await expect(sidebar).toHaveValue(String(clients[0].id));
   await expect(page.getByRole("status")).toContainText(name);
+  await page.goto(`/profiles/${clients[1].id}`);
+  await sidebar.selectOption("");
+  await expect(page).toHaveURL(/\/profiles$/);
+  await expect(sidebar).toHaveValue("");
+  expect(await page.evaluate(() => Object.keys(sessionStorage).filter((key) => key.startsWith("wealthpilot.activeClient:")))).toHaveLength(0);
+  await page.reload();
+  await expect(sidebar).toHaveValue("");
+  await sidebar.selectOption(String(clients[0].id));
   await page.getByRole("button", { name: "中文", exact: true }).first().click();
   await expect(page.getByRole("combobox", { name: "当前客户", exact: true })).toHaveValue(String(clients[0].id));
 });
@@ -123,4 +145,39 @@ test("IPS resumes only the selected client's saved task", async ({ page, request
   await page.getByRole("combobox", { name: "Current client", exact: true }).selectOption(String(clients[0].id));
   await expect(page.getByText(/IPS generated and archived/).first()).toBeVisible({ timeout: 30_000 });
   expect(taskRequests).toHaveLength(1);
+});
+
+
+test("advisor library isolates reports for same-named clients and clears old previews", async ({ page, request }) => {
+  const reports: string[] = [];
+  try {
+    for (let i = 0; i < clients.length; i++) {
+      const saved = await request.post("/api/advisor/reports", { data: {
+        profile_id: clients[i].id, client_name: name,
+        model: `context-report-${i}`, content: `Client report body ${i}`,
+      } });
+      expect(saved.status()).toBe(201);
+      const summary = await saved.json();
+      expect(summary.profile_id).toBe(clients[i].id);
+      reports.push(summary.report_id);
+    }
+    await page.goto("/advisor");
+    const sidebar = page.getByRole("combobox", { name: "Current client", exact: true });
+    await sidebar.selectOption(String(clients[0].id));
+    const first = page.getByRole("row").filter({ hasText: "context-report-0" });
+    const second = page.getByRole("row").filter({ hasText: "context-report-1" });
+    await expect(first).toHaveCount(1);
+    await expect(second).toHaveCount(0);
+    await first.getByRole("button", { name: "View report", exact: true }).click();
+    await expect(page.getByText("Client report body 0", { exact: true })).toBeVisible();
+    await sidebar.selectOption(String(clients[1].id));
+    await expect(first).toHaveCount(0);
+    await expect(second).toHaveCount(1);
+    await expect(page.getByText("Client report body 0", { exact: true })).toHaveCount(0);
+    await sidebar.selectOption("");
+    await expect(first).toHaveCount(0);
+    await expect(second).toHaveCount(0);
+  } finally {
+    for (const id of reports) await request.delete(`/api/advisor/reports/${id}`);
+  }
 });

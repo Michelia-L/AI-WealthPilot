@@ -108,8 +108,14 @@ profiles cannot supply an active selection. Opening an authorized profile detail
 sets that client for subsequent navigation; switching the sidebar from a profile
 detail opens the newly selected profile.
 
-AI Advisor and IPS require an explicit client selection and follow subsequent
-sidebar changes. Optimizer and retirement retain their manual-analysis paths.
+AI Advisor, IPS, optimizer and retirement require an explicit client selection
+and follow subsequent sidebar changes. Retirement has no independent manual
+client context; clearing its selection also clears the sidebar. Parameter editing
+remains available, but execution is disabled until a current client is selected.
+Advisor and IPS libraries show only artifacts matching that client by profile ID,
+including when multiple clients have the same name. Advisor report summaries
+resolve the ID from the authoritative artifact ownership index, not file names
+or stored client names.
 Changing clients resets the client workspace's form/result state and disconnects
 its streams. IPS and optimizer resume handles use the same user/organization/client
 scope, so returning to the original client can resume its unfinished background

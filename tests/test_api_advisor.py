@@ -329,3 +329,26 @@ def test_export_report_pdf_not_found(client):
     assert (
         client.get("/api/advisor/reports/20990101_000000_000000/pdf").status_code == 404
     )
+
+
+def test_report_summaries_identify_same_named_profiles(client):
+    profiles = [_create_profile(client, "Same Name") for _ in range(2)]
+    reports = {}
+    for profile_id in profiles:
+        saved = client.post(
+            "/api/advisor/reports",
+            json={
+                "profile_id": profile_id,
+                "client_name": "Same Name",
+                "content": "Example",
+                "model": "fixture",
+            },
+        )
+        assert saved.status_code == 201
+        assert saved.json()["profile_id"] == profile_id
+        reports[saved.json()["report_id"]] = profile_id
+    listed = client.get("/api/advisor/reports").json()["reports"]
+    assert {r["report_id"]: r["profile_id"] for r in listed} == reports
+    for report_id, profile_id in reports.items():
+        detail = client.get(f"/api/advisor/reports/{report_id}").json()
+        assert detail["profile_id"] == profile_id

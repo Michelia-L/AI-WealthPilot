@@ -14,9 +14,8 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * Retirement planner — two-phase Monte Carlo (accumulation → distribution).
  * Form → POST → results flow; the workspace owns all interactivity. The
- * profiles list feeds the optional client channel (prefill + risk-level
- * CME suggestion); when the API is unreachable the workspace falls back
- * to the pure manual form.
+ * profiles list feeds the client channel (prefill + risk-level
+ * CME suggestion); execution requires an authorized current client.
  */
 export default async function RetirementPage() {
   const locale = await getLocale();
@@ -33,7 +32,7 @@ export default async function RetirementPage() {
       />
 
       <div className="mt-10">
-        <ClientWorkspace manual>
+        <ClientWorkspace>
           <RetirementWorkspace profiles={profiles?.profiles ?? null} />
         </ClientWorkspace>
       </div>

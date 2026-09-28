@@ -362,6 +362,7 @@ export default function OptimizerWorkspace({
             trailingIcon="arrowRight"
             onClick={run}
             disabled={
+              clientId === null ||
               loading ||
               assets.length < 2 ||
               (method === "black-litterman" && views.length === 0)

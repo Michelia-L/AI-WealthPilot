@@ -60,12 +60,16 @@ export function ClientProvider({ children, profiles, scope }: {
   // A profile deep link is authoritative. Never expose stale or foreign IDs/names.
   const id = routeId ? Number(routeId) : storedId;
   const active = profiles.find((profile) => profile.id === id);
+  const routeClientId = routeId ? active?.id ?? null : null;
+  const storedClientExists = profiles.some((p) => p.id === storedId);
+  // Only route/authorization transitions select the route client. Clearing the
+  // store while a navigation is pending must not reselect the previous route.
   useEffect(() => {
-    if (!ready) return;
-    if (routeId || (storedId !== null && !profiles.some((p) => p.id === storedId))) {
-      store.write(active?.id ?? null);
-    }
-  }, [ready, routeId, storedId, profiles, active?.id, store]);
+    if (ready && routeId) store.write(routeClientId);
+  }, [ready, routeId, routeClientId, store]);
+  useEffect(() => {
+    if (ready && !routeId && storedId !== null && !storedClientExists) store.write(null);
+  }, [ready, routeId, storedId, storedClientExists, store]);
   const select = useCallback((id: number) => {
     if (profiles.some((profile) => profile.id === id)) store.write(id);
   }, [profiles, store]);

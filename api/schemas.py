@@ -771,6 +771,7 @@ class SaveReportRequest(BaseModel):
 
 
 class ReportSummary(BaseModel):
+    profile_id: Optional[int] = None
     report_id: str
     client_name: str
     model: str

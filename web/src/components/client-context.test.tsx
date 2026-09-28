@@ -62,6 +62,29 @@ describe("authorized current client", () => {
     expect(screen.getByTestId("client")).toHaveTextContent(/^:$/);
     expect(sessionStorage.getItem("wealthpilot.activeClient:user:org")).toBeNull();
   });
+  it("replaces a stale stored client with the authorized route client", () => {
+    sessionStorage.setItem("wealthpilot.activeClient:user:org", "999");
+    route.pathname = "/profiles/2";
+    const view = render(tree());
+    expect(sessionStorage.getItem("wealthpilot.activeClient:user:org")).toBe("2");
+    route.pathname = "/ips";
+    view.rerender(tree());
+    expect(screen.getByTestId("client")).toHaveTextContent("2:Same name");
+  });
+  it("does not restore the old route client when cleared before navigation commits", () => {
+    route.pathname = "/profiles/2";
+    const view = render(tree());
+    expect(sessionStorage.getItem("wealthpilot.activeClient:user:org")).toBe("2");
+    fireEvent.click(screen.getByText("Clear"));
+    expect(sessionStorage.getItem("wealthpilot.activeClient:user:org")).toBeNull();
+    route.pathname = "/profiles";
+    view.rerender(tree());
+    expect(screen.getByTestId("client")).toHaveTextContent(/^:$/);
+    expect(sessionStorage.getItem("wealthpilot.activeClient:user:org")).toBeNull();
+    route.pathname = "/profiles/2";
+    view.rerender(tree());
+    expect(screen.getByTestId("client")).toHaveTextContent("2:Same name");
+  });
   it("uses an authorized profile deep link and keeps it after navigation", () => {
     route.pathname = "/profiles/2";
     const view = render(tree());

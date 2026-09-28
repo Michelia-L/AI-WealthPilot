@@ -195,15 +195,17 @@ describe("OptimizerWorkspace buildBody", () => {
     expect(body.surplus.inflation_preset).toBeUndefined();
   });
 
-  it("surplus retirement channel without a client: explicit asset_value + preset", async () => {
+  it("blocks all execution without a current client", () => {
     useClientMock.mockReturnValue({ clientId: null, clientName: null });
     renderWorkspace();
+    const run = screen.getByRole("button", { name: "Run Optimization" });
+    expect(run).toBeDisabled();
+    fireEvent.click(run);
     fireEvent.click(screen.getByRole("button", { name: "Surplus (LDI)" }));
     fireEvent.click(screen.getByRole("button", { name: "Retirement Stream" }));
-    const body = await runAndReadBody();
-    expect(body.profile_id).toBeUndefined();
-    expect(body.surplus.asset_value).toBe(1000000);
-    expect(body.surplus.inflation_preset).toBe("standard");
+    expect(run).toBeDisabled();
+    fireEvent.click(run);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("risk-parity: forces allow_short off even when toggled", async () => {
