@@ -11,6 +11,7 @@ export interface AdvisorStatusResponse {
 }
 
 export interface ReportSummary {
+  profile_id: number | null;
   report_id: string;
   client_name: string;
   model: string;

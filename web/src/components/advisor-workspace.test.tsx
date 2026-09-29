@@ -1,3 +1,4 @@
+import { clientSelector } from "@/lib/i18n/dictionaries/en/clientSelector";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdvisorStatusResponse, ProfileSummary, ReportSummary } from "@/lib/api";
@@ -7,11 +8,12 @@ import AdvisorWorkspace from "./advisor-workspace";
 
 // Real English dictionary for copy; heavy children stubbed out.
 vi.mock("@/components/locale-context", () => ({
-  useT: () => ({ advisor, common }),
+  useT: () => ({ clientSelector, advisor, common }),
   useLocale: () => ({ locale: "en" }),
 }));
+const clientState = vi.hoisted(() => ({ id: 1 as number | null }));
 vi.mock("@/components/client-context", () => ({
-  useClient: () => ({ clientId: null, clientName: null, select: vi.fn() }),
+  useClient: () => ({ clientId: clientState.id, clientName: "Jane Doe", select: vi.fn() }),
 }));
 const refreshMock = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -42,6 +44,7 @@ const STATUS = {
 const REPORTS = [
   {
     report_id: "r-1",
+    profile_id: 1,
     client_name: "Jane Doe",
     model: "deepseek-reasoner",
     generated_at: "2026-08-14T10:00:00",
@@ -78,6 +81,7 @@ const DONE_EVENT = {
 };
 
 beforeEach(() => {
+  clientState.id = 1;
   fetchMock.mockReset();
   refreshMock.mockClear();
 });
@@ -250,5 +254,26 @@ describe("AdvisorWorkspace guards", () => {
       />
     );
     expect(screen.getByRole("button", { name: "Generate Proposal" })).toBeDisabled();
+  });
+});
+
+
+describe("AdvisorWorkspace library scope", () => {
+  it("filters duplicate names by ID, follows a switch and hides unowned reports", () => {
+    const profiles = [PROFILES[0], { ...PROFILES[0], id: 2 }];
+    const reports = [REPORTS[0], { ...REPORTS[0], report_id: "r-2", profile_id: 2, model: "other-model" }, { ...REPORTS[0], report_id: "unknown", profile_id: null, model: "unknown-model" }];
+    const view = render(<AdvisorWorkspace profiles={profiles} status={STATUS} initialReports={reports} />);
+    expect(screen.getAllByRole("button", { name: "View report" })).toHaveLength(1);
+    expect(screen.queryByText("other-model")).toBeNull();
+    expect(screen.queryByText("unknown-model")).toBeNull();
+    clientState.id = 2;
+    view.rerender(<AdvisorWorkspace profiles={profiles} status={STATUS} initialReports={reports} />);
+    expect(screen.getAllByRole("button", { name: "Delete report" })).toHaveLength(1);
+    expect(screen.getByText("other-model")).toBeVisible();
+    expect(screen.queryByRole("cell", { name: REPORTS[0].model })).toBeNull();
+    clientState.id = null;
+    view.rerender(<AdvisorWorkspace profiles={profiles} status={STATUS} initialReports={reports} />);
+    expect(screen.queryByRole("button", { name: "View report" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Delete report" })).toBeNull();
   });
 });

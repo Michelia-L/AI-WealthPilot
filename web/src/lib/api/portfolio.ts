@@ -96,6 +96,11 @@ export interface OptimizeRequest {
   profile_id?: number | null;
 }
 
+export interface AsyncOptimizeRequest extends OptimizeRequest {
+  /** Workspace ownership, independent of optional optimization inputs. */
+  context_profile_id: number;
+}
+
 export interface PortfolioResult {
   weights: Record<string, number>;
   ann_return: number;
@@ -187,4 +192,3 @@ export interface RecommendationResponse {
   sharpe_ratio: number;
   rationale: string;
 }
-

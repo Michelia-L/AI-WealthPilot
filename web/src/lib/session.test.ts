@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { getSessionHeaders, getWorkspaceSession } from "./session";
+import { getSessionHeaders, getWorkspaceSession, workspaceRole, canManageSettings } from "./session";
 import { POST } from "@/app/api/session/route";
 import { proxy } from "@/proxy";
 
@@ -26,6 +26,7 @@ describe("server sessions", () => {
     cookieValues.set("wp_session", "test-session");
     cookieValues.set("wp_organization", "foreign");
     fetchMock.mockResolvedValueOnce(json({ organizations: [{ id: "a", name: "A", role: "client" }, { id: "b", name: "B", role: "advisor" }] }));
+    fetchMock.mockResolvedValueOnce(json({ user_id: "user-a" }));
     expect((await getWorkspaceSession())?.organizationId).toBeNull();
     expect(fetchMock.mock.calls[0][1].cache).toBe("no-store");
     fetchMock.mockResolvedValueOnce(json({}, 401));
@@ -51,6 +52,7 @@ describe("server sessions", () => {
   it("rejects foreign workspace selection", async () => {
     cookieValues.set("wp_session", "test-session");
     fetchMock.mockResolvedValueOnce(json({ organizations: [{ id: "a", name: "A", role: "admin" }] }));
+    fetchMock.mockResolvedValueOnce(json({ user_id: "user-a" }));
     const response = await POST(request({ action: "organization", organization_id: "b" }));
     expect(response.status).toBe(403);
     expect(response.cookies.get("wp_organization")).toBeUndefined();
@@ -80,5 +82,19 @@ describe("server sessions", () => {
     expect(response.cookies.get("wp_session")?.maxAge).toBe(0);
     expect(response.cookies.get("wp_organization")?.maxAge).toBe(0);
     expect(fetchMock.mock.calls[1][1].headers.Authorization).toBe("Bearer test-session");
+  });
+});
+
+describe("console capabilities", () => {
+  it("uses only the selected membership and deployment settings policy", () => {
+    const session = { userId: "a", isDemo: false, organizationId: "other", organizations: [
+      { id: "local", name: "Local", role: "admin" },
+      { id: "other", name: "Other", role: "advisor" },
+    ] };
+    expect(workspaceRole(session)).toBe("advisor");
+    expect(canManageSettings(session)).toBe(false);
+    expect(canManageSettings({ ...session, organizationId: "local" })).toBe(true);
+    expect(workspaceRole({ ...session, organizationId: "foreign" })).toBeNull();
+    expect(canManageSettings(null)).toBe(false);
   });
 });

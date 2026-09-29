@@ -7,6 +7,8 @@ test("optimizer: run button guards BL views and the min-2 asset rule", async ({
   await page.goto("/optimizer");
 
   const run = page.getByRole("button", { name: "Run Optimization" });
+  await expect(run).toBeDisabled();
+  await page.getByRole("combobox", { name: "Current client", exact: true }).selectOption({ index: 1 });
   await expect(run).toBeEnabled();
 
   // Black-Litterman with zero views disables the run button

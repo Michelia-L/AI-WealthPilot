@@ -15,20 +15,26 @@ import Segmented from "./ui/segmented";
 
 type NavKey = keyof Dictionary["nav"];
 
-const NAV_ITEMS: Array<{ href: string; key: NavKey; icon: IconName }> = [
-  { href: "/", key: "overview", icon: "gauge" },
-  { href: "/market", key: "market", icon: "chartUp" },
-  { href: "/optimizer", key: "optimizer", icon: "pie" },
-  { href: "/retirement", key: "retirement", icon: "target" },
-  { href: "/profiles", key: "profiles", icon: "users" },
-  { href: "/advisor", key: "advisor", icon: "sparkle" },
-  { href: "/ips", key: "ips", icon: "scroll" },
-  { href: "/deliverables", key: "deliverables", icon: "briefcase" },
-  { href: "/monitoring", key: "monitoring", icon: "eye" },
-  { href: "/settings", key: "settings", icon: "sliders" },
+type NavItem = { href: string; key: NavKey; icon: IconName };
+const NAV_GROUPS: { key?: NavKey; items: NavItem[]; admin?: boolean }[] = [
+  { items: [{ href: "/", key: "overview", icon: "gauge" }] },
+  { key: "clientsGroup", items: [{ href: "/profiles", key: "profiles", icon: "users" }] },
+  { key: "portfolioGroup", items: [
+    { href: "/optimizer", key: "optimizer", icon: "pie" },
+    { href: "/retirement", key: "retirement", icon: "target" },
+  ] },
+  { key: "advisoryGroup", items: [
+    { href: "/advisor", key: "advisor", icon: "sparkle" },
+    { href: "/ips", key: "ips", icon: "scroll" },
+    { href: "/deliverables", key: "deliverables", icon: "briefcase" },
+  ] },
+  { key: "monitoringGroup", items: [{ href: "/monitoring", key: "monitoring", icon: "eye" }] },
+  { key: "researchGroup", items: [{ href: "/market", key: "market", icon: "chartUp" }] },
+  { key: "systemGroup", admin: true, items: [{ href: "/settings", key: "settings", icon: "sliders" }] },
 ];
 
 function Brand() {
+  const t = useT();
   return (
     <Link href="/" className="group flex items-center gap-3">
       <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
@@ -40,7 +46,7 @@ function Brand() {
           WealthPilot
         </span>
         <span className="mt-1.5 block text-[9px] font-medium tracking-[0.28em] text-gold-500/80 uppercase">
-          AI · Private Wealth
+          {t.nav.console}
         </span>
       </span>
     </Link>
@@ -52,7 +58,7 @@ function NavLink({
   active,
   onNavigate,
 }: {
-  item: (typeof NAV_ITEMS)[number];
+  item: NavItem;
   active: boolean;
   onNavigate?: () => void;
 }) {
@@ -63,6 +69,7 @@ function NavLink({
   return (
     <Link
       href={item.href}
+      aria-current={active ? "page" : undefined}
       onClick={onNavigate}
       className={cx(
         "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-300 ease-luxe",
@@ -117,14 +124,17 @@ export default function AppShell({
   profiles,
   healthBadge,
   sessionControls,
+  canManageSettings = false,
   children,
 }: {
   profiles: ProfileSummary[];
+  canManageSettings?: boolean;
   healthBadge: React.ReactNode;
   sessionControls?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   // 路由变化时收起移动抽屉（渲染期调整态，React 推荐模式）
@@ -137,6 +147,13 @@ export default function AppShell({
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
+  const navigation = (onNavigate?: () => void) => NAV_GROUPS
+    .filter((group) => !group.admin || canManageSettings)
+    .map((group, index) => <div key={group.key ?? "overview"} className={index ? "mt-4" : undefined}>
+      {group.key && <p className="mb-1 px-3 text-[10px] font-medium tracking-widest text-mist-500 uppercase">{t.nav[group.key]}</p>}
+      {group.items.map((item) => <NavLink key={item.href} item={item} active={isActive(item.href)} onNavigate={onNavigate} />)}
+    </div>);
+
   return (
     <div className="relative z-[1] flex min-h-screen">
       {/* 桌面侧边栏 */}
@@ -146,9 +163,7 @@ export default function AppShell({
           <ClientSelector profiles={profiles} />
         </div>
         <nav className="mt-6 flex flex-col gap-1">
-          {NAV_ITEMS.map((item) => (
-            <NavLink key={item.href} item={item} active={isActive(item.href)} />
-          ))}
+          {navigation()}
         </nav>
         <div className="mt-auto pt-6">
           <div className="mb-3">
@@ -163,7 +178,8 @@ export default function AppShell({
       <div className="fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between border-b border-white/[0.06] bg-ink-950/80 px-4 backdrop-blur-xl lg:hidden">
         <Brand />
         <button
-          aria-label={open ? "关闭菜单" : "打开菜单"}
+          aria-label={open ? t.nav.closeMenu : t.nav.openMenu}
+          aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
           className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-mist-200"
         >
@@ -188,26 +204,14 @@ export default function AppShell({
           <div className="flex h-full flex-col overflow-y-auto px-6 pt-20 pb-8">
             <ClientSelector profiles={profiles} />
             <nav className="mt-6 flex flex-col gap-1.5">
-              {NAV_ITEMS.map((item, i) => (
-                <div
-                  key={item.href}
-                  className="animate-fade-up"
-                  style={{ animationDelay: `${60 + i * 55}ms` }}
-                >
-                  <NavLink
-                    item={item}
-                    active={isActive(item.href)}
-                    onNavigate={() => setOpen(false)}
-                  />
-                </div>
-              ))}
+              {navigation(() => setOpen(false))}
             </nav>
             <div className="mt-auto pt-8">
               <div className="mb-3">
                 <LocaleSwitcher />
               </div>
               {healthBadge}
-          {sessionControls}
+              {sessionControls}
             </div>
           </div>
         </div>

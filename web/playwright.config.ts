@@ -13,9 +13,11 @@ const apiPort = 8300;
 const webPort = 3300;
 // Fresh SQLite file per run: a leftover DB from an aborted run (or a file
 // still locked by a reused local server) must never leak state across runs.
-const e2eDb = path
+const e2eDb = process.env.AIWP_E2E_DB_FILE ?? path
   .join(os.tmpdir(), `aiwp-e2e-${Date.now()}.db`)
   .replaceAll("\\", "/");
+// Workers inherit the exact throwaway database path for scoped role fixtures.
+process.env.AIWP_E2E_DB_FILE = e2eDb;
 
 export default defineConfig({
   testDir: "./e2e",

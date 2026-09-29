@@ -22,7 +22,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from api.access import Access, get_access, staff_access
 from api.artifacts import register_artifact
@@ -181,6 +181,7 @@ def save_report(
     )
     access.session.commit()
     return ReportSummary(
+        profile_id=record.id,
         report_id=stored.report_id,
         client_name=stored.client_name,
         model=stored.model,
@@ -216,7 +217,12 @@ def get_report(
     report_id: str, request: Request, access: Access = Depends(get_access)
 ) -> ReportDetailResponse:
     report = access.report(report_id)
+    owner = access.artifact(report_id, "report")
+    profile_id = access.session.exec(
+        select(ProfileRecord.id).where(ProfileRecord.client_id == owner.client_id)
+    ).first()
     return ReportDetailResponse(
+        profile_id=profile_id,
         report_id=report.report_id,
         client_name=report.client_name,
         model=report.model,

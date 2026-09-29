@@ -1,3 +1,4 @@
+import ClientWorkspace from "@/components/client-workspace";
 import type { Metadata } from "next";
 import { getAssetClasses } from "@/lib/api/server";
 import { ApiOffline } from "@/components/api-offline";
@@ -48,13 +49,15 @@ export default async function OptimizerPage({ searchParams }: PageProps) {
       />
 
       {assetClasses ? (
-        <OptimizerWorkspace
-          assetClasses={assetClasses.asset_classes}
-          initialAssets={
-            initialAssets && initialAssets.length >= 2 ? initialAssets : undefined
-          }
-          deepLink={deepLink}
-        />
+        <ClientWorkspace>
+          <OptimizerWorkspace
+            assetClasses={assetClasses.asset_classes}
+            initialAssets={
+              initialAssets && initialAssets.length >= 2 ? initialAssets : undefined
+            }
+            deepLink={deepLink}
+          />
+        </ClientWorkspace>
       ) : (
         <ApiOffline resource={t.optimizer.assetUniverse} />
       )}

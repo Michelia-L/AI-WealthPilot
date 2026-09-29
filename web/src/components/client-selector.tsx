@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import type { ProfileSummary } from "@/lib/api";
 import { useClient } from "./client-context";
 import { useT } from "./locale-context";
@@ -16,6 +18,8 @@ export default function ClientSelector({
 }) {
   const { clientId, select, clear } = useClient();
   const t = useT();
+  const router = useRouter();
+  const pathname = usePathname();
   if (profiles.length === 0) return null;
 
   return (
@@ -26,15 +30,20 @@ export default function ClientSelector({
       </div>
       <div className="relative">
         <select
+          aria-label={t.clientSelector.label}
           value={clientId ?? ""}
           onChange={(e) => {
             const v = e.target.value;
             if (!v) {
               clear();
+              if (/^\/profiles\/\d+/.test(pathname)) router.push("/profiles");
               return;
             }
             const p = profiles.find((p) => p.id === Number(v));
-            if (p) select(p.id, p.name);
+            if (p) {
+              select(p.id, p.name);
+              if (/^\/profiles\/\d+/.test(pathname)) router.push(`/profiles/${p.id}`);
+            }
           }}
           className="w-full appearance-none rounded-lg border border-white/[0.08] bg-ink-850/70 py-2 pr-8 pl-3 text-sm text-mist-200 transition-all duration-300 ease-luxe outline-none focus:border-gold-500/45"
         >
@@ -51,6 +60,7 @@ export default function ClientSelector({
           className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-mist-500"
         />
       </div>
+      {clientId !== null && <Link href={`/profiles/${clientId}`} className="mt-2 block text-xs text-gold-400">{t.clientSelector.profile}</Link>}
     </div>
   );
 }

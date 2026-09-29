@@ -18,7 +18,6 @@ export const retirement = {
   cmeSuggestionForLevel: (level: string, mu: string, sigma: string, asOf: string) =>
     `CME suggestion (${level} reference portfolio): return ${mu} · volatility ${sigma} · as of ${asOf}`,
   clientField: "Client",
-  clientManual: "Manual parameters (no client)",
   clientPrefillHint:
     "Age, savings and income/expenses prefilled from the profile — adjust freely",
   cmeSuggestionBasis:

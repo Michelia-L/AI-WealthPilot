@@ -244,12 +244,17 @@ def test_non_mvo_methods_422(client):
 def test_async_validation_fail_fast(client):
     pid = _create_profile(client)
 
-    resp = client.post("/api/portfolio/optimize/async", json=_body(profile_id=999))
+    resp = client.post(
+        "/api/portfolio/optimize/async",
+        json=_body(context_profile_id=pid, profile_id=999),
+    )
     assert resp.status_code == 404
 
     resp = client.post(
         "/api/portfolio/optimize/async",
-        json=_body(profile_id=pid, method="resampled", n_simulations=50),
+        json=_body(
+            context_profile_id=pid, profile_id=pid, method="resampled", n_simulations=50
+        ),
     )
     assert resp.status_code == 422
     assert resp.json()["detail"] == "风险约束当前仅支持经典 MVO 方法"
@@ -262,11 +267,18 @@ def test_async_result_carries_risk_constraints(client, monkeypatch):
         client, risk_scores={"ability_score": 3.0, "willingness_score": 3.0}
     )
 
-    created = client.post("/api/portfolio/optimize/async", json=_body(profile_id=pid))
+    created = client.post(
+        "/api/portfolio/optimize/async",
+        json=_body(context_profile_id=pid, profile_id=pid),
+    )
     assert created.status_code == 202
     task_id = created.json()["task_id"]
 
-    events = _parse_sse(client.get(f"/api/portfolio/tasks/{task_id}/events").text)
+    events = _parse_sse(
+        client.get(
+            f"/api/portfolio/tasks/{task_id}/events?context_profile_id={pid}"
+        ).text
+    )
     done = events[-1]
     assert done["type"] == "done"
 

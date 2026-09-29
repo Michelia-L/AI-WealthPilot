@@ -137,6 +137,12 @@ describe("OptimizerWorkspace buildBody", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("/api/portfolio/optimize/async");
     expect(body.method).toBe("resampled");
     expect(body.n_simulations).toBe(200);
+    expect(body.context_profile_id).toBe(42);
+    expect(body.profile_id).toBeUndefined();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/portfolio/tasks/task-1/events?context_profile_id=42",
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    ));
   });
 
   it("black-litterman: sends cme as the expected-return source (BL prior)", async () => {
@@ -195,15 +201,17 @@ describe("OptimizerWorkspace buildBody", () => {
     expect(body.surplus.inflation_preset).toBeUndefined();
   });
 
-  it("surplus retirement channel without a client: explicit asset_value + preset", async () => {
+  it("blocks all execution without a current client", () => {
     useClientMock.mockReturnValue({ clientId: null, clientName: null });
     renderWorkspace();
+    const run = screen.getByRole("button", { name: "Run Optimization" });
+    expect(run).toBeDisabled();
+    fireEvent.click(run);
     fireEvent.click(screen.getByRole("button", { name: "Surplus (LDI)" }));
     fireEvent.click(screen.getByRole("button", { name: "Retirement Stream" }));
-    const body = await runAndReadBody();
-    expect(body.profile_id).toBeUndefined();
-    expect(body.surplus.asset_value).toBe(1000000);
-    expect(body.surplus.inflation_preset).toBe("standard");
+    expect(run).toBeDisabled();
+    fireEvent.click(run);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("risk-parity: forces allow_short off even when toggled", async () => {

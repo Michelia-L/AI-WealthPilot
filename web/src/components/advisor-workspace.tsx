@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   AdvisorDoneEvent,
   AdvisorStatusResponse,
@@ -49,9 +49,6 @@ export default function AdvisorWorkspace({
   const { locale } = useLocale();
   // 装饰性眉标沿用 SectionHeader 的双语模式：显示另一种语言。
   const alt = locale === "zh" ? en : zh;
-  // 用户手动选择的画像；未选择时回退到全局客户上下文，再回退到列表首位。
-  // 纯派生，不用 effect —— 手动选择一旦存在便永远优先，上下文只作默认。
-  const [pickedId, setPickedId] = useState<number | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [text, setText] = useState("");
   const [reasoning, setReasoning] = useState("");
@@ -66,13 +63,11 @@ export default function AdvisorWorkspace({
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // 默认选中：全局上下文中的客户（须在画像列表中），否则列表首位
-  const contextDefaultId =
-    clientId !== null && profiles?.some((p) => p.id === clientId) ? clientId : null;
-  const selectedId = pickedId ?? contextDefaultId ?? profiles?.[0]?.id ?? null;
+  const selectedId = profiles?.some((p) => p.id === clientId) ? clientId : null;
+  const reports = initialReports.filter((r) => selectedId !== null && r.profile_id === selectedId);
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   function handleSelect(id: number) {
-    setPickedId(id);
     const p = profiles?.find((profile) => profile.id === id);
     if (p) select(p.id, p.name);
   }
@@ -241,6 +236,7 @@ export default function AdvisorWorkspace({
                 onChange={(e) => handleSelect(Number(e.target.value))}
                 disabled={streaming}
               >
+                <option value="" disabled>{t.clientSelector.empty}</option>
                 {profiles.map((p) => (
                   <option key={p.id} value={p.id}>
                     {t.advisor.profileOption(p.name, p.age, p.risk_level ? riskLabel(p.risk_level) : null)}
@@ -398,7 +394,7 @@ export default function AdvisorWorkspace({
             {alt.advisor.libraryTitle}
           </span>
         </div>
-        {initialReports.length === 0 ? (
+        {reports.length === 0 ? (
           <Panel>
             <EmptyState
               icon="sparkle"
@@ -419,7 +415,7 @@ export default function AdvisorWorkspace({
                 </tr>
               </THead>
               <tbody>
-                {initialReports.map((r) => (
+                {reports.map((r) => (
                   <TR key={r.report_id}>
                     <TD>
                       <span className="font-medium text-mist-100">{r.client_name}</span>

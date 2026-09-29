@@ -14,6 +14,7 @@ test("ips: demo-mode generation completes and lands in the library", async ({
 
   // Client picker: capture the selected client's name
   const picker = page.getByRole("combobox", { name: "Profile" });
+  await picker.selectOption({ index: 1 });
   const selectedName = (
     (await picker.locator("option:checked").textContent()) ?? ""
   ).split(" (")[0].trim();

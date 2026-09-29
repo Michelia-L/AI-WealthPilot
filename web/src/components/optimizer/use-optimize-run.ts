@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
+  AsyncOptimizeRequest,
   OptimizeMethod,
   OptimizeRequest,
   OptimizeResponse,
@@ -13,6 +14,7 @@ import {
   loadActiveTask,
   saveActiveTask,
 } from "@/lib/task-resume";
+import { useClient } from "@/components/client-context";
 import { useT } from "@/components/locale-context";
 
 /**
@@ -29,6 +31,7 @@ export function useOptimizeRun({
   method: OptimizeMethod;
 }) {
   const t = useT();
+  const { taskScope, clientId } = useClient();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,12 +49,13 @@ export function useOptimizeRun({
       signal: AbortSignal,
       onOpen?: () => void
     ): Promise<OptimizeResponse> => {
-      const eventsRes = await fetch(`/api/portfolio/tasks/${taskId}/events`, {
-        signal,
-      });
+      const eventsRes = await fetch(
+        `/api/portfolio/tasks/${taskId}/events?context_profile_id=${clientId}`,
+        { signal }
+      );
       if (!eventsRes.ok || !eventsRes.body) {
         if (eventsRes.status === 404) {
-          clearActiveTask("portfolio");
+          clearActiveTask("portfolio", taskScope);
           throw new TaskGoneError();
         }
         const err = await eventsRes.json().catch(() => null);
@@ -69,22 +73,23 @@ export function useOptimizeRun({
           setProgressLabel(String(event.label ?? ""));
         } else if (event.type === "done") {
           finalResult = event.result as OptimizeResponse;
-          clearActiveTask("portfolio");
+          clearActiveTask("portfolio", taskScope);
         } else if (event.type === "error") {
           streamError = String(event.message ?? t.optimizer.optimizeFailed);
-          clearActiveTask("portfolio");
+          clearActiveTask("portfolio", taskScope);
         }
       });
       if (streamError) throw new Error(streamError);
       if (!finalResult) throw new Error(t.optimizer.streamEnded);
       return finalResult;
     },
-    [t]
+    [t, taskScope, clientId]
   );
 
   // 挂载时恢复未完成的任务（切页返回的场景）：重连事件流重建进度与结果。
   useEffect(() => {
-    const taskId = loadActiveTask("portfolio");
+    if (clientId === null) return;
+    const taskId = loadActiveTask("portfolio", taskScope);
     if (!taskId) return;
     const controller = new AbortController();
     streamAbort.current = controller;
@@ -108,14 +113,14 @@ export function useOptimizeRun({
       }
     })();
     return () => controller.abort();
-  }, [streamTaskEvents]);
+  }, [streamTaskEvents, taskScope, clientId]);
 
   // 卸载时断开事件流（任务在服务端继续，句柄保留供重连）
   useEffect(() => () => streamAbort.current?.abort(), []);
 
   /** Resampled MVO path: async task + SSE progress (minute-level compute). */
   async function runAsync(
-    body: OptimizeRequest,
+    body: AsyncOptimizeRequest,
     signal: AbortSignal
   ): Promise<OptimizeResponse> {
     const res = await fetch("/api/portfolio/optimize/async", {
@@ -132,11 +137,12 @@ export function useOptimizeRun({
           : t.optimizer.createTaskFailed(res.status)
       );
     }
-    saveActiveTask("portfolio", String(data.task_id));
+    saveActiveTask("portfolio", String(data.task_id), taskScope);
     return streamTaskEvents(String(data.task_id), signal);
   }
 
   async function run() {
+    if (clientId === null) return;
     const controller = new AbortController();
     streamAbort.current?.abort();
     streamAbort.current = controller;
@@ -146,12 +152,15 @@ export function useOptimizeRun({
     try {
       const body = buildBody();
       if (method === "resampled") {
-        setResult(await runAsync(body, controller.signal));
+        setResult(await runAsync(
+          { ...body, context_profile_id: clientId }, controller.signal
+        ));
       } else {
         const res = await fetch("/api/portfolio/optimize", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
+          signal: controller.signal,
         });
         const data = await res.json();
         if (!res.ok) {

@@ -1,3 +1,4 @@
+import { clientSelector } from "@/lib/i18n/dictionaries/en/clientSelector";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdvisorStatusResponse, ProfileSummary } from "@/lib/api";
@@ -8,11 +9,12 @@ import IpsWorkspace from "./ips-workspace";
 
 // Real English dictionary for copy; heavy/irrelevant children stubbed out.
 vi.mock("@/components/locale-context", () => ({
-  useT: () => ({ ips, common, deliverables }),
+  useT: () => ({ clientSelector, ips, common, deliverables }),
   useLocale: () => ({ locale: "en" }),
 }));
+const clientState = vi.hoisted(() => ({ id: 1 as number | null }));
 vi.mock("@/components/client-context", () => ({
-  useClient: () => ({ clientId: null, clientName: null, select: vi.fn() }),
+  useClient: () => ({ clientId: clientState.id, clientName: "Jane Doe", select: vi.fn() }),
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
@@ -65,6 +67,7 @@ function mockGenerateFlow(events: Record<string, unknown>[]) {
 }
 
 beforeEach(() => {
+  clientState.id = 1;
   fetchMock.mockReset();
   sessionStorage.clear();
 });
@@ -203,7 +206,7 @@ describe("IpsWorkspace document library", () => {
     ]);
     render(
       <IpsWorkspace profiles={PROFILES} status={STATUS} initialDocuments={[{
-        document_id: "ips_abc", client_name: "Jane Doe", version: "1.0",
+        document_id: "ips_abc", profile_id: 1, client_name: "Jane Doe", version: "1.0",
         risk_level: "", status: "approved", revision_rounds: 0, saved_at: "",
       }]} />
     );
@@ -228,6 +231,7 @@ describe("IpsWorkspace document library", () => {
         initialDocuments={[
           {
             document_id: "ips_jane_doe_20260101_000000",
+            profile_id: 1,
             client_name: "Jane Doe",
             version: "1.0",
             risk_level: "",
@@ -245,5 +249,27 @@ describe("IpsWorkspace document library", () => {
       "/api/ips/ips_jane_doe_20260101_000000/pdf"
     );
     expect(link.querySelector("button")).toBeNull();
+  });
+});
+
+
+describe("IpsWorkspace library scope", () => {
+  it("filters duplicate names by ID and hides documents when no client is selected", () => {
+    const profiles = [PROFILES[0], { ...PROFILES[0], id: 2 }];
+    const documents = [1, 2, null].map((profile_id) => ({
+      profile_id, document_id: `ips-${profile_id}`, client_name: "Jane Doe",
+      version: "1.0", risk_level: "", status: "approved", revision_rounds: 0, saved_at: "",
+    }));
+    const view = render(<IpsWorkspace profiles={profiles} status={STATUS} initialDocuments={documents} />);
+    expect(screen.getAllByRole("link", { name: "Download PDF" })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Download PDF" })).toHaveAttribute("href", "/api/ips/ips-1/pdf");
+    clientState.id = 2;
+    view.rerender(<IpsWorkspace profiles={profiles} status={STATUS} initialDocuments={documents} />);
+    expect(screen.getAllByRole("button", { name: "Delete document for Jane Doe" })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Download PDF" })).toHaveAttribute("href", "/api/ips/ips-2/pdf");
+    clientState.id = null;
+    view.rerender(<IpsWorkspace profiles={profiles} status={STATUS} initialDocuments={documents} />);
+    expect(screen.queryByRole("link", { name: "Download PDF" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Delete document for Jane Doe" })).toBeNull();
   });
 });

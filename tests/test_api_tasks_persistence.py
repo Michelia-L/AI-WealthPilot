@@ -131,8 +131,14 @@ def test_running_record_replays_with_trailing_error(client):
 
 
 def test_unknown_task_still_404(client):
+    profile_id = _create_profile(client)
     assert client.get("/api/ips/tasks/never-existed/events").status_code == 404
-    assert client.get("/api/portfolio/tasks/never-existed/events").status_code == 404
+    assert (
+        client.get(
+            f"/api/portfolio/tasks/never-existed/events?context_profile_id={profile_id}"
+        ).status_code
+        == 404
+    )
 
 
 # ---------------------------------------------------------------------------

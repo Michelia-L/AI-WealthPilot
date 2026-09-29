@@ -27,6 +27,18 @@ describe("active task handles (sessionStorage)", () => {
     expect(loadActiveTask("portfolio")).toBe("task-pf");
   });
 
+  it("isolates users, organizations and clients, including old unscoped handles", () => {
+    saveActiveTask("ips", "legacy");
+    saveActiveTask("ips", "task-a", "user-a:org-a:1");
+    saveActiveTask("ips", "task-b", "user-a:org-a:2");
+    expect(loadActiveTask("ips", "user-b:org-a:1")).toBeNull();
+    expect(loadActiveTask("ips", "user-a:org-b:1")).toBeNull();
+    expect(loadActiveTask("ips", "user-a:org-a:2")).toBe("task-b");
+    clearActiveTask("ips", "user-a:org-a:1");
+    expect(loadActiveTask("ips", "user-a:org-a:1")).toBeNull();
+    expect(loadActiveTask("ips", "user-a:org-a:2")).toBe("task-b");
+  });
+
   it("clear removes the handle", () => {
     saveActiveTask("portfolio", "task-123");
     clearActiveTask("portfolio");

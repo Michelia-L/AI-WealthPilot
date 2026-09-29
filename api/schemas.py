@@ -302,6 +302,14 @@ class OptimizeRequest(BaseModel):
     )
 
 
+class AsyncOptimizeRequest(OptimizeRequest):
+    context_profile_id: int = Field(
+        gt=0,
+        description="Authorized workspace profile that owns the task; independent "
+        "of profile_id's optional risk caps or liability inputs",
+    )
+
+
 class PortfolioResult(BaseModel):
     weights: dict[str, float]
     ann_return: float
@@ -771,6 +779,7 @@ class SaveReportRequest(BaseModel):
 
 
 class ReportSummary(BaseModel):
+    profile_id: Optional[int] = None
     report_id: str
     client_name: str
     model: str

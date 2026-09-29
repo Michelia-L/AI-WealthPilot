@@ -175,8 +175,11 @@ def test_cme_source_black_litterman_equilibrium_default(client, monkeypatch):
 
 def test_cme_source_black_litterman_async_accepted(client, monkeypatch):
     """The async entry accepts BL + CME (prior mode) up front."""
+    from tests.test_api_ips import _create_profile
+
     _patch(monkeypatch)
     body = _body(
+        context_profile_id=_create_profile(client),
         method="black-litterman",
         bl={
             "views": [

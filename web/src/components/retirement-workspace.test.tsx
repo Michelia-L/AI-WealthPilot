@@ -1,3 +1,4 @@
+import { clientSelector } from "@/lib/i18n/dictionaries/en/clientSelector";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { retirement } from "@/lib/i18n/dictionaries/en/retirement";
@@ -6,12 +7,13 @@ import RetirementWorkspace from "./retirement-workspace";
 const clientState = vi.hoisted(() => ({
   clientId: null as number | null,
   select: vi.fn(),
+  clear: vi.fn(),
 }));
 
 // The workspace reads copy through the locale context — serve the real
 // English dictionary; Plotly stays out of jsdom.
 vi.mock("@/components/locale-context", () => ({
-  useT: () => ({ retirement }),
+  useT: () => ({ retirement, clientSelector }),
   useLocale: () => ({ locale: "en" }),
 }));
 vi.mock("@/components/client-context", () => ({
@@ -65,7 +67,9 @@ function jsonResponse(data: unknown, status = 200): Response {
 }
 
 beforeEach(() => {
-  clientState.clientId = null;
+  clientState.clientId = 1;
+  clientState.clear.mockReset();
+  clientState.clear.mockImplementation(() => { clientState.clientId = null; });
   clientState.select.mockReset();
   clientState.select.mockImplementation((id: number) => { clientState.clientId = id; });
   fetchMock.mockReset();
@@ -87,10 +91,11 @@ function profileResponse(age: number) {
 }
 
 describe("RetirementWorkspace current client", () => {
-  it("follows hydrated and changed clients, while retaining an explicit manual choice", async () => {
+  it("follows hydrated and changed clients and clears the shared selection", async () => {
     fetchMock.mockImplementation((url: string) => Promise.resolve(
       url.startsWith("/api/profiles/") ? profileResponse(url.endsWith("1") ? 41 : 52) : jsonResponse(null)
     ));
+    clientState.clientId = null;
     const { rerender } = render(<RetirementWorkspace profiles={CLIENTS} />);
     const picker = screen.getByRole("combobox", { name: "Client" });
     expect(picker).toHaveValue("");
@@ -105,7 +110,8 @@ describe("RetirementWorkspace current client", () => {
     fireEvent.change(picker, { target: { value: "" } });
     rerender(<RetirementWorkspace profiles={[...CLIENTS]} />);
     expect(picker).toHaveValue("");
-    expect(clientState.select).not.toHaveBeenCalled();
+    expect(clientState.clear).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Run Simulation" })).toBeDisabled();
 
     clientState.clientId = 2;
     rerender(<RetirementWorkspace profiles={CLIENTS} />);
@@ -131,17 +137,18 @@ describe("RetirementWorkspace current client", () => {
     expect(screen.getAllByRole("slider")[0]).toHaveValue("52");
   });
 
-  it("falls back to manual parameters when the stored client no longer exists", () => {
+  it("blocks execution when the stored client no longer exists", () => {
     clientState.clientId = 999;
     render(<RetirementWorkspace profiles={CLIENTS} />);
     expect(screen.getByRole("combobox", { name: "Client" })).toHaveValue("");
-    expect(fetchMock.mock.calls.some(([url]) => url === "/api/profiles/999")).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Run Simulation" })).toBeDisabled();
   });
 });
 
 describe("RetirementWorkspace LDI deep link", () => {
   it("links the current income stream into the optimizer's retirement channel", () => {
-    render(<RetirementWorkspace />);
+    render(<RetirementWorkspace profiles={CLIENTS} />);
     const link = screen.getByRole("link", { name: /Optimize with LDI/ });
     const href = link.getAttribute("href") ?? "";
     // Default form: 30→60 (ytr=30), 60→85 (dy=25), income 80k, savings 100k.
@@ -156,7 +163,7 @@ describe("RetirementWorkspace LDI deep link", () => {
 
 describe("RetirementWorkspace form behavior", () => {
   it("shows the custom inflation slider only for the custom preset", () => {
-    render(<RetirementWorkspace />);
+    render(<RetirementWorkspace profiles={CLIENTS} />);
     expect(screen.queryByText("Distribution-Phase Inflation")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Elderly" }));
@@ -168,7 +175,7 @@ describe("RetirementWorkspace form behavior", () => {
   });
 
   it("reveals guardrail sliders and sends the strategy payload", async () => {
-    render(<RetirementWorkspace />);
+    render(<RetirementWorkspace profiles={CLIENTS} />);
     expect(screen.queryByText("Guardrail Band")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
@@ -194,7 +201,7 @@ describe("RetirementWorkspace form behavior", () => {
   });
 
   it("blocks the run and warns when ages are inconsistent", () => {
-    render(<RetirementWorkspace />);
+    render(<RetirementWorkspace profiles={CLIENTS} />);
     const sliders = screen.getAllByRole("slider");
     // Slider order: current age, retirement age, life expectancy, ...
     fireEvent.change(sliders[1], { target: { value: "25" } });
@@ -209,7 +216,7 @@ describe("RetirementWorkspace form behavior", () => {
 
 describe("RetirementWorkspace results", () => {
   it("renders the guardrails comparison tiles when present", async () => {
-    render(<RetirementWorkspace />);
+    render(<RetirementWorkspace profiles={CLIENTS} />);
     fireEvent.click(screen.getByRole("button", { name: "Guardrails" }));
     fireEvent.click(screen.getByRole("button", { name: "Run Simulation" }));
 
@@ -225,7 +232,7 @@ describe("RetirementWorkspace results", () => {
         jsonResponse({ detail: "retirement_age must be greater than current_age." }, 422)
       )
     );
-    render(<RetirementWorkspace />);
+    render(<RetirementWorkspace profiles={CLIENTS} />);
     fireEvent.click(screen.getByRole("button", { name: "Run Simulation" }));
     expect(
       await screen.findByText(/retirement_age must be greater/)
@@ -248,7 +255,7 @@ describe("RetirementWorkspace CME suggestion", () => {
         ? Promise.resolve(jsonResponse(SUGGESTION))
         : Promise.resolve(jsonResponse(RETIREMENT_RESULT))
     );
-    render(<RetirementWorkspace />);
+    render(<RetirementWorkspace profiles={CLIENTS} />);
 
     const adopt = await screen.findByRole("button", { name: "Adopt" });
     fireEvent.click(adopt);
@@ -275,7 +282,7 @@ describe("RetirementWorkspace CME suggestion", () => {
         ? Promise.resolve(jsonResponse({ detail: "boom" }, 502))
         : Promise.resolve(jsonResponse(RETIREMENT_RESULT))
     );
-    render(<RetirementWorkspace />);
+    render(<RetirementWorkspace profiles={CLIENTS} />);
     fireEvent.click(screen.getByRole("button", { name: "Run Simulation" }));
     await waitFor(() =>
       expect(
@@ -391,23 +398,17 @@ describe("RetirementWorkspace client channel", () => {
     expect(body.volatility).toBeCloseTo(0.1);
   });
 
-  it("manual option returns to the un-keyed suggestion", async () => {
+  it("clearing the client disables execution without requesting an unscoped suggestion", async () => {
     mockClientChannel();
-    render(<RetirementWorkspace profiles={PROFILES} />);
-
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "1" } });
+    const { rerender } = render(<RetirementWorkspace profiles={PROFILES} />);
     await screen.findByText(/Moderate reference portfolio/);
-
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "" } });
-    await waitFor(() =>
-      expect(
-        fetchMock.mock.calls.some(
-          ([url]) =>
-            (url as string).includes("/cme-suggestion") &&
-            !(url as string).includes("profile_id")
-        )
-      ).toBe(true)
-    );
+    rerender(<RetirementWorkspace profiles={PROFILES} />);
+    expect(clientState.clear).toHaveBeenCalled();
+    const run = screen.getByRole("button", { name: "Run Simulation" });
+    expect(run).toBeDisabled();
+    fireEvent.click(run);
+    expect(fetchMock.mock.calls.some(([url]) => url === "/api/retirement/cme-suggestion" || url === "/api/retirement/simulate")).toBe(false);
   });
 
   it("hides the selector when no profiles are available", () => {

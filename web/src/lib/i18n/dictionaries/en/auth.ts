@@ -1,4 +1,7 @@
 export const auth = {
+  advisorOnly: "This console requires advisor or administrator access. Choose an authorized workspace or sign out.",
+  adminOnly: "System settings require administrator access to the deployment workspace.",
+
   "title": "Sign in to AI WealthPilot",
   "email": "Email",
   "password": "Password",

@@ -85,3 +85,48 @@ ruff format --check
 ```
 
 The tests cover the client/advisor/admin access matrix, multiple memberships, role and assignment changes, assignment service permissions and rollback, database tenant constraints, upgrading a #73 database, and test-only routes using real bearer sessions. The HTTP integration checks anonymous access, forged user/role headers, indistinguishable missing/forbidden responses, Chinese localization, and logout revocation.
+
+## Advisor Console client context (#81)
+
+The existing Web application is the Advisor Console. Its navigation groups the
+implemented client, portfolio, advisory, monitoring, research, and system pages.
+Goals, portfolio analysis, rebalancing, and CME remain within their existing
+workspaces; this change does not add separate product surfaces for them.
+
+The layout resolves the selected organization membership on the server. Advisor
+and admin memberships can enter the console; client memberships receive an
+access message and workspace/sign-out controls. The settings page and navigation
+follow the existing deployment policy: the local organization's admin can manage
+settings, and the demo admin can view demo settings. The API remains the authority
+for every request, including direct URLs and assignment changes.
+
+The current-client selector uses only the authorized `/api/profiles` response.
+It stores a profile ID in tab-local session storage, scoped by authenticated user
+and organization, and resolves the displayed name from that response. Old
+unscoped local-storage values are ignored. Deleted, unavailable, or revoked
+profiles cannot supply an active selection. Opening an authorized profile detail
+sets that client for subsequent navigation; switching the sidebar from a profile
+detail opens the newly selected profile.
+
+AI Advisor, IPS, optimizer and retirement require an explicit client selection
+and follow subsequent sidebar changes. Retirement has no independent manual
+client context; clearing its selection also clears the sidebar. Parameter editing
+remains available, but execution is disabled until a current client is selected.
+Advisor and IPS libraries show only artifacts matching that client by profile ID,
+including when multiple clients have the same name. Advisor report summaries
+resolve the ID from the authoritative artifact ownership index, not file names
+or stored client names.
+Changing clients resets the client workspace's form/result state and disconnects
+its streams. IPS and optimizer resume handles use the same user/organization/client
+scope, so returning to the original client can resume its unfinished background
+task without attaching it to another client's workspace. Completed/unsaved results
+are not retained across client changes. Session transitions clear tab selections
+and task handles; they do not cancel server-side background tasks.
+
+Async optimization creation requires `context_profile_id`, independent of the
+optional `profile_id` that controls risk caps or liability inputs. The authorized
+context supplies the persisted `TaskRecord.client_id`; any computational
+`profile_id` must match it. Event-stream requests also require
+`context_profile_id` and verify that the task belongs to that client, even when
+the caller can access multiple clients. Historical optimizer tasks without client
+ownership cannot be resumed through this scoped endpoint and must be rerun.

@@ -19,7 +19,8 @@ test("advisor: demo-mode report streams in English under the default locale", as
   await expect(page.getByText(/demo mode/i).first()).toBeVisible();
 
   // Capture the selected client's name — the replayed report carries it
-  const clientSelect = page.getByRole("combobox", { name: "Client" });
+  const clientSelect = page.getByRole("combobox", { name: "Client", exact: true });
+  await clientSelect.selectOption({ index: 1 });
   const selectedName = (
     (await clientSelect.locator("option:checked").textContent()) ?? ""
   ).split(" (")[0].trim();
@@ -59,6 +60,7 @@ test("advisor: demo-mode report streams in Chinese after switching to zh", async
   const generateButton = page.getByRole("button", { name: "生成建议书" });
   await expect(generateButton).toBeVisible();
 
+  await page.getByRole("combobox", { name: "选择客户", exact: true }).selectOption({ index: 1 });
   await generateButton.click();
 
   // The Chinese fixture report streams in: heading + demo marker.
