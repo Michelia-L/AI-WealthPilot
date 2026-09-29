@@ -122,3 +122,11 @@ scope, so returning to the original client can resume its unfinished background
 task without attaching it to another client's workspace. Completed/unsaved results
 are not retained across client changes. Session transitions clear tab selections
 and task handles; they do not cancel server-side background tasks.
+
+Async optimization creation requires `context_profile_id`, independent of the
+optional `profile_id` that controls risk caps or liability inputs. The authorized
+context supplies the persisted `TaskRecord.client_id`; any computational
+`profile_id` must match it. Event-stream requests also require
+`context_profile_id` and verify that the task belongs to that client, even when
+the caller can access multiple clients. Historical optimizer tasks without client
+ownership cannot be resumed through this scoped endpoint and must be rerun.

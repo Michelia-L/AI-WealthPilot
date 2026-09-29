@@ -13,6 +13,7 @@ import pytest
 
 from api.schemas import OptimizeResponse, PortfolioResult
 from tests.test_api_advisor import _parse_sse
+from tests.test_api_ips import _create_profile
 
 
 def _dummy_result(weight: float) -> OptimizeResponse:
@@ -55,8 +56,9 @@ def fake_optimize(monkeypatch):
     )
 
 
-def _async_body(**overrides) -> dict:
+def _async_body(client, **overrides) -> dict:
     body = {
+        "context_profile_id": _create_profile(client),
         "assets": ["US_EQUITY", "US_BOND"],
         "period": "5y",
         "method": "resampled",
@@ -69,11 +71,18 @@ def _async_body(**overrides) -> dict:
 
 
 def test_async_task_streams_progress_and_result(client, fake_optimize):
-    created = client.post("/api/portfolio/optimize/async", json=_async_body())
+    body = _async_body(client)
+    created = client.post(
+        "/api/portfolio/optimize/async",
+        json=body,
+    )
     assert created.status_code == 202
     task_id = created.json()["task_id"]
 
-    resp = client.get(f"/api/portfolio/tasks/{task_id}/events")
+    resp = client.get(
+        f"/api/portfolio/tasks/{task_id}/events",
+        params={"context_profile_id": body["context_profile_id"]},
+    )
     assert resp.status_code == 200
     events = _parse_sse(resp.text)
 
@@ -93,14 +102,14 @@ def test_async_task_streams_progress_and_result(client, fake_optimize):
 def test_async_eager_validation(client, fake_optimize):
     # Fewer than 2 valid assets → 422 synchronously, no task created.
     resp = client.post(
-        "/api/portfolio/optimize/async", json=_async_body(assets=["NOPE"])
+        "/api/portfolio/optimize/async", json=_async_body(client, assets=["NOPE"])
     )
     assert resp.status_code == 422
 
     # BL without views → 422 synchronously.
     resp = client.post(
         "/api/portfolio/optimize/async",
-        json=_async_body(method="black-litterman", bl=None),
+        json=_async_body(client, method="black-litterman", bl=None),
     )
     assert resp.status_code == 422
 
@@ -109,13 +118,13 @@ def test_async_eager_validation_en(bare_client, fake_optimize):
     """Eager 422 details are English without an X-Locale header (P22)."""
     resp = bare_client.post(
         "/api/portfolio/optimize/async",
-        json=_async_body(method="black-litterman", bl=None),
+        json=_async_body(bare_client, method="black-litterman", bl=None),
     )
     assert resp.status_code == 422
     assert "at least one investor view" in resp.json()["detail"]
 
     resp = bare_client.post(
-        "/api/portfolio/optimize/async", json=_async_body(assets=["NOPE"])
+        "/api/portfolio/optimize/async", json=_async_body(bare_client, assets=["NOPE"])
     )
     assert resp.status_code == 422
     assert "At least 2 valid asset classes" in resp.json()["detail"]
@@ -129,10 +138,17 @@ def test_async_http_error_becomes_error_event(client, monkeypatch):
 
     monkeypatch.setattr("api.routers.portfolio._prepare_optimize", boom)
 
-    task_id = client.post("/api/portfolio/optimize/async", json=_async_body()).json()[
-        "task_id"
-    ]
-    events = _parse_sse(client.get(f"/api/portfolio/tasks/{task_id}/events").text)
+    body = _async_body(client)
+    task_id = client.post(
+        "/api/portfolio/optimize/async",
+        json=body,
+    ).json()["task_id"]
+    events = _parse_sse(
+        client.get(
+            f"/api/portfolio/tasks/{task_id}/events",
+            params={"context_profile_id": body["context_profile_id"]},
+        ).text
+    )
 
     assert events[-1]["type"] == "error"
     assert "No price data" in events[-1]["message"]
@@ -144,14 +160,27 @@ def test_async_unexpected_error_becomes_error_event(client, monkeypatch):
         lambda req, locale="zh": (_ for _ in ()).throw(RuntimeError("kaboom")),
     )
 
-    task_id = client.post("/api/portfolio/optimize/async", json=_async_body()).json()[
-        "task_id"
-    ]
-    events = _parse_sse(client.get(f"/api/portfolio/tasks/{task_id}/events").text)
+    body = _async_body(client)
+    task_id = client.post(
+        "/api/portfolio/optimize/async",
+        json=body,
+    ).json()["task_id"]
+    events = _parse_sse(
+        client.get(
+            f"/api/portfolio/tasks/{task_id}/events",
+            params={"context_profile_id": body["context_profile_id"]},
+        ).text
+    )
 
     assert events[-1]["type"] == "error"
     assert "kaboom" in events[-1]["message"]
 
 
 def test_async_task_not_found(client):
-    assert client.get("/api/portfolio/tasks/nonexistent/events").status_code == 404
+    profile_id = _create_profile(client)
+    assert (
+        client.get(
+            f"/api/portfolio/tasks/nonexistent/events?context_profile_id={profile_id}"
+        ).status_code
+        == 404
+    )

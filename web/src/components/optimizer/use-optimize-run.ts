@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
+  AsyncOptimizeRequest,
   OptimizeMethod,
   OptimizeRequest,
   OptimizeResponse,
@@ -48,9 +49,10 @@ export function useOptimizeRun({
       signal: AbortSignal,
       onOpen?: () => void
     ): Promise<OptimizeResponse> => {
-      const eventsRes = await fetch(`/api/portfolio/tasks/${taskId}/events`, {
-        signal,
-      });
+      const eventsRes = await fetch(
+        `/api/portfolio/tasks/${taskId}/events?context_profile_id=${clientId}`,
+        { signal }
+      );
       if (!eventsRes.ok || !eventsRes.body) {
         if (eventsRes.status === 404) {
           clearActiveTask("portfolio", taskScope);
@@ -81,7 +83,7 @@ export function useOptimizeRun({
       if (!finalResult) throw new Error(t.optimizer.streamEnded);
       return finalResult;
     },
-    [t, taskScope]
+    [t, taskScope, clientId]
   );
 
   // 挂载时恢复未完成的任务（切页返回的场景）：重连事件流重建进度与结果。
@@ -118,7 +120,7 @@ export function useOptimizeRun({
 
   /** Resampled MVO path: async task + SSE progress (minute-level compute). */
   async function runAsync(
-    body: OptimizeRequest,
+    body: AsyncOptimizeRequest,
     signal: AbortSignal
   ): Promise<OptimizeResponse> {
     const res = await fetch("/api/portfolio/optimize/async", {
@@ -150,7 +152,9 @@ export function useOptimizeRun({
     try {
       const body = buildBody();
       if (method === "resampled") {
-        setResult(await runAsync(body, controller.signal));
+        setResult(await runAsync(
+          { ...body, context_profile_id: clientId }, controller.signal
+        ));
       } else {
         const res = await fetch("/api/portfolio/optimize", {
           method: "POST",

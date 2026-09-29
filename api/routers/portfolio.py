@@ -20,7 +20,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
@@ -34,6 +34,7 @@ from api.schemas import (
     AssetClassesResponse,
     AssetClassInfo,
     AssetStat,
+    AsyncOptimizeRequest,
     BLInsight,
     GoalFeasibility,
     OptimizeRequest,
@@ -914,13 +915,14 @@ async def _run_optimize_task(
     openapi_extra={"x-access-scope": "advisor-scoped"},
 )
 async def optimize_async(
-    req: OptimizeRequest,
+    req: AsyncOptimizeRequest,
     request: Request,
     session: Session = Depends(get_session),
     access: Access = Depends(get_access),
 ) -> PortfolioTaskCreatedResponse:
-    if req.profile_id is not None:
-        access.profile(req.profile_id)
+    context = access.profile(req.context_profile_id)
+    if req.profile_id is not None and req.profile_id != req.context_profile_id:
+        access.deny(404, "profile_not_found")
     locale = get_request_locale(request)
     # Validate everything that doesn't need market data up front, so bad
     # requests fail fast with 422 instead of surfacing on the event stream.
@@ -935,9 +937,7 @@ async def optimize_async(
         n_simulations=req.n_simulations,
         organization_id=access.organization_id,
         created_by=access.principal.user_id,
-        client_id=access.profile(req.profile_id).client_id
-        if req.profile_id is not None
-        else None,
+        client_id=context.client_id,
     )
     asyncio.create_task(_run_optimize_task(task, req, risk_info, locale, surplus_raw))
     return PortfolioTaskCreatedResponse(task_id=task.task_id)
@@ -947,9 +947,12 @@ async def optimize_async(
     "/tasks/{task_id}/events", openapi_extra={"x-access-scope": "advisor-scoped"}
 )
 async def optimize_task_events(
-    task_id: str, request: Request, access: Access = Depends(get_access)
+    task_id: str,
+    request: Request,
+    context_profile_id: int = Query(gt=0),
+    access: Access = Depends(get_access),
 ) -> StreamingResponse:
-    access.task(task_id, "optimize")
+    access.task(task_id, "optimize", context_profile_id=context_profile_id)
     stream = task_events_stream(registry, task_id, get_request_locale(request))
     if stream is None:
         raise HTTPException(

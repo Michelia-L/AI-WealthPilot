@@ -137,6 +137,12 @@ describe("OptimizerWorkspace buildBody", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("/api/portfolio/optimize/async");
     expect(body.method).toBe("resampled");
     expect(body.n_simulations).toBe(200);
+    expect(body.context_profile_id).toBe(42);
+    expect(body.profile_id).toBeUndefined();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/portfolio/tasks/task-1/events?context_profile_id=42",
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    ));
   });
 
   it("black-litterman: sends cme as the expected-return source (BL prior)", async () => {

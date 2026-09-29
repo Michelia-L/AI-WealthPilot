@@ -378,7 +378,7 @@ def test_profile_creation_and_import_cannot_choose_another_organization(workspac
 
 
 def test_task_kind_and_creator_scope_cannot_be_bypassed(workspace):
-    client, _, _, _, _, headers = workspace
+    client, _, _, profiles, _, headers = workspace
     with Session(db.engine) as session:
         session.add(
             db.TaskRecord(
@@ -395,13 +395,15 @@ def test_task_kind_and_creator_scope_cannot_be_bypassed(workspace):
         session.commit()
     assert (
         client.get(
-            "/api/portfolio/tasks/standalone/events", headers=headers("advisor")
+            f"/api/portfolio/tasks/standalone/events?context_profile_id={profiles['own']}",
+            headers=headers("advisor"),
         ).status_code
-        == 200
+        == 404
     )
     assert (
         client.get(
-            "/api/portfolio/tasks/standalone/events", headers=headers("admin")
+            f"/api/portfolio/tasks/standalone/events?context_profile_id={profiles['own']}",
+            headers=headers("admin"),
         ).status_code
         == 404
     )
@@ -413,6 +415,107 @@ def test_task_kind_and_creator_scope_cannot_be_bypassed(workspace):
     )
     assert (
         client.get("/api/ips/tasks/legacy/events", headers=headers("admin")).status_code
+        == 404
+    )
+
+
+def test_optimizer_task_requires_matching_client_on_create_and_replay(
+    workspace, monkeypatch
+):
+    from api.tasks import TaskRegistry
+
+    client, principals, clients, profiles, _, headers = workspace
+
+    async def finish(task, req, risk_info, locale, surplus_raw):
+        assert req.profile_id is None
+        assert risk_info is None
+        task.status = "completed"
+        await task.publish({"type": "done", "result": {"fixture": True}})
+
+    monkeypatch.setattr("api.routers.portfolio._run_optimize_task", finish)
+    body = {
+        "assets": ["US_EQUITY", "US_BOND"],
+        "method": "resampled",
+        "n_simulations": 50,
+        "context_profile_id": profiles["own"],
+    }
+    created = client.post(
+        "/api/portfolio/optimize/async", json=body, headers=headers("advisor")
+    )
+    assert created.status_code == 202
+    task_id = created.json()["task_id"]
+    with Session(db.engine) as session:
+        record = session.get(db.TaskRecord, task_id)
+        assert record.client_id == clients["own"]
+        assert record.organization_id == "a"
+        assert record.created_by == "advisor"
+
+    # The same checks apply to live-registry replay and durable replay after restart.
+    for restarted in (False, True):
+        if restarted:
+            monkeypatch.setattr("api.routers.portfolio.registry", TaskRegistry())
+        for user, context, status in (
+            ("advisor", "own", 200),
+            ("advisor", "other", 404),
+            ("admin", "own", 200),
+            (
+                "admin",
+                "other",
+                404,
+            ),  # Authorized for both; wrong workspace still denied.
+            ("admin", "foreign", 404),
+        ):
+            response = client.get(
+                f"/api/portfolio/tasks/{task_id}/events",
+                params={"context_profile_id": profiles[context]},
+                headers=headers(user),
+            )
+            assert response.status_code == status
+        assert (
+            client.get(
+                f"/api/portfolio/tasks/{task_id}/events", headers=headers("advisor")
+            ).status_code
+            == 422
+        )
+
+    # No missing scope, unauthorized owner, or mixed-client optimization inputs.
+    for changes, status in (
+        ({"context_profile_id": None}, 422),
+        ({"context_profile_id": 0}, 422),
+        ({"context_profile_id": profiles["other"]}, 404),
+        ({"context_profile_id": profiles["foreign"]}, 404),
+        ({"profile_id": profiles["other"]}, 404),
+    ):
+        response = client.post(
+            "/api/portfolio/optimize/async",
+            json={**body, **changes},
+            headers=headers("advisor"),
+        )
+        assert response.status_code == status
+    body.pop("context_profile_id")
+    assert (
+        client.post(
+            "/api/portfolio/optimize/async", json=body, headers=headers("advisor")
+        ).status_code
+        == 422
+    )
+
+    # Creating a task does not retain access after the advisor loses the client.
+    with Session(db.engine) as session:
+        unassign_advisor(
+            session,
+            principals["admin"],
+            organization_id="a",
+            advisor_user_id="advisor",
+            client_id=clients["own"],
+        )
+        session.commit()
+    assert (
+        client.get(
+            f"/api/portfolio/tasks/{task_id}/events",
+            params={"context_profile_id": profiles["own"]},
+            headers=headers("advisor"),
+        ).status_code
         == 404
     )
 

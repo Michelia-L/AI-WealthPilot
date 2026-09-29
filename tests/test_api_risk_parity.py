@@ -84,7 +84,12 @@ def test_risk_parity_rejects_shorting(client, monkeypatch):
 def test_risk_parity_rejects_shorting_async(client, monkeypatch):
     """The async entry applies the same long-only validation up front."""
     _patch_returns(monkeypatch, _fake_returns())
-    resp = client.post("/api/portfolio/optimize/async", json=_body(allow_short=True))
+    from tests.test_api_ips import _create_profile
+
+    resp = client.post(
+        "/api/portfolio/optimize/async",
+        json=_body(context_profile_id=_create_profile(client), allow_short=True),
+    )
     assert resp.status_code == 422
 
 

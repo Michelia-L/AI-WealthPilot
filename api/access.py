@@ -172,23 +172,27 @@ class Access:
                 break
         return reports
 
-    def task(self, task_id: str, kind: str) -> None:
+    def task(
+        self, task_id: str, kind: str, *, context_profile_id: int | None = None
+    ) -> None:
         from sqlalchemy import and_, or_
 
-        record = self.session.exec(
-            select(TaskRecord.task_id).where(
-                TaskRecord.task_id == task_id,
-                TaskRecord.kind == kind,
-                TaskRecord.organization_id == self.organization_id,
-                or_(
-                    TaskRecord.client_id.in_(self.client_ids()),
-                    and_(
-                        TaskRecord.client_id.is_(None),
-                        TaskRecord.created_by == self.principal.user_id,
-                    ),
+        statement = select(TaskRecord.task_id).where(
+            TaskRecord.task_id == task_id,
+            TaskRecord.kind == kind,
+            TaskRecord.organization_id == self.organization_id,
+            or_(
+                TaskRecord.client_id.in_(self.client_ids()),
+                and_(
+                    TaskRecord.client_id.is_(None),
+                    TaskRecord.created_by == self.principal.user_id,
                 ),
-            )
-        ).first()
+            ),
+        )
+        if context_profile_id is not None:
+            profile = self.profile(context_profile_id)
+            statement = statement.where(TaskRecord.client_id == profile.client_id)
+        record = self.session.exec(statement).first()
         if record is None:
             self.deny(404, "task_not_found")
 

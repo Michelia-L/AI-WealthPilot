@@ -148,6 +148,42 @@ test("IPS resumes only the selected client's saved task", async ({ page, request
 });
 
 
+test("optimizer replay rejects a task handle copied into another client's scope", async ({ page, request }) => {
+  test.setTimeout(90_000);
+  const created = await request.post("/api/portfolio/optimize/async", { data: {
+    context_profile_id: clients[0].id,
+    assets: ["US_EQUITY", "US_BOND"], method: "mvo", risk_free_rate: 0.03,
+  } });
+  expect(created.status()).toBe(202);
+  const { task_id: taskId } = await created.json();
+  const eventsPath = `/api/portfolio/tasks/${taskId}/events`;
+  expect((await request.get(eventsPath)).status()).toBe(422);
+  expect((await request.get(`${eventsPath}?context_profile_id=${clients[1].id}`)).status()).toBe(404);
+
+  await page.goto("/profiles");
+  await page.getByRole("combobox", { name: "Current client", exact: true }).selectOption(String(clients[1].id));
+  await page.evaluate(({ taskId, ids }) => {
+    const clientKey = Object.keys(sessionStorage).find((key) => key.startsWith("wealthpilot.activeClient:"))!;
+    const scope = clientKey.slice("wealthpilot.activeClient:".length);
+    for (const id of ids) sessionStorage.setItem(`wealthpilot:active-task:portfolio:${scope}:${id}`, taskId);
+  }, { taskId, ids: clients.map((client) => client.id) });
+
+  const rejected = page.waitForResponse((response) => response.url().endsWith(`${eventsPath}?context_profile_id=${clients[1].id}`));
+  await page.locator("aside").getByRole("link", { name: /Optimizer/ }).click();
+  expect((await rejected).status()).toBe(404);
+  await expect.poll(() => page.evaluate((id) => Object.keys(sessionStorage)
+    .filter((key) => key.startsWith("wealthpilot:active-task:portfolio:") && key.endsWith(`:${id}`)).length,
+  clients[1].id)).toBe(0);
+
+  const resumed = page.waitForResponse((response) => response.url().endsWith(`${eventsPath}?context_profile_id=${clients[0].id}`));
+  await page.getByRole("combobox", { name: "Current client", exact: true }).selectOption(String(clients[0].id));
+  const response = await resumed;
+  expect(response.status()).toBe(200);
+  expect(await response.text()).toContain('"type": "done"');
+  await expect(page.getByText("Annualized Return", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Run Optimization" })).toBeEnabled();
+});
+
 test("advisor library isolates reports for same-named clients and clears old previews", async ({ page, request }) => {
   const reports: string[] = [];
   try {
