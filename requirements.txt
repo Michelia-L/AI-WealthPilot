@@ -32,7 +32,7 @@ python-dotenv==1.2.3
 requests==2.34.2  # >= 2.33.0 fixes PYSEC-2026-2275 (pip-audit finding)
 markdown==3.10.3
 nh3==0.3.7  # HTML sanitizer for LLM-generated report content (XSS prevention)
-fpdf2==2.8.8
+fpdf2==2.8.9
 
 # API Layer
 fastapi==0.141.1
