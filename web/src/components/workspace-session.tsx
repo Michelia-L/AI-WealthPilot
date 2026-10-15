@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Button from "@/components/ui/button";
 import { useT } from "@/components/locale-context";
-import { LocaleSwitcher } from "@/components/app-shell";
+import LocaleSwitcher from "@/components/locale-switcher";
 import type { WorkspaceSession } from "@/lib/session";
 
 export default function WorkspaceSessionControl({

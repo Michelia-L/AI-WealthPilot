@@ -8,3 +8,4 @@ export * from "./advisor-server";
 export * from "./settings-server";
 export * from "./portfolio-server";
 export * from "./profiles-server";
+export * from "./client-portal-server";

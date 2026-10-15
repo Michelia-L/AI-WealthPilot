@@ -1,14 +1,9 @@
-import { getWorkspaceSession, workspaceRole, canManageSettings } from "@/lib/session";
+import { getWorkspaceSession } from "@/lib/session";
 import WorkspaceSessionControl from "@/components/workspace-session";
 import type { Metadata } from "next";
 import { Fraunces, Geist, Geist_Mono, IBM_Plex_Mono } from "next/font/google";
-import { Suspense } from "react";
 import "./globals.css";
-import AppShell from "@/components/app-shell";
-import { ClientProvider } from "@/components/client-context";
-import HealthBadge from "@/components/health-badge";
 import { LocaleProvider } from "@/components/locale-context";
-import { getProfiles } from "@/lib/api/server";
 import { getDict, getLocale } from "@/lib/i18n/server";
 
 const geistSans = Geist({
@@ -49,11 +44,6 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const [locale, session] = await Promise.all([getLocale(), getWorkspaceSession()]);
-  const role = workspaceRole(session);
-  const isAdvisor = role === "advisor" || role === "admin";
-  const profilesData = isAdvisor ? await getProfiles() : null;
-  const profiles = profilesData?.profiles ?? [];
-  const t = await getDict();
 
   return (
     <html
@@ -61,36 +51,13 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
-        <ClientProvider profiles={profiles} scope={session ? `${session.userId}:${session.organizationId}` : "signed-out"}>
-          <LocaleProvider locale={locale}>
-            {!session?.organizationId ? (
-              <WorkspaceSessionControl session={session} gate />
-            ) : !isAdvisor ? (
-              <div className="mx-auto my-24 max-w-lg space-y-5 px-5">
-                <h1 className="font-display text-2xl">{t.nav.console}</h1>
-                <p role="alert">{t.auth.advisorOnly}</p>
-                <WorkspaceSessionControl session={session} />
-              </div>
-            ) : (
-              <AppShell
-                canManageSettings={canManageSettings(session)}
-                sessionControls={<WorkspaceSessionControl session={session} />}
-                profiles={profiles}
-                healthBadge={
-                  <Suspense
-                    fallback={
-                      <span className="inline-block h-6 w-24 animate-pulse rounded-full bg-ink-800" />
-                    }
-                  >
-                    <HealthBadge />
-                  </Suspense>
-                }
-              >
-                {children}
-              </AppShell>
-            )}
-          </LocaleProvider>
-        </ClientProvider>
+        <LocaleProvider locale={locale}>
+          {!session?.organizationId ? (
+            <WorkspaceSessionControl session={session} gate />
+          ) : (
+            children
+          )}
+        </LocaleProvider>
       </body>
     </html>
   );

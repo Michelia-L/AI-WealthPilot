@@ -17,23 +17,25 @@ App Router 下组件分两种，数据流按此分界。
 
 ### RSC 只读通道的容错契约
 
-`lib/api/client.ts` 的 `getJson<T>` 在**任何失败（非 2xx、网络异常）下都返回 `null`**，调用方渲染降级面板（`ApiOffline`）而不崩页，API 没起时整个前端还是一副可读的骨架。它虽名叫 client，实际跑在 RSC。它不能碰 `next/headers`（该模块也在客户端 bundle 里被引用运行时常量），所以需要本地化的 RSC 数据函数走调用方显式传 locale 的模式，参照 `getMonitoringFleetStatus(locale)`。
+`lib/api/client.ts` 的 `getJson<T>` 在非 2xx 或网络异常时返回 `null`，调用方渲染降级面板。该模块标记为 `server-only`，通过会话辅助函数读取认证头；本地化的域函数仍由调用方显式传入 locale，例如 `getMonitoringFleetStatus(locale)`。客户端可导入的类型和常量与服务端取数模块分开。
+
+客户门户的 `lib/api/client-portal-server.ts` 同时保留数据和 HTTP 状态。文档详情仅在上游返回 404 时显示文档不可用；网络故障或其他错误显示可重试状态，避免把服务暂不可用解释成文档不存在。
 
 ## 应用骨架
 
-`app/layout.tsx` 装配全局。
+`app/layout.tsx` 装配字体、`LocaleProvider` 和公共会话入口。未登录或尚未选定工作区时显示登录或工作区选择控件。
 
 - **四个 next/font** 分别是 Geist Sans（正文拉丁）、Geist Mono + IBM Plex Mono（数字/表格等宽）、Fraunces（编辑级衬线标题，中文走 Songti/Noto Serif 回退栈）。
-- **Provider 嵌套** 依次是 `ClientProvider`（全局当前客户）→ `LocaleProvider`（语言）→ `AppShell`（侧栏+顶栏）。
-- healthBadge（后端健康灯）走 Suspense 插槽，健康检查慢不阻塞首屏。
+- `app/(advisor)/layout.tsx` 为顾问和管理员装配 `ClientProvider` 与 `AppShell`，顾问页原有 URL 保持不变。后端健康灯通过 Suspense 插槽加载。
+- `app/client/layout.tsx` 为客户角色装配独立的 `ClientPortalShell`，并调用 `/api/me` 检查账户关联。客户访问顾问 URL 时转向 `/client`，顾问或管理员访问门户时转向 `/`。布局判断用于界面选择，各 API 仍独立验证权限。
 
 `AppShell` 有 10 项导航（overview…settings），`NavLink` 的副标签**始终显示另一种语言**，这是墨金双语品牌层的有意设计，不是缺漏。移动端抽屉收起用 React 推荐的渲染期调整态模式。
 
-`client-context.tsx` 的当前客户是全局概念，选中后注入优化器约束，IPS 和顾问也默认选中它。实现上用 `useSyncExternalStore` 包 localStorage，SSR 与首帧水合恒为 null（与服务端一致），水合后再读本地值，所以**没有水合闪烁**。
+`client-context.tsx` 只属于顾问控制台。它用 `useSyncExternalStore` 管理当前客户 ID，在 sessionStorage 中按用户、组织和浏览器标签页隔离，并从已授权画像列表解析客户。SSR 快照为 null；客户门户不挂载该选择器，读取范围直接由服务端身份关联确定。
 
 ## 页面地图
 
-12 个路由页，壳是服务端取数的薄 page.tsx，交互全在客户端工作区组件。
+顾问控制台页面位于 `app/(advisor)/`。页面负责服务端取数，交互由工作区组件承担。
 
 | 路由 | 职责 |
 |---|---|
@@ -50,9 +52,13 @@ App Router 下组件分两种，数据流按此分界。
 | `/monitoring` | 组合监控。漂移条/越带徽章/复衡交易/回测区 |
 | `/settings` | 设置页。LLM 端点配置（db/env/none 三来源） |
 
+客户门户位于 `app/client/`，有总览、投资组合、财务目标、风险画像、文档和 AI 六个导航入口。手机端将入口排成两行。文档详情 `/client/documents/[id]` 只展示已发布或已确认阅读的版本，并经同源代理记录阅读确认；未发布修订版和其他客户的文档由 API 拒绝访问。
+
+门户读取 `/api/me/*` 的客户专用 DTO，不展示优化器、原始产物或系统设置。组合页展示已发布 IPS 的建议目标，实际收益、回撤和基准对比当前不可用。目标页展示已记录的金额、期限和优先级，进度及预测仍待后续实现。页面沿用 API 的缺失数据说明，未在前端增加金融计算。账户关联、发布流程与当前限制见[客户门户说明](https://github.com/Michelia-L/AI-WealthPilot/blob/main/docs/client-portal.md)。
+
 ## 数据层
 
-`lib/api/` 按域分 9 个模块（market/portfolio/retirement/profiles/advisor/settings/ips/monitoring/backtest），外加 `api.ts` barrel 重导出。类型定义镜像 API 的 Pydantic 模型（如 `OptimizeMethod` 6 值联合）。两个客户端镜像函数（`classifyRiskPreview`/`scoreFromAnswers`）只做实时预览，**服务端保存时重算权威值**，注释里写明了这一点。
+`lib/api/` 按市场、组合、退休、画像、顾问、设置、IPS、监控、回测和客户门户等域拆分。浏览器可用的类型与服务端取数入口分别导出，后者通过 `api/server.ts` 聚合。类型定义镜像 API 的 Pydantic 模型（如 `OptimizeMethod` 6 值联合），客户门户单独镜像客户 DTO。两个客户端镜像函数（`classifyRiskPreview`/`scoreFromAnswers`）只做实时预览，**服务端保存时重算权威值**，注释里写明了这一点。
 
 深链契约（`lib/optimizer-link.ts`）管退休页到优化器 LDI 通道的 URL 预填，规则是**全有或全无**。只有 `method=surplus&source=retirement` 且 ytr/dy/income 齐全合法才预填，任何残缺整体忽略，落回默认。
 
@@ -60,7 +66,7 @@ App Router 下组件分两种，数据流按此分界。
 
 这套方案没有用 next-intl/react-i18next，自研，零依赖。
 
-- **字典即 TypeScript 模块**。`dictionaries/en/` 聚合 18 个 namespace；`Dictionary = typeof en`，**类型真源在英文侧**。zh 字典声明为 `: Dictionary`，**缺 key 是编译错误**，tsc 层面强制双语同步。
+- **字典即 TypeScript 模块**。`dictionaries/en/` 聚合各 namespace，包括门户专用的 `clientPortal`；`Dictionary = typeof en`，**类型真源在英文侧**。zh 字典声明为 `: Dictionary`，**缺 key 是编译错误**，tsc 层面强制双语同步。
 - **字典含插值函数**（如 `t.overview.clientAge(age)`），因此**不能作为 RSC props 序列化**。跨边界只传 `locale` 字符串，客户端从 `dictionaries` map 自取。这就是 `locale-context.tsx` 直接在客户端 import 字典的原因。
 - **切换** 的流程是侧栏切换器 → `POST /api/locale` 写 cookie → `router.refresh()` 整树重渲。locale 由根布局服务端解析后传入，首屏与水合永远一致。
 - 两条传输路径不要混。UI 文案走 cookie 加字典；API 文案（错误、SSE 事件）走 `X-Locale` 头（第 5 章）。
@@ -109,7 +115,7 @@ App Router 下组件分两种，数据流按此分界。
 - `lib/api/profiles.ts` 的 `MARITAL_STATUS_OPTIONS`/`TAX_STATUS_OPTIONS` label 是硬编码中文，不走字典；`TaskGoneError` 的 message 也是中文。这是文案全走字典规则的已知例外。
 - 客户端镜像函数（风险分级预览）与服务端权威重算并存，预览值可能与保存值不同，以服务端为准。
 - `risk_level` 是 English / 中文 这样的双语数据串，UI 按 locale 切一半显示（`localizedRiskLabel`）。双语发生在数据层，不在文案层。
-- e2e 用例数不能数 `test(`。smoke.spec 对 10 条路由循环生成，实际执行 17 个用例。
+- e2e 用例可能由循环生成，用例清单以 `npm run test:e2e -- --list` 为准。门户测试使用临时数据库中的虚构客户，覆盖跨客户文档访问、草稿隐藏、账户关联、权限撤销和双语导航。
 - IPS 的 EWH 港股在优化器宇宙无代理，监控页「在优化器分析」时被**静默跳过**（`OPTIMIZER_KEY_MAP` 注释）。
 
 ## 自检问题
@@ -125,7 +131,7 @@ App Router 下组件分两种，数据流按此分界。
 
 ## 代码入口清单（推荐阅读顺序）
 
-1. `web/src/app/layout.tsx` + `components/app-shell.tsx`，骨架
+1. `web/src/app/layout.tsx`、`app/(advisor)/layout.tsx`、`app/client/layout.tsx`，公共会话入口与两端布局
 2. `web/src/lib/proxy.ts` + 任一 `app/api/**/route.ts`，代理通道
 3. `web/src/lib/api/client.ts` + 一个域模块（如 `portfolio.ts`），RSC 数据层
 4. `web/src/lib/i18n/`（locale.ts → dictionaries/ → server.ts）+ `components/locale-context.tsx`，i18n 全貌
@@ -133,3 +139,4 @@ App Router 下组件分两种，数据流按此分界。
 6. `web/src/components/optimizer/use-optimizer-form.ts` + `use-optimize-run.ts`，工作区状态机
 7. `web/src/components/plot-chart.tsx`、`lib/sse.ts`、`lib/task-resume.ts`，渲染与流式
 8. `web/src/app/globals.css` + `components/ui/`，设计系统
+9. `web/src/lib/api/client-portal-server.ts` + `components/client-portal/`，客户读取边界、发布版本阅读和受限助手
