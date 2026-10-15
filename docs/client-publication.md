@@ -32,7 +32,8 @@ are now staff endpoints, including their raw payloads and exports. A client cann
 bypass publication through those routes. Client responses exclude optimizer
 settings, LLM configuration, machine review traces and staff approval metadata.
 `X-Locale: en|zh` controls explanatory messages; stored document text retains the
-language reviewed by the advisor. There is no Client Portal UI in this change.
+language reviewed by the advisor. The [Client Portal](client-portal.md) provides
+the browser interface for these contracts.
 
 ## Publication workflow
 

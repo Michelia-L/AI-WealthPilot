@@ -5,15 +5,17 @@ import { ButtonLink, EmptyState } from "@/components/ui";
 export default async function NotFound() {
   const t = await getDict();
   return (
-    <EmptyState
-      icon="warning"
-      title={t.errors.page.notFoundTitle}
-      hint={t.errors.page.notFoundHint}
-      action={
-        <ButtonLink href="/" variant="secondary" size="sm">
-          {t.errors.page.backHome}
-        </ButtonLink>
-      }
-    />
+    <main className="mx-auto max-w-4xl px-5 py-12">
+      <EmptyState
+        icon="warning"
+        title={t.errors.page.notFoundTitle}
+        hint={t.errors.page.notFoundHint}
+        action={
+          <ButtonLink href="/" variant="secondary" size="sm">
+            {t.errors.page.backHome}
+          </ButtonLink>
+        }
+      />
+    </main>
   );
 }

@@ -1,4 +1,5 @@
 import { auth } from "./auth";
+import { clientPortal } from "./clientPortal";
 import { advisor } from "./advisor";
 import { clientSelector } from "./clientSelector";
 import { common } from "./common";
@@ -20,6 +21,7 @@ import { settings } from "./settings";
 
 export const en = {
   auth,
+  clientPortal,
   advisor,
   clientSelector,
   common,

@@ -68,6 +68,8 @@ Quantitative features can run without an LLM key; live AI endpoints return HTTP 
 
 Business APIs require a session and scoped access; see [API access and upgrade notes](docs/api-access.md) and [resource ownership migration](docs/resource-ownership.md). Client records are stored locally by default. **Live AI requests send the profile and report context needed for that task to your configured model provider**, and the key is used to authenticate those requests. See [data and deployment boundaries](#data-and-deployment-boundaries).
 
+Advisor and admin memberships open the Advisor Console; linked client memberships open the [Client Portal](docs/client-portal.md) at `/client`, with their own profile, goals, published documents and AI assistant. The portal displays suggested targets and explicitly identifies unavailable performance and goal projections.
+
 ## Wealth management workflow
 
 Start with the client's goals and constraints, then choose the analysis needed for a decision. These are connected workspaces; they can also be used independently.

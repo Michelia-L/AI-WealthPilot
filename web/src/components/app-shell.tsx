@@ -11,7 +11,7 @@ import { cx } from "@/lib/cx";
 import ClientSelector from "./client-selector";
 import { useLocale, useT } from "./locale-context";
 import Icon, { type IconName } from "./ui/icon";
-import Segmented from "./ui/segmented";
+import LocaleSwitcher from "./locale-switcher";
 
 type NavKey = keyof Dictionary["nav"];
 
@@ -97,22 +97,6 @@ function NavLink({
         {alt.nav[item.key]}
       </span>
     </Link>
-  );
-}
-
-/** 语言切换 —— EN/中文分段选择，写 cookie 后整树刷新。 */
-export function LocaleSwitcher() {
-  const { locale, setLocale } = useLocale();
-  return (
-    <Segmented
-      size="sm"
-      options={[
-        { value: "en", label: "EN" },
-        { value: "zh", label: "中文" },
-      ]}
-      value={locale}
-      onChange={setLocale}
-    />
   );
 }
 

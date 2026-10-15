@@ -55,8 +55,9 @@ for (const role of ["advisor", "client", "admin"]) {
     ]);
     await page.goto("/ips");
     if (role === "client") {
-      await expect(page.getByRole("alert").filter({ hasText: "requires advisor or administrator access" })).toBeVisible();
-      await expect(page.getByRole("navigation")).toHaveCount(0);
+      await expect(page).toHaveURL(/\/client$/);
+      await expect(page.getByRole("navigation", { name: "Client navigation" })).toBeVisible();
+      await expect(page.getByRole("combobox", { name: "Current client", exact: true })).toHaveCount(0);
       for (const endpoint of ["/api/ips/not-accessible", "/api/advisor/reports/not-accessible", "/api/settings/llm", `/api/profiles/${profileIds.assigned}`]) {
         expect((await context.request.get(endpoint)).status()).toBe(403);
       }

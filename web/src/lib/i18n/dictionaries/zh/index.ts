@@ -1,4 +1,5 @@
 import { auth } from "./auth";
+import { clientPortal } from "./clientPortal";
 import type { Dictionary } from "../en";
 import { advisor } from "./advisor";
 import { clientSelector } from "./clientSelector";
@@ -21,6 +22,7 @@ import { settings } from "./settings";
 
 export const zh: Dictionary = {
   auth,
+  clientPortal,
   advisor,
   clientSelector,
   common,
