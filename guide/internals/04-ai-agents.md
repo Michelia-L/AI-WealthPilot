@@ -38,11 +38,13 @@
 
 ## 组合推荐器（`portfolio_recommender.py`）
 
-把画像变成可执行组合，分三步。
+把画像变成建议配置，分三步。
 
 1. **风险分 → 目标波动率**（`_get_target_volatility`）。按断点分段，在每段的规范波动率带内做**分段线性插值**，端点贴着带边缘（1.0 分 → 4%，5.0 分 → 25%）。波动带读 `config.RISK_VOLATILITY_BANDS`（P25 单一事实源，与 IPS 校验、prompt 三处共读）。
 2. **命中目标波动率**（`_solve_at_target_volatility`）。利用有效前沿在 GMV 收益以上的单调性，对 `minimize_volatility(target_return=…)` 做 **40 轮二分搜索**，让风险分到波动率的换算成为真实约束，由搜索强制执行，不停留在文档值上。GMV 自身波动率已超目标时回退 GMV（资产池降不了险）。
-3. **目标可行性**（`_solve_required_return` + `_evaluate_goal`）。解含年供款的 TVM 方程（普通年金、年末供款，60 轮二分；PMT=0 退化为 (FV/PV)^(1/n)−1）。**波动率预算是硬顶，永不被目标推翻**。目标组合只有落在预算内才替换推荐组合，否则缺口经 `goal_status`（on_track/constrained/infeasible）如实披露，不会悄悄加仓追目标。`_UNATTAINABLE_RATE = 10.0`（1000% 年化）是不可行哨兵。
+3. **目标可行性**（`src/portfolio/goals.py` 的 `plan_goal_funding` / `solve_required_return`，以及推荐器的 `_evaluate_goal`）。解含年供款的 TVM 方程（普通年金、年末供款，60 轮二分；PMT=0 退化为 (FV/PV)^(1/n)−1）。**波动率预算是硬顶，永不被目标推翻**。最高优先级目标的组合只有落在预算内才替换推荐组合，否则缺口经 `goal_status`（on_track/constrained/infeasible）披露。其余目标分别评估，不表示推荐组合能同时满足全部目标。`UNATTAINABLE_RATE = 10.0`（1000% 年化）是不可行哨兵，目标资金接口将此情况转换为 `required_return: null`。
+
+目标资金规划与推荐器共用资产和结余分配，按高、中、低优先级 3∶2∶1 分给金额与期限均大于零的目标。顾问端与客户门户展示各目标的规划覆盖率、未覆盖金额和年度投入预算；这条路径只读画像，无需行情或 LLM。数值随画像更新重算，未记录实际分账户余额和投入，也不考虑通胀、税费。模型资金覆盖状态与风险预算内的目标可行性是两个不同问题，均不表示达成概率。
 
 ## AI 顾问（`advisor.py`）
 
@@ -151,7 +153,7 @@ JSON 落盘 `data/ips/`，记录结构 `{ips, audit_trail, metadata}`。Markdown
 
 1. `src/agents/llm_config.py`，114 行，配置解析的最小完整样本
 2. `src/agents/profiler.py`（`compute_ability_score` / `assess_risk` / `identify_behavioral_biases`），规则评分
-3. `src/agents/portfolio_recommender.py`（`_get_target_volatility` → `_solve_at_target_volatility` → `_solve_required_return`），推荐三段论
+3. `src/agents/portfolio_recommender.py`（`_get_target_volatility` → `_solve_at_target_volatility` → `_evaluate_goal`）与 `src/portfolio/goals.py`（`plan_goal_funding` / `solve_required_return`），推荐与目标资金规划
 4. `src/agents/advisor.py`（`SYSTEM_PROMPT` → `generate_advice_stream` → `validate_report_content`），LLM 流式与校验
 5. `src/agents/rebalance_advisor.py`，对照顾问读，看解读而非重算这条原则
 6. `src/agents/ips_models.py` → `ips_agents.py` → `ips_workflow.py`，IPS 三层（契约 → agent → 状态机）

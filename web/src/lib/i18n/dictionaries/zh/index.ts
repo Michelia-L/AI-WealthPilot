@@ -8,6 +8,7 @@ import { deliverableDetail } from "./deliverableDetail";
 import { deliverables } from "./deliverables";
 import { errors } from "./errors";
 import { health } from "./health";
+import { goalTracking } from "./goalTracking";
 import { ips } from "./ips";
 import { market } from "./market";
 import { meta } from "./meta";
@@ -30,6 +31,7 @@ export const zh: Dictionary = {
   deliverables,
   errors,
   health,
+  goalTracking,
   ips,
   market,
   meta,

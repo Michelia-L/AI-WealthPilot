@@ -4,6 +4,7 @@ import {
   getAdvisorReports,
   getIpsDocuments,
   getProfile,
+  getProfileGoals,
   getRecommendation,
 } from "@/lib/api/server";
 import { fmtLocal, fmtMoney, fmtPct } from "@/lib/format";
@@ -12,6 +13,7 @@ import { altLocale } from "@/lib/i18n/locale";
 import { ApiOffline } from "@/components/api-offline";
 import Markdown from "@/components/markdown";
 import HubActions from "@/components/profiles/hub-actions";
+import GoalFundingCards from "@/components/goal-funding-cards";
 import { localizedRiskLabel, RiskBadge } from "@/components/profiles/shared";
 import {
   Badge,
@@ -22,7 +24,11 @@ import {
   SectionHeader,
   Skeleton,
   StatTile,
-  type BadgeTone,
+  Table,
+  TD,
+  TH,
+  THead,
+  TR,
 } from "@/components/ui";
 import type { IconName } from "@/components/ui";
 
@@ -30,12 +36,6 @@ export async function generateMetadata() {
   const t = await getDict();
   return { title: `${t.profileDetail.title} · AI WealthPilot` };
 }
-
-const PRIORITY_META: Record<string, { tone: BadgeTone }> = {
-  high: { tone: "gold" },
-  medium: { tone: "steel" },
-  low: { tone: "mist" },
-};
 
 /** 定义列表行 —— 标签 + 等宽数值。 */
 function MetaRow({
@@ -87,6 +87,35 @@ function ScoreBar({
 
 interface PageProps {
   params: Promise<{ id: string }>;
+}
+
+async function GoalFundingSection({ profileId }: { profileId: number }) {
+  const locale = await getLocale();
+  const t = dictionaries[locale].goalTracking;
+  const plan = await getProfileGoals(profileId, locale);
+  return (
+    <section className="space-y-4" aria-label={t.title}>
+      <h2 className="flex items-center gap-2 font-display text-xl text-mist-100">
+        <Icon name="target" size={18} className="text-gold-400" />
+        {t.title}
+      </h2>
+      {plan ? (
+        <>
+          <p className="text-sm leading-6 text-mist-400">{t.modelNote}</p>
+          <GoalFundingCards goals={plan.goals} t={t} />
+          <p className="text-xs leading-6 text-mist-400">
+            {plan.progress_explanation}
+          </p>
+          <p className="text-xs leading-6 text-mist-500">
+            {t.amountsNote}<br />
+            {t.profileUpdated} · {fmtLocal(plan.profile_updated_at)}
+          </p>
+        </>
+      ) : (
+        <p role="alert" className="text-sm text-mist-400">{t.unavailable}</p>
+      )}
+    </section>
+  );
 }
 
 /** 推荐配置区块 —— 基于风险分数的目标波动率组合（服务端流式渲染）。 */
@@ -157,6 +186,36 @@ async function RecommendationSection({ profileId }: { profileId: number }) {
           <Markdown>{rec.rationale}</Markdown>
         </div>
       </div>
+      {rec.goals.length > 0 && (
+        <div className="mt-6 border-t border-white/[0.06] pt-5">
+          <Table>
+            <caption className="mb-3 text-left text-sm font-medium text-mist-200">
+              {t.goalTracking.feasibilityTitle}
+            </caption>
+            <THead>
+              <tr>
+                <TH>{t.goalTracking.goal}</TH>
+                <TH>{t.goalTracking.feasibility}</TH>
+              </tr>
+            </THead>
+            <tbody>
+              {rec.goals.map((goal, index) => (
+                <TR key={index}>
+                  <TD>{goal.name}</TD>
+                  <TD>
+                    <Badge tone={goal.status === "on_track" ? "steel" : "cinnabar"}>
+                      {t.goalTracking.feasibilityStatuses[goal.status]}
+                    </Badge>
+                  </TD>
+                </TR>
+              ))}
+            </tbody>
+          </Table>
+          <p className="mt-3 text-xs leading-6 text-mist-400">
+            {t.goalTracking.feasibilityNote}
+          </p>
+        </div>
+      )}
     </Panel>
   );
 }
@@ -360,45 +419,8 @@ export default async function ClientHubPage({ params }: PageProps) {
           )}
         </Panel>
 
-        {/* 投资目标 */}
-        <Panel>
-          <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-mist-200">
-            <Icon name="target" size={15} className="text-gold-400" />
-            {t.profileDetail.goals}
-          </h3>
-          {profile.goals.length === 0 ? (
-            <p className="text-xs leading-5 text-mist-500">
-              {t.profileDetail.noGoals}
-            </p>
-          ) : (
-            <div className="flex flex-col divide-y divide-white/[0.05]">
-              {profile.goals.map((g, i) => {
-                const meta = PRIORITY_META[g.priority] ?? PRIORITY_META.medium;
-                return (
-                  <div key={i} className="flex items-center justify-between gap-3 py-2.5">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm text-mist-100">{g.name}</div>
-                      <div className="text-xs text-mist-500">
-                        {t.profileDetail.yearsLater(g.years)}
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                      <span className="tnum font-mono text-sm text-mist-100">
-                        {fmtMoney(g.target_amount)}
-                      </span>
-                      <Badge tone={meta.tone}>
-                        {t.profileDetail.priorityBadge(g.priority)}
-                      </Badge>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Panel>
-
         {/* 约束与偏好 */}
-        <Panel>
+        <Panel className="lg:col-span-2">
           <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-mist-200">
             <Icon name="sliders" size={15} className="text-gold-400" />
             {t.profileDetail.constraints}
@@ -453,6 +475,10 @@ export default async function ClientHubPage({ params }: PageProps) {
           )}
         </Panel>
       </div>
+
+      <Suspense fallback={<Skeleton className="h-64 rounded-[1.4rem]" />}>
+        <GoalFundingSection profileId={id} />
+      </Suspense>
 
       {/* 推荐配置（P12，风险分数 → 目标波动率的个性化配置） */}
       <Suspense fallback={<Skeleton className="h-56 rounded-[1.4rem]" />}>

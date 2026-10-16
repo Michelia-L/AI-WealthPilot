@@ -14,7 +14,7 @@ export const clientPortal = {
       "Your profile, goals and the plans your advisor has published for you.",
     portfolio:
       "Review the suggested allocation in your latest published investment policy.",
-    goals: "Review your recorded goals and discuss changes with your advisor.",
+    goals: "Review planning budgets for your goals and discuss changes with your advisor.",
     risk: "Understand your assessment and how it informs your investment plan.",
     documents:
       "Read published documents and confirm when you have reviewed them.",
@@ -59,7 +59,7 @@ export const clientPortal = {
   goalHorizon: "Time horizon",
   priority: "Priority",
   priorities: { high: "High", medium: "Medium", low: "Low" },
-  goalProgress: "Goal progress and projections",
+  goalProgress: "How planning coverage is calculated",
   projectionsUnavailable:
     "Projected wealth, success probability and what-if scenarios are not available for individual goals yet.",
   noGoals: "No goals recorded yet",

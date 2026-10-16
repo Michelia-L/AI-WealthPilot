@@ -16,7 +16,6 @@ import pytest
 from src.agents.portfolio_recommender import (
     PortfolioRecommendation,
     _get_target_volatility,
-    _solve_required_return,
     get_recommended_allocation_text,
     recommend_portfolio,
 )
@@ -28,6 +27,7 @@ from src.agents.profiler import (
     classify_risk_score,
 )
 from src.config import RISK_VOLATILITY_BANDS
+from src.portfolio.goals import solve_required_return
 from src.portfolio.optimizer import PortfolioOptimizer
 
 # ============================================================
@@ -528,28 +528,28 @@ class TestSolveRequiredReturn:
 
     def test_zero_contribution_reduces_to_lump_sum(self):
         """PMT = 0 must recover r = (FV/PV)^(1/n) − 1."""
-        r = _solve_required_return(2_000_000, 500_000, 0.0, 10)
+        r = solve_required_return(2_000_000, 500_000, 0.0, 10)
         assert r == pytest.approx((2_000_000 / 500_000) ** (1 / 10) - 1, rel=1e-6)
 
     def test_contributions_lower_required_return(self):
         """Ongoing savings fund part of the goal → less return needed."""
-        lump = _solve_required_return(2_000_000, 500_000, 0.0, 10)
-        with_savings = _solve_required_return(2_000_000, 500_000, 30_000, 10)
+        lump = solve_required_return(2_000_000, 500_000, 0.0, 10)
+        with_savings = solve_required_return(2_000_000, 500_000, 30_000, 10)
         assert 0 < with_savings < lump
 
     def test_fundable_without_growth_returns_zero(self):
         """PV + PMT·n already covers FV → no growth required."""
-        assert _solve_required_return(500_000, 400_000, 30_000, 10) == 0.0
+        assert solve_required_return(500_000, 400_000, 30_000, 10) == 0.0
 
     def test_unattainable_goal_returns_sentinel(self):
         """A goal beyond any achievable rate hits the sentinel, which the
         goal evaluation maps to 'infeasible'."""
-        assert _solve_required_return(1e12, 1_000.0, 0.0, 5) == 10.0
+        assert solve_required_return(1e12, 1_000.0, 0.0, 5) == 10.0
 
     def test_solution_satisfies_tvm_equation(self):
         """The solved rate actually funds the goal."""
         target, pv, pmt, years = 2_000_000, 500_000, 30_000, 10
-        r = _solve_required_return(target, pv, pmt, years)
+        r = solve_required_return(target, pv, pmt, years)
         growth = (1 + r) ** years
         funded = pv * growth + pmt * (growth - 1) / r
         assert funded == pytest.approx(target, rel=1e-6)

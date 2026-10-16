@@ -123,7 +123,11 @@ def test_profile_and_ips_matrix(workspace, user, key, allowed):
     expected = 403 if user == "client" else (200 if allowed else 404)
     profile_id = profiles[key]
     document_id, _ = artifacts[key]
-    for url in (f"/api/profiles/{profile_id}", f"/api/ips/{document_id}"):
+    for url in (
+        f"/api/profiles/{profile_id}",
+        f"/api/profiles/{profile_id}/goals",
+        f"/api/ips/{document_id}",
+    ):
         response = client.get(url, headers=headers(user))
         assert response.status_code == expected
         assert response.headers["cache-control"] == "no-store"

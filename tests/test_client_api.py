@@ -77,7 +77,16 @@ def test_client_projection_excludes_internal_fields(workspace):
     assert portfolio["performance"] is None
     assert portfolio["allocation"] == []
     goals = client.get("/api/me/goals", headers=h).json()
-    assert all(g["progress"] is None for g in goals["goals"])
+    assert set(goals) == {
+        "goals",
+        "allocation_method",
+        "profile_updated_at",
+        "progress_explanation",
+    }
+    assert goals["allocation_method"] == "priority_weighted"
+    assert goals["goals"][0]["progress"]["allocated_assets"] == 200_000
+    assert goals["goals"][0]["progress"]["funding_ratio"] == pytest.approx(0.1)
+    assert "STAFF_ONLY_SYNTHETIC" not in json.dumps(goals)
     assert client.get("/api/me/advisor", headers=h).json() == {
         "advisors": [{"email": "advisor@example.invalid"}]
     }
@@ -118,6 +127,7 @@ def test_missing_profile_and_pagination_validation(workspace):
         session.commit()
     assert client.get("/api/me", headers=headers("client")).status_code == 200
     assert client.get("/api/me/profile", headers=headers("client")).status_code == 404
+    assert client.get("/api/me/goals", headers=headers("client")).status_code == 404
     for params in ({"limit": 0}, {"limit": 101}, {"offset": -1}):
         assert (
             client.get(
@@ -148,6 +158,28 @@ def test_risk_explanation_and_absent_assessment_are_localized(workspace):
     risk = client.get("/api/me/risk-profile", headers=headers("client")).json()
     assert not risk["assessed"] and risk["level"] is None
     assert "incomplete" in risk["explanation"]
+
+
+def test_client_goals_need_no_published_plan_or_market_access(workspace, monkeypatch):
+    import socket
+
+    client, _, _, profiles, _, headers = workspace
+
+    def no_network(*args, **kwargs):
+        pytest.fail("Client goals must be computed from the client's own profile")
+
+    monkeypatch.setattr(socket.socket, "connect", no_network)
+    h = headers("client")
+    plan = client.get("/api/me/goals", headers=h).json()
+    assert client.get("/api/me/portfolio", headers=h).json()["status"] == "unavailable"
+    advisor = client.get(
+        f"/api/profiles/{profiles['own']}/goals", headers=headers("advisor")
+    ).json()
+    assert plan == advisor
+    assert "not an actual account balance" in plan["progress_explanation"]
+    zh = client.get("/api/me/goals", headers={**h, "X-Locale": "zh"}).json()
+    assert zh["goals"] == plan["goals"]
+    assert "不代表实际账户余额" in zh["progress_explanation"]
 
 
 def test_revoked_or_demoted_advisor_not_returned(workspace):

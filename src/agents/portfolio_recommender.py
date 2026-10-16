@@ -21,21 +21,15 @@ from src.agents.profiler import (
     format_risk_score,
 )
 from src.config import RISK_FREE_RATE, RISK_VOLATILITY_BANDS
+from src.portfolio.goals import (
+    UNATTAINABLE_RATE as _UNATTAINABLE_RATE,
+)
+from src.portfolio.goals import goal_priority_rank, plan_goal_funding
 from src.portfolio.optimizer import PortfolioOptimizer
-
-# Goal priority ranking used to pick the primary (most important) goal.
-# Replaces the previous `max(goals, key=lambda g: g.priority == "high")`,
-# which collapsed priority to a bool and could not distinguish medium from low.
-_PRIORITY_RANK = {"high": 3, "medium": 2, "low": 1}
 
 # Absolute tolerance when comparing a goal portfolio's volatility against the
 # risk budget, absorbing SLSQP numeric noise around the frontier point.
 _VOL_TOLERANCE = 1e-3
-
-
-def _goal_priority_rank(goal) -> int:
-    """Numeric rank for a goal's priority; unknown/missing → lowest."""
-    return _PRIORITY_RANK.get(getattr(goal, "priority", "low"), 0)
 
 
 # Data Model — Portfolio Recommendation
@@ -150,65 +144,6 @@ def _solve_at_target_volatility(
 
 # Goal Evaluation — Contribution-Aware TVM
 
-# Upper bisection bound for _solve_required_return; a solved rate at this
-# bound means the goal is unattainable and downstream evaluation reports
-# 'infeasible' (no asset universe delivers ~1000% p.a.).
-_UNATTAINABLE_RATE = 10.0
-
-
-def _solve_required_return(
-    target_amount: float,
-    present_value: float,
-    annual_contribution: float,
-    years: int,
-    iterations: int = 60,
-) -> float:
-    """Solve the contribution-aware TVM equation for the annual return r.
-
-        PV·(1+r)^n + PMT·[((1+r)^n − 1)/r]  =  FV
-
-    (ordinary annuity, end-of-year contributions). Reduces to the lump-sum
-    formula r = (FV/PV)^(1/n) − 1 when PMT = 0. Ongoing savings therefore
-    lower the return a goal actually requires.
-
-    Args:
-        target_amount: Future amount needed (FV).
-        present_value: Capital allocated to the goal today (PV).
-        annual_contribution: Yearly savings allocated to the goal (PMT ≥ 0).
-        years: Years until the goal must be funded (n > 0).
-        iterations: Bisection depth.
-
-    Returns:
-        0.0 when the goal is fundable without growth (PV + PMT·n ≥ FV);
-        otherwise the solved rate; _UNATTAINABLE_RATE when even 1000% p.a.
-        cannot fund it (a sentinel the goal evaluation maps to 'infeasible').
-    """
-    if years <= 0:
-        return 0.0 if present_value >= target_amount else _UNATTAINABLE_RATE
-    # Fundable without any growth?
-    if present_value + annual_contribution * years >= target_amount:
-        return 0.0
-
-    def _funding_gap(rate: float) -> float:
-        growth = (1 + rate) ** years
-        fv_contributions = (
-            annual_contribution * ((growth - 1) / rate)
-            if rate > 0
-            else annual_contribution * years
-        )
-        return present_value * growth + fv_contributions - target_amount
-
-    lo, hi = 0.0, _UNATTAINABLE_RATE
-    if _funding_gap(hi) < 0:
-        return _UNATTAINABLE_RATE
-    for _ in range(iterations):
-        mid = (lo + hi) / 2
-        if _funding_gap(mid) <= 0:
-            lo = mid
-        else:
-            hi = mid
-    return (lo + hi) / 2
-
 
 def _evaluate_goal(
     optimizer: PortfolioOptimizer,
@@ -293,24 +228,21 @@ def recommend_portfolio(
     goal_name = ""
     goal_required_return: Optional[float] = None
     goal_details: list = []
-    evaluable_goals = [g for g in profile.goals if g.years > 0 and g.target_amount > 0]
+    evaluable_goals = [g for g in plan_goal_funding(profile) if g.progress is not None]
     if evaluable_goals:
         # Priority order (stable for ties); the primary goal drives the
         # portfolio-level decision.
-        ordered_goals = sorted(evaluable_goals, key=_goal_priority_rank, reverse=True)
-        primary_goal = ordered_goals[0]
-        annual_savings = max(
-            profile.financial.annual_income - profile.financial.annual_expenses,
-            0.0,
+        ordered_goals = sorted(
+            evaluable_goals, key=lambda g: goal_priority_rank(g.priority), reverse=True
         )
-        total_weight = sum(max(_goal_priority_rank(g), 1) for g in ordered_goals)
+        primary_goal = ordered_goals[0]
         gmv = optimizer.minimize_volatility()
         for goal in ordered_goals:
-            weight = max(_goal_priority_rank(goal), 1) / total_weight
-            allocated = profile.financial.investable_assets * weight
-            contribution = annual_savings * weight
-            required = _solve_required_return(
-                goal.target_amount, allocated, contribution, goal.years
+            funding = goal.progress
+            required = (
+                funding.required_return
+                if funding.required_return is not None
+                else _UNATTAINABLE_RATE
             )
             status, goal_portfolio = _evaluate_goal(
                 optimizer, gmv, required, target_volatility
@@ -321,8 +253,8 @@ def recommend_portfolio(
                     "priority": goal.priority,
                     "years": goal.years,
                     "target_amount": float(goal.target_amount),
-                    "allocated_assets": float(allocated),
-                    "annual_contribution": float(contribution),
+                    "allocated_assets": funding.allocated_assets,
+                    "annual_contribution": funding.annual_contribution,
                     "required_return": float(required),
                     "status": status,
                 }

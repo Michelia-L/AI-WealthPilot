@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.agents.portfolio_recommender import _solve_required_return
+from src.portfolio.goals import solve_required_return
 from tests.test_api_profiles import sample_payload
 
 
@@ -67,7 +67,7 @@ def test_recommendation_happy_path(client, fake_market):
     # goal, with 40k/yr of ongoing savings from the payload's income/expenses).
     assert body["goal_status"] in {"on_track", "constrained", "infeasible"}
     assert body["goal_name"] == "Retirement / 退休"
-    expected_required = _solve_required_return(2_000_000, 200_000, 40_000, 30)
+    expected_required = solve_required_return(2_000_000, 200_000, 40_000, 30)
     assert body["goal_required_return"] == pytest.approx(expected_required, rel=1e-3)
     # Per-goal breakdown: a single goal receives all capital and savings.
     assert len(body["goals"]) == 1
