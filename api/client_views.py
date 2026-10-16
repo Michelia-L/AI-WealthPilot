@@ -1,5 +1,7 @@
 """Allowlisted client projections shared by HTTP endpoints and agent tools."""
 
+from dataclasses import asdict
+
 from api.client_access import ClientAccess
 from api.db import DocumentRecord
 from api.i18n import msg
@@ -14,6 +16,7 @@ from api.schemas import (
     ClientReportsResponse,
     ClientReportSummary,
 )
+from src.portfolio.goals import plan_goal_funding
 
 
 def report_summary(record: DocumentRecord) -> ClientReportSummary:
@@ -74,18 +77,12 @@ def portfolio(access: ClientAccess):
 
 
 def goals(access: ClientAccess):
-    profile = profile_from_data(access.profile().data)
+    record = access.profile()
+    profile = profile_from_data(record.data)
     return ClientGoalsResponse(
-        goals=[
-            ClientGoal(
-                name=g.name,
-                target_amount=g.target_amount,
-                years=g.years,
-                priority=g.priority,
-            )
-            for g in profile.goals
-        ],
-        progress_explanation=msg("client.progress_unavailable", access.locale),
+        goals=[ClientGoal(**asdict(g)) for g in plan_goal_funding(profile)],
+        profile_updated_at=record.updated_at,
+        progress_explanation=msg("goals.funding_explanation", access.locale),
     )
 
 

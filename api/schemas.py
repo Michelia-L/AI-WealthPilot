@@ -1200,6 +1200,42 @@ class GoalFeasibility(BaseModel):
     status: str = Field(description="'on_track' | 'constrained' | 'infeasible'")
 
 
+class GoalFundingProgress(BaseModel):
+    """Planning estimates only; shared numeric contract, no staff context."""
+
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+
+    allocated_assets: float = Field(ge=0)
+    annual_contribution: float = Field(ge=0)
+    funding_ratio: float = Field(
+        ge=0, description="Budget / nominal target; may exceed 1"
+    )
+    funding_gap: float = Field(ge=0)
+    required_return: float | None = Field(
+        description="Required annual nominal growth; null when the solver cannot fund it"
+    )
+    status: Literal[
+        "covered", "covered_with_savings", "growth_required", "needs_funding"
+    ]
+
+
+class GoalFundingPlan(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+
+    name: str
+    target_amount: float
+    years: int
+    priority: str
+    progress: GoalFundingProgress | None
+
+
+class ProfileGoalsResponse(BaseModel):
+    goals: list[GoalFundingPlan]
+    allocation_method: Literal["priority_weighted"] = "priority_weighted"
+    profile_updated_at: str
+    progress_explanation: str
+
+
 class RecommendationResponse(BaseModel):
     """Personalized allocation from src portfolio_recommender (P12)."""
 
@@ -1365,11 +1401,13 @@ class ClientGoal(ClientDTO):
     target_amount: float
     years: int
     priority: str
-    progress: None = None
+    progress: GoalFundingProgress | None = None
 
 
 class ClientGoalsResponse(ClientDTO):
     goals: list[ClientGoal]
+    allocation_method: Literal["priority_weighted"] = "priority_weighted"
+    profile_updated_at: str
     progress_explanation: str
 
 

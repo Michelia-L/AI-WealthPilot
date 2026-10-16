@@ -1,4 +1,6 @@
 /** Client-safe contracts from /api/me; never reuse staff artifact DTOs here. */
+import type { GoalFundingProgress } from "./goals";
+
 export interface ClientIdentity {
   user_id: string;
   email: string;
@@ -33,10 +35,12 @@ export interface ClientGoal {
   target_amount: number;
   years: number;
   priority: string;
-  progress: null;
+  progress: GoalFundingProgress | null;
 }
 export interface ClientGoals {
   goals: ClientGoal[];
+  allocation_method: "priority_weighted";
+  profile_updated_at: string;
   progress_explanation: string;
 }
 export interface ClientRisk {

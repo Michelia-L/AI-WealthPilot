@@ -28,7 +28,7 @@ identities only in the throwaway Playwright database.
 | --- | --- |
 | `/client` | Recorded financial summary, latest published target allocation, assessed risk, goals, recent publications and assigned advisor contacts |
 | `/client/portfolio` | Latest published IPS target weights and recommendation, with a link to that exact document version |
-| `/client/goals` | Recorded goal amounts, horizons and priorities; no per-goal balance or progress calculation |
+| `/client/goals` | Recorded goals, priority-weighted planning budgets, funding coverage, annual contributions and required returns; actual goal balances are not tracked |
 | `/client/risk-profile` | Plain-language risk explanation and basic profile context; incomplete assessments have an explicit state |
 | `/client/documents` | Published and acknowledged versions, paginated in groups of 20 |
 | `/client/documents/{id}` | The authorized version's reviewed content and persistent, idempotent read acknowledgement |
@@ -40,11 +40,23 @@ invent a currency symbol or apply conversion. Actual holdings, investment
 performance, drawdown and benchmark comparisons are unavailable in the current
 client contract. Suggested IPS targets are not shown as executed holdings.
 
-Goal balances, projected wealth, success probability, on-track assessments and
-what-if calculations remain follow-up work under
-[#48](https://github.com/Michelia-L/AI-WealthPilot/issues/48). The portal displays
-the API's explanation of unavailable goal progress rather than assigning zero
-progress or deriving results in JavaScript.
+Goal planning uses the shared `src/portfolio/goals.py` service. Recorded
+investable assets and positive annual savings are split across evaluable goals
+with priority weights high 3, medium 2, low 1. Each goal shows its planning budget
+divided by its nominal target, the uncovered target amount and the annual return
+needed with constant end-of-year contributions. Targets with a missing amount
+or horizon remain visible without a calculation. Coverage above 100% retains
+its numeric value while the bar stops at 100%.
+
+These budgets are recalculated from the profile, not persisted subaccounts or
+realized savings. They require no market or LLM request and do not expose
+unpublished advisor recommendations. Funding states distinguish coverage by
+the current budget, coverage with savings at zero return, required investment
+growth and an unsolved funding requirement. They are not success probabilities.
+Inflation, tax and fees are excluded. Actual goal balances, projected wealth,
+success probability and what-if calculations remain follow-up work under
+[#48](https://github.com/Michelia-L/AI-WealthPilot/issues/48). The frontend only
+formats these API calculations.
 
 Read acknowledgement records only that the client read that version. It does not
 approve or execute transactions. Stored document content retains its publication

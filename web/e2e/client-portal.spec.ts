@@ -45,9 +45,15 @@ with Session(db.engine) as session:
         clients[name] = owner
         payload = ProfilePayload(
             name=f"Portal {name}", age=40,
-            financial={"investable_assets": 420000, "total_liabilities": 20000},
+            financial={"investable_assets": 420000, "total_liabilities": 20000, "annual_income": 120000, "annual_expenses": 60000},
             risk_scores={"ability_score": 3, "willingness_score": 3} if name != "Empty" else {},
-            goals=[{"name": f"{name} retirement", "target_amount": 1500000, "years": 20, "priority": "high"}] if name != "Empty" else [],
+            goals=([
+                {"name": f"{name} retirement", "target_amount": 1500000, "years": 20, "priority": "high"},
+                *([
+                    {"name": "Alice education", "target_amount": 210000, "years": 7, "priority": "low"},
+                    {"name": "Needs details"},
+                ] if name == "Alice" else []),
+            ] if name != "Empty" else []),
             notes="PORTAL_STAFF_ONLY_SYNTHETIC",
         )
         session.add(db.ProfileRecord(client_id=owner.id, name=payload.name, age=40, data=payload_to_data(payload, "2026-10-01")))
@@ -158,6 +164,40 @@ test("client pages have independent navigation and only show the client's inform
       "PORTAL_STAFF_ONLY_SYNTHETIC",
     );
   }
+});
+
+test("goal funding budgets stay scoped and display planning coverage in both locales", async ({
+  page,
+  context,
+  baseURL,
+}, testInfo) => {
+  await signIn(context, baseURL!);
+  await page.goto("/client/goals?client_id=Bob");
+  const retirement = page.getByRole("article", { name: "Alice retirement" });
+  const education = page.getByRole("article", { name: "Alice education" });
+  await expect(retirement.getByRole("progressbar")).toHaveAttribute("aria-valuetext", "21.0%");
+  await expect(education.getByRole("progressbar")).toHaveAttribute("aria-valuetext", "50.0%");
+  await expect(retirement).toContainText("315,000");
+  await expect(retirement).toContainText("45,000");
+  await expect(education).toContainText("Covered with planned savings at 0% return");
+  await expect(page.getByRole("article", { name: "Needs details" })).toContainText("Add a positive target");
+  await expect(page.getByText("Planning estimates; actual balances", { exact: false })).toBeVisible();
+  await expect(page.getByRole("main")).not.toContainText("Bob retirement");
+  await page.screenshot({ path: testInfo.outputPath("goal-funding-desktop.png"), fullPage: true });
+
+  await page.getByRole("button", { name: "中文", exact: true }).click();
+  await expect(retirement).toContainText("年度投入预算");
+  await expect(retirement.getByRole("progressbar")).toHaveAccessibleName("Alice retirement · 规划资金覆盖率");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(education).toContainText("按零收益及计划结余可覆盖");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("goal-funding-mobile-zh.png"), fullPage: true });
+
+  await signIn(context, baseURL!, "Bob");
+  await page.goto("/client/goals");
+  await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuetext", "28.0%");
+  await expect(page.getByRole("article", { name: "Alice education" })).toHaveCount(0);
 });
 
 test("a published policy can be read and acknowledged without implying execution", async ({

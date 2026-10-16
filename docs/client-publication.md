@@ -18,7 +18,7 @@ All paths below start with `/api/me` and use the `Client Portal` OpenAPI tag and
 | `GET /api/me` | Login identity and client role |
 | `GET /profile` | Basic profile and financial summary; no advisor notes or questionnaire internals |
 | `GET /portfolio` | Most recently published IPS target allocation and recommendation; not executed holdings |
-| `GET /goals` | Recorded goals; per-goal progress is null because goal balances are not tracked |
+| `GET /goals` | Recorded goals with priority-weighted planning budgets, funding coverage and required returns; incomplete goals have null progress |
 | `GET /risk-profile` | Plain-language assessment using the domain model's lower-of-ability-and-willingness rule; explicit incomplete state |
 | `GET /advisor` | Active, currently assigned advisors' contact emails |
 | `GET /reports` | Published and acknowledged versions, with `limit` (1–100) and `offset` pagination |
@@ -34,6 +34,13 @@ settings, LLM configuration, machine review traces and staff approval metadata.
 `X-Locale: en|zh` controls explanatory messages; stored document text retains the
 language reviewed by the advisor. The [Client Portal](client-portal.md) provides
 the browser interface for these contracts.
+
+Goal funding is calculated from the caller's own profile without market data or
+unpublished advisor plans. The response identifies `priority_weighted` allocation
+and the profile update time. Its `progress` is a planning estimate, not an actual
+balance or success probability. The same domain service supplies the staff-only
+`GET /api/profiles/{id}/goals`; that route retains workspace and client assignment
+checks. See [goal planning boundaries](client-portal.md#pages-and-current-data).
 
 ## Publication workflow
 

@@ -8,6 +8,7 @@ The full profile lives in a JSON column shaped exactly like
 no business logic is reimplemented here.
 """
 
+from dataclasses import asdict
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -24,6 +25,7 @@ from api.schemas import (
     ProfileCompareEntry,
     ProfileCompareResponse,
     ProfileDetailResponse,
+    ProfileGoalsResponse,
     ProfileImportResponse,
     ProfileListResponse,
     ProfilePayload,
@@ -39,6 +41,7 @@ from src.agents.profiler import (
     compare_profiles,
     identify_behavioral_biases,
 )
+from src.portfolio.goals import plan_goal_funding
 
 router = APIRouter(
     prefix="/profiles", tags=["profiles"], dependencies=[Depends(staff_access)]
@@ -248,6 +251,25 @@ def get_profile(
     access: Access = Depends(get_access),
 ) -> ProfileDetailResponse:
     return _detail(access.profile(profile_id))
+
+
+@router.get(
+    "/{profile_id}/goals",
+    response_model=ProfileGoalsResponse,
+    openapi_extra={"x-access-scope": "advisor-scoped"},
+)
+def get_profile_goals(
+    profile_id: int,
+    request: Request,
+    access: Access = Depends(get_access),
+) -> ProfileGoalsResponse:
+    record = access.profile(profile_id)
+    locale = get_request_locale(request)
+    return ProfileGoalsResponse(
+        goals=[asdict(g) for g in plan_goal_funding(profile_from_data(record.data))],
+        profile_updated_at=record.updated_at,
+        progress_explanation=msg("goals.funding_explanation", locale),
+    )
 
 
 @router.put(

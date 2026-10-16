@@ -119,6 +119,45 @@ def test_get_missing_profile_404(client):
     assert client.delete("/api/profiles/999").status_code == 404
 
 
+def test_goal_funding_plan_is_localized_and_recomputed_after_edit(client, monkeypatch):
+    import socket
+
+    def no_network(*args, **kwargs):
+        pytest.fail("Goal funding must not depend on market or LLM providers")
+
+    monkeypatch.setattr(socket.socket, "connect", no_network)
+    payload = sample_payload()
+    created = client.post("/api/profiles", json=payload).json()
+    url = f"/api/profiles/{created['id']}/goals"
+    zh = client.get(url)
+    assert zh.status_code == 200
+    plan = zh.json()
+    assert plan["allocation_method"] == "priority_weighted"
+    assert plan["profile_updated_at"] == created["updated_at"]
+    assert "不代表实际账户余额" in plan["progress_explanation"]
+    goal = plan["goals"][0]
+    assert goal["progress"]["allocated_assets"] == 200_000
+    assert goal["progress"]["annual_contribution"] == 40_000
+    assert goal["progress"]["funding_ratio"] == pytest.approx(0.1)
+    assert (
+        "not an actual account balance"
+        in client.get(url, headers={"X-Locale": "en"}).json()["progress_explanation"]
+    )
+
+    payload["financial"]["investable_assets"] = 400_000
+    updated = client.put(f"/api/profiles/{created['id']}", json=payload).json()
+    plan = client.get(url).json()
+    assert plan["profile_updated_at"] == updated["updated_at"]
+    assert plan["goals"][0]["progress"]["funding_ratio"] == pytest.approx(0.2)
+
+
+def test_goal_funding_missing_invalid_and_empty_profiles(client):
+    assert client.get("/api/profiles/999/goals").status_code == 404
+    assert client.get("/api/profiles/invalid/goals").status_code == 422
+    created = client.post("/api/profiles", json=sample_payload(goals=[])).json()
+    assert client.get(f"/api/profiles/{created['id']}/goals").json()["goals"] == []
+
+
 def test_validation_rejects_bad_payload(client):
     assert client.post("/api/profiles", json=sample_payload(name="")).status_code == 422
     assert client.post("/api/profiles", json=sample_payload(age=10)).status_code == 422

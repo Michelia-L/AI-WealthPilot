@@ -12,7 +12,7 @@ export const clientPortal = {
   description: {
     overview: "查看您的画像、财务目标，以及顾问为您发布的计划。",
     portfolio: "查看最新已发布投资政策中的建议配置。",
-    goals: "查看已记录的目标，并与顾问讨论调整。",
+    goals: "查看各目标的规划预算，并与顾问讨论调整。",
     risk: "了解风险评估及其对投资计划的影响。",
     documents: "阅读已发布的文档，并确认您已阅读。",
     ai: "询问与您自己的画像、目标和已发布计划有关的问题。",
@@ -53,7 +53,7 @@ export const clientPortal = {
   goalHorizon: "目标期限",
   priority: "优先级",
   priorities: { high: "高", medium: "中", low: "低" },
-  goalProgress: "目标进度与预测",
+  goalProgress: "规划覆盖率的计算方式",
   projectionsUnavailable: "暂未提供单个目标的财富预测、达成概率和情景模拟。",
   noGoals: "暂无已记录的目标",
   noGoalsHint: "请与顾问讨论您的目标及所需金额。",

@@ -68,10 +68,6 @@ _MESSAGES: dict[str, dict[str, dict[str, str]]] = {
             "en": "Actual investment performance is not available. Published allocations are suggested targets, not executed holdings.",
             "zh": "暂无实际投资收益数据。已发布的配置是建议目标，不代表已执行的持仓。",
         },
-        "progress_unavailable": {
-            "en": "Goal progress is not available because contributions and balances are not tracked per goal.",
-            "zh": "尚未按目标记录投入和余额，因此暂无目标完成进度。",
-        },
         "risk_unassessed": {
             "en": "Your risk assessment is incomplete. Discuss your capacity for loss and comfort with market fluctuations with your advisor.",
             "zh": "您的风险评估尚未完成，请与顾问讨论承受损失的能力及对市场波动的接受程度。",
@@ -79,6 +75,12 @@ _MESSAGES: dict[str, dict[str, dict[str, str]]] = {
         "risk_explanation": {
             "en": "Your assessed risk level is {level}. It uses the lower of your financial capacity to absorb losses and your willingness to accept market fluctuations. Discuss changes in your circumstances with your advisor.",
             "zh": "您评估的风险等级为{level}。该等级取承受损失的财务能力与接受市场波动的意愿中较低的一项。情况变化时，请与顾问讨论。",
+        },
+    },
+    "goals": {
+        "funding_explanation": {
+            "en": "Planning budgets split recorded investable assets and positive annual savings across goals with a positive target and time horizon, using priority weights high 3, medium 2, low 1. Coverage is each budget divided by its nominal target, not an actual account balance or investment return. Required returns assume constant end-of-year contributions, without inflation, tax or fees. Budgets are recalculated when the profile changes; actual goal balances and contributions are not tracked.",
+            "zh": "规划预算按高、中、低优先级 3∶2∶1，将已记录的可投资资产和正年度结余分配给目标金额与期限均大于零的目标。覆盖率为各目标预算除以名义目标金额，不代表实际账户余额或投资收益。所需收益率假设每年年末等额投入，未考虑通胀、税费。画像变化后预算会重新计算；系统尚未记录各目标的实际余额与投入。",
         },
     },
     "documents": {

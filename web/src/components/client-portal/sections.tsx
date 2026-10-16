@@ -1,8 +1,8 @@
 import Link from "next/link";
+import GoalFundingCards from "@/components/goal-funding-cards";
 import {
   Badge,
   EmptyState,
-  Panel,
   SectionHeader,
   Table,
   TD,
@@ -15,7 +15,7 @@ import type {
   ClientGoal,
   ClientReportSummary,
 } from "@/lib/api/client-portal";
-import { fmtMoney, fmtPct, fmtUtc } from "@/lib/format";
+import { fmtPct, fmtUtc } from "@/lib/format";
 import { getDict } from "@/lib/i18n/server";
 
 export async function ClientPage({
@@ -79,40 +79,7 @@ export async function Allocation({
 }
 
 export async function GoalCards({ goals }: { goals: ClientGoal[] }) {
-  const t = (await getDict()).clientPortal;
-  if (!goals.length)
-    return <EmptyState icon="target" title={t.noGoals} hint={t.noGoalsHint} />;
-  return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      {goals.map((goal, index) => (
-        <Panel key={index}>
-          <h3 className="break-words font-display text-xl text-mist-100">
-            {goal.name}
-          </h3>
-          <dl className="mt-5 space-y-3 text-sm">
-            <div className="flex flex-wrap justify-between gap-3">
-              <dt className="text-mist-400">{t.goalTarget}</dt>
-              <dd className="font-mono text-gold-300">
-                {fmtMoney(goal.target_amount, "")}
-              </dd>
-            </div>
-            <div className="flex flex-wrap justify-between gap-3">
-              <dt className="text-mist-400">{t.goalHorizon}</dt>
-              <dd>{t.years(goal.years)}</dd>
-            </div>
-            <div className="flex flex-wrap justify-between gap-3">
-              <dt className="text-mist-400">{t.priority}</dt>
-              <dd>
-                {Object.hasOwn(t.priorities, goal.priority)
-                  ? t.priorities[goal.priority as keyof typeof t.priorities]
-                  : goal.priority}
-              </dd>
-            </div>
-          </dl>
-        </Panel>
-      ))}
-    </div>
-  );
+  return <GoalFundingCards goals={goals} t={(await getDict()).goalTracking} />;
 }
 
 export async function ReportList({

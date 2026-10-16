@@ -191,4 +191,14 @@ export interface RecommendationResponse {
   expected_volatility: number;
   sharpe_ratio: number;
   rationale: string;
+  goals: {
+    name: string;
+    priority: string;
+    years: number;
+    target_amount: number;
+    allocated_assets: number;
+    annual_contribution: number;
+    required_return: number;
+    status: "on_track" | "constrained" | "infeasible";
+  }[];
 }
