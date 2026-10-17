@@ -88,6 +88,9 @@ class AssetInfo(BaseModel):
 
 class UniverseResponse(BaseModel):
     assets: dict[str, AssetInfo]
+    demo: bool = Field(
+        default=False, description="Quotes and price history use synthetic demo data."
+    )
 
 
 class Quote(BaseModel):

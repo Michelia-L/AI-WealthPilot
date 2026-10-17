@@ -16,8 +16,12 @@ export const market = {
   title: "Market Dashboard",
   description:
     "Real-time quotes, cross-asset correlation, and Capital Market Expectations (CME).",
+  demoDescription:
+    "Demo mode uses synthetic quotes and price history for cross-asset analysis and Capital Market Expectations (CME).",
   footerDisclaimer:
     "Data source: Yahoo Finance (yfinance); real-time quotes are cached for 5 minutes. Quantitative outputs are for reference only and do not constitute investment advice.",
+  demoFooterDisclaimer:
+    "Quotes and price history are synthetic demonstration data and do not represent real market performance. Auxiliary CME inputs may still use external data sources. Quantitative outputs are for reference only and do not constitute investment advice.",
   /** resource props for the shared <ApiOffline> panel (rendered mid-sentence). */
   offlineUniverse: "asset universe metadata",
   offlineAnalytics: "analytics data",

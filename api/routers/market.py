@@ -25,6 +25,7 @@ from api.schemas import (
     RiskFreeRateResponse,
     UniverseResponse,
 )
+from src.agents.demo_mode import is_demo_mode
 from src.config import ASSET_UNIVERSE, BASE_CURRENCY, TRADING_DAYS_PER_YEAR
 from src.data.market_data import (
     compute_correlation_matrix,
@@ -178,12 +179,13 @@ def _build_analytics(tickers: list[str], period: str) -> dict:
 @router.get(
     "/universe",
     response_model=UniverseResponse,
-    summary="Static metadata for the full asset universe",
+    summary="Asset universe metadata and market data mode",
     openapi_extra={"x-access-scope": "shared"},
 )
 def get_universe() -> UniverseResponse:
     return UniverseResponse(
-        assets={ticker: AssetInfo(**info) for ticker, info in ASSET_UNIVERSE.items()}
+        assets={ticker: AssetInfo(**info) for ticker, info in ASSET_UNIVERSE.items()},
+        demo=is_demo_mode(),
     )
 
 

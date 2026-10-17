@@ -2,14 +2,14 @@
 
 Generalized from the 4b IPS task framework so other long computations
 (resampled MVO) can reuse it. There is still no Celery/Redis: tasks execute
-in-process and the live stream drains an asyncio.Queue, but every published
+in-process, with a separate asyncio.Queue for each subscriber. Every published
 event is mirrored to a ``TaskRecord`` row (api/db.py) so a finished task's
 SSE stream can be replayed after a server restart. Rows left 'running' by a
 shutdown are reconciled to 'failed' on boot (``reconcile_interrupted_tasks``).
 
 Every event carries a per-task ``seq`` counter, so the stream of a RUNNING
 task is reconnectable: a consumer that disconnected mid-task first replays
-the persisted log, then resumes the live queue, skipping queued events at or
+the persisted log, then resumes its live queue, skipping queued events at or
 below the max replayed seq — the full sequence, no gaps, no duplicates.
 
 All DB access opens a short session per call and resolves ``api.db.engine``
@@ -40,13 +40,13 @@ MAX_PERSISTED_EVENTS = 500
 class BackgroundTask:
     task_id: str
     kind: str  # "ips" / "optimize"
-    queue: asyncio.Queue = field(default_factory=asyncio.Queue)
+    _subscribers: set[asyncio.Queue] = field(default_factory=set, repr=False)
     status: str = "running"  # running / completed / failed
     meta: dict[str, Any] = field(default_factory=dict)
     _seq: int = 0  # per-task event counter, stamped by publish()
 
     async def publish(self, event: dict[str, Any]) -> None:
-        """Write the event through to the DB record, then to the live queue.
+        """Write the event through to the DB record, then to every subscriber.
 
         The event is stamped with ``seq`` (counting from 1) so reconnecting
         SSE consumers can dedupe the persisted replay against the live
@@ -56,7 +56,8 @@ class BackgroundTask:
         self._seq += 1
         sequenced = {"seq": self._seq, **event}
         _persist_event(self.task_id, sequenced)
-        await self.queue.put(sequenced)
+        for queue in self._subscribers:
+            queue.put_nowait(sequenced)
 
 
 class TaskRegistry:
@@ -201,32 +202,32 @@ def sse(payload: dict[str, Any]) -> str:
 async def stream_task_events(task: BackgroundTask) -> AsyncIterator[str]:
     """Stream a running task as SSE: persisted replay first, then live events.
 
-    Reconnect-safe. The persisted log is replayed in stored order (events
-    published before this consumer connected — including any an earlier
-    consumer already pulled off the live queue), then the live queue is
-    drained, skipping queued events whose seq is at or below the max
-    replayed seq. Events without a seq (persisted before seq existed) replay
-    normally and count as seq 0; seq-less queued events pass through
-    untouched.
+    Subscribe before reading the persisted log so events published during
+    replay reach this consumer's own queue. Overlapping connections cannot
+    take events from one another. Sequence numbers dedupe the replay and
+    live tail; persisted events without a seq still replay in stored order.
     """
-    max_seq = 0
-    for event in _read_persisted_events(task.task_id):
-        seq = event.get("seq")
-        if isinstance(seq, int):
-            max_seq = max(max_seq, seq)
-        yield sse(event)
-        if event.get("type") in ("done", "error"):
-            # The task finished between the registry check and this replay:
-            # every queued event was just replayed, so draining would hang.
-            return
-    while True:
-        event = await task.queue.get()
-        seq = event.get("seq")
-        if isinstance(seq, int) and seq <= max_seq:
-            continue  # already replayed from the store
-        yield sse(event)
-        if event.get("type") in ("done", "error"):
-            break
+    queue: asyncio.Queue = asyncio.Queue()
+    task._subscribers.add(queue)
+    try:
+        max_seq = 0
+        for event in _read_persisted_events(task.task_id):
+            seq = event.get("seq")
+            if isinstance(seq, int):
+                max_seq = max(max_seq, seq)
+            yield sse(event)
+            if event.get("type") in ("done", "error"):
+                return
+        while True:
+            event = await queue.get()
+            seq = event.get("seq")
+            if isinstance(seq, int) and seq <= max_seq:
+                continue  # already replayed from the store
+            yield sse(event)
+            if event.get("type") in ("done", "error"):
+                break
+    finally:
+        task._subscribers.discard(queue)
 
 
 async def replay_task_events(events: list[dict[str, Any]]) -> AsyncIterator[str]:
@@ -241,11 +242,10 @@ def task_events_stream(
     """Merged replay+live stream for running tasks; replay for terminal ones.
 
     Returns None when the task is unknown to both the registry and the
-    store. A running task yields its persisted log first, then live queue
+    store. A running task yields its persisted log first, then its own live queue
     events past the max replayed seq, so a reconnecting consumer sees the
     full sequence with no gaps or duplicates. A terminal in-memory task
-    replays from the store instead of the live queue — that queue was
-    drained by the first consumer and would hang any subsequent one.
+    replays from the store without creating a live subscription.
     ``locale`` only words the synthetic 'interrupted' replay event.
     """
     task = registry.get(task_id)

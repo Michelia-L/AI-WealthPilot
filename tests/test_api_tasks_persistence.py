@@ -146,6 +146,63 @@ def test_unknown_task_still_404(client):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("kind", ["ips", "optimize"])
+@pytest.mark.parametrize("terminal_type", ["done", "error"])
+def test_overlapping_consumers_receive_every_live_event(client, kind, terminal_type):
+    """A reconnect can overlap its previous connection; neither may steal events."""
+    registry = TaskRegistry()
+
+    async def scenario():
+        task = registry.create(kind, **task_owner())
+        await task.publish({"type": "node", "node": "fetch"})
+        ready = [asyncio.Event(), asyncio.Event()]
+
+        async def consume(started):
+            stream = task_events_stream(registry, task.task_id)
+            first = await anext(stream)
+            started.set()
+            return _parse_sse(first + "".join([chunk async for chunk in stream]))
+
+        consumers = [asyncio.create_task(consume(event)) for event in ready]
+        await asyncio.gather(*(event.wait() for event in ready))
+        await task.publish({"type": "node", "node": "solve"})
+        task.status = "completed" if terminal_type == "done" else "failed"
+        await task.publish({"type": terminal_type})
+        return await asyncio.wait_for(asyncio.gather(*consumers), timeout=1)
+
+    first, second = asyncio.run(scenario())
+    assert first == second
+    assert [event["seq"] for event in first] == [1, 2, 3]
+    assert [event["type"] for event in first] == ["node", "node", terminal_type]
+
+
+def test_cancelling_one_consumer_does_not_interrupt_another(client):
+    registry = TaskRegistry()
+
+    async def scenario():
+        task = registry.create("optimize", **task_owner())
+        await task.publish({"type": "node", "node": "fetch"})
+        streams = [task_events_stream(registry, task.task_id) for _ in range(2)]
+        for stream in streams:
+            await anext(stream)
+        pending = [asyncio.create_task(anext(stream)) for stream in streams]
+        await asyncio.sleep(0)  # Both consumers are waiting for the live tail.
+        pending[0].cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await pending[0]
+        task.status = "completed"
+        await task.publish({"type": "done", "result": {"ok": True}})
+        event = _parse_sse(await asyncio.wait_for(pending[1], timeout=1))[0]
+        await streams[1].aclose()
+        return event
+
+    assert asyncio.run(scenario()) == {
+        "seq": 2,
+        "type": "done",
+        "result": {"ok": True},
+    }
+
+
 def test_reconnecting_consumer_gets_full_stream(client):
     """Mid-task disconnect: the second consumer of a RUNNING task must see
     the complete ordered sequence — persisted replay, then the live tail —
@@ -219,8 +276,7 @@ def test_reconnect_after_completion_replays_full_sequence(client):
 
 
 def test_seqless_events_pass_through_untouched(client):
-    """Pre-seq events (rows/queue items written before seq existed) still
-    stream: replayed in stored order, counted as seq 0, never filtered."""
+    """Pre-seq persisted events still replay in stored order, never filtered."""
     registry = TaskRegistry()
 
     async def scenario():
@@ -229,14 +285,15 @@ def test_seqless_events_pass_through_untouched(client):
         with Session(db.engine) as session:
             record = session.get(TaskRecord, task.task_id)
             record.events_json = json.dumps(
-                [{"type": "node", "node": "generate", "label": "生成 IPS 初稿"}],
+                [
+                    {"type": "node", "node": "generate", "label": "生成 IPS 初稿"},
+                    {"type": "node", "node": "finalize", "label": "合规定稿"},
+                    {"type": "done", "success": True},
+                ],
                 ensure_ascii=False,
             )
             session.add(record)
             session.commit()
-        await task.queue.put({"type": "node", "node": "finalize", "label": "合规定稿"})
-        await task.queue.put({"type": "done", "success": True})
-
         stream = task_events_stream(registry, task.task_id)
         return _parse_sse("".join([chunk async for chunk in stream]))
 

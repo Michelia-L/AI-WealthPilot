@@ -236,6 +236,7 @@ export default function BLConfigPanel({
               <span className="flex items-center gap-2 text-xs text-mist-400">
                 {t.optimizer.confidence}
                 <Slider
+                  aria-label={t.optimizer.confidence}
                   value={v.confidence}
                   min={10}
                   max={100}
