@@ -1,9 +1,11 @@
 "use client";
 
+import { useId } from "react";
 import { cx } from "@/lib/cx";
 
 interface SliderProps {
   label?: string;
+  "aria-label"?: string;
   value: number;
   min: number;
   max: number;
@@ -16,6 +18,7 @@ interface SliderProps {
 /** 滑杆 —— 年龄、收益率、模拟次数等连续数值输入。 */
 export default function Slider({
   label,
+  "aria-label": ariaLabel,
   value,
   min,
   max,
@@ -24,18 +27,22 @@ export default function Slider({
   format,
   className,
 }: SliderProps) {
+  const inputId = useId();
   return (
     <div className={className}>
       {label && (
         <div className="mb-2 flex items-baseline justify-between">
-          <span className="text-xs text-mist-400">{label}</span>
+          <label htmlFor={inputId} className="text-xs text-mist-400">{label}</label>
           <span className="tnum font-mono text-sm text-gold-300">
             {format ? format(value) : value}
           </span>
         </div>
       )}
       <input
+        id={inputId}
         type="range"
+        aria-label={ariaLabel}
+        aria-valuetext={format?.(value)}
         value={value}
         min={min}
         max={max}

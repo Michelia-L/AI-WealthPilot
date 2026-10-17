@@ -101,7 +101,7 @@ export default async function MarketPage({ searchParams }: PageProps) {
       <SectionHeader
         eyebrow={alt.market.title}
         title={t.market.title}
-        description={t.market.description}
+        description={universe.demo ? t.market.demoDescription : t.market.description}
       />
 
       <DashboardControls
@@ -124,7 +124,7 @@ export default async function MarketPage({ searchParams }: PageProps) {
       </Suspense>
 
       <footer className="mt-auto border-t border-white/[0.06] pt-6 text-xs leading-5 text-mist-500">
-        {t.market.footerDisclaimer}
+        {universe.demo ? t.market.demoFooterDisclaimer : t.market.footerDisclaimer}
       </footer>
     </div>
   );

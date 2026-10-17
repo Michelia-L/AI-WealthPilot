@@ -9,6 +9,8 @@ export interface AssetInfo {
 
 export interface UniverseResponse {
   assets: Record<string, AssetInfo>;
+  /** Quotes and price history use synthetic demo data. */
+  demo: boolean;
 }
 
 export interface Quote {

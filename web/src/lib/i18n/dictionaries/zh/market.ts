@@ -14,8 +14,11 @@ const CME_ASSET_CLASS_NAMES: Record<string, string> = {
 export const market = {
   title: "市场仪表盘",
   description: "实时行情、跨资产相关性与资本市场预期（CME）。",
+  demoDescription: "演示模式使用合成报价与历史价格，展示跨资产分析和资本市场预期（CME）。",
   footerDisclaimer:
     "数据来源：Yahoo Finance（yfinance），实时行情缓存 5 分钟。量化输出仅供参考，不构成投资建议。",
+  demoFooterDisclaimer:
+    "报价与历史价格均为演示用合成数据，不代表真实市场表现。CME 的辅助输入仍可能使用外部数据源。量化输出仅供参考，不构成投资建议。",
   /** resource props for the shared <ApiOffline> panel (rendered mid-sentence). */
   offlineUniverse: "资产宇宙元数据",
   offlineAnalytics: "分析数据",
