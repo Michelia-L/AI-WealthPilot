@@ -25,7 +25,7 @@ openai==3.19.2
 langgraph==1.2.12
 langgraph-checkpoint==4.2.0
 pydantic-ai==2.53.0
-pydantic==2.13.5
+pydantic==2.14.1
 
 # Utilities
 python-dotenv==1.2.3
