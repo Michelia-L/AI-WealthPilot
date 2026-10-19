@@ -179,9 +179,12 @@ test("optimizer replay rejects a task handle copied into another client's scope"
   await page.getByRole("combobox", { name: "Current client", exact: true }).selectOption(String(clients[0].id));
   const response = await resumed;
   expect(response.status()).toBe(200);
-  expect(await response.text()).toContain('"type": "done"');
   await expect(page.getByText("Annualized Return", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Run Optimization" })).toBeEnabled();
+  // Chromium can discard the browser's SSE response body during the client switch.
+  const replay = await request.get(`${eventsPath}?context_profile_id=${clients[0].id}`);
+  expect(replay.status()).toBe(200);
+  expect(await replay.text()).toContain('"type": "done"');
 });
 
 test("advisor library isolates reports for same-named clients and clears old previews", async ({ page, request }) => {

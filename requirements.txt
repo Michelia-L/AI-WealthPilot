@@ -8,7 +8,7 @@
 
 # Core
 numpy==2.5.4
-pandas==3.0.5
+pandas==3.0.6
 scipy==1.18.1
 scikit-learn==1.9.1
 
@@ -19,7 +19,7 @@ yfinance==1.7.0
 plotly==7.1.0
 
 # AI / LLM (DeepSeek V4 Pro — OpenAI-compatible API)
-openai==3.19.2
+openai==3.26.0
 
 # Agent Orchestration — IPS Generator (LangGraph + PydanticAI)
 langgraph==1.2.12
