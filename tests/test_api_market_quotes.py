@@ -108,3 +108,11 @@ def test_universe_includes_vix(client):
     assert vix["category"] == "Volatility"
     assert vix["currency"] == "Index"
     assert vix["symbol"] == ""
+
+
+@pytest.mark.parametrize("demo", [False, True])
+def test_universe_discloses_market_demo_mode(client, monkeypatch, demo):
+    monkeypatch.setattr("src.config.DEMO_MODE", demo)
+    response = client.get("/api/market/universe")
+    assert response.status_code == 200
+    assert response.json()["demo"] is demo

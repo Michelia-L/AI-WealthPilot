@@ -76,7 +76,7 @@ export default function DashboardControls({
         ))}
       </div>
 
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex max-w-full flex-wrap items-center gap-3">
         <span className="text-[11px] font-medium tracking-[0.14em] text-mist-500 uppercase">
           {t.common.dashboard.window}
         </span>
@@ -85,8 +85,9 @@ export default function DashboardControls({
           options={PERIOD_OPTIONS}
           value={period}
           onChange={(v) => navigate(selectedCategories, v)}
+          className="max-w-full flex-wrap"
         />
-        <span className="text-xs text-mist-500">
+        <span className="text-xs whitespace-nowrap text-mist-500">
           {pending ? t.common.refreshing : t.common.dashboard.assetCount(assetCount)}
         </span>
       </div>
