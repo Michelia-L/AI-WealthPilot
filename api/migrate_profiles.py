@@ -34,6 +34,11 @@ def _record_from_file(filepath: Path) -> ProfileRecord | None:
         name = str(data.get("name") or "").strip()
         if not name:
             return None
+        if any(
+            isinstance(goal, dict) and goal.get("funding_budget") is not None
+            for goal in data.get("goals", []) or []
+        ):
+            _payload_from_stored(data)
         created = str(data.get("created_at") or "")
         updated = str(data.get("updated_at") or "") or created
         risk_level = str(data.get("risk_profile", {}).get("tolerance_level") or "")

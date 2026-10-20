@@ -16,7 +16,11 @@ from api.schemas import (
     ClientReportsResponse,
     ClientReportSummary,
 )
-from src.portfolio.goals import plan_goal_funding
+from src.portfolio.goals import (
+    MAX_PROJECTION_YEARS,
+    goal_allocation_method,
+    plan_goal_funding,
+)
 
 
 def report_summary(record: DocumentRecord) -> ClientReportSummary:
@@ -79,10 +83,14 @@ def portfolio(access: ClientAccess):
 def goals(access: ClientAccess):
     record = access.profile()
     profile = profile_from_data(record.data)
+    plans = plan_goal_funding(profile)
     return ClientGoalsResponse(
-        goals=[ClientGoal(**asdict(g)) for g in plan_goal_funding(profile)],
+        goals=[ClientGoal(**asdict(g)) for g in plans],
+        allocation_method=goal_allocation_method(plans),
         profile_updated_at=record.updated_at,
-        progress_explanation=msg("goals.funding_explanation", access.locale),
+        progress_explanation=msg(
+            "goals.funding_explanation", access.locale, max_years=MAX_PROJECTION_YEARS
+        ),
     )
 
 

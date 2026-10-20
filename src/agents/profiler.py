@@ -107,6 +107,14 @@ class FinancialSituation:
 
 
 @dataclass
+class GoalFundingBudget:
+    """Manual planning amounts, not actual goal account balances."""
+
+    allocated_assets: float
+    annual_contribution: float
+
+
+@dataclass
 class InvestmentGoal:
     """A single investment goal with target amount and time horizon."""
 
@@ -114,6 +122,12 @@ class InvestmentGoal:
     target_amount: float = 0.0
     years: int = 0
     priority: str = "medium"
+    funding_budget: GoalFundingBudget | None = None
+
+    def __post_init__(self):
+        # Restore nested budgets from both stored profiles and JSON imports.
+        if isinstance(self.funding_budget, dict):
+            self.funding_budget = GoalFundingBudget(**self.funding_budget)
 
 
 @dataclass

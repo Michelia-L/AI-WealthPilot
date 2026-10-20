@@ -50,7 +50,7 @@ with Session(db.engine) as session:
             goals=([
                 {"name": f"{name} retirement", "target_amount": 1500000, "years": 20, "priority": "high"},
                 *([
-                    {"name": "Alice education", "target_amount": 210000, "years": 7, "priority": "low"},
+                    {"name": "Alice education", "target_amount": 210000, "years": 7, "priority": "low", "funding_budget": {"allocated_assets": 105000, "annual_contribution": 15000}},
                     {"name": "Needs details"},
                 ] if name == "Alice" else []),
             ] if name != "Empty" else []),
@@ -180,6 +180,9 @@ test("goal funding budgets stay scoped and display planning coverage in both loc
   await expect(retirement).toContainText("315,000");
   await expect(retirement).toContainText("45,000");
   await expect(education).toContainText("Covered with planned savings at 0% return");
+  await expect(education).toContainText("Manually set");
+  await expect(education).toContainText("Years to target at 0% return");
+  await expect(page.getByRole("switch", { name: "Set a manual budget" })).toHaveCount(0);
   await expect(page.getByRole("article", { name: "Needs details" })).toContainText("Add a positive target");
   await expect(page.getByText("Planning estimates; actual balances", { exact: false })).toBeVisible();
   await expect(page.getByRole("main")).not.toContainText("Bob retirement");
@@ -191,6 +194,8 @@ test("goal funding budgets stay scoped and display planning coverage in both loc
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await expect(education).toContainText("按零收益及计划结余可覆盖");
+  await expect(education).toContainText("手动指定");
+  await expect(education).toContainText("零收益下的达标年限");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("goal-funding-mobile-zh.png"), fullPage: true });
 

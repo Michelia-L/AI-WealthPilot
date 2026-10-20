@@ -83,6 +83,37 @@ def test_recommendation_profile_not_found(client):
     assert client.get("/api/portfolio/recommendation?profile_id=999").status_code == 404
 
 
+def test_recommendation_uses_the_same_manual_goal_budgets_as_the_funding_plan(
+    client, fake_market
+):
+    payload = sample_payload()
+    payload["goals"][0]["funding_budget"] = {
+        "allocated_assets": 80_000,
+        "annual_contribution": 10_000,
+    }
+    payload["goals"].append(
+        {"name": "Education", "target_amount": 200_000, "years": 10, "priority": "low"}
+    )
+    profile_id = client.post("/api/profiles", json=payload).json()["id"]
+    plan = client.get(f"/api/profiles/{profile_id}/goals").json()
+    response = client.get(f"/api/portfolio/recommendation?profile_id={profile_id}")
+    assert response.status_code == 200
+    for funding, recommendation in zip(
+        plan["goals"], response.json()["goals"], strict=True
+    ):
+        assert (
+            recommendation["allocated_assets"]
+            == funding["progress"]["allocated_assets"]
+        )
+        assert (
+            recommendation["annual_contribution"]
+            == funding["progress"]["annual_contribution"]
+        )
+        assert recommendation["required_return"] == pytest.approx(
+            funding["progress"]["required_return"]
+        )
+
+
 def test_recommendation_en_locale_rationale(bare_client, fake_market):
     """Without an X-Locale header the rationale renders English-only."""
     profile_id = _create_profile(bare_client)

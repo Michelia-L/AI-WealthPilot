@@ -41,7 +41,11 @@ from src.agents.profiler import (
     compare_profiles,
     identify_behavioral_biases,
 )
-from src.portfolio.goals import plan_goal_funding
+from src.portfolio.goals import (
+    MAX_PROJECTION_YEARS,
+    goal_allocation_method,
+    plan_goal_funding,
+)
 
 router = APIRouter(
     prefix="/profiles", tags=["profiles"], dependencies=[Depends(staff_access)]
@@ -265,10 +269,14 @@ def get_profile_goals(
 ) -> ProfileGoalsResponse:
     record = access.profile(profile_id)
     locale = get_request_locale(request)
+    plans = plan_goal_funding(profile_from_data(record.data))
     return ProfileGoalsResponse(
-        goals=[asdict(g) for g in plan_goal_funding(profile_from_data(record.data))],
+        goals=[asdict(g) for g in plans],
+        allocation_method=goal_allocation_method(plans),
         profile_updated_at=record.updated_at,
-        progress_explanation=msg("goals.funding_explanation", locale),
+        progress_explanation=msg(
+            "goals.funding_explanation", locale, max_years=MAX_PROJECTION_YEARS
+        ),
     )
 
 

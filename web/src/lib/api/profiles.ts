@@ -28,6 +28,10 @@ export interface InvestmentGoalInput {
   target_amount: number;
   years: number;
   priority: "high" | "medium" | "low";
+  funding_budget?: {
+    allocated_assets: number;
+    annual_contribution: number;
+  } | null;
 }
 
 /** Editable payload for create/update — mirrors the API's ProfilePayload. */

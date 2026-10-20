@@ -17,8 +17,11 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from pydantic_core import PydanticCustomError
 
+from src.agents.profiler import ClientProfile, FinancialSituation, InvestmentGoal
 from src.portfolio.cme_models import CMEReport
+from src.portfolio.goals import GoalBudgetError, validate_goal_budgets
 
 
 class HealthResponse(BaseModel):
@@ -604,6 +607,8 @@ GOAL_PRIORITIES = ("high", "medium", "low")
 
 
 class FinancialSituationInput(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
+
     annual_income: float = Field(default=0.0, ge=0)
     annual_expenses: float = Field(default=0.0, ge=0)
     investable_assets: float = Field(default=0.0, ge=0)
@@ -611,11 +616,21 @@ class FinancialSituationInput(BaseModel):
     emergency_fund_months: float = Field(default=0.0, ge=0)
 
 
+class GoalFundingBudgetInput(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+
+    allocated_assets: float = Field(ge=0)
+    annual_contribution: float = Field(ge=0)
+
+
 class InvestmentGoalInput(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
+
     name: str = Field(default="", max_length=100)
     target_amount: float = Field(default=0.0, ge=0)
     years: int = Field(default=0, ge=0, le=80)
     priority: Literal["high", "medium", "low"] = "medium"
+    funding_budget: GoalFundingBudgetInput | None = None
 
 
 class RiskScoresInput(BaseModel):
@@ -646,6 +661,21 @@ class ProfilePayload(BaseModel):
     risk_scores: RiskScoresInput = Field(default_factory=RiskScoresInput)
     ability_answers: dict[str, str] = Field(default_factory=dict)
     willingness_answers: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def valid_goal_budgets(self):
+        if any(g.funding_budget is not None for g in self.goals):
+            profile = ClientProfile(
+                financial=FinancialSituation(**self.financial.model_dump()),
+                goals=[InvestmentGoal(**g.model_dump()) for g in self.goals],
+            )
+            try:
+                validate_goal_budgets(profile)
+            except GoalBudgetError as exc:
+                raise PydanticCustomError(
+                    exc.code, "Invalid goal funding budget"
+                ) from None
+        return self
 
 
 class ProfileSummary(BaseModel):
@@ -1191,10 +1221,10 @@ class GoalFeasibility(BaseModel):
     years: int
     target_amount: float
     allocated_assets: float = Field(
-        description="This goal's priority-weighted share of investable assets"
+        description="This goal's manual or priority-weighted planning asset budget"
     )
     annual_contribution: float = Field(
-        description="This goal's priority-weighted share of annual savings"
+        description="This goal's manual or priority-weighted annual savings budget"
     )
     required_return: float = Field(
         description="Annual return this goal requires, solved from "
@@ -1217,6 +1247,13 @@ class GoalFundingProgress(BaseModel):
     required_return: float | None = Field(
         description="Required annual nominal growth; null when the solver cannot fund it"
     )
+    allocation_method: Literal["priority_weighted", "manual"]
+    years_to_target_at_zero_return: int | None = Field(
+        ge=0,
+        le=80,
+        description="Year-ends needed at 0% nominal return with constant contributions; "
+        "0 means already covered, null means not covered within 80 years",
+    )
     status: Literal[
         "covered", "covered_with_savings", "growth_required", "needs_funding"
     ]
@@ -1234,7 +1271,9 @@ class GoalFundingPlan(BaseModel):
 
 class ProfileGoalsResponse(BaseModel):
     goals: list[GoalFundingPlan]
-    allocation_method: Literal["priority_weighted"] = "priority_weighted"
+    allocation_method: Literal["priority_weighted", "manual", "mixed"] = (
+        "priority_weighted"
+    )
     profile_updated_at: str
     progress_explanation: str
 
@@ -1409,7 +1448,9 @@ class ClientGoal(ClientDTO):
 
 class ClientGoalsResponse(ClientDTO):
     goals: list[ClientGoal]
-    allocation_method: Literal["priority_weighted"] = "priority_weighted"
+    allocation_method: Literal["priority_weighted", "manual", "mixed"] = (
+        "priority_weighted"
+    )
     profile_updated_at: str
     progress_explanation: str
 
