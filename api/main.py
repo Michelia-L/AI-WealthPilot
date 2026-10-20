@@ -173,6 +173,21 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):
+        for error in exc.errors():
+            code = error["type"]
+            if code.startswith("goals.budget_") or "funding_budget" in error["loc"]:
+                # Model-level errors can contain the entire submitted profile.
+                return JSONResponse(
+                    status_code=422,
+                    content={
+                        "detail": msg(
+                            code
+                            if code.startswith("goals.budget_")
+                            else "goals.budget_invalid",
+                            get_request_locale(request),
+                        )
+                    },
+                )
         if request.url.path.startswith(
             (
                 "/api/auth/",

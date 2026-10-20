@@ -35,7 +35,7 @@ Python 提供量化计算，LangGraph 编排 IPS 生成与审查，Next.js 界�
 
 登录工作站时，演示模式选择“体验演示”。Live 模式先运行 `docker compose exec api python -m api.create_user --local-admin` 创建本地管理员，再登录配置模型。业务 API 已要求会话及组织／客户权限；升级后的访问规则见 [API 访问说明](docs/api-access.md)，旧产物归属与迁移步骤见 [资源归属说明](docs/resource-ownership.md)。
 
-顾问和管理员进入顾问控制台；已关联客户的账户在客户角色工作区进入 `/client` [客户门户](docs/client-portal.md)，查看自己的画像、目标、已发布文档，并使用客户 AI 助手。目标卡片展示按优先级分配的规划预算、资金覆盖率与所需收益率。实际目标余额、投资收益及目标预测仍无数据。
+顾问和管理员进入顾问控制台；已关联客户的账户在客户角色工作区进入 `/client` [客户门户](docs/client-portal.md)，查看自己的画像、目标、已发布文档，并使用客户 AI 助手。顾问可手动指定目标预算，其余目标按优先级分配剩余资金。目标卡片展示规划覆盖率、所需收益率和零收益下的达标年限。实际目标余额、投资收益及达成概率仍无数据。
 
 ### 用 Docker Compose 启动演示
 

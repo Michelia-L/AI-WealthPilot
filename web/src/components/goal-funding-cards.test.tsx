@@ -16,6 +16,8 @@ const goal: GoalFundingPlan = {
     funding_ratio: 0.5,
     funding_gap: 100_000,
     required_return: 0.03,
+    allocation_method: "priority_weighted",
+    years_to_target_at_zero_return: 20,
     status: "growth_required",
   },
 };
@@ -32,6 +34,8 @@ it("shows backend budgets, required growth and accessible coverage for each goal
   expect(cards).toHaveLength(2);
   expect(within(cards[0]).getByText("Planning budget")).toBeVisible();
   expect(within(cards[0]).getByText("3.00%")).toBeVisible();
+  expect(within(cards[0]).getByText("Priority weighted")).toBeVisible();
+  expect(within(cards[0]).getByText("20 years")).toBeVisible();
   expect(within(cards[0]).getByText("Investment growth required")).toBeVisible();
   expect(within(cards[0]).getByRole("progressbar")).toHaveAttribute("aria-valuenow", "50");
   expect(within(cards[1]).getByText(en.goalTracking.incomplete)).toBeVisible();
@@ -41,7 +45,7 @@ it("shows backend budgets, required growth and accessible coverage for each goal
 it("caps the bar at 100% while retaining an overfunded planning ratio", () => {
   render(
     <GoalFundingCards
-      goals={[{ ...goal, progress: { ...goal.progress!, funding_ratio: 1.5, status: "covered" } }]}
+      goals={[{ ...goal, progress: { ...goal.progress!, funding_ratio: 1.5, status: "covered", allocation_method: "manual", years_to_target_at_zero_return: 0 } }]}
       t={en.goalTracking}
     />,
   );
@@ -50,6 +54,8 @@ it("caps the bar at 100% while retaining an overfunded planning ratio", () => {
   expect(bar).toHaveAttribute("aria-valuetext", "150.0%");
   expect(bar.firstChild).toHaveStyle({ width: "100%" });
   expect(screen.getByText("150.0%")).toBeVisible();
+  expect(screen.getByText("Manually set")).toBeVisible();
+  expect(screen.getByText("Already covered")).toBeVisible();
 });
 
 it("distinguishes an unsolved required return from zero and localizes its state", () => {
@@ -57,13 +63,14 @@ it("distinguishes an unsolved required return from zero and localizes its state"
     <GoalFundingCards
       goals={[{
         ...goal,
-        progress: { ...goal.progress!, funding_ratio: 0, required_return: null, status: "needs_funding" },
+        progress: { ...goal.progress!, funding_ratio: 0, required_return: null, status: "needs_funding", years_to_target_at_zero_return: null },
       }]}
       t={zh.goalTracking}
     />,
   );
   expect(screen.getByText("计算范围内无法满足目标")).toBeVisible();
   expect(screen.getByText("需复核资金与目标")).toBeVisible();
+  expect(screen.getByText("测算年限内未覆盖")).toBeVisible();
   expect(screen.getByRole("progressbar")).toHaveAccessibleName("Education · 规划资金覆盖率");
   expect(screen.queryByText("0.00%")).not.toBeInTheDocument();
 });

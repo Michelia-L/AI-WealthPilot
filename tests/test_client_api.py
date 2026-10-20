@@ -182,6 +182,29 @@ def test_client_goals_need_no_published_plan_or_market_access(workspace, monkeyp
     assert "不代表实际账户余额" in zh["progress_explanation"]
 
 
+def test_manual_goal_budget_changes_flow_to_the_clients_own_read_only_plan(workspace):
+    client, _, _, profiles, _, headers = workspace
+    from tests.test_api_profiles import sample_payload
+
+    payload = sample_payload()
+    payload["goals"][0]["funding_budget"] = {
+        "allocated_assets": 100_000,
+        "annual_contribution": 25_000,
+    }
+    url = f"/api/profiles/{profiles['own']}"
+    assert client.put(url, json=payload, headers=headers("advisor")).status_code == 200
+    advisor = client.get(f"{url}/goals", headers=headers("advisor")).json()
+    own = client.get("/api/me/goals", headers=headers("client")).json()
+    assert own == advisor
+    assert own["allocation_method"] == "manual"
+    assert own["goals"][0]["progress"]["years_to_target_at_zero_return"] == 76
+    assert client.put(url, json=payload, headers=headers("client")).status_code == 403
+    assert (
+        client.put("/api/me/goals", json=payload, headers=headers("client")).status_code
+        == 405
+    )
+
+
 def test_revoked_or_demoted_advisor_not_returned(workspace):
     client, _, _, _, _, headers = workspace
     with Session(db.engine) as session:

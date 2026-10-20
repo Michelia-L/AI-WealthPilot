@@ -18,6 +18,7 @@ from src.agents.profiler import (
     RISK_WILLINGNESS_QUESTIONS,
     ClientProfile,
     FinancialSituation,
+    GoalFundingBudget,
     InvestmentGoal,
     RiskProfile,
     assess_risk,
@@ -312,6 +313,17 @@ class TestClientProfile:
 
 
 class TestProfilePersistence:
+    def test_manual_goal_budget_round_trip_and_legacy_defaults(self, sample_profile):
+        sample_profile.goals[0].funding_budget = GoalFundingBudget(80_000, 10_000)
+        path = save_profile(sample_profile)
+        loaded = load_profile(path)
+        assert loaded.goals[0].funding_budget == GoalFundingBudget(80_000, 10_000)
+        data = json.loads(path.read_text())
+        for goal in data["goals"]:
+            goal.pop("funding_budget", None)
+        path.write_text(json.dumps(data))
+        assert all(goal.funding_budget is None for goal in load_profile(path).goals)
+
     def test_save_and_load(self, sample_profile):
         """Saved profile should be loadable and match original."""
         filepath = save_profile(sample_profile)

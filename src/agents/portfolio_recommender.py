@@ -55,8 +55,8 @@ class PortfolioRecommendation:
     goal_required_return: Optional[float] = None
     # Per-goal feasibility detail (name, priority, years, target_amount,
     # allocated_assets, annual_contribution, required_return, status),
-    # ordered by priority. Capital and ongoing savings are split across
-    # goals proportionally to priority rank.
+    # ordered by priority. Manual budgets reserve capital and ongoing savings;
+    # remaining funding is split proportionally to priority rank.
     goal_details: list = field(default_factory=list)
 
 
@@ -219,9 +219,8 @@ def recommend_portfolio(
     # risk-budget portfolio stands and the shortfall is surfaced through
     # goal_status instead of silently raising the client's risk exposure.
     #
-    # Investable assets and ongoing savings (income − expenses) are split
-    # across goals proportionally to priority rank (high=3, medium=2, low=1)
-    # — a documented heuristic giving high-priority goals more funding weight.
+    # Manual goal budgets reserve investable assets and ongoing savings first.
+    # Other goals split the remainder by priority rank (high=3, medium=2, low=1).
     # Each goal's required return is solved with the contribution-aware TVM
     # equation, so regular savings lower the required return.
     goal_status = ""
@@ -453,7 +452,7 @@ def _generate_rationale(
             )
 
         # Multi-goal breakdown: every evaluable goal gets its own required
-        # return (on its priority-weighted share of capital and savings) and
+        # return (on its manual or priority-weighted funding budget) and
         # its own feasibility status.
         if goal_details and len(goal_details) > 1:
             _STATUS_LABELS = {

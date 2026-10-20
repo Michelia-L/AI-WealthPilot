@@ -79,8 +79,24 @@ _MESSAGES: dict[str, dict[str, dict[str, str]]] = {
     },
     "goals": {
         "funding_explanation": {
-            "en": "Planning budgets split recorded investable assets and positive annual savings across goals with a positive target and time horizon, using priority weights high 3, medium 2, low 1. Coverage is each budget divided by its nominal target, not an actual account balance or investment return. Required returns assume constant end-of-year contributions, without inflation, tax or fees. Budgets are recalculated when the profile changes; actual goal balances and contributions are not tracked.",
-            "zh": "规划预算按高、中、低优先级 3∶2∶1，将已记录的可投资资产和正年度结余分配给目标金额与期限均大于零的目标。覆盖率为各目标预算除以名义目标金额，不代表实际账户余额或投资收益。所需收益率假设每年年末等额投入，未考虑通胀、税费。画像变化后预算会重新计算；系统尚未记录各目标的实际余额与投入。",
+            "en": "Manual budgets reserve recorded investable assets and positive annual savings first. The remainder is split across other complete goals using priority weights high 3, medium 2, low 1. Unassigned funds remain unallocated when all goals use manual budgets. Coverage is each budget divided by its nominal target, not an actual account balance or investment return. Required returns assume constant end-of-year contributions, without inflation, tax or fees. Years to target use the same contributions at 0% nominal return, up to {max_years} years; this is a planning scenario, not a market forecast. Budgets are recalculated when the profile changes; actual goal balances and contributions are not tracked.",
+            "zh": "先从已记录的可投资资产和正年度结余中预留手动预算，剩余资金按高、中、低优先级 3∶2∶1 分配给其他金额与期限完整的目标。全部采用手动预算时，未分配资金保留在目标之外。覆盖率为各目标预算除以名义目标金额，不代表实际账户余额或投资收益。所需收益率假设每年年末等额投入，未考虑通胀、税费。达标年限按同样的投入和零名义收益测算，最长 {max_years} 年，属于规划情景。画像变化后预算会重新计算；系统尚未记录各目标的实际余额与投入。",
+        },
+        "budget_incomplete": {
+            "en": "Add a positive target amount and time horizon before setting a manual budget.",
+            "zh": "设置手动预算前，请补充大于零的目标金额和期限。",
+        },
+        "budget_invalid": {
+            "en": "Enter finite, nonnegative amounts for both manual budget fields.",
+            "zh": "请为手动预算的两项金额填写有限的非负数值。",
+        },
+        "budget_exceeds_assets": {
+            "en": "Total manual planning budgets exceed the recorded investable assets. Adjust the budgets or financial information.",
+            "zh": "手动资金预算合计超过已记录的可投资资产，请调整预算或财务信息。",
+        },
+        "budget_exceeds_savings": {
+            "en": "Total manual annual contributions exceed positive annual savings. Adjust the budgets or financial information.",
+            "zh": "手动年度投入合计超过正年度结余，请调整预算或财务信息。",
         },
     },
     "documents": {

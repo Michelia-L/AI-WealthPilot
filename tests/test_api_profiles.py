@@ -158,6 +158,98 @@ def test_goal_funding_missing_invalid_and_empty_profiles(client):
     assert client.get(f"/api/profiles/{created['id']}/goals").json()["goals"] == []
 
 
+def test_manual_goal_budgets_persist_recalculate_and_can_return_to_automatic(client):
+    payload = sample_payload()
+    payload["goals"][0]["funding_budget"] = {
+        "allocated_assets": 80_000,
+        "annual_contribution": 10_000,
+    }
+    payload["goals"].append(
+        {"name": "Education", "target_amount": 200_000, "years": 10}
+    )
+    created = client.post("/api/profiles", json=payload)
+    assert created.status_code == 201
+    stored = created.json()
+    url = f"/api/profiles/{stored['id']}"
+    assert (
+        stored["profile"]["goals"][0]["funding_budget"]
+        == payload["goals"][0]["funding_budget"]
+    )
+    plan = client.get(f"{url}/goals").json()
+    assert plan["allocation_method"] == "mixed"
+    assert plan["goals"][0]["progress"]["allocation_method"] == "manual"
+    assert plan["goals"][1]["progress"]["allocated_assets"] == 120_000
+    assert plan["goals"][1]["progress"]["annual_contribution"] == 30_000
+    assert plan["goals"][1]["progress"]["years_to_target_at_zero_return"] == 3
+
+    payload["financial"]["investable_assets"] = 400_000
+    assert client.put(url, json=payload).status_code == 200
+    plan = client.get(f"{url}/goals").json()
+    assert plan["goals"][0]["progress"]["allocated_assets"] == 80_000
+    assert plan["goals"][1]["progress"]["allocated_assets"] == 320_000
+    payload["goals"][0]["funding_budget"] = None
+    assert client.put(url, json=payload).status_code == 200
+    assert client.get(f"{url}/goals").json()["allocation_method"] == "priority_weighted"
+
+
+@pytest.mark.parametrize("locale,marker", [("en", "exceed"), ("zh", "超过")])
+@pytest.mark.parametrize(
+    "field,value", [("allocated_assets", 200_001), ("annual_contribution", 40_001)]
+)
+def test_oversubscribed_manual_budgets_fail_without_echoing_profile(
+    client, locale, marker, field, value
+):
+    payload = sample_payload(notes="PRIVATE_PROFILE_MARKER")
+    payload["goals"][0]["funding_budget"] = {
+        "allocated_assets": 0,
+        "annual_contribution": 0,
+        field: value,
+    }
+    response = client.post("/api/profiles", json=payload, headers={"X-Locale": locale})
+    assert response.status_code == 422
+    assert marker in response.json()["detail"]
+    assert "PRIVATE_PROFILE_MARKER" not in response.text
+    assert client.get("/api/profiles").json()["profiles"] == []
+
+
+@pytest.mark.parametrize(
+    "budget",
+    [
+        {"allocated_assets": -1, "annual_contribution": 0},
+        {"allocated_assets": 0},
+        {"allocated_assets": "NaN", "annual_contribution": 0},
+        {"allocated_assets": 0, "annual_contribution": "Infinity"},
+    ],
+)
+def test_malformed_manual_budget_errors_are_localized_and_redacted(client, budget):
+    payload = sample_payload(notes="PRIVATE_PROFILE_MARKER")
+    payload["goals"][0]["funding_budget"] = budget
+    response = client.post("/api/profiles", json=payload, headers={"X-Locale": "zh"})
+    assert response.status_code == 422
+    assert "手动预算" in response.json()["detail"]
+    assert "PRIVATE_PROFILE_MARKER" not in response.text
+
+
+def test_lowering_financial_resources_rejects_overallocated_budget_without_mutation(
+    client,
+):
+    payload = sample_payload()
+    payload["goals"][0]["funding_budget"] = {
+        "allocated_assets": 100_000,
+        "annual_contribution": 20_000,
+    }
+    created = client.post("/api/profiles", json=payload).json()
+    url = f"/api/profiles/{created['id']}"
+    payload["financial"]["investable_assets"] = 99_999
+    assert client.put(url, json=payload).status_code == 422
+    assert client.get(url).json() == created
+    payload["financial"]["investable_assets"] = 200_000
+    payload["goals"][0]["years"] = 0
+    response = client.put(url, json=payload, headers={"X-Locale": "en"})
+    assert response.status_code == 422
+    assert "time horizon" in response.json()["detail"]
+
+
 def test_validation_rejects_bad_payload(client):
     assert client.post("/api/profiles", json=sample_payload(name="")).status_code == 422
     assert client.post("/api/profiles", json=sample_payload(age=10)).status_code == 422
@@ -490,6 +582,50 @@ def test_upload_single_profile(client):
     assert [p["name"] for p in profiles] == ["Upload One"]
     detail = client.get(f"/api/profiles/{profiles[0]['id']}").json()
     assert detail["created_at"] == "2026-06-01T10:00:00"
+
+
+@pytest.mark.parametrize("source", ["upload", "directory"])
+def test_profile_imports_preserve_valid_manual_budgets_and_reject_oversubscription(
+    client, isolate_storage_dirs, source
+):
+    goal = {
+        "name": "Education",
+        "target_amount": 200_000,
+        "years": 10,
+        "funding_budget": {"allocated_assets": 80_000, "annual_contribution": 10_000},
+    }
+    valid = _legacy_dict("Valid budget", "2026-06-01", goals=[goal])
+    invalid = _legacy_dict(
+        "Invalid budget",
+        "2026-06-01",
+        goals=[
+            {
+                **goal,
+                "funding_budget": {
+                    "allocated_assets": 200_001,
+                    "annual_contribution": 0,
+                },
+            },
+        ],
+    )
+    if source == "upload":
+        result = _upload(
+            client,
+            [{"filename": "budgets.json", "content": json.dumps([valid, invalid])}],
+        ).json()
+        assert result["invalid"] == ["budgets.json[1]"]
+    else:
+        profiles_dir, _ = isolate_storage_dirs
+        for filename, data in (("valid.json", valid), ("invalid.json", invalid)):
+            (profiles_dir / filename).write_text(json.dumps(data))
+        result = client.post("/api/profiles/import").json()
+        assert result["skipped"] == 1
+    assert result["imported"] == 1
+    profiles = client.get("/api/profiles").json()["profiles"]
+    assert len(profiles) == 1
+    plan = client.get(f"/api/profiles/{profiles[0]['id']}/goals").json()
+    assert plan["allocation_method"] == "manual"
+    assert plan["goals"][0]["progress"]["allocated_assets"] == 80_000
 
 
 def test_upload_array_file_and_idempotency(client):

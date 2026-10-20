@@ -78,6 +78,9 @@ export default function GoalFundingCards({
                       />
                     </div>
                     <dl className="mt-4 space-y-3 text-sm">
+                      <Metric label={t.budgetSource}>
+                        {t.budgetSources[progress.allocation_method]}
+                      </Metric>
                       <Metric label={t.budget}>
                         {fmtMoney(progress.allocated_assets, "")}
                       </Metric>
@@ -91,6 +94,13 @@ export default function GoalFundingCards({
                         {progress.required_return === null
                           ? t.unsolvedReturn
                           : fmtPct(progress.required_return, 2)}
+                      </Metric>
+                      <Metric label={t.zeroReturnYears}>
+                        {progress.years_to_target_at_zero_return === null
+                          ? t.beyondProjectionRange
+                          : progress.years_to_target_at_zero_return === 0
+                            ? t.alreadyCovered
+                            : t.years(progress.years_to_target_at_zero_return)}
                       </Metric>
                     </dl>
                   </div>

@@ -223,51 +223,90 @@ export default function ProfileForm({
         {form.goals.length === 0 && (
           <p className="mt-4 text-xs text-mist-500">{t.profiles.noGoalsYet}</p>
         )}
+        {form.goals.length > 0 && (
+          <p className="mt-4 text-xs leading-6 text-mist-400">{t.goalTracking.budgetHelp}</p>
+        )}
         <div className="mt-4 space-y-3">
           {form.goals.map((g, i) => (
-            <div
+            <fieldset
               key={i}
-              className="grid items-end gap-3 md:grid-cols-[2fr_1fr_1fr_1fr_auto]"
+              className="min-w-0 rounded-lg border border-white/[0.06] p-4"
             >
-              <Field label={i === 0 ? t.profiles.fieldGoalName : undefined}>
-                <Input
-                  value={g.name}
-                  placeholder={t.profiles.goalNamePlaceholder}
-                  onChange={(e) => setGoal(i, "name", e.target.value)}
+              <legend className="px-2 text-xs text-mist-400">
+                {t.goalTracking.goalNumber(i + 1)}
+              </legend>
+              <div className="grid items-end gap-3 md:grid-cols-[2fr_1fr_1fr_1fr_auto]">
+                <Field label={t.profiles.fieldGoalName}>
+                  <Input
+                    value={g.name}
+                    placeholder={t.profiles.goalNamePlaceholder}
+                    onChange={(e) => setGoal(i, "name", e.target.value)}
+                  />
+                </Field>
+                <NumField
+                  label={t.profiles.fieldTargetAmount}
+                  value={g.target_amount}
+                  step={100000}
+                  onChange={(v) => setGoal(i, "target_amount", v)}
                 />
-              </Field>
-              <NumField
-                label={i === 0 ? t.profiles.fieldTargetAmount : undefined}
-                value={g.target_amount}
-                step={100000}
-                onChange={(v) => setGoal(i, "target_amount", v)}
-              />
-              <NumField
-                label={i === 0 ? t.profiles.fieldYears : undefined}
-                value={g.years}
-                max={80}
-                onChange={(v) => setGoal(i, "years", v)}
-              />
-              <Field label={i === 0 ? t.profiles.fieldPriority : undefined}>
-                <Segmented
+                <NumField
+                  label={t.profiles.fieldYears}
+                  value={g.years}
+                  max={80}
+                  onChange={(v) => setGoal(i, "years", v)}
+                />
+                <Field label={t.profiles.fieldPriority}>
+                  <Segmented
+                    size="sm"
+                    value={g.priority}
+                    options={GOAL_PRIORITY_OPTIONS.map((o) => ({
+                      value: o.value,
+                      label: t.profiles.priorityShort(o.value),
+                    }))}
+                    onChange={(v) => setGoal(i, "priority", v)}
+                  />
+                </Field>
+                <Button
+                  variant="ghost"
                   size="sm"
-                  value={g.priority}
-                  options={GOAL_PRIORITY_OPTIONS.map((o) => ({
-                    value: o.value,
-                    label: t.profiles.priorityShort(o.value),
-                  }))}
-                  onChange={(v) => setGoal(i, "priority", v)}
+                  icon="trash"
+                  aria-label={t.profiles.deleteGoalAria}
+                  className="hover:text-cinnabar-300"
+                  onClick={() => set("goals", form.goals.filter((_, j) => j !== i))}
                 />
-              </Field>
-              <Button
-                variant="ghost"
-                size="sm"
-                icon="trash"
-                aria-label={t.profiles.deleteGoalAria}
-                className="hover:text-cinnabar-300"
-                onClick={() => set("goals", form.goals.filter((_, j) => j !== i))}
-              />
-            </div>
+              </div>
+              <div className="mt-4">
+                <Toggle
+                  checked={g.funding_budget != null}
+                  label={t.goalTracking.manualBudget}
+                  onChange={(enabled) => setGoal(i, "funding_budget",
+                    enabled ? { allocated_assets: 0, annual_contribution: 0 } : null
+                  )}
+                />
+              </div>
+              {g.funding_budget && (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <NumField
+                    label={t.goalTracking.budget}
+                    value={g.funding_budget.allocated_assets}
+                    step={1000}
+                    onChange={(value) => setGoal(i, "funding_budget", {
+                      ...g.funding_budget!,
+                      allocated_assets: value,
+                    })}
+                  />
+                  <NumField
+                    label={t.goalTracking.annualContribution}
+                    value={g.funding_budget.annual_contribution}
+                    step={1000}
+                    onChange={(value) => setGoal(i, "funding_budget", {
+                      ...g.funding_budget!,
+                      annual_contribution: value,
+                    })}
+                  />
+                </div>
+              )}
+            </fieldset>
           ))}
         </div>
       </Panel>
@@ -350,7 +389,7 @@ export default function ProfileForm({
               : t.profiles.createProfile}
         </Button>
         {error && (
-          <span className="flex items-center gap-1.5 text-sm text-cinnabar-400">
+          <span role="alert" className="flex items-center gap-1.5 text-sm text-cinnabar-400">
             <Icon name="warning" size={14} />
             {error}
           </span>

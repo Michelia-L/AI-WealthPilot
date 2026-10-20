@@ -39,7 +39,7 @@ export interface ClientGoal {
 }
 export interface ClientGoals {
   goals: ClientGoal[];
-  allocation_method: "priority_weighted";
+  allocation_method: "priority_weighted" | "manual" | "mixed";
   profile_updated_at: string;
   progress_explanation: string;
 }

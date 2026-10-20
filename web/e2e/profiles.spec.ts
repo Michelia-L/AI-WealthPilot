@@ -71,3 +71,64 @@ test("advisor goal budgets recalculate after a profile edit and localize on relo
     expect((await request.delete(`/api/profiles/${id}`)).status()).toBe(204);
   }
 });
+
+test("manual goal budgets validate, persist and return to priority allocation", async ({ page, request }, testInfo) => {
+  const payload = {
+    name: `Manual Goal E2E ${Date.now()}`, age: 40,
+    financial: { investable_assets: 400_000, annual_income: 100_000, annual_expenses: 60_000 },
+    goals: [
+      { name: "Manual retirement", target_amount: 2_000_000, years: 25, priority: "high" },
+      { name: "Manual education", target_amount: 200_000, years: 10, priority: "low" },
+    ],
+  };
+  const created = await request.post("/api/profiles", { data: payload });
+  expect(created.status()).toBe(201);
+  const { id } = await created.json();
+  try {
+    await page.goto(`/profiles?edit=${id}`);
+    const goal = page.getByRole("group", { name: "Goal 2", exact: true });
+    await goal.getByRole("switch", { name: "Set a manual budget" }).click();
+    await goal.getByLabel("Planning budget", { exact: true }).fill("400001");
+    await goal.getByLabel("Annual contribution budget").fill("15000");
+    const rejected = page.waitForResponse((r) => r.url().endsWith(`/api/profiles/${id}`) && r.request().method() === "PUT");
+    await page.getByRole("button", { name: "Save Changes" }).click();
+    expect((await rejected).status()).toBe(422);
+    await expect(page.getByRole("main").getByRole("alert")).toContainText("exceed the recorded investable assets");
+    await goal.getByLabel("Planning budget", { exact: true }).fill("80000");
+    const saved = page.waitForResponse((r) => r.url().endsWith(`/api/profiles/${id}`) && r.request().method() === "PUT");
+    await page.getByRole("button", { name: "Save Changes" }).click();
+    expect((await saved).status()).toBe(200);
+    await expect(page.getByRole("link", { name: payload.name })).toBeVisible();
+
+    await page.goto(`/profiles/${id}`);
+    const education = page.getByRole("article", { name: "Manual education" });
+    await expect(education).toContainText("Manually set");
+    await expect(education).toContainText("8 years");
+    await expect(education.getByRole("progressbar")).toHaveAttribute("aria-valuetext", "40.0%");
+    await expect(page.getByRole("article", { name: "Manual retirement" })).toContainText("320,000");
+    await page.reload();
+    await expect(education).toContainText("Manually set");
+
+    await page.getByRole("button", { name: "中文", exact: true }).click();
+    await expect(education).toContainText("手动指定");
+    await expect(education).toContainText("零收益下的达标年限");
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await education.screenshot({ path: testInfo.outputPath("manual-goal-mobile-zh.png") });
+
+    await page.goto(`/profiles?edit=${id}`);
+    const edited = page.getByRole("group", { name: "目标 2", exact: true });
+    await expect(edited.getByLabel("规划资金预算", { exact: true })).toHaveValue("80000");
+    await edited.screenshot({ path: testInfo.outputPath("manual-goal-editor-mobile-zh.png") });
+    await edited.getByRole("switch", { name: "手动设置预算" }).click();
+    const reset = page.waitForResponse((r) => r.url().endsWith(`/api/profiles/${id}`) && r.request().method() === "PUT");
+    await page.getByRole("button", { name: "保存修改" }).click();
+    expect((await reset).status()).toBe(200);
+    await page.goto(`/profiles/${id}`);
+    await expect(education).toContainText("按优先级分配");
+    await expect(education.getByRole("progressbar")).toHaveAttribute("aria-valuetext", "50.0%");
+    await expect(education.getByText("零收益下的达标年限", { exact: true }).locator("..").locator("dd")).toHaveText("10 年");
+  } finally {
+    expect((await request.delete(`/api/profiles/${id}`)).status()).toBe(204);
+  }
+});
