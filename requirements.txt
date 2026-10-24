@@ -28,7 +28,7 @@ pydantic-ai==2.56.0
 pydantic==2.14.1
 
 # Utilities
-python-dotenv==1.2.3
+python-dotenv==1.2.4
 requests==2.34.2  # >= 2.33.0 fixes PYSEC-2026-2275 (pip-audit finding)
 markdown==3.11
 nh3==0.3.7  # HTML sanitizer for LLM-generated report content (XSS prevention)
